@@ -1,0 +1,20 @@
+[package]
+name = "violet"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flax = { git = "https://github.com/ten3roberts/flax", version = "0.4.0" }
+
+glam = { version = "0.24" }
+futures = "0.3"
+flume = "0.10"
+parking_lot = "0.12"
+slotmap = "1.0"
+
+
+tracing-subscriber = "0.3"
+tracing = "0.1"
+pin-project = "1.1"
