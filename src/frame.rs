@@ -2,8 +2,11 @@ use std::ops::{Deref, DerefMut};
 
 use flax::World;
 
+use crate::Spawner;
+
 pub struct Frame {
-    world: World,
+    pub world: World,
+    pub spawner: Spawner<Self>,
 }
 
 impl Deref for Frame {

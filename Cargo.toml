@@ -13,6 +13,10 @@ futures = "0.3"
 flume = "0.10"
 parking_lot = "0.12"
 slotmap = "1.0"
+anyhow = "1.0"
+
+winit = "0.28"
+wgpu = { version = "0.16" }
 
 
 tracing-subscriber = "0.3"

@@ -162,6 +162,12 @@ impl<Data> Executor<Data> {
     }
 }
 
+impl<Data> Default for Executor<Data> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
