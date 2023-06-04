@@ -1,12 +1,11 @@
 use flax::World;
-use parking_lot::FairMutex;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{EventLoop, EventLoopBuilder},
-    window::{Window, WindowBuilder},
+    event_loop::EventLoopBuilder,
+    window::WindowBuilder,
 };
 
-use crate::{Executor, Frame, Widget};
+use crate::{executor::Executor, Frame, Widget};
 
 pub struct App {}
 
@@ -29,21 +28,34 @@ impl App {
 
         let window = WindowBuilder::new().build(&event_loop)?;
 
-        event_loop.run(move |event, _, ctl| match event {
-            Event::MainEventsCleared => {
-                ex.tick(&mut frame);
-            }
-            Event::WindowEvent { window_id, event } => match event {
-                WindowEvent::CloseRequested => {
-                    *ctl = winit::event_loop::ControlFlow::Exit;
+        // Mount the root widget
+        root.mount(&mut frame);
+
+        event_loop.run(move |event, _, ctl| {
+            let _window = &window;
+
+            match event {
+                Event::MainEventsCleared => {
+                    ex.tick(&mut frame);
                 }
+                Event::WindowEvent { window_id, event } => match event {
+                    WindowEvent::CloseRequested => {
+                        *ctl = winit::event_loop::ControlFlow::Exit;
+                    }
+                    event => {
+                        tracing::debug!(?event, ?window_id, "Window event")
+                    }
+                },
                 event => {
-                    tracing::debug!(?event, ?window_id, "Window event")
+                    tracing::debug!(?event, "Event")
                 }
-            },
-            event => {
-                tracing::debug!(?event, "Event")
             }
         })
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }

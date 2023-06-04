@@ -14,11 +14,7 @@ use futures::task::{waker, ArcWake, AtomicWaker};
 use parking_lot::Mutex;
 use slotmap::{new_key_type, SlotMap};
 
-use crate::Frame;
-
-pub trait Effect<Data> {
-    fn poll(self: Pin<&mut Self>, context: &mut Context, data: &mut Data) -> Poll<()>;
-}
+use crate::{effect::Effect, Frame};
 
 new_key_type! {struct TaskId; }
 
