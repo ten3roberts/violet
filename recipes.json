@@ -1,0 +1,17 @@
+{
+    "run basic": {
+        "cmd": [
+            "cargo",
+            "run",
+            "--package",
+            "violet",
+            "--example",
+            "basic",
+            "--"
+        ],
+        "env": {
+            "RUST_BACKTRACE": "1",
+            "RUST_LOG": "violet=debug,wgpu=warn,info"
+        }
+    }
+}

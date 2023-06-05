@@ -226,9 +226,12 @@ mod tests {
 
         let spawner = ex.spawner();
 
-        spawner.spawn(FutureEffect::new(rx.into_recv_async(), |data, val| {
-            *data = Some(val.unwrap());
-        }));
+        spawner.spawn(FutureEffect::new(
+            rx.into_recv_async(),
+            |data: &mut Option<i32>, val: Result<i32, flume::RecvError>| {
+                *data = Some(val.unwrap());
+            },
+        ));
 
         let mut data = None;
 

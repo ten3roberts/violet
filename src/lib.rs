@@ -5,6 +5,7 @@ pub mod executor;
 mod frame;
 mod scope;
 pub mod time;
+pub mod wgpu;
 mod widget;
 
 pub use app::App;

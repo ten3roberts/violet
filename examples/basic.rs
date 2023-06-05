@@ -2,6 +2,11 @@ use std::time::Duration;
 
 use flax::{child_of, name, Entity};
 use futures::StreamExt;
+use time::UtcOffset;
+use tracing_subscriber::{
+    fmt::time::{LocalTime, OffsetTime, UtcTime},
+    EnvFilter,
+};
 use violet::{components::children, time::interval, App, Frame, Scope, StreamEffect, Widget};
 
 struct MainApp;
@@ -32,7 +37,13 @@ impl Widget for MainApp {
 }
 
 pub fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_timer(OffsetTime::new(
+            UtcOffset::current_local_offset().unwrap(),
+            time::macros::format_description!("[hour]:[minute]:[second]"),
+        ))
+        .init();
 
     App::new().run(MainApp)
 }

@@ -1,11 +1,15 @@
 use flax::World;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::EventLoopBuilder,
+    event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
 
-use crate::{executor::Executor, Frame, Widget};
+use crate::{
+    executor::Executor,
+    wgpu::{graphics::Gpu, renderer::WindowRenderer},
+    Frame, Widget,
+};
 
 pub struct App {}
 
@@ -30,24 +34,33 @@ impl App {
         // Mount the root widget
         let root = frame.new_root(root);
 
-        event_loop.run(move |event, _, ctl| {
-            let _window = &window;
+        // TODO: Make this a proper effect
+        let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
 
-            match event {
-                Event::MainEventsCleared => {
-                    ex.tick(&mut frame);
+        let mut window_renderer = WindowRenderer::new(surface);
+
+        event_loop.run(move |event, _, ctl| match event {
+            Event::MainEventsCleared => {
+                ex.tick(&mut frame);
+
+                if let Err(err) = window_renderer.draw(&gpu) {
+                    tracing::error!("Error drawing window: {err:?}");
+                    *ctl = ControlFlow::Exit
                 }
-                Event::WindowEvent { window_id, event } => match event {
-                    WindowEvent::CloseRequested => {
-                        *ctl = winit::event_loop::ControlFlow::Exit;
-                    }
-                    event => {
-                        tracing::debug!(?event, ?window_id, "Window event")
-                    }
-                },
+            }
+            Event::WindowEvent { window_id, event } => match event {
+                WindowEvent::Resized(size) => {
+                    window_renderer.resize(&gpu, size);
+                }
+                WindowEvent::CloseRequested => {
+                    *ctl = ControlFlow::Exit;
+                }
                 event => {
-                    tracing::debug!(?event, "Event")
+                    tracing::trace!(?event, ?window_id, "Window event")
                 }
+            },
+            event => {
+                tracing::trace!(?event, "Event")
             }
         })
     }
