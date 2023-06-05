@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     rc::Rc,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc,
     },
     task::{Context, Poll, Waker},
@@ -18,21 +18,66 @@ use crate::{effect::Effect, Frame};
 
 new_key_type! {struct TaskId; }
 
+const STATE_PENDING: u32 = 0;
+const STATE_ABORTED: u32 = 1;
+const STATE_FINISHED: u32 = 2;
+
+struct TaskState {
+    state: AtomicU32,
+}
+
+pub struct TaskHandle {
+    join_state: Arc<TaskState>,
+}
+
+impl TaskHandle {
+    pub fn abort(&self) {
+        self.join_state.state.store(STATE_ABORTED, Ordering::SeqCst);
+    }
+}
+
 struct Task<Data> {
     effect: Pin<Box<dyn Effect<Data>>>,
+    join_state: Arc<TaskState>,
     _marker: PhantomData<Data>,
 }
 
 impl<Data> Task<Data> {
-    fn new(effect: Pin<Box<dyn Effect<Data>>>) -> Self {
-        Self {
-            effect,
-            _marker: PhantomData,
-        }
+    fn new(effect: Pin<Box<dyn Effect<Data>>>) -> (Self, TaskHandle) {
+        let state = Arc::new(TaskState {
+            state: AtomicU32::new(STATE_PENDING),
+        });
+
+        let handle = TaskHandle {
+            join_state: state.clone(),
+        };
+
+        (
+            Self {
+                effect,
+                _marker: PhantomData,
+                join_state: state.clone(),
+            },
+            handle,
+        )
     }
 
     pub fn poll(&mut self, context: &mut Context, data: &mut Data) -> Poll<()> {
-        self.effect.as_mut().poll(context, data)
+        let state = self.join_state.state.load(Ordering::Acquire);
+
+        if state == STATE_ABORTED {
+            return Poll::Ready(());
+        }
+
+        if self.effect.as_mut().poll(context, data).is_ready() {
+            self.join_state
+                .state
+                .store(STATE_FINISHED, Ordering::Release);
+
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
     }
 }
 
@@ -77,10 +122,12 @@ pub struct Spawner<Data> {
 }
 
 impl<Data> Spawner<Data> {
-    pub fn spawn(&self, effect: impl 'static + Effect<Data>) {
+    pub fn spawn(&self, effect: impl 'static + Effect<Data>) -> TaskHandle {
         let incoming = self.incoming.upgrade().expect("Executor dropped");
-        let task = Task::new(Box::pin(effect));
+        let (task, handle) = Task::new(Box::pin(effect));
         incoming.borrow_mut().push(task);
+
+        handle
     }
 }
 

@@ -1,5 +1,4 @@
 use std::{
-    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -11,28 +10,22 @@ use super::Effect;
 
 /// Execute an effect upon the world when the provided future resolves
 #[pin_project]
-pub struct FutureEffect<Data, Fut, F> {
+pub struct FutureEffect<Fut, F> {
     #[pin]
     fut: Fut,
     func: Option<F>,
-    _marker: PhantomData<Data>,
 }
 
-impl<Data, Fut, F> FutureEffect<Data, Fut, F>
-where
-    Fut: Future,
-    F: FnOnce(&mut Data, Fut::Output),
-{
+impl<Fut, F> FutureEffect<Fut, F> {
     pub fn new(fut: Fut, func: F) -> Self {
         Self {
             fut,
             func: Some(func),
-            _marker: PhantomData,
         }
     }
 }
 
-impl<Fut, F, Data> Effect<Data> for FutureEffect<Data, Fut, F>
+impl<Fut, F, Data> Effect<Data> for FutureEffect<Fut, F>
 where
     Fut: Future,
     F: FnOnce(&mut Data, Fut::Output),

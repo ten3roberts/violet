@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, pin::Pin, task::Poll};
+use std::{pin::Pin, task::Poll};
 
 use futures::{ready, Stream};
 use pin_project::pin_project;
@@ -7,28 +7,19 @@ use super::Effect;
 
 /// Execute an effect upon the world for each item in the stream
 #[pin_project]
-pub struct StreamEffect<Data, Fut, F> {
+pub struct StreamEffect<Fut, F> {
     #[pin]
     stream: Fut,
     func: F,
-    _marker: PhantomData<Data>,
 }
 
-impl<Data, S, F> StreamEffect<Data, S, F>
-where
-    S: Stream,
-    F: FnMut(&mut Data, S::Item),
-{
+impl<S, F> StreamEffect<S, F> {
     pub fn new(stream: S, func: F) -> Self {
-        Self {
-            stream,
-            func,
-            _marker: PhantomData,
-        }
+        Self { stream, func }
     }
 }
 
-impl<S, F, Data> Effect<Data> for StreamEffect<Data, S, F>
+impl<S, F, Data> Effect<Data> for StreamEffect<S, F>
 where
     S: Stream,
     F: FnMut(&mut Data, S::Item),

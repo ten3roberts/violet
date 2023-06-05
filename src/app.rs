@@ -19,17 +19,16 @@ impl App {
 
         let spawner = ex.spawner();
 
-        let mut frame = Frame {
-            world: World::new(),
-            spawner,
-        };
+        let world = World::new();
+
+        let mut frame = Frame { world, spawner };
 
         let event_loop = EventLoopBuilder::new().build();
 
         let window = WindowBuilder::new().build(&event_loop)?;
 
         // Mount the root widget
-        root.mount(&mut frame);
+        let root = frame.new_root(root);
 
         event_loop.run(move |event, _, ctl| {
             let _window = &window;
