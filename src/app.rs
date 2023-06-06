@@ -37,14 +37,16 @@ impl App {
         // TODO: Make this a proper effect
         let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
 
-        let mut window_renderer = WindowRenderer::new(surface);
+        let mut window_renderer = WindowRenderer::new(&gpu, surface);
 
         event_loop.run(move |event, _, ctl| match event {
             Event::MainEventsCleared => {
                 ex.tick(&mut frame);
 
+                window_renderer.update(&mut frame, root);
+
                 if let Err(err) = window_renderer.draw(&gpu) {
-                    tracing::error!("Error drawing window: {err:?}");
+                    tracing::error!("Failed to draw to window: {err:?}");
                     *ctl = ControlFlow::Exit
                 }
             }

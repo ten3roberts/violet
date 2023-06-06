@@ -3,7 +3,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use flax::{Component, ComponentValue, Entity, EntityBuilder, EntityRef, EntityRefMut};
+use flax::{child_of, Component, ComponentValue, Entity, EntityBuilder, EntityRef, EntityRefMut};
 use pin_project::pin_project;
 
 use crate::{components::children, effect::Effect, Frame, Widget};
@@ -46,7 +46,6 @@ impl<'a> Scope<'a> {
     }
 
     fn flush(&mut self) {
-        tracing::debug!(?self.id, "Flushing scope");
         self.data
             .append_to(self.frame.world_mut(), self.id)
             .expect("Entity despawned while scope is alive");
@@ -85,6 +84,7 @@ impl<'a> Scope<'a> {
         let id = {
             let mut s = Scope::new(self.frame);
 
+            s.set(child_of(self.id), ());
             widget.mount(&mut s);
             s.id
         };
@@ -100,6 +100,11 @@ impl<'a> Scope<'a> {
             id: self.id,
             effect,
         });
+    }
+
+    /// Spawns an effect which is *not* scoped to the widget
+    pub fn spawn_unscoped(&mut self, effect: impl 'static + for<'x> Effect<Frame>) {
+        self.frame.spawn(effect);
     }
 
     pub fn id(&self) -> Entity {

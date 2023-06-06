@@ -195,7 +195,7 @@ impl<Data> Executor<Data> {
         for id in self.processing.drain(..) {
             let (task, waker) = self.tasks.get_mut(id).unwrap();
             let mut context = Context::from_waker(&*waker);
-            tracing::debug!(?id, "Polling task");
+            tracing::trace!(?id, "Polling task");
 
             if task.poll(&mut context, data).is_ready() {
                 tracing::debug!(?id, "Task completed");

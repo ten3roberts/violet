@@ -4,6 +4,7 @@ pub mod effect;
 pub mod executor;
 mod frame;
 mod scope;
+pub mod shapes;
 pub mod time;
 pub mod wgpu;
 mod widget;

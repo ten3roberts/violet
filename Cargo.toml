@@ -14,7 +14,7 @@ repository = "https://github.com/ten3roberts/violet"
 [dependencies]
 flax = { git = "https://github.com/ten3roberts/flax", version = "0.4.0" }
 
-glam = { version = "0.24" }
+glam = { version = "0.24", features = ["bytemuck"] }
 futures = "0.3"
 flume = "0.10"
 parking_lot = "0.12"
@@ -22,16 +22,13 @@ slotmap = "1.0"
 anyhow = "1.0"
 once_cell = "1.18"
 
-bytemuck = "1.13"
+bytemuck = { version = "1.13", features = ["derive"] }
 winit = "0.28"
 wgpu = { version = "0.16" }
-
-time = { version = "0.3", features = ["macros"] }
 
 tracing-subscriber = { version = "0.3", features = [
     "parking_lot",
     "env-filter",
-    "local-time",
 ] }
 tracing = "0.1"
 pin-project = "1.1"
