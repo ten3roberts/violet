@@ -74,6 +74,7 @@ impl<'a> Scope<'a> {
     pub fn attach(&mut self, widget: impl Widget) -> Entity {
         self.flush();
         let id = self.frame.world.spawn();
+
         self.frame
             .world_mut()
             .entry(self.id, children())
@@ -81,8 +82,10 @@ impl<'a> Scope<'a> {
             .or_default()
             .push(id);
 
+        self.flush();
+
         let id = {
-            let mut s = Scope::new(self.frame);
+            let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
             widget.mount(&mut s);

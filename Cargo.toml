@@ -25,6 +25,7 @@ once_cell = "1.18"
 bytemuck = { version = "1.13", features = ["derive"] }
 winit = "0.28"
 wgpu = { version = "0.16" }
+palette = { version = "0.7", features = [] }
 
 tracing-subscriber = { version = "0.3", features = [
     "parking_lot",

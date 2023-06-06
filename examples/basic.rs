@@ -1,7 +1,8 @@
-use std::time::{Duration, Instant};
 use flax::{child_of, name, Entity};
 use futures::StreamExt;
-use glam::vec2;
+use glam::{vec2, Vec2};
+use palette::{Srgba, WithAlpha};
+use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
 use violet::{
     components::{children, position, shape},
@@ -21,6 +22,27 @@ impl Widget for Counter {
                 scope.set(name(), format!("Counter: {:#?}", i));
             },
         ));
+    }
+}
+
+struct Rectangle {
+    size: Vec2,
+    center: Vec2,
+    color: Srgba<u8>,
+}
+
+impl Widget for Rectangle {
+    fn mount(self, scope: &mut Scope) {
+        scope
+            .set(name(), "Rectangle".into())
+            .set(
+                shape(),
+                Shape::Rect(Rect {
+                    size: self.size,
+                    color: self.color,
+                }),
+            )
+            .set(position(), self.center);
     }
 }
 
@@ -50,20 +72,27 @@ impl Widget for MainApp {
 
         scope
             .set(name(), "MainApp".into())
-            .set(
-                shape(),
-                Shape::Rect(Rect {
-                    size: vec2(100.0, 100.0),
-                }),
-            )
-            .set(position(), vec2(0.0, 0.0))
-            .attach(Counter);
+            .set(position(), vec2(0.0, 0.0));
+
+        scope.attach(Counter);
+        scope.attach(Rectangle {
+            size: vec2(100.0, 100.0),
+            center: vec2(0.0, 0.0),
+            color: palette::named::BLUEVIOLET.into_format().with_alpha(255),
+        });
+
+        scope.attach(Rectangle {
+            size: vec2(50.0, 50.0),
+            center: vec2(0.0, -120.0),
+            color: palette::named::TEAL.into_format().with_alpha(255),
+        });
     }
 }
 
 pub fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
+        .without_time()
         .init();
 
     App::new().run(MainApp)

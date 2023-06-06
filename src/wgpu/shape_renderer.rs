@@ -1,7 +1,8 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Deref};
 
 use flax::{child_of, Entity, EntityRef, FetchExt, Query, World};
-use glam::Mat4;
+use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
+use palette::{FromColor, Srgba};
 use wgpu::{BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
@@ -51,7 +52,7 @@ impl ShapeRenderer {
             ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../assets/shaders/solid.wgsl").into(),
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                format: color_format,
                 vertex_layouts: Cow::Borrowed(&[Vertex::layout()]),
                 layouts: &[global_layout, &object_bind_group_layout],
             },
@@ -68,26 +69,24 @@ impl ShapeRenderer {
     }
 
     pub fn update(&mut self, frame: &mut Frame, root: Entity) {
-        let mut query =
-            Query::new((position(), shape(), children().opt_or_default())).topo(child_of);
+        let mut query = Query::new((position(), shape())).topo(child_of);
 
         self.objects.clear();
 
-        for (position, shape, children) in &mut query.borrow(frame.world()) {
+        for (pos, shape) in &mut query.borrow(frame.world()) {
             match shape {
-                Shape::Rect(Rect { size }) => {
+                Shape::Rect(Rect { size, color }) => {
                     self.objects.push(ObjectData {
                         world_matrix: Mat4::from_scale_rotation_translation(
                             size.extend(1.0),
                             Default::default(),
-                            position.extend(0.1),
+                            pos.extend(0.1),
                         ),
+                        color: srgba_to_vec4(*color),
                     });
                 }
             }
         }
-
-        tracing::debug!("Objects: {}", self.objects.len());
     }
 
     pub fn draw<'a>(
@@ -110,15 +109,16 @@ impl ShapeRenderer {
     }
 }
 
-fn accumulate_shapes(world: &World, entity: EntityRef, res: &mut Vec<Shape>) {
+fn accumulate_shapes(world: &World, id: Entity, f: &mut impl FnMut(Vec2, &Shape)) {
+    let entity = world.entity(id).unwrap();
     if let Ok(shape) = entity.get(shape()) {
-        res.push(*shape);
+        let position = entity.get(position()).ok();
+        (f)((position.map(|v| *v)).unwrap_or_default(), &*shape)
     }
 
     if let Ok(children) = entity.get(children()) {
         for &child in children.iter() {
-            let child = world.entity(child).expect("Invalid entity");
-            accumulate_shapes(world, child, res);
+            accumulate_shapes(world, child, f);
         }
     }
 }
@@ -127,4 +127,13 @@ fn accumulate_shapes(world: &World, entity: EntityRef, res: &mut Vec<Shape>) {
 #[repr(C)]
 struct ObjectData {
     world_matrix: Mat4,
+    color: Vec4,
+}
+
+fn srgba_to_vec4(color: Srgba<u8>) -> Vec4 {
+    let (r, g, b, a) = Srgba::<f32>::from_format(color)
+        .into_linear()
+        .into_components();
+
+    vec4(r, g, b, a)
 }

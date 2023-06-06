@@ -13,4 +13,5 @@ component! {
 
     /// The position of a widget
     pub position: Vec2 => [ Debuggable ],
+
 }
