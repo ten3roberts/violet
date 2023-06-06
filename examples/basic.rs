@@ -5,7 +5,9 @@ use palette::{Srgba, WithAlpha};
 use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
 use violet::{
-    components::{children, position, shape},
+    components::{
+        absolute_offset, absolute_size, children, position, relative_offset, shape, size,
+    },
     shapes::{Rect, Shape},
     time::interval,
     App, Frame, Scope, StreamEffect, Widget,
@@ -42,7 +44,9 @@ impl Widget for Rectangle {
                     color: self.color,
                 }),
             )
-            .set(position(), self.center);
+            .set(position(), Default::default())
+            .set(size(), Default::default())
+            .set(absolute_offset(), self.center);
     }
 }
 
@@ -72,7 +76,18 @@ impl Widget for MainApp {
 
         scope
             .set(name(), "MainApp".into())
-            .set(position(), vec2(0.0, 0.0));
+            .set(
+                shape(),
+                Shape::Rect(Rect {
+                    size: vec2(200.0, 200.0),
+                    color: palette::named::WHITESMOKE.into_format().with_alpha(255),
+                }),
+            )
+            .set(size(), vec2(200.0, 200.0))
+            .set(position(), vec2(0.0, 0.0))
+            .set(absolute_size(), vec2(200.0, 200.0))
+            .set(absolute_offset(), vec2(-120.0, -120.0))
+            .set(relative_offset(), vec2(0.5, 0.5));
 
         scope.attach(Counter);
         scope.attach(Rectangle {
