@@ -68,10 +68,10 @@ impl Mesh {
     /// Creates a new mesh with dimensions 1x1
     pub fn quad(gpu: &Gpu) -> Self {
         let vertices = [
-            Vertex::new(vec3(-0.5, -0.5, 0.0)),
-            Vertex::new(vec3(0.5, -0.5, 0.0)),
-            Vertex::new(vec3(0.5, 0.5, 0.0)),
-            Vertex::new(vec3(-0.5, 0.5, 0.0)),
+            Vertex::new(vec3(0.0, 0.0, 0.0)),
+            Vertex::new(vec3(1.0, 0.0, 0.0)),
+            Vertex::new(vec3(1.0, 1.0, 0.0)),
+            Vertex::new(vec3(0.0, 1.0, 0.0)),
         ];
 
         let indices = [0, 1, 2, 2, 3, 0];

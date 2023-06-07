@@ -1,12 +1,16 @@
-use flax::{child_of, name, Entity};
+use flax::{child_of, name};
 use futures::StreamExt;
 use glam::{vec2, Vec2};
-use palette::{Srgba, WithAlpha};
+use palette::{
+    named::{LIGHTGRAY, LIGHTSLATEGRAY},
+    Srgba, WithAlpha,
+};
 use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
 use violet::{
     components::{
-        absolute_offset, absolute_size, children, position, relative_offset, shape, size,
+        absolute_offset, absolute_size, origin, position, relative_offset, relative_size, shape,
+        size,
     },
     shapes::{Rect, Shape},
     time::interval,
@@ -27,9 +31,64 @@ impl Widget for Counter {
     }
 }
 
+struct Constrained<W> {
+    abs_size: Option<Vec2>,
+    abs_offset: Option<Vec2>,
+    rel_offset: Option<Vec2>,
+    rel_size: Option<Vec2>,
+    origin: Option<Vec2>,
+    widget: W,
+}
+
+impl<W> Constrained<W> {
+    pub fn new(widget: W) -> Self {
+        Self {
+            widget,
+            abs_size: None,
+            abs_offset: None,
+            rel_offset: None,
+            rel_size: None,
+            origin: None,
+        }
+    }
+    fn absolute_size(mut self, abs_size: Vec2) -> Self {
+        self.abs_size = Some(abs_size);
+        self
+    }
+    fn absolute_offset(mut self, abs_offset: Vec2) -> Self {
+        self.abs_offset = Some(abs_offset);
+        self
+    }
+    fn relative_size(mut self, rel_size: Vec2) -> Self {
+        self.rel_size = Some(rel_size);
+        self
+    }
+    fn relative_offset(mut self, rel_offset: Vec2) -> Self {
+        self.rel_offset = Some(rel_offset);
+        self
+    }
+    fn origin(mut self, origin: Vec2) -> Self {
+        self.origin = Some(origin);
+        self
+    }
+}
+
+impl<W> Widget for Constrained<W>
+where
+    W: Widget,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.widget.mount(scope);
+
+        scope.set_opt(absolute_size(), self.abs_size);
+        scope.set_opt(absolute_offset(), self.abs_offset);
+        scope.set_opt(relative_offset(), self.rel_offset);
+        scope.set_opt(relative_size(), self.rel_size);
+        scope.set_opt(origin(), self.origin);
+    }
+}
+
 struct Rectangle {
-    size: Vec2,
-    center: Vec2,
     color: Srgba<u8>,
 }
 
@@ -37,16 +96,9 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "Rectangle".into())
-            .set(
-                shape(),
-                Shape::Rect(Rect {
-                    size: self.size,
-                    color: self.color,
-                }),
-            )
-            .set(position(), Default::default())
-            .set(size(), Default::default())
-            .set(absolute_offset(), self.center);
+            .set(shape(), Shape::Rect(Rect { color: self.color }))
+            .set_default(position())
+            .set_default(size());
     }
 }
 
@@ -55,7 +107,7 @@ impl Widget for MainApp {
         let id = scope.id();
 
         scope.spawn_unscoped(StreamEffect::new(
-            interval(Duration::from_secs(1)),
+            interval(Duration::from_secs(5)),
             move |frame: &mut Frame, deadline| {
                 tracing::info!(
                     ?deadline,
@@ -79,28 +131,44 @@ impl Widget for MainApp {
             .set(
                 shape(),
                 Shape::Rect(Rect {
-                    size: vec2(200.0, 200.0),
                     color: palette::named::WHITESMOKE.into_format().with_alpha(255),
                 }),
             )
-            .set(size(), vec2(200.0, 200.0))
-            .set(position(), vec2(0.0, 0.0))
-            .set(absolute_size(), vec2(200.0, 200.0))
-            .set(absolute_offset(), vec2(-120.0, -120.0))
-            .set(relative_offset(), vec2(0.5, 0.5));
+            .set_default(size())
+            .set_default(position())
+            .set(absolute_size(), vec2(-20.0, -20.0))
+            .set(relative_size(), vec2(1.0, 1.0));
 
         scope.attach(Counter);
-        scope.attach(Rectangle {
-            size: vec2(100.0, 100.0),
-            center: vec2(0.0, 0.0),
-            color: palette::named::BLUEVIOLET.into_format().with_alpha(255),
-        });
+        // scope.attach(Rectangle {
+        //     color: palette::named::BLUEVIOLET.into_format().with_alpha(255),
+        // });
 
-        scope.attach(Rectangle {
-            size: vec2(50.0, 50.0),
-            center: vec2(0.0, -120.0),
-            color: palette::named::TEAL.into_format().with_alpha(255),
-        });
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: LIGHTSLATEGRAY.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(100.0, 0.0))
+            .relative_size(vec2(0.0, 0.5))
+            .relative_offset(vec2(1.0, 0.0))
+            .absolute_offset(vec2(-10.0, 10.0))
+            .origin(vec2(1.0, 0.0)),
+        );
+
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: palette::named::TEAL.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(100.0, 100.0))
+            .absolute_offset(vec2(10.0, 10.0)),
+        );
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: palette::named::TEAL.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(100.0, 100.0))
+            .absolute_offset(vec2(120.0, 10.0)),
+        );
     }
 }
 

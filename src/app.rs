@@ -10,7 +10,7 @@ use crate::{
     components::{self, position, size},
     executor::Executor,
     systems::layout_system,
-    wgpu::{graphics::Gpu, renderer::WindowRenderer},
+    wgpu::{graphics::Gpu, window_renderer::WindowRenderer},
     Frame, Widget,
 };
 

@@ -11,9 +11,9 @@ component! {
     /// The shape of a widget when drawn
     pub shape: Shape => [ Debuggable ],
 
-    /// The position of a widget
+    /// The top-left position of a widget
     pub position: Vec2 => [ Debuggable ],
-    /// The overall size or scale of a widget
+    /// The overall size or extent of a widget
     pub size: Vec2 => [ Debuggable ],
 
     pub absolute_offset: Vec2 => [ Debuggable ],
@@ -23,4 +23,8 @@ component! {
     pub relative_offset:Vec2 => [ Debuggable ],
     /// Size relative to the parent widget
     pub relative_size: Vec2 => [ Debuggable ],
+    /// The point of origin within the widget.
+    ///
+    /// 0,0, refers to the top-left corner, and 1,1 the bottom right of the widgets bounds
+    pub origin: Vec2 => [ Debuggable ],
 }

@@ -60,6 +60,32 @@ impl<'a> Scope<'a> {
         self
     }
 
+    /// Sets the components default value
+    pub fn set_default<T>(&mut self, component: Component<T>) -> &mut Self
+    where
+        T: ComponentValue + Default,
+    {
+        self.data.set(component, Default::default());
+        self
+    }
+
+    /// Shorthand for:
+    ///
+    /// ```rust
+    /// if let Some(val) = val {
+    ///     scope.set(val)
+    /// }
+    /// ```
+    pub fn set_opt<T>(&mut self, component: Component<T>, value: Option<T>) -> &mut Self
+    where
+        T: ComponentValue,
+    {
+        if let Some(value) = value {
+            self.data.set(component, value);
+        }
+        self
+    }
+
     pub fn entity(&mut self) -> EntityRef {
         self.flush();
         self.frame.world().entity(self.id).unwrap()

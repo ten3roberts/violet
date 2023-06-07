@@ -6,7 +6,7 @@ use palette::{FromColor, Srgba};
 use wgpu::{BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
-    components::{children, position, shape},
+    components::{children, position, shape, size},
     shapes::{Rect, Shape},
     Frame,
 };
@@ -69,13 +69,13 @@ impl ShapeRenderer {
     }
 
     pub fn update(&mut self, frame: &mut Frame, root: Entity) {
-        let mut query = Query::new((position(), shape())).topo(child_of);
+        let mut query = Query::new((position(), size(), shape())).topo(child_of);
 
         self.objects.clear();
 
-        for (pos, shape) in &mut query.borrow(frame.world()) {
+        for (pos, size, shape) in &mut query.borrow(frame.world()) {
             match shape {
-                Shape::Rect(Rect { size, color }) => {
+                Shape::Rect(Rect { color }) => {
                     self.objects.push(ObjectData {
                         world_matrix: Mat4::from_scale_rotation_translation(
                             size.extend(1.0),

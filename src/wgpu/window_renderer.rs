@@ -59,8 +59,7 @@ impl WindowRenderer {
         let w = new_size.width as f32;
         let h = new_size.height as f32;
 
-        self.globals.projview =
-            Mat4::orthographic_lh(-w / 2.0, w / 2.0, -h / 2.0, h / 2.0, 0.0, 100.0);
+        self.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
         self.globals_buffer.write(&gpu.queue, &[self.globals]);
 
         self.surface.resize(gpu, new_size);

@@ -6,7 +6,8 @@ use glam::Vec2;
 use tracing::info_span;
 
 use crate::components::{
-    absolute_offset, absolute_size, children, position, relative_offset, relative_size, size,
+    absolute_offset, absolute_size, children, origin, position, relative_offset, relative_size,
+    size,
 };
 
 struct ConstraintResult {
@@ -20,6 +21,7 @@ struct ConstraintQuery {
     abs_size: OptOr<Component<Vec2>, Vec2>,
     rel_offset: OptOr<Component<Vec2>, Vec2>,
     abs_offset: OptOr<Component<Vec2>, Vec2>,
+    origin: OptOr<Component<Vec2>, Vec2>,
 }
 
 impl ConstraintQuery {
@@ -29,13 +31,15 @@ impl ConstraintQuery {
             abs_size: absolute_size().opt_or_default(),
             rel_offset: relative_offset().opt_or_default(),
             abs_offset: absolute_offset().opt_or_default(),
+            origin: origin().opt_or_default(),
         }
     }
 }
 
-fn apply_contraints(constraints: ConstraintQueryItem, parent_size: Vec2) -> ConstraintResult {
-    let pos = *constraints.abs_offset + *constraints.rel_offset * parent_size;
-    let size = *constraints.abs_size + *constraints.rel_size * parent_size;
+fn apply_contraints(c: ConstraintQueryItem, parent_size: Vec2) -> ConstraintResult {
+    let pos = *c.abs_offset + *c.rel_offset * parent_size;
+    let size = *c.abs_size + *c.rel_size * parent_size;
+    let pos = pos - *c.origin * size;
 
     ConstraintResult { size, pos }
 }
@@ -58,7 +62,6 @@ pub fn layout_system() -> BoxedSystem {
 }
 
 fn update_subtree(world: &World, id: Entity, parent_size: Vec2, parent_position: Vec2) {
-    tracing::info!(?id, %parent_size, %parent_position, "Updating subtree");
     let mut query = Query::new((
         size().as_mut(),
         position().as_mut(),
@@ -78,7 +81,5 @@ fn update_subtree(world: &World, id: Entity, parent_size: Vec2, parent_position:
         for &child in children {
             update_subtree(world, child, *size, *pos);
         }
-    } else {
-        tracing::warn!("Subtree query failed for {id}");
     }
 }
