@@ -1,7 +1,7 @@
 use flax::{component, Debuggable, Entity};
 use glam::Vec2;
 
-use crate::{shapes::Shape, systems::Constraints};
+use crate::{layout::Layout, shapes::Shape, Constraints};
 
 component! {
     /// Ordered list of children for an entity
@@ -16,6 +16,9 @@ component! {
 
     /// Linear constraints for widget positioning and size
     pub constraints: Constraints => [ Debuggable ],
+
+    /// Manages the layout of the children
+    pub layout: Layout => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
     pub padding: Padding => [ Debuggable ],

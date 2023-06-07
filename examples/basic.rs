@@ -2,17 +2,17 @@ use flax::{child_of, name};
 use futures::StreamExt;
 use glam::{vec2, Vec2};
 use palette::{
-    named::{LIGHTSLATEGRAY, PURPLE},
+    named::{self, LIGHTSLATEGRAY, PURPLE},
     Srgba, WithAlpha,
 };
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use violet::{
-    components::{constraints, padding, rect, shape, Padding},
+    components::{constraints, layout, padding, rect, shape, Padding},
+    layout::Layout,
     shapes::{FilledRect, Shape},
-    systems::Constraints,
     time::interval,
-    App, Frame, Scope, StreamEffect, Widget,
+    App, Constraints, Frame, Scope, StreamEffect, Widget,
 };
 
 struct MainApp;
@@ -92,6 +92,43 @@ impl Widget for Rectangle {
     }
 }
 
+struct List {}
+impl Widget for List {
+    fn mount(self, scope: &mut Scope<'_>) {
+        scope
+            .set_default(rect())
+            .set(layout(), Layout {})
+            .set_default(constraints())
+            .set(padding(), Padding::even(5.0));
+
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: named::TEAL.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(100.0, 100.0)),
+        );
+
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: named::TEAL.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(100.0, 100.0)),
+        );
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: named::TEAL.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(50.0, 100.0)),
+        );
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: named::TEAL.into_format().with_alpha(255),
+            })
+            .absolute_size(vec2(50.0, 100.0)),
+        );
+    }
+}
+
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         let id = scope.id();
@@ -112,7 +149,7 @@ impl Widget for MainApp {
             .set(
                 shape(),
                 Shape::FilledRect(FilledRect {
-                    color: palette::named::WHITESMOKE.into_format().with_alpha(255),
+                    color: named::WHITESMOKE.into_format().with_alpha(255),
                 }),
             )
             .set_default(rect())
@@ -140,20 +177,7 @@ impl Widget for MainApp {
             .anchor(vec2(1.0, 0.0)),
         );
 
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: palette::named::TEAL.into_format().with_alpha(255),
-            })
-            .absolute_size(vec2(100.0, 100.0)),
-        );
-
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: palette::named::TEAL.into_format().with_alpha(255),
-            })
-            .absolute_size(vec2(100.0, 100.0))
-            .absolute_offset(vec2(110.0, 0.0)),
-        );
+        scope.attach(List {});
     }
 }
 
