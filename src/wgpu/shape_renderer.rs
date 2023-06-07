@@ -1,13 +1,13 @@
-use std::{borrow::Cow, ops::Deref};
+use std::borrow::Cow;
 
-use flax::{child_of, Entity, EntityRef, FetchExt, Query, World};
-use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
-use palette::{FromColor, Srgba};
+use flax::{child_of, Entity, Query, World};
+use glam::{vec4, Mat4, Vec4};
+use palette::Srgba;
 use wgpu::{BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
-    components::{children, position, shape, size},
-    shapes::{Rect, Shape},
+    components::{children, rect, shape, Rect},
+    shapes::{FilledRect, Shape},
     Frame,
 };
 
@@ -69,13 +69,15 @@ impl ShapeRenderer {
     }
 
     pub fn update(&mut self, frame: &mut Frame, root: Entity) {
-        let mut query = Query::new((position(), size(), shape())).topo(child_of);
+        let mut query = Query::new((rect(), shape())).topo(child_of);
 
         self.objects.clear();
 
-        for (pos, size, shape) in &mut query.borrow(frame.world()) {
+        for (rect, shape) in &mut query.borrow(frame.world()) {
+            let pos = rect.pos();
+            let size = rect.size();
             match shape {
-                Shape::Rect(Rect { color }) => {
+                Shape::FilledRect(FilledRect { color }) => {
                     self.objects.push(ObjectData {
                         world_matrix: Mat4::from_scale_rotation_translation(
                             size.extend(1.0),
@@ -109,11 +111,11 @@ impl ShapeRenderer {
     }
 }
 
-fn accumulate_shapes(world: &World, id: Entity, f: &mut impl FnMut(Vec2, &Shape)) {
+fn accumulate_shapes(world: &World, id: Entity, f: &mut impl FnMut(Rect, &Shape)) {
     let entity = world.entity(id).unwrap();
     if let Ok(shape) = entity.get(shape()) {
-        let position = entity.get(position()).ok();
-        (f)((position.map(|v| *v)).unwrap_or_default(), &*shape)
+        let rect = entity.get(rect()).ok();
+        (f)((rect.map(|v| *v)).unwrap_or_default(), &*shape)
     }
 
     if let Ok(children) = entity.get(children()) {

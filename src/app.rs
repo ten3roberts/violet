@@ -7,7 +7,7 @@ use winit::{
 };
 
 use crate::{
-    components::{self, position, size},
+    components::{self, rect, Rect},
     executor::Executor,
     systems::layout_system,
     wgpu::{graphics::Gpu, window_renderer::WindowRenderer},
@@ -21,8 +21,13 @@ pub struct Canvas<W> {
 
 impl<W: Widget> Widget for Canvas<W> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        scope.set(size(), self.size);
-        scope.set(position(), Vec2::ZERO);
+        scope.set(
+            rect(),
+            Rect {
+                min: Vec2::ZERO,
+                max: self.size,
+            },
+        );
         scope.attach(self.root);
     }
 }
@@ -76,11 +81,16 @@ impl App {
             }
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::Resized(size) => {
-                    let size_f32 = vec2(size.width as f32, size.height as f32);
-
                     frame
                         .world_mut()
-                        .set(root, components::size(), size_f32)
+                        .set(
+                            root,
+                            components::rect(),
+                            Rect {
+                                min: vec2(0.0, 0.0),
+                                max: vec2(size.width as f32, size.height as f32),
+                            },
+                        )
                         .unwrap();
 
                     window_renderer.resize(&gpu, size);

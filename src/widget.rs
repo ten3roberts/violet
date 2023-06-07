@@ -1,5 +1,3 @@
-use flax::Entity;
-
 use crate::Scope;
 
 /// Represents a widget in the UI tree which can mount itself into the frame.

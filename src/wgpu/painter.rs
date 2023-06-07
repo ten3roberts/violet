@@ -1,6 +1,6 @@
 use glam::{Mat4, Quat, Vec2, Vec3};
 
-use crate::shapes::{Rect, Shape};
+use crate::shapes::{FilledRect, Shape};
 
 /// Allows painting the tree with a command list
 pub struct Painter {
@@ -12,8 +12,8 @@ impl Painter {
         Self { list: Vec::new() }
     }
 
-    pub fn draw_rect(&mut self, rect: Rect) {
-        self.list.push(Shape::Rect(rect));
+    pub fn draw_rect(&mut self, rect: FilledRect) {
+        self.list.push(Shape::FilledRect(rect));
     }
 }
 
