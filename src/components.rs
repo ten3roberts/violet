@@ -1,7 +1,7 @@
 use flax::{component, Debuggable, Entity};
 use glam::Vec2;
 
-use crate::shapes::Shape;
+use crate::{shapes::Shape, systems::Constraints};
 
 component! {
     /// Ordered list of children for an entity
@@ -16,15 +16,7 @@ component! {
     /// The overall size or extent of a widget
     pub size: Vec2 => [ Debuggable ],
 
-    pub absolute_offset: Vec2 => [ Debuggable ],
-    pub absolute_size: Vec2 => [ Debuggable ],
 
-    /// Offset relative to the parent size
-    pub relative_offset:Vec2 => [ Debuggable ],
-    /// Size relative to the parent widget
-    pub relative_size: Vec2 => [ Debuggable ],
-    /// The point of origin within the widget.
-    ///
-    /// 0,0, refers to the top-left corner, and 1,1 the bottom right of the widgets bounds
-    pub origin: Vec2 => [ Debuggable ],
+    /// Linear constraints for widget positioning and size
+    pub constraints: Constraints => [ Debuggable ],
 }

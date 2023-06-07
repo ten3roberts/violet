@@ -1,18 +1,13 @@
 use flax::{child_of, name};
 use futures::StreamExt;
 use glam::{vec2, Vec2};
-use palette::{
-    named::{LIGHTGRAY, LIGHTSLATEGRAY},
-    Srgba, WithAlpha,
-};
+use palette::{named::LIGHTSLATEGRAY, Srgba, WithAlpha};
 use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
 use violet::{
-    components::{
-        absolute_offset, absolute_size, origin, position, relative_offset, relative_size, shape,
-        size,
-    },
+    components::{constraints, position, shape, size},
     shapes::{Rect, Shape},
+    systems::Constraints,
     time::interval,
     App, Frame, Scope, StreamEffect, Widget,
 };
@@ -32,11 +27,7 @@ impl Widget for Counter {
 }
 
 struct Constrained<W> {
-    abs_size: Option<Vec2>,
-    abs_offset: Option<Vec2>,
-    rel_offset: Option<Vec2>,
-    rel_size: Option<Vec2>,
-    origin: Option<Vec2>,
+    constraints: Constraints,
     widget: W,
 }
 
@@ -44,31 +35,32 @@ impl<W> Constrained<W> {
     pub fn new(widget: W) -> Self {
         Self {
             widget,
-            abs_size: None,
-            abs_offset: None,
-            rel_offset: None,
-            rel_size: None,
-            origin: None,
+            constraints: Constraints::default(),
         }
     }
+
     fn absolute_size(mut self, abs_size: Vec2) -> Self {
-        self.abs_size = Some(abs_size);
+        self.constraints.abs_size = abs_size;
         self
     }
+
     fn absolute_offset(mut self, abs_offset: Vec2) -> Self {
-        self.abs_offset = Some(abs_offset);
+        self.constraints.abs_offset = abs_offset;
         self
     }
+
     fn relative_size(mut self, rel_size: Vec2) -> Self {
-        self.rel_size = Some(rel_size);
+        self.constraints.rel_size = rel_size;
         self
     }
+
     fn relative_offset(mut self, rel_offset: Vec2) -> Self {
-        self.rel_offset = Some(rel_offset);
+        self.constraints.rel_offset = rel_offset;
         self
     }
-    fn origin(mut self, origin: Vec2) -> Self {
-        self.origin = Some(origin);
+
+    fn anchor(mut self, anchor: Vec2) -> Self {
+        self.constraints.anchor = anchor;
         self
     }
 }
@@ -80,11 +72,7 @@ where
     fn mount(self, scope: &mut Scope<'_>) {
         self.widget.mount(scope);
 
-        scope.set_opt(absolute_size(), self.abs_size);
-        scope.set_opt(absolute_offset(), self.abs_offset);
-        scope.set_opt(relative_offset(), self.rel_offset);
-        scope.set_opt(relative_size(), self.rel_size);
-        scope.set_opt(origin(), self.origin);
+        scope.set(constraints(), self.constraints);
     }
 }
 
@@ -136,8 +124,16 @@ impl Widget for MainApp {
             )
             .set_default(size())
             .set_default(position())
-            .set(absolute_size(), vec2(-20.0, -20.0))
-            .set(relative_size(), vec2(1.0, 1.0));
+            .set(
+                constraints(),
+                Constraints {
+                    abs_size: vec2(-20.0, -20.0),
+                    rel_size: vec2(1.0, 1.0),
+                    rel_offset: vec2(0.5, 0.5),
+                    anchor: vec2(0.5, 0.5),
+                    ..Default::default()
+                },
+            );
 
         scope.attach(Counter);
         // scope.attach(Rectangle {
@@ -152,7 +148,7 @@ impl Widget for MainApp {
             .relative_size(vec2(0.0, 0.5))
             .relative_offset(vec2(1.0, 0.0))
             .absolute_offset(vec2(-10.0, 10.0))
-            .origin(vec2(1.0, 0.0)),
+            .anchor(vec2(1.0, 0.0)),
         );
 
         scope.attach(

@@ -1,45 +1,33 @@
-use flax::{
-    child_of, BoxedSystem, Component, Dfs, Entity, EntityRef, Fetch, FetchExt, GraphQuery, OptOr,
-    Query, QueryBorrow, System, World,
-};
+use flax::{child_of, BoxedSystem, Entity, FetchExt, Query, QueryBorrow, System, World};
 use glam::Vec2;
-use tracing::info_span;
 
-use crate::components::{
-    absolute_offset, absolute_size, children, origin, position, relative_offset, relative_size,
-    size,
-};
+use crate::components::{children, constraints, position, size};
+
+#[derive(Clone, Debug, Default)]
+pub struct Constraints {
+    /// Absolute size offset
+    pub abs_size: Vec2,
+    /// Absolute offset
+    pub abs_offset: Vec2,
+    /// Size relative to parent
+    pub rel_size: Vec2,
+    /// Offset relative to parent size
+    pub rel_offset: Vec2,
+    /// Anchor point within self
+    /// 0,0, refers to the top-left corner, and 1,1 the bottom right of the widgets bounds
+    pub anchor: Vec2,
+}
 
 struct ConstraintResult {
     size: Vec2,
     pos: Vec2,
 }
 
-#[derive(Debug, Fetch)]
-struct ConstraintQuery {
-    rel_size: OptOr<Component<Vec2>, Vec2>,
-    abs_size: OptOr<Component<Vec2>, Vec2>,
-    rel_offset: OptOr<Component<Vec2>, Vec2>,
-    abs_offset: OptOr<Component<Vec2>, Vec2>,
-    origin: OptOr<Component<Vec2>, Vec2>,
-}
+fn apply_contraints(c: &Constraints, parent_size: Vec2) -> ConstraintResult {
+    let pos = c.abs_offset + c.rel_offset * parent_size;
+    let size = c.abs_size + c.rel_size * parent_size;
 
-impl ConstraintQuery {
-    fn new() -> Self {
-        Self {
-            rel_size: relative_size().opt_or_default(),
-            abs_size: absolute_size().opt_or_default(),
-            rel_offset: relative_offset().opt_or_default(),
-            abs_offset: absolute_offset().opt_or_default(),
-            origin: origin().opt_or_default(),
-        }
-    }
-}
-
-fn apply_contraints(c: ConstraintQueryItem, parent_size: Vec2) -> ConstraintResult {
-    let pos = *c.abs_offset + *c.rel_offset * parent_size;
-    let size = *c.abs_size + *c.rel_size * parent_size;
-    let pos = pos - *c.origin * size;
+    let pos = pos - c.anchor * size;
 
     ConstraintResult { size, pos }
 }
@@ -66,7 +54,7 @@ fn update_subtree(world: &World, id: Entity, parent_size: Vec2, parent_position:
         size().as_mut(),
         position().as_mut(),
         children().opt_or_default(),
-        ConstraintQuery::new(),
+        constraints().opt_or_default(),
     ))
     .entity(id);
 
