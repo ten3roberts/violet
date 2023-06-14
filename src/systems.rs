@@ -2,7 +2,7 @@ use flax::{child_of, BoxedSystem, Dfs, DfsBorrow, Query, QueryBorrow, System, Wo
 use glam::Vec2;
 
 use crate::{
-    components::{children, local_position, position, rect, Rect},
+    components::{self, children, local_position, position, rect, Rect},
     layout::{update_subtree, LayoutConstraints},
 };
 
@@ -18,14 +18,17 @@ pub fn layout_system() -> BoxedSystem {
                     for &child in children {
                         let entity = world.entity(child).unwrap();
 
-                        update_subtree(
+                        let rect = update_subtree(
                             world,
                             &entity,
+                            *rect,
                             LayoutConstraints {
                                 min: Vec2::ZERO,
                                 max: rect.size(),
                             },
                         );
+
+                        entity.update(components::rect(), |v| *v = rect.unwrap_or_default());
                     }
                 });
         })

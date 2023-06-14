@@ -3,6 +3,7 @@ use futures::StreamExt;
 use glam::{vec2, Vec2};
 use palette::{
     named::{self, LIGHTSLATEGRAY, PURPLE},
+    rgb::Rgba,
     Hsla, IntoColor, Srgba, WithAlpha,
 };
 use std::time::Duration;
@@ -95,6 +96,7 @@ impl Widget for Rectangle {
 }
 
 struct List {}
+
 impl Widget for List {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
@@ -102,14 +104,15 @@ impl Widget for List {
             .set(
                 shape(),
                 Shape::FilledRect(FilledRect {
-                    color: named::CYAN.into_format().with_alpha(1.0),
+                    // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
+                    color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
                 }),
             )
             .set(layout(), Layout {})
             .set_default(constraints())
             .set_default(position())
             .set_default(local_position())
-            .set(padding(), Padding::even(5.0));
+            .set(padding(), Padding::even(0.0));
 
         scope.attach(
             Constrained::new(Rectangle {
@@ -159,16 +162,16 @@ impl Widget for MainApp {
 
         scope
             .set(name(), "MainApp".into())
-            .set(
-                shape(),
-                Shape::FilledRect(FilledRect {
-                    color: named::WHITESMOKE.into_format().with_alpha(1.0),
-                }),
-            )
+            // .set(
+            //     shape(),
+            //     Shape::FilledRect(FilledRect {
+            //         color: named::BLUE.into_format().with_alpha(1.0),
+            //     }),
+            // )
             .set_default(rect())
             .set_default(position())
             .set_default(local_position())
-            .set(padding(), Padding::even(10.0))
+            .set(padding(), Padding::even(5.0))
             .set(
                 constraints(),
                 Constraints {
@@ -178,13 +181,13 @@ impl Widget for MainApp {
             );
 
         // scope.attach(Counter);
-        scope.attach(Rectangle {
-            color: palette::named::BLUEVIOLET.into_format().with_alpha(1.0),
-        });
+        // scope.attach(Rectangle {
+        //     color: palette::named::BLUEVIOLET.into_format().with_alpha(1.0),
+        // });
 
         scope.attach(
             Constrained::new(Rectangle {
-                color: PURPLE.into_format().with_alpha(1.0),
+                color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
             })
             .absolute_size(vec2(100.0, 0.0))
             .relative_size(vec2(0.0, 1.0))

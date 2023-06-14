@@ -20,11 +20,15 @@ pub struct Constraints {
 }
 
 impl Constraints {
-    pub(crate) fn apply(&self, parent_size: Vec2) -> Rect {
+    pub(crate) fn apply(&self, content_area: Rect) -> Rect {
+        let parent_size = content_area.size();
+
+        let _span = tracing::info_span!("Applying constraints", ?parent_size).entered();
         let pos = self.abs_offset + self.rel_offset * parent_size;
         let size = self.abs_size + self.rel_size * parent_size;
+        tracing::info!(?size);
 
-        let pos = pos - self.anchor * size;
+        let pos = content_area.pos() + pos - self.anchor * size;
 
         Rect::from_size_pos(size, pos)
     }
@@ -37,7 +41,12 @@ pub(crate) fn widget_outer_bounds(
 ) -> Rect {
     let mut rect = entity
         .get(constraints())
-        .map(|c| c.apply(parent_size))
+        .map(|c| {
+            c.apply(Rect {
+                min: Vec2::ZERO,
+                max: parent_size,
+            })
+        })
         .unwrap_or_default();
 
     if let Ok(padding) = entity.get(padding()) {
