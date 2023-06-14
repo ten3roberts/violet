@@ -1,10 +1,9 @@
-use flax::{child_of, BoxedSystem, EntityRef, Query, QueryBorrow, System, World};
-use glam::{vec2, Vec2};
+use flax::{child_of, BoxedSystem, Dfs, DfsBorrow, Query, QueryBorrow, System, World};
+use glam::Vec2;
 
 use crate::{
-    components::{self, children, constraints, padding, rect, Rect},
-    constraints::entity_constraints,
-    layout::update_subtree,
+    components::{children, local_position, position, rect, Rect},
+    layout::{update_subtree, LayoutConstraints},
 };
 
 /// Updates the layout for entities using the given constraints
@@ -15,14 +14,35 @@ pub fn layout_system() -> BoxedSystem {
         .build(move |world: &World, mut roots: QueryBorrow<_, _>| {
             (&mut roots)
                 .into_iter()
-                .for_each(|(rect, children): (_, &Vec<_>)| {
+                .for_each(|(rect, children): (&Rect, &Vec<_>)| {
                     for &child in children {
                         let entity = world.entity(child).unwrap();
-                        let rect = entity_constraints(&entity, rect);
 
-                        update_subtree(world, entity, rect);
+                        update_subtree(
+                            world,
+                            &entity,
+                            LayoutConstraints {
+                                min: Vec2::ZERO,
+                                max: rect.size(),
+                            },
+                        );
                     }
                 });
+        })
+        .boxed()
+}
+
+pub fn transform_system() -> BoxedSystem {
+    System::builder()
+        .with(Query::new((position().as_mut(), local_position())).with_strategy(Dfs::new(child_of)))
+        .build(|mut query: DfsBorrow<_>| {
+            query.traverse(
+                &Vec2::ZERO,
+                |(pos, local_pos): (&mut Vec2, &Vec2), _, parent_pos| {
+                    *pos = *parent_pos + *local_pos;
+                    *pos
+                },
+            );
         })
         .boxed()
 }

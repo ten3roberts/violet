@@ -6,7 +6,7 @@ use palette::Srgba;
 use wgpu::{BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
-    components::{children, rect, shape, Rect},
+    components::{children, position, rect, shape, Rect},
     shapes::{FilledRect, Shape},
     Frame,
 };
@@ -69,12 +69,12 @@ impl ShapeRenderer {
     }
 
     pub fn update(&mut self, frame: &mut Frame, root: Entity) {
-        let mut query = Query::new((rect(), shape())).topo(child_of);
+        let mut query = Query::new((rect(), shape(), position())).topo(child_of);
 
         self.objects.clear();
 
-        for (rect, shape) in &mut query.borrow(frame.world()) {
-            let pos = rect.pos();
+        for (rect, shape, &pos) in &mut query.borrow(frame.world()) {
+            let pos = pos + rect.pos();
             let size = rect.size();
             match shape {
                 Shape::FilledRect(FilledRect { color }) => {
@@ -115,7 +115,7 @@ fn accumulate_shapes(world: &World, id: Entity, f: &mut impl FnMut(Rect, &Shape)
     let entity = world.entity(id).unwrap();
     if let Ok(shape) = entity.get(shape()) {
         let rect = entity.get(rect()).ok();
-        (f)((rect.map(|v| *v)).unwrap_or_default(), &*shape)
+        (f)((rect.map(|v| *v)).unwrap_or_default(), &shape)
     }
 
     if let Ok(children) = entity.get(children()) {
@@ -132,10 +132,8 @@ struct ObjectData {
     color: Vec4,
 }
 
-fn srgba_to_vec4(color: Srgba<u8>) -> Vec4 {
-    let (r, g, b, a) = Srgba::<f32>::from_format(color)
-        .into_linear()
-        .into_components();
+fn srgba_to_vec4(color: Srgba) -> Vec4 {
+    let (r, g, b, a) = color.into_linear().into_components();
 
     vec4(r, g, b, a)
 }

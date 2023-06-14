@@ -1,7 +1,7 @@
-use flax::EntityRef;
+use flax::{EntityRef, World};
 use glam::Vec2;
 
-use crate::components::{constraints, Rect};
+use crate::components::{constraints, layout, padding, Rect};
 
 #[derive(Clone, Debug, Default)]
 pub struct Constraints {
@@ -20,21 +20,34 @@ pub struct Constraints {
 }
 
 impl Constraints {
-    pub(crate) fn apply(&self, parent_rect: &Rect) -> Rect {
-        let parent_size = parent_rect.size();
-
+    pub(crate) fn apply(&self, parent_size: Vec2) -> Rect {
         let pos = self.abs_offset + self.rel_offset * parent_size;
         let size = self.abs_size + self.rel_size * parent_size;
 
-        let pos = parent_rect.pos() + pos - self.anchor * size;
+        let pos = pos - self.anchor * size;
 
         Rect::from_size_pos(size, pos)
     }
 }
 
-pub(crate) fn entity_constraints(entity: &EntityRef, parent_rect: &Rect) -> Rect {
-    entity
+pub(crate) fn widget_outer_bounds(
+    world: &World,
+    entity: &EntityRef,
+    mut parent_size: Vec2,
+) -> Rect {
+    let mut rect = entity
         .get(constraints())
-        .map(|c| c.apply(parent_rect))
-        .unwrap_or_default()
+        .map(|c| c.apply(parent_size))
+        .unwrap_or_default();
+
+    if let Ok(padding) = entity.get(padding()) {
+        parent_size -= padding.left + padding.right + padding.top + padding.bottom;
+    };
+
+    if let Ok(layout) = entity.get(layout()) {
+        let total_size = layout.total_size(world, entity, parent_size);
+        rect
+    } else {
+        rect
+    }
 }

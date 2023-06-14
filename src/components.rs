@@ -1,5 +1,5 @@
 use flax::{component, Debuggable, Entity};
-use glam::Vec2;
+use glam::{vec2, Vec2};
 
 use crate::{layout::Layout, shapes::Shape, Constraints};
 
@@ -11,8 +11,13 @@ component! {
     /// The shape of a widget when drawn
     pub shape: Shape => [ Debuggable ],
 
-    /// Defines the outer bounds of a widget
+    /// Defines the outer bounds of a widget relative to its position
     pub rect: Rect => [ Debuggable ],
+
+    /// Position relative to parent
+    pub local_position: Vec2 => [ Debuggable ],
+    /// The final position of a widget's rect
+    pub position: Vec2 => [ Debuggable ],
 
     /// Linear constraints for widget positioning and size
     pub constraints: Constraints => [ Debuggable ],
@@ -67,5 +72,12 @@ impl Rect {
     #[inline]
     pub fn pos(&self) -> Vec2 {
         self.min
+    }
+
+    pub fn pad(&self, padding: &Padding) -> Rect {
+        Self {
+            min: self.min + vec2(padding.left, padding.top),
+            max: self.max - vec2(padding.right, padding.bottom),
+        }
     }
 }

@@ -3,12 +3,12 @@ use futures::StreamExt;
 use glam::{vec2, Vec2};
 use palette::{
     named::{self, LIGHTSLATEGRAY, PURPLE},
-    Srgba, WithAlpha,
+    Hsla, IntoColor, Srgba, WithAlpha,
 };
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use violet::{
-    components::{constraints, layout, padding, rect, shape, Padding},
+    components::{constraints, layout, local_position, padding, position, rect, shape, Padding},
     layout::Layout,
     shapes::{FilledRect, Shape},
     time::interval,
@@ -80,7 +80,7 @@ where
 }
 
 struct Rectangle {
-    color: Srgba<u8>,
+    color: Srgba,
 }
 
 impl Widget for Rectangle {
@@ -88,6 +88,8 @@ impl Widget for Rectangle {
         scope
             .set(name(), "Rectangle".into())
             .set(shape(), Shape::FilledRect(FilledRect { color: self.color }))
+            .set_default(position())
+            .set_default(local_position())
             .set_default(rect());
     }
 }
@@ -97,32 +99,43 @@ impl Widget for List {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
             .set_default(rect())
+            .set(
+                shape(),
+                Shape::FilledRect(FilledRect {
+                    color: named::CYAN.into_format().with_alpha(1.0),
+                }),
+            )
             .set(layout(), Layout {})
             .set_default(constraints())
+            .set_default(position())
+            .set_default(local_position())
             .set(padding(), Padding::even(5.0));
 
         scope.attach(
             Constrained::new(Rectangle {
-                color: named::TEAL.into_format().with_alpha(255),
+                color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
             })
-            .absolute_size(vec2(100.0, 100.0)),
+            .relative_size(vec2(0.5, 0.0))
+            .absolute_size(vec2(0.0, 100.0)),
         );
 
         scope.attach(
             Constrained::new(Rectangle {
-                color: named::TEAL.into_format().with_alpha(255),
+                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
             })
-            .absolute_size(vec2(100.0, 100.0)),
+            .absolute_size(vec2(100.0, 50.0)),
+        );
+
+        scope.attach(
+            Constrained::new(Rectangle {
+                color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
+            })
+            .relative_size(vec2(0.2, 0.0))
+            .absolute_size(vec2(0.0, 60.0)),
         );
         scope.attach(
             Constrained::new(Rectangle {
-                color: named::TEAL.into_format().with_alpha(255),
-            })
-            .absolute_size(vec2(50.0, 100.0)),
-        );
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: named::TEAL.into_format().with_alpha(255),
+                color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
             })
             .absolute_size(vec2(50.0, 100.0)),
         );
@@ -149,10 +162,12 @@ impl Widget for MainApp {
             .set(
                 shape(),
                 Shape::FilledRect(FilledRect {
-                    color: named::WHITESMOKE.into_format().with_alpha(255),
+                    color: named::WHITESMOKE.into_format().with_alpha(1.0),
                 }),
             )
             .set_default(rect())
+            .set_default(position())
+            .set_default(local_position())
             .set(padding(), Padding::even(10.0))
             .set(
                 constraints(),
@@ -162,14 +177,14 @@ impl Widget for MainApp {
                 },
             );
 
-        scope.attach(Counter);
-        // scope.attach(Rectangle {
-        //     color: palette::named::BLUEVIOLET.into_format().with_alpha(255),
-        // });
+        // scope.attach(Counter);
+        scope.attach(Rectangle {
+            color: palette::named::BLUEVIOLET.into_format().with_alpha(1.0),
+        });
 
         scope.attach(
             Constrained::new(Rectangle {
-                color: PURPLE.into_format().with_alpha(255),
+                color: PURPLE.into_format().with_alpha(1.0),
             })
             .absolute_size(vec2(100.0, 0.0))
             .relative_size(vec2(0.0, 1.0))
