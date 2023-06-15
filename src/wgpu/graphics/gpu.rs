@@ -16,8 +16,7 @@ pub struct Surface {
     size: PhysicalSize<u32>,
     window: Window,
     surface: wgpu::Surface,
-    surface_format: TextureFormat,
-    surface_caps: SurfaceCapabilities,
+    config: SurfaceConfiguration,
 }
 
 impl Surface {
@@ -25,16 +24,8 @@ impl Surface {
         self.surface.get_current_texture()
     }
 
-    pub fn surface_config(&self) -> SurfaceConfiguration {
-        SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: self.surface_format,
-            width: self.size.width,
-            height: self.size.height,
-            present_mode: self.surface_caps.present_modes[0],
-            alpha_mode: self.surface_caps.alpha_modes[0],
-            view_formats: vec![],
-        }
+    pub fn surface_config(&self) -> &SurfaceConfiguration {
+        &self.config
     }
 
     pub fn window(&self) -> &Window {
@@ -43,17 +34,26 @@ impl Surface {
 
     pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
         tracing::info_span!("resize", ?new_size);
-        if new_size.width > 0 && new_size.height > 0 {
+        if new_size == self.size {
+            tracing::info!(size=?new_size, "Duplicate resize message ignored");
+            return;
+        }
+
+        if new_size.width > 0 && new_size.height > 0 && new_size != self.size {
             // self.size = new_size;
-            // self.config.width = new_size.width;
-            // self.config.height = new_size.height;
-            self.surface.configure(&gpu.device, &self.surface_config());
+            self.config.width = new_size.width;
+            self.config.height = new_size.height;
             self.size = new_size;
         }
     }
 
+    pub fn reconfigure(&mut self, gpu: &Gpu) {
+        tracing::info!("Reconfiguring surface");
+        self.surface.configure(&gpu.device, &self.config);
+    }
+
     pub fn surface_format(&self) -> TextureFormat {
-        self.surface_format
+        self.config.format
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
@@ -125,8 +125,6 @@ impl Gpu {
             height: size.height,
             present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode: surface_caps.alpha_modes[0],
-            // present_mode: surface_caps.present_modes[0],
-            // alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
 
@@ -143,8 +141,7 @@ impl Gpu {
             Surface {
                 window,
                 surface,
-                surface_format,
-                surface_caps,
+                config,
                 size,
             },
         )

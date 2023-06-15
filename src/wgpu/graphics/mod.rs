@@ -2,6 +2,7 @@ mod bind_groups;
 mod gpu;
 mod mesh;
 pub mod shader;
+pub mod texture;
 pub mod typed_buffer;
 
 pub use bind_groups::{BindGroupBuilder, BindGroupLayoutBuilder};

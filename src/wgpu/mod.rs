@@ -1,6 +1,7 @@
 pub mod graphics;
 mod painter;
 mod shape_renderer;
+mod texture;
 pub mod window_renderer;
 
 pub use graphics::Gpu;

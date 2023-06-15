@@ -23,10 +23,9 @@ impl Constraints {
     pub(crate) fn apply(&self, content_area: Rect) -> Rect {
         let parent_size = content_area.size();
 
-        let _span = tracing::info_span!("Applying constraints", ?parent_size).entered();
+        // let _span = tracing::info_span!("Applying constraints", ?parent_size).entered();
         let pos = self.abs_offset + self.rel_offset * parent_size;
         let size = self.abs_size + self.rel_size * parent_size;
-        tracing::info!(?size);
 
         let pos = content_area.pos() + pos - self.anchor * size;
 

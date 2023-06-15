@@ -103,7 +103,6 @@ pub(crate) fn update_subtree(
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        tracing::info!("Layout with padding: {padding:?}");
         let inner_rect = layout
             .apply(world, entity, content_area.inset(&padding))
             .pad(&padding);

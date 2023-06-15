@@ -72,8 +72,9 @@ impl WindowRenderer {
     pub fn draw(&mut self, gpu: &Gpu) -> anyhow::Result<()> {
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
-            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
-                self.surface.resize(gpu, self.surface.size());
+            Err(e @ SurfaceError::Lost | e @ SurfaceError::Outdated) => {
+                tracing::info!("Reconfiguring surface: {e:?}");
+                self.surface.reconfigure(gpu);
                 return Ok(());
             }
             Err(err) => return Err(err).context("Failed to acquire surface texture"),
