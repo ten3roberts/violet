@@ -11,13 +11,8 @@ component! {
     /// The shape of a widget when drawn
     pub shape: Shape => [ Debuggable ],
 
-    /// Defines the outer bounds of a widget relative to its position
+    /// Defines the outer bounds of a widget in screen space
     pub rect: Rect => [ Debuggable ],
-
-    /// Position relative to parent
-    pub local_position: Vec2 => [ Debuggable ],
-    /// The final position of a widget's rect
-    pub position: Vec2 => [ Debuggable ],
 
     /// Linear constraints for widget positioning and size
     pub constraints: Constraints => [ Debuggable ],
@@ -74,10 +69,26 @@ impl Rect {
         self.min
     }
 
-    pub fn pad(&self, padding: &Padding) -> Rect {
+    /// Makes the rect smaller by the given padding
+    pub fn inset(&self, padding: &Padding) -> Rect {
         Self {
             min: self.min + vec2(padding.left, padding.top),
             max: self.max - vec2(padding.right, padding.bottom),
+        }
+    }
+
+    /// Makes the rect larger by the given padding
+    pub fn pad(&self, padding: &Padding) -> Rect {
+        Self {
+            min: self.min - vec2(padding.left, padding.top),
+            max: self.max + vec2(padding.right, padding.bottom),
+        }
+    }
+
+    pub(crate) fn translate(&self, v: Vec2) -> Self {
+        Self {
+            min: self.min + v,
+            max: self.max + v,
         }
     }
 }

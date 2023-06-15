@@ -2,7 +2,7 @@ use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
 
 use crate::{
-    components::{self, children, layout, local_position, padding, Padding, Rect},
+    components::{self, children, layout, padding, Rect},
     constraints::widget_outer_bounds,
 };
 
@@ -11,14 +11,13 @@ pub struct Layout {}
 
 impl Layout {
     /// Position and size the children of the given entity using all the provided available space
-    fn apply(&self, world: &World, entity: &EntityRef, available: Rect) -> Rect {
+    fn apply(&self, world: &World, entity: &EntityRef, content_area: Rect) -> Rect {
         let children = entity.get(children()).ok();
         let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
 
-        let available_size = available.size();
-
         // Start at the corner of the rect. May not be 0,0 due to padding
-        let mut cursor = available.min;
+
+        let mut window = content_area;
 
         let mut line_height = 0.0f32;
 
@@ -28,26 +27,27 @@ impl Layout {
             let rect = update_subtree(
                 world,
                 &entity,
-                available,
+                window,
                 LayoutConstraints {
                     min: Vec2::ZERO,
-                    max: available_size,
+                    max: content_area.size(),
                 },
             )
             .unwrap_or_default();
 
             entity.update(components::rect(), |v| *v = rect);
-            entity.update(components::local_position(), |v| *v = cursor);
 
-            cursor.x += rect.size().x + 10.0;
+            // Slide
+            window = window.translate((rect.size().x + 10.0) * Vec2::X);
+
             line_height = line_height.max(rect.size().y);
         }
 
-        cursor.y += line_height;
+        window = window.translate(line_height * Vec2::Y);
 
         Rect {
-            min: available.min,
-            max: cursor,
+            min: content_area.min,
+            max: window.min,
         }
     }
 
@@ -102,15 +102,12 @@ pub(crate) fn update_subtree(
     if let Ok(layout) = entity.get(layout()) {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
-        let available = Rect {
-            min: Vec2::ZERO,
-            max: constraints.max,
-        }
-        .pad(&padding);
 
-        let mut inner_rect = layout.apply(world, entity, content_area.pad(&padding));
-        inner_rect.max += vec2(padding.right, padding.bottom);
-        inner_rect.min -= vec2(padding.left, padding.top);
+        tracing::info!("Layout with padding: {padding:?}");
+        let inner_rect = layout
+            .apply(world, entity, content_area.inset(&padding))
+            .pad(&padding);
+
         Some(inner_rect)
     }
     // Stack
@@ -120,7 +117,7 @@ pub(crate) fn update_subtree(
             max: Vec2::ONE,
         };
 
-        let content_area = content_area.pad(&padding);
+        let content_area = content_area.inset(&padding);
 
         for &child in &*children {
             let entity = world.entity(child).unwrap();

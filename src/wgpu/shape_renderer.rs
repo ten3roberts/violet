@@ -6,7 +6,7 @@ use palette::Srgba;
 use wgpu::{BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
-    components::{children, position, rect, shape, Rect},
+    components::{children, rect, shape, Rect},
     shapes::{FilledRect, Shape},
     Frame,
 };
@@ -69,13 +69,14 @@ impl ShapeRenderer {
     }
 
     pub fn update(&mut self, frame: &mut Frame, root: Entity) {
-        let mut query = Query::new((rect(), shape(), position())).topo(child_of);
+        let mut query = Query::new((rect(), shape())).topo(child_of);
 
         self.objects.clear();
 
-        for (rect, shape, &pos) in &mut query.borrow(frame.world()) {
-            let pos = pos + rect.pos();
+        for (rect, shape) in &mut query.borrow(frame.world()) {
+            let pos = rect.pos();
             let size = rect.size();
+
             match shape {
                 Shape::FilledRect(FilledRect { color }) => {
                     self.objects.push(ObjectData {

@@ -1,8 +1,8 @@
-use flax::{child_of, BoxedSystem, Dfs, DfsBorrow, Query, QueryBorrow, System, World};
+use flax::{child_of, BoxedSystem, Query, QueryBorrow, System, World};
 use glam::Vec2;
 
 use crate::{
-    components::{self, children, local_position, position, rect, Rect},
+    components::{self, children, rect, Rect},
     layout::{update_subtree, LayoutConstraints},
 };
 
@@ -31,21 +31,6 @@ pub fn layout_system() -> BoxedSystem {
                         entity.update(components::rect(), |v| *v = rect.unwrap_or_default());
                     }
                 });
-        })
-        .boxed()
-}
-
-pub fn transform_system() -> BoxedSystem {
-    System::builder()
-        .with(Query::new((position().as_mut(), local_position())).with_strategy(Dfs::new(child_of)))
-        .build(|mut query: DfsBorrow<_>| {
-            query.traverse(
-                &Vec2::ZERO,
-                |(pos, local_pos): (&mut Vec2, &Vec2), _, parent_pos| {
-                    *pos = *parent_pos + *local_pos;
-                    *pos
-                },
-            );
         })
         .boxed()
 }

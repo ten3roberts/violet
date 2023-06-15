@@ -9,7 +9,7 @@ use palette::{
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use violet::{
-    components::{constraints, layout, local_position, padding, position, rect, shape, Padding},
+    components::{constraints, layout, padding, rect, shape, Padding},
     layout::Layout,
     shapes::{FilledRect, Shape},
     time::interval,
@@ -89,8 +89,6 @@ impl Widget for Rectangle {
         scope
             .set(name(), "Rectangle".into())
             .set(shape(), Shape::FilledRect(FilledRect { color: self.color }))
-            .set_default(position())
-            .set_default(local_position())
             .set_default(rect());
     }
 }
@@ -109,10 +107,14 @@ impl Widget for List {
                 }),
             )
             .set(layout(), Layout {})
-            .set_default(constraints())
-            .set_default(position())
-            .set_default(local_position())
-            .set(padding(), Padding::even(0.0));
+            .set(
+                constraints(),
+                Constraints {
+                    abs_offset: vec2(10.0, 10.0),
+                    ..Default::default()
+                },
+            )
+            .set(padding(), Padding::even(5.0));
 
         scope.attach(
             Constrained::new(Rectangle {
@@ -169,8 +171,6 @@ impl Widget for MainApp {
             //     }),
             // )
             .set_default(rect())
-            .set_default(position())
-            .set_default(local_position())
             .set(padding(), Padding::even(5.0))
             .set(
                 constraints(),

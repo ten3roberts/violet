@@ -7,9 +7,9 @@ use winit::{
 };
 
 use crate::{
-    components::{self, local_position, position, rect, Rect},
+    components::{self, rect, Rect},
     executor::Executor,
-    systems::{layout_system, transform_system},
+    systems::layout_system,
     wgpu::{graphics::Gpu, window_renderer::WindowRenderer},
     Frame, Widget,
 };
@@ -21,17 +21,13 @@ pub struct Canvas<W> {
 
 impl<W: Widget> Widget for Canvas<W> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        scope
-            .set(name(), "Canvas".into())
-            .set(
-                rect(),
-                Rect {
-                    min: Vec2::ZERO,
-                    max: self.size,
-                },
-            )
-            .set_default(position())
-            .set_default(local_position());
+        scope.set(name(), "Canvas".into()).set(
+            rect(),
+            Rect {
+                min: Vec2::ZERO,
+                max: self.size,
+            },
+        );
 
         scope.attach(self.root);
     }
@@ -70,9 +66,7 @@ impl App {
 
         let mut window_renderer = WindowRenderer::new(&gpu, surface);
 
-        let mut schedule = Schedule::new()
-            .with_system(layout_system())
-            .with_system(transform_system());
+        let mut schedule = Schedule::new().with_system(layout_system());
 
         event_loop.run(move |event, _, ctl| match event {
             Event::MainEventsCleared => {
