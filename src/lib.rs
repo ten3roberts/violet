@@ -1,5 +1,5 @@
 mod app;
-mod assets;
+pub mod assets;
 pub mod components;
 pub(crate) mod constraints;
 pub mod effect;
