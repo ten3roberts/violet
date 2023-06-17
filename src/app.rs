@@ -7,6 +7,7 @@ use winit::{
 };
 
 use crate::{
+    assets::AssetCache,
     components::{self, rect, Rect},
     executor::Executor,
     systems::layout_system,
@@ -47,7 +48,11 @@ impl App {
 
         let world = World::new();
 
-        let mut frame = Frame { world, spawner };
+        let mut frame = Frame {
+            world,
+            spawner,
+            assets: AssetCache::new(),
+        };
 
         let event_loop = EventLoopBuilder::new().build();
 
@@ -64,7 +69,7 @@ impl App {
         // TODO: Make this a proper effect
         let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
 
-        let mut window_renderer = WindowRenderer::new(&gpu, surface);
+        let mut window_renderer = WindowRenderer::new(&gpu, &mut frame, surface);
 
         let mut schedule = Schedule::new().with_system(layout_system());
 
@@ -73,9 +78,8 @@ impl App {
                 ex.tick(&mut frame);
 
                 schedule.execute_seq(&mut frame.world).unwrap();
-                window_renderer.update(&mut frame, root);
 
-                if let Err(err) = window_renderer.draw(&gpu) {
+                if let Err(err) = window_renderer.draw(&gpu, &mut frame) {
                     tracing::error!("Failed to draw to window: {err:?}");
                     *ctl = ControlFlow::Exit
                 }

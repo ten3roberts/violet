@@ -15,7 +15,7 @@ use tracing::info_span;
 use self::{cell::AssetCell, handle::WeakHandle};
 
 slotmap::new_key_type! {
-    pub(crate) struct AssetId;
+    pub struct AssetId;
 }
 
 type KeyMap<K> = HashMap<K, WeakHandle<<K as AssetKey>::Output>>;

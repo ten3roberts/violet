@@ -23,7 +23,7 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
-    pub fn new(gpu: &Gpu, surface: Surface) -> Self {
+    pub fn new(gpu: &Gpu, frame: &mut Frame, surface: Surface) -> Self {
         let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
             .bind_uniform_buffer(ShaderStages::VERTEX)
             .build(gpu);
@@ -43,7 +43,8 @@ impl WindowRenderer {
             .bind_buffer(&globals_buffer)
             .build(gpu, &globals_layout);
 
-        let shape_renderer = ShapeRenderer::new(gpu, &globals_layout, surface.surface_format());
+        let shape_renderer =
+            ShapeRenderer::new(gpu, frame, &globals_layout, surface.surface_format());
 
         Self {
             surface,
@@ -65,11 +66,9 @@ impl WindowRenderer {
         self.surface.resize(gpu, new_size);
     }
 
-    pub fn update(&mut self, frame: &mut Frame, root: Entity) {
-        self.shape_renderer.update(frame, root);
-    }
+    pub fn draw(&mut self, gpu: &Gpu, frame: &mut Frame) -> anyhow::Result<()> {
+        self.shape_renderer.update(gpu, frame);
 
-    pub fn draw(&mut self, gpu: &Gpu) -> anyhow::Result<()> {
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
             Err(e @ SurfaceError::Lost | e @ SurfaceError::Outdated) => {

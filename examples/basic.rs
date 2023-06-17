@@ -1,19 +1,22 @@
+use anyhow::Context;
 use flax::{child_of, name};
 use futures::StreamExt;
 use glam::{vec2, Vec2};
+use image::DynamicImage;
 use palette::{
     named::{self, LIGHTSLATEGRAY, PURPLE},
     rgb::Rgba,
     Hsla, IntoColor, Srgba, WithAlpha,
 };
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
+    assets::{AssetKey, Handle},
     components::{constraints, layout, padding, rect, shape, Padding},
     layout::Layout,
     shapes::{FilledRect, Shape},
-    time::interval,
-    App, Constraints, Frame, Scope, StreamEffect, Widget,
+    time::{interval, sleep},
+    App, Constraints, Frame, FutureEffect, Scope, StreamEffect, Widget,
 };
 
 struct MainApp;
@@ -88,7 +91,51 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "Rectangle".into())
-            .set(shape(), Shape::FilledRect(FilledRect { color: self.color }))
+            .set(
+                shape(),
+                Shape::FilledRect(FilledRect {
+                    color: self.color,
+                    fill_image: None,
+                }),
+            )
+            .set_default(rect());
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+struct ImageFromPath {
+    path: PathBuf,
+}
+
+impl AssetKey for ImageFromPath {
+    type Output = DynamicImage;
+
+    fn load(&self, _: &violet::assets::AssetCache) -> Self::Output {
+        image::open(&self.path)
+            .context("Failed to load image")
+            .unwrap()
+    }
+}
+
+struct Image<P> {
+    path: P,
+}
+
+impl<P: Into<PathBuf>> Widget for Image<P> {
+    fn mount(self, scope: &mut Scope) {
+        let image = scope.assets_mut().load(ImageFromPath {
+            path: self.path.into(),
+        });
+
+        scope
+            .set(name(), "Image".into())
+            .set(
+                shape(),
+                Shape::FilledRect(FilledRect {
+                    color: Srgba::new(1.0, 1.0, 1.0, 1.0),
+                    fill_image: Some(image),
+                }),
+            )
             .set_default(rect());
     }
 }
@@ -104,6 +151,7 @@ impl Widget for List {
                 Shape::FilledRect(FilledRect {
                     // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
                     color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
+                    fill_image: None,
                 }),
             )
             .set(layout(), Layout {})
@@ -195,6 +243,19 @@ impl Widget for MainApp {
             .anchor(vec2(1.0, 0.0)),
         );
 
+        scope.spawn(FutureEffect::new(
+            sleep(Duration::from_secs(2)),
+            move |scope: &mut Scope, _| {
+                scope.attach(
+                    Constrained::new(Image {
+                        path: "./assets/images/uv.png",
+                    })
+                    .absolute_size(vec2(400.0, 400.0))
+                    .relative_offset(vec2(0.0, 1.0))
+                    .anchor(vec2(0.0, 1.0)),
+                );
+            },
+        ));
         scope.attach(List {});
     }
 }

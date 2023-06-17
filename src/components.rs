@@ -22,6 +22,7 @@ component! {
 
     /// Spacing between a outer and inner bounds
     pub padding: Padding => [ Debuggable ],
+
 }
 
 /// Spacing between a outer and inner bounds

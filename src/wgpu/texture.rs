@@ -1,45 +1,36 @@
-use std::sync::Arc;
+use image::{DynamicImage, ImageBuffer, Rgba};
 
-use image::DynamicImage;
-use ulid::Ulid;
+use crate::assets::{AssetCache, AssetKey, Handle};
 
-use crate::assets::AssetKey;
-
-use super::graphics::texture::Texture;
+use super::{graphics::texture::Texture, Gpu};
 
 /// Load a texture from in memory data
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct TextureFromImage {
-    id: Ulid,
-    image: Arc<DynamicImage>,
-}
-
-impl PartialEq for TextureFromImage {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for TextureFromImage {}
-
-impl std::hash::Hash for TextureFromImage {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
+    gpu: Handle<Gpu>,
+    image: Handle<DynamicImage>,
 }
 
 impl AssetKey for TextureFromImage {
-    type Output = TextureHandle;
+    type Output = Texture;
 
-    fn load(&self) -> Self::Output {
-        let texture = Texture::from_image(&todo!(), &self.image);
-        TextureHandle {
-            id: self.id,
-            texture: Arc::new(texture),
-        }
+    fn load(&self, _: &AssetCache) -> Self::Output {
+        Texture::from_image(&self.gpu, &self.image)
     }
 }
 
-pub struct TextureHandle {
-    id: Ulid,
-    texture: Arc<Texture>,
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+struct SolidTextureKey {
+    color: Rgba<u8>,
+    gpu: Handle<Gpu>,
+}
+
+impl AssetKey for SolidTextureKey {
+    type Output = Texture;
+
+    fn load(&self, _: &AssetCache) -> Self::Output {
+        let contents = ImageBuffer::from_pixel(256, 256, self.color);
+
+        Texture::from_image(&self.gpu, &DynamicImage::ImageRgba8(contents))
+    }
 }

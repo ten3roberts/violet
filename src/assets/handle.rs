@@ -1,24 +1,23 @@
 use std::cmp::Ordering;
-use std::{self, marker::PhantomData};
+use std::{self};
 
 use std::hash::Hash;
 
-use ulid::Ulid;
-
 use std::sync::{Arc, Weak};
 
-use super::{AssetCache, AssetId, AssetKey};
+use super::AssetId;
 
+#[derive(Debug)]
 pub struct WeakHandle<T> {
-    pub(crate) value: Weak<T>,
     pub(crate) id: AssetId,
+    pub(crate) value: Weak<T>,
 }
 
 impl<T> Clone for WeakHandle<T> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
-            id: self.id.clone(),
+            id: self.id,
         }
     }
 }
@@ -47,8 +46,8 @@ impl<T> Eq for WeakHandle<T> {}
 /// Keep-alive handle to an asset
 #[derive(Debug)]
 pub struct Handle<T> {
-    pub(crate) value: Arc<T>,
     pub(crate) id: AssetId,
+    pub(crate) value: Arc<T>,
 }
 
 impl<T> std::ops::Deref for Handle<T> {
@@ -74,6 +73,10 @@ impl<T> Handle<T> {
             value: Arc::downgrade(&self.value),
             id: self.id,
         }
+    }
+
+    pub fn id(&self) -> AssetId {
+        self.id
     }
 }
 

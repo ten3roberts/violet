@@ -1,6 +1,7 @@
 use flax::{Entity, World};
 
 use crate::{
+    assets::AssetCache,
     effect::Effect,
     executor::{Spawner, TaskHandle},
     Scope, Widget,
@@ -9,6 +10,7 @@ use crate::{
 pub struct Frame {
     pub world: World,
     pub spawner: Spawner<Self>,
+    pub assets: AssetCache,
 }
 
 impl Frame {

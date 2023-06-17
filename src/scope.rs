@@ -6,7 +6,7 @@ use std::{
 use flax::{child_of, Component, ComponentValue, Entity, EntityBuilder, EntityRef, EntityRefMut};
 use pin_project::pin_project;
 
-use crate::{components::children, effect::Effect, Frame, Widget};
+use crate::{assets::AssetCache, components::children, effect::Effect, Frame, Widget};
 
 /// The scope within a [`Widget`][crate::Widget] is mounted or modified
 pub struct Scope<'a> {
@@ -138,6 +138,10 @@ impl<'a> Scope<'a> {
 
     pub fn id(&self) -> Entity {
         self.id
+    }
+
+    pub fn assets_mut(&mut self) -> &mut AssetCache {
+        &mut self.frame.assets
     }
 }
 
