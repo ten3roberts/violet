@@ -1,10 +1,10 @@
 on: [push, pull_request]
 
-name: Continuous integration
+name: ci
 
 jobs:
   check:
-    name: Check
+    name: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -16,9 +16,10 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --all-features
 
   test:
-    name: Test Suite
+    name: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -29,23 +30,7 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
-          command: test
-
-  fmt:
-    name: Rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+          command: test --all-features
 
   clippy:
     name: Clippy
@@ -61,4 +46,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --all-features -D warnings
