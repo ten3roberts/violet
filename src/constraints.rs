@@ -1,7 +1,10 @@
 use flax::{EntityRef, World};
 use glam::Vec2;
 
-use crate::components::{constraints, layout, padding, Rect};
+use crate::{
+    components::{constraints, layout, padding, Rect},
+    layout::LayoutConstraints,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct Constraints {
@@ -20,12 +23,13 @@ pub struct Constraints {
 }
 
 impl Constraints {
-    pub(crate) fn apply(&self, content_area: Rect) -> Rect {
+    pub(crate) fn apply(&self, content_area: Rect, constraints: LayoutConstraints) -> Rect {
         let parent_size = content_area.size();
 
         // let _span = tracing::info_span!("Applying constraints", ?parent_size).entered();
         let pos = self.abs_offset + self.rel_offset * parent_size;
         let size = self.abs_size + self.rel_size * parent_size;
+        // let size = size.clamp(constraints.min, constraints.max);
 
         let pos = content_area.pos() + pos - self.anchor * size;
 
@@ -38,24 +42,25 @@ pub(crate) fn widget_outer_bounds(
     entity: &EntityRef,
     mut parent_size: Vec2,
 ) -> Rect {
-    let mut rect = entity
-        .get(constraints())
-        .map(|c| {
-            c.apply(Rect {
-                min: Vec2::ZERO,
-                max: parent_size,
-            })
-        })
-        .unwrap_or_default();
+    todo!()
+    // let mut rect = entity
+    //     .get(constraints())
+    //     .map(|c| {
+    //         c.apply(Rect {
+    //             min: Vec2::ZERO,
+    //             max: parent_size,
+    //         })
+    //     })
+    //     .unwrap_or_default();
 
-    if let Ok(padding) = entity.get(padding()) {
-        parent_size -= padding.left + padding.right + padding.top + padding.bottom;
-    };
+    // if let Ok(padding) = entity.get(padding()) {
+    //     parent_size -= padding.left + padding.right + padding.top + padding.bottom;
+    // };
 
-    if let Ok(layout) = entity.get(layout()) {
-        let total_size = layout.total_size(world, entity, parent_size);
-        rect
-    } else {
-        rect
-    }
+    // if let Ok(layout) = entity.get(layout()) {
+    //     let total_size = layout.total_size(world, entity, parent_size);
+    //     rect
+    // } else {
+    //     rect
+    // }
 }

@@ -188,7 +188,7 @@ mod test {
         #[cfg(not(miri))]
         assert_interval(now, interval, expected);
 
-        // drop(handle);
-        // j.join().unwrap();
+        drop(handle);
+        j.join().unwrap();
     }
 }

@@ -3,16 +3,14 @@ use flax::{child_of, name};
 use futures::StreamExt;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
-use palette::{
-    named::{self, LIGHTSLATEGRAY, PURPLE},
-    rgb::Rgba,
-    Hsla, IntoColor, Srgba, WithAlpha,
-};
+use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
-    assets::{AssetKey, Handle},
-    components::{constraints, layout, padding, rect, shape, Padding},
+    assets::AssetKey,
+    components::{
+        constraints, layout, local_position, margin, padding, rect, screen_position, shape, Edges,
+    },
     layout::Layout,
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
@@ -85,6 +83,7 @@ where
 
 struct Rectangle {
     color: Srgba,
+    margin: Edges,
 }
 
 impl Widget for Rectangle {
@@ -98,6 +97,9 @@ impl Widget for Rectangle {
                     fill_image: None,
                 }),
             )
+            .set(margin(), self.margin)
+            .set_default(screen_position())
+            .set_default(local_position())
             .set_default(rect());
     }
 }
@@ -129,6 +131,8 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
 
         scope
             .set(name(), "Image".into())
+            .set_default(screen_position())
+            .set_default(local_position())
             .set(
                 shape(),
                 Shape::FilledRect(FilledRect {
@@ -155,18 +159,15 @@ impl Widget for List {
                 }),
             )
             .set(layout(), Layout {})
-            .set(
-                constraints(),
-                Constraints {
-                    abs_offset: vec2(10.0, 10.0),
-                    ..Default::default()
-                },
-            )
-            .set(padding(), Padding::even(5.0));
+            .set_default(constraints())
+            .set_default(screen_position())
+            .set_default(local_position())
+            .set(padding(), Edges::even(5.0));
 
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(10.0),
             })
             .relative_size(vec2(0.5, 0.0))
             .absolute_size(vec2(0.0, 100.0)),
@@ -175,6 +176,7 @@ impl Widget for List {
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(10.0),
             })
             .absolute_size(vec2(100.0, 50.0)),
         );
@@ -182,6 +184,7 @@ impl Widget for List {
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(25.0),
             })
             .relative_size(vec2(0.2, 0.0))
             .absolute_size(vec2(0.0, 60.0)),
@@ -189,6 +192,7 @@ impl Widget for List {
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(10.0),
             })
             .absolute_size(vec2(50.0, 100.0)),
         );
@@ -219,7 +223,9 @@ impl Widget for MainApp {
             //     }),
             // )
             .set_default(rect())
-            .set(padding(), Padding::even(5.0))
+            .set_default(screen_position())
+            .set_default(local_position())
+            .set(padding(), Edges::even(5.0))
             .set(
                 constraints(),
                 Constraints {
@@ -236,6 +242,7 @@ impl Widget for MainApp {
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Default::default(),
             })
             .absolute_size(vec2(100.0, 0.0))
             .relative_size(vec2(0.0, 1.0))

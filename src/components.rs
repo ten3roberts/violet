@@ -11,8 +11,14 @@ component! {
     /// The shape of a widget when drawn
     pub shape: Shape => [ Debuggable ],
 
-    /// Defines the outer bounds of a widget in screen space
+    /// Defines the outer bounds of a widget relative to its position
     pub rect: Rect => [ Debuggable ],
+
+    /// Position relative to parent
+    pub local_position: Vec2 => [ Debuggable ],
+
+    /// Specifies in screen space where the widget rect upper left corner is
+    pub screen_position: Vec2 => [ Debuggable ],
 
     /// Linear constraints for widget positioning and size
     pub constraints: Constraints => [ Debuggable ],
@@ -21,20 +27,30 @@ component! {
     pub layout: Layout => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
-    pub padding: Padding => [ Debuggable ],
+    pub padding: Edges => [ Debuggable ],
+    pub margin: Edges => [ Debuggable ],
 
 }
 
 /// Spacing between a outer and inner bounds
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Padding {
+pub struct Edges {
     pub left: f32,
     pub right: f32,
     pub top: f32,
     pub bottom: f32,
 }
 
-impl Padding {
+impl Edges {
+    pub fn new(left: f32, right: f32, top: f32, bottom: f32) -> Self {
+        Self {
+            left,
+            right,
+            top,
+            bottom,
+        }
+    }
+
     pub fn even(distance: f32) -> Self {
         Self {
             left: distance,
@@ -42,6 +58,10 @@ impl Padding {
             top: distance,
             bottom: distance,
         }
+    }
+
+    pub(crate) fn size(&self) -> Vec2 {
+        vec2(self.left + self.right, self.top + self.bottom)
     }
 }
 
@@ -71,7 +91,7 @@ impl Rect {
     }
 
     /// Makes the rect smaller by the given padding
-    pub fn inset(&self, padding: &Padding) -> Rect {
+    pub fn inset(&self, padding: &Edges) -> Rect {
         Self {
             min: self.min + vec2(padding.left, padding.top),
             max: self.max - vec2(padding.right, padding.bottom),
@@ -79,7 +99,7 @@ impl Rect {
     }
 
     /// Makes the rect larger by the given padding
-    pub fn pad(&self, padding: &Padding) -> Rect {
+    pub fn pad(&self, padding: &Edges) -> Rect {
         Self {
             min: self.min - vec2(padding.left, padding.top),
             max: self.max + vec2(padding.right, padding.bottom),

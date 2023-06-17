@@ -12,7 +12,7 @@ use wgpu::{
 
 use crate::{
     assets::Handle,
-    components::{children, rect, shape, Rect},
+    components::{children, local_position, rect, screen_position, shape, Rect},
     shapes::{FilledRect, Shape},
     Frame,
 };
@@ -117,7 +117,7 @@ impl ShapeRenderer {
     }
 
     pub fn update(&mut self, gpu: &Gpu, frame: &mut Frame) {
-        let mut query = Query::new((rect(), shape())).topo(child_of);
+        let mut query = Query::new((rect(), shape(), screen_position())).topo(child_of);
 
         self.objects.clear();
         self.commands.clear();
@@ -125,8 +125,8 @@ impl ShapeRenderer {
         self.commands.extend(
             (&mut query.borrow(frame.world()))
                 .into_iter()
-                .map(|(rect, shape)| {
-                    let pos = rect.pos();
+                .map(|(rect, shape, &pos)| {
+                    let pos = pos + rect.pos();
                     let size = rect.size();
 
                     match shape {
