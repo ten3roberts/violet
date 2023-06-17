@@ -19,18 +19,42 @@ jobs:
           args: --all-features
 
   test:
-    name: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test --all-features
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v2
+        - name: Install nightly
+          uses: actions-rs/toolchain@v1
+          with:
+            toolchain: stable
+            override: true
+            profile: minimal
+
+        - uses: taiki-e/install-action@nextest
+        - name: Run cargo test
+          uses: actions-rs/cargo@v1
+          with:
+            command: nextest
+            args: run --all-features
+
+  test_miri:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v2
+        - name: Install nightly
+          uses: actions-rs/toolchain@v1
+          with:
+            toolchain: nightly
+            override: true
+            components: miri
+
+        - uses: taiki-e/install-action@nextest
+
+        - name: Run cargo miri
+          uses: actions-rs/cargo@v1
+          with:
+            command: miri
+            args: nextest run
+
 
   clippy:
     name: Clippy
