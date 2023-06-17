@@ -13,5 +13,21 @@
             "RUST_BACKTRACE": "1",
             "RUST_LOG": "violet=debug,wgpu=warn,info"
         }
+    },
+    "test-miri": {
+        "cmd": [
+            "cargo",
+            "+nightly",
+            "miri",
+            "test"
+        ]
+    },
+    "test": {
+        "cmd": [
+            "cargo",
+            "nextest",
+            "run",
+            "--all-features"
+        ]
     }
 }

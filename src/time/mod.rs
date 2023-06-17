@@ -3,8 +3,8 @@ use std::{
     marker::PhantomPinned,
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Weak,
     },
     task::{Context, Poll, Waker},
     thread::{self, Thread},
@@ -12,11 +12,11 @@ use std::{
 };
 
 use futures::{
-    task::{noop_waker, ArcWake},
+    task::{noop_waker, ArcWake, AtomicWaker},
     Future,
 };
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use pin_project::{pin_project, pinned_drop};
 use slotmap::new_key_type;
 mod interval;
@@ -34,7 +34,7 @@ pub fn sleep(duration: Duration) -> Sleep {
 }
 
 struct TimerEntry {
-    waker: Mutex<Waker>,
+    waker: AtomicWaker,
     finished: AtomicBool,
     _pinned: PhantomPinned,
 }
@@ -66,6 +66,7 @@ struct Inner {
     /// Invoked when there is a new timer
     waker: Waker,
     heap: BTreeSet<Entry>,
+    handle_count: AtomicUsize,
 }
 
 impl Inner {
@@ -80,34 +81,68 @@ impl Inner {
     }
 }
 
-#[derive(Clone)]
 pub struct TimersHandle {
     inner: Arc<Mutex<Inner>>,
+}
+
+impl Clone for TimersHandle {
+    fn clone(&self) -> Self {
+        self.inner
+            .lock()
+            .handle_count
+            .fetch_add(1, Ordering::Relaxed);
+
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl Drop for TimersHandle {
+    fn drop(&mut self) {
+        eprintln!("Dropping timers handle");
+        let inner = self.inner.lock();
+        let count = inner.handle_count.fetch_sub(1, Ordering::Relaxed);
+        eprintln!("count: {}", count);
+        if count == 1 {
+            eprintln!("Waking timers");
+            inner.waker.wake_by_ref();
+        }
+    }
 }
 
 pub struct Timers {
     inner: Arc<Mutex<Inner>>,
 }
 
+pub struct TimersFinished;
+
 impl Timers {
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(Inner {
-                heap: BTreeSet::new(),
-                waker: noop_waker(),
-            })),
-        }
+    pub fn new() -> (Self, TimersHandle) {
+        let inner = Arc::new(Mutex::new(Inner {
+            heap: BTreeSet::new(),
+            waker: noop_waker(),
+            handle_count: AtomicUsize::new(1),
+        }));
+
+        (
+            Self {
+                inner: inner.clone(),
+            },
+            TimersHandle { inner },
+        )
     }
 
     /// Advances the timers, returning the next deadline
-    pub fn tick(&mut self, time: Instant) -> Option<Instant> {
+    fn tick(&mut self, time: Instant, waker: Waker) -> Result<Option<Instant>, TimersFinished> {
         let mut shared = self.inner.lock();
+        shared.waker = waker;
         let shared = &mut *shared;
 
         while let Some(entry) = shared.heap.first() {
             // All deadlines before now have been handled
             if entry.deadline > time {
-                return Some(entry.deadline);
+                return Ok(Some(entry.deadline));
             }
 
             let entry = shared.heap.pop_first().unwrap();
@@ -117,17 +152,21 @@ impl Timers {
             // Drop is guaranteed due to Sleep being pinned when registered
             let timer = unsafe { &*(entry.timer) };
 
-            timer.finished.store(true, Ordering::Release);
-            timer.waker.lock().wake_by_ref();
+            // Wake the future waiting on the timer
+            timer.finished.store(true, Ordering::SeqCst);
+            timer.waker.wake();
         }
 
-        None
+        if shared.handle_count.load(Ordering::SeqCst) == 0 {
+            return Err(TimersFinished);
+        }
+
+        Ok(None)
     }
 
     /// Starts executing the timers in the background
     pub fn start() -> TimersHandle {
-        let timers = Timers::new();
-        let handle = timers.handle();
+        let (timers, handle) = Timers::new();
         std::thread::spawn(move || timers.run_blocking());
         handle
     }
@@ -137,24 +176,27 @@ impl Timers {
             thread_id: thread::current(),
         });
 
-        self.inner.lock().waker = futures::task::waker(waker);
+        let waker = futures::task::waker(waker);
 
         loop {
             let now = Instant::now();
-            let next = self.tick(now);
+            let next = match self.tick(now, waker.clone()) {
+                Ok(v) => v,
+                Err(_) => {
+                    eprintln!("No remaining references to timers");
+                    break;
+                }
+            };
 
             if let Some(next) = next {
-                thread::park_timeout(next - now)
+                let dur = next - now;
+                eprintln!("Parking for {:?}", dur);
+                thread::park_timeout(dur)
             } else {
-                thread::park()
+                eprintln!("Parking indefinitely waiting for new timers");
+                thread::park();
+                eprintln!("Wokend with new timers");
             }
-        }
-    }
-
-    /// Acquire a handle used to spawn timers
-    pub fn handle(&self) -> TimersHandle {
-        TimersHandle {
-            inner: self.inner.clone(),
         }
     }
 }
@@ -163,7 +205,7 @@ impl Timers {
 /// Sleep future
 pub struct Sleep {
     shared: Arc<Mutex<Inner>>,
-    timer: TimerEntry,
+    timer: Box<TimerEntry>,
     deadline: Instant,
     registered: bool,
 }
@@ -180,11 +222,11 @@ impl Sleep {
     pub(crate) fn new(handle: &TimersHandle, deadline: Instant) -> Self {
         Self {
             shared: handle.inner.clone(),
-            timer: TimerEntry {
-                waker: Mutex::new(noop_waker()),
+            timer: Box::new(TimerEntry {
+                waker: AtomicWaker::new(),
                 finished: AtomicBool::new(false),
                 _pinned: PhantomPinned,
-            },
+            }),
             deadline,
             registered: false,
         }
@@ -200,18 +242,21 @@ impl Sleep {
         self.deadline
     }
 
+    /// Removes the timer entry from the timers queue.
+    ///
+    /// The TimerEntry is no longer aliased and is safe to modify.
     fn unregister(self: Pin<&mut Self>) -> (&mut TimerEntry, &mut Instant) {
         let p = self.project();
         // This removes any existing reference to the TimerEntry pointer
         let mut shared = p.shared.lock();
-        shared.remove(*p.deadline, p.timer);
+        shared.remove(*p.deadline, &**p.timer);
         *p.registered = false;
         (p.timer, p.deadline)
     }
 
-    fn register(self: Pin<&mut Self>) {
+    fn register_deadline(self: Pin<&mut Self>) {
         let p = self.project();
-        p.shared.lock().register(*p.deadline, p.timer);
+        p.shared.lock().register(*p.deadline, &**p.timer);
         *p.registered = true;
     }
 }
@@ -223,17 +268,17 @@ impl Future for Sleep {
         if self
             .timer
             .finished
-            .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
+            .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
         {
             Poll::Ready(())
         } else if !self.registered {
-            *self.timer.waker.lock() = cx.waker().clone();
-            self.register();
+            self.timer.waker.register(cx.waker());
+            self.register_deadline();
 
             Poll::Pending
         } else {
-            *self.timer.waker.lock() = cx.waker().clone();
+            self.timer.waker.register(cx.waker());
             Poll::Pending
         }
     }
@@ -248,18 +293,24 @@ impl PinnedDrop for Sleep {
     }
 }
 
-impl Default for Timers {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 pub(crate) fn assert_dur(found: Duration, expected: Duration, msg: &str) {
     assert!(
         (found.as_millis().abs_diff(expected.as_millis())) < 10,
         "Expected {found:?} to be close to {expected:?}\n{msg}",
     )
+}
+
+#[cfg(test)]
+fn setup_timers() -> (TimersHandle, thread::JoinHandle<()>) {
+    let (timers, handle) = Timers::new();
+
+    let thread = thread::Builder::new()
+        .name("Timer".into())
+        .spawn(move || timers.run_blocking())
+        .unwrap();
+
+    (handle, thread)
 }
 
 #[cfg(test)]
@@ -272,12 +323,7 @@ mod test {
 
     #[test]
     fn sleep() {
-        let timers = Timers::new();
-
-        let handle = timers.handle();
-
-        thread::spawn(move || timers.run_blocking());
-
+        let (handle, j) = setup_timers();
         let now = Instant::now();
         futures::executor::block_on(async move {
             Sleep::new(&handle, Instant::now() + Duration::from_millis(500)).await;
@@ -292,18 +338,14 @@ mod test {
             eprintln!("Expired timer finished")
         });
 
+        #[cfg(not(miri))]
         assert_dur(now.elapsed(), Duration::from_millis(500 + 1000), "seq");
-
-        eprintln!("Done");
+        j.join().unwrap();
     }
 
     #[test]
     fn sleep_join() {
-        let timers = Timers::new();
-
-        let handle = timers.handle();
-
-        thread::spawn(move || timers.run_blocking());
+        let (handle, j) = setup_timers();
 
         let now = Instant::now();
         futures::executor::block_on(async move {
@@ -321,17 +363,14 @@ mod test {
             eprintln!("Expired timer finished")
         });
 
+        #[cfg(not(miri))]
         assert_dur(now.elapsed(), Duration::from_millis(1000), "join");
-        eprintln!("Done");
+        j.join().unwrap();
     }
 
     #[test]
     fn sleep_race() {
-        let timers = Timers::new();
-
-        let handle = timers.handle();
-
-        thread::spawn(move || timers.run_blocking());
+        let (handle, j) = setup_timers();
 
         let now = Instant::now();
         futures::executor::block_on(async move {
@@ -353,18 +392,14 @@ mod test {
             futures::pin_mut!(_never_polled);
         });
 
+        #[cfg(not(miri))]
         assert_dur(now.elapsed(), Duration::from_millis(2000), "race");
-
-        eprintln!("Done");
+        j.join().unwrap();
     }
 
     #[test]
     fn sleep_identical() {
-        let timers = Timers::new();
-
-        let handle = timers.handle();
-
-        thread::spawn(move || timers.run_blocking());
+        let (handle, j) = setup_timers();
 
         let now = Instant::now();
         futures::executor::block_on(async move {
@@ -381,8 +416,31 @@ mod test {
             .await;
         });
 
+        #[cfg(not(miri))]
         assert_dur(now.elapsed(), Duration::from_millis(500), "seq");
+        j.join().unwrap();
+    }
 
-        eprintln!("Done");
+    #[test]
+    fn sleep_reset() {
+        let (handle, j) = setup_timers();
+
+        let now = Instant::now();
+        futures::executor::block_on(async move {
+            let sleep = Sleep::new(&handle, Instant::now() + Duration::from_millis(500));
+
+            futures::pin_mut!(sleep);
+            sleep.as_mut().await;
+
+            sleep
+                .as_mut()
+                .reset(Instant::now() + Duration::from_millis(1000));
+
+            sleep.as_mut().await;
+        });
+
+        #[cfg(not(miri))]
+        assert_dur(now.elapsed(), Duration::from_millis(1500), "seq");
+        j.join().unwrap();
     }
 }

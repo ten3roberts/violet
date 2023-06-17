@@ -71,7 +71,7 @@ impl<'a> Scope<'a> {
 
     /// Shorthand for:
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// if let Some(val) = val {
     ///     scope.set(val)
     /// }

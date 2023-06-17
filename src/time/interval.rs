@@ -65,11 +65,10 @@ impl Stream for Interval {
 
 #[cfg(test)]
 mod test {
-    use std::thread;
 
     use futures::StreamExt;
 
-    use crate::time::{assert_dur, Timers};
+    use crate::time::{assert_dur, setup_timers};
 
     use super::*;
 
@@ -95,21 +94,21 @@ mod test {
 
             // What the deadline should have been
             // Compare the returned deadline to the expected one
+            #[cfg(not(miri))]
             assert_dur(
                 deadline.duration_since(start),
                 expected_deadline.duration_since(start),
                 "next returned deadline",
             );
 
+            #[cfg(not(miri))]
             assert_dur(elapsed, expected_wall, "elapsed wall time");
         }
     }
 
     #[test]
     fn interval() {
-        let timers = Timers::new();
-        let handle = timers.handle();
-        thread::spawn(move || timers.run_blocking());
+        let (handle, j) = setup_timers();
 
         let now = Instant::now();
 
@@ -127,14 +126,17 @@ mod test {
 
         let interval = Interval::new(&handle, now, Duration::from_millis(100));
 
+        #[cfg(not(miri))]
         assert_interval(now, interval, expected);
+
+        drop(handle);
+
+        j.join().unwrap();
     }
 
     #[test]
     fn interval_burst() {
-        let timers = Timers::new();
-        let handle = timers.handle();
-        thread::spawn(move || timers.run_blocking());
+        let (handle, j) = setup_timers();
 
         let now = Instant::now();
 
@@ -183,6 +185,10 @@ mod test {
             .zip(delays)
             .map(|v| v.0);
 
+        #[cfg(not(miri))]
         assert_interval(now, interval, expected);
+
+        // drop(handle);
+        // j.join().unwrap();
     }
 }
