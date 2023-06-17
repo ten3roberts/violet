@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc, Weak,
+        Arc,
     },
     task::{Context, Poll, Waker},
     thread::{self, Thread},
@@ -12,11 +12,11 @@ use std::{
 };
 
 use futures::{
-    task::{noop_waker, ArcWake, AtomicWaker},
+    task::{ArcWake, AtomicWaker},
     Future,
 };
 use once_cell::sync::Lazy;
-use parking_lot::{Condvar, Mutex};
+use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
 use slotmap::new_key_type;
 mod interval;
@@ -64,33 +64,30 @@ impl ArcWake for ThreadWaker {
 
 struct Inner {
     /// Invoked when there is a new timer
-    waker: Waker,
-    heap: BTreeSet<Entry>,
+    waker: AtomicWaker,
+    heap: Mutex<BTreeSet<Entry>>,
     handle_count: AtomicUsize,
 }
 
 impl Inner {
-    pub fn register(&mut self, deadline: Instant, timer: *const TimerEntry) {
-        self.heap.insert(Entry { deadline, timer });
+    pub fn register(&self, deadline: Instant, timer: *const TimerEntry) {
+        self.heap.lock().insert(Entry { deadline, timer });
 
-        self.waker.wake_by_ref();
+        self.waker.wake();
     }
 
-    fn remove(&mut self, deadline: Instant, timer: *const TimerEntry) {
-        self.heap.remove(&Entry { deadline, timer });
+    fn remove(&self, deadline: Instant, timer: *const TimerEntry) {
+        self.heap.lock().remove(&Entry { deadline, timer });
     }
 }
 
 pub struct TimersHandle {
-    inner: Arc<Mutex<Inner>>,
+    inner: Arc<Inner>,
 }
 
 impl Clone for TimersHandle {
     fn clone(&self) -> Self {
-        self.inner
-            .lock()
-            .handle_count
-            .fetch_add(1, Ordering::Relaxed);
+        self.inner.handle_count.fetch_add(1, Ordering::Relaxed);
 
         Self {
             inner: self.inner.clone(),
@@ -100,30 +97,26 @@ impl Clone for TimersHandle {
 
 impl Drop for TimersHandle {
     fn drop(&mut self) {
-        eprintln!("Dropping timers handle");
-        let inner = self.inner.lock();
-        let count = inner.handle_count.fetch_sub(1, Ordering::Relaxed);
-        eprintln!("count: {}", count);
+        let count = self.inner.handle_count.fetch_sub(1, Ordering::Relaxed);
         if count == 1 {
-            eprintln!("Waking timers");
-            inner.waker.wake_by_ref();
+            self.inner.waker.wake();
         }
     }
 }
 
 pub struct Timers {
-    inner: Arc<Mutex<Inner>>,
+    inner: Arc<Inner>,
 }
 
 pub struct TimersFinished;
 
 impl Timers {
     pub fn new() -> (Self, TimersHandle) {
-        let inner = Arc::new(Mutex::new(Inner {
-            heap: BTreeSet::new(),
-            waker: noop_waker(),
+        let inner = Arc::new(Inner {
+            heap: Mutex::new(BTreeSet::new()),
+            waker: AtomicWaker::new(),
             handle_count: AtomicUsize::new(1),
-        }));
+        });
 
         (
             Self {
@@ -134,18 +127,18 @@ impl Timers {
     }
 
     /// Advances the timers, returning the next deadline
-    fn tick(&mut self, time: Instant, waker: Waker) -> Result<Option<Instant>, TimersFinished> {
-        let mut shared = self.inner.lock();
-        shared.waker = waker;
-        let shared = &mut *shared;
+    fn tick(&mut self, time: Instant, waker: &Waker) -> Result<Option<Instant>, TimersFinished> {
+        self.inner.waker.register(waker);
 
-        while let Some(entry) = shared.heap.first() {
+        let mut heap = self.inner.heap.lock();
+
+        while let Some(entry) = heap.first() {
             // All deadlines before now have been handled
             if entry.deadline > time {
                 return Ok(Some(entry.deadline));
             }
 
-            let entry = shared.heap.pop_first().unwrap();
+            let entry = heap.pop_first().unwrap();
             // Fire and wake the timer
             // # Safety
             // Sleep removes the timer when dropped
@@ -157,7 +150,7 @@ impl Timers {
             timer.waker.wake();
         }
 
-        if shared.handle_count.load(Ordering::SeqCst) == 0 {
+        if self.inner.handle_count.load(Ordering::SeqCst) == 0 {
             return Err(TimersFinished);
         }
 
@@ -180,22 +173,18 @@ impl Timers {
 
         loop {
             let now = Instant::now();
-            let next = match self.tick(now, waker.clone()) {
+            let next = match self.tick(now, &waker) {
                 Ok(v) => v,
                 Err(_) => {
-                    eprintln!("No remaining references to timers");
                     break;
                 }
             };
 
             if let Some(next) = next {
                 let dur = next - now;
-                eprintln!("Parking for {:?}", dur);
                 thread::park_timeout(dur)
             } else {
-                eprintln!("Parking indefinitely waiting for new timers");
                 thread::park();
-                eprintln!("Wokend with new timers");
             }
         }
     }
@@ -204,7 +193,7 @@ impl Timers {
 #[pin_project(PinnedDrop)]
 /// Sleep future
 pub struct Sleep {
-    shared: Arc<Mutex<Inner>>,
+    shared: Arc<Inner>,
     timer: Box<TimerEntry>,
     deadline: Instant,
     registered: bool,
@@ -248,15 +237,16 @@ impl Sleep {
     fn unregister(self: Pin<&mut Self>) -> (&mut TimerEntry, &mut Instant) {
         let p = self.project();
         // This removes any existing reference to the TimerEntry pointer
-        let mut shared = p.shared.lock();
+        let shared = p.shared;
         shared.remove(*p.deadline, &**p.timer);
+
         *p.registered = false;
         (p.timer, p.deadline)
     }
 
     fn register_deadline(self: Pin<&mut Self>) {
         let p = self.project();
-        p.shared.lock().register(*p.deadline, &**p.timer);
+        p.shared.register(*p.deadline, &**p.timer);
         *p.registered = true;
     }
 }
