@@ -1,5 +1,6 @@
 use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
+use palette::named::TOMATO;
 
 use crate::{layout::Layout, shapes::Shape, Constraints};
 
@@ -63,6 +64,16 @@ impl Edges {
     pub(crate) fn size(&self) -> Vec2 {
         vec2(self.left + self.right, self.top + self.bottom)
     }
+
+    pub(crate) fn in_axis(&self, axis: Vec2) -> (f32, f32) {
+        let pos = vec2(self.right, self.top).dot(axis);
+        let neg = vec2(-self.left, -self.bottom).dot(axis);
+
+        let front_margin = pos.max(neg);
+        let back_margin = -pos.min(neg);
+
+        (front_margin, back_margin)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -73,6 +84,13 @@ pub struct Rect {
 }
 
 impl Rect {
+    pub fn from_two_points(a: Vec2, b: Vec2) -> Self {
+        Self {
+            min: a.min(b),
+            max: a.max(b),
+        }
+    }
+
     pub fn from_size_pos(size: Vec2, pos: Vec2) -> Self {
         Self {
             min: pos,
@@ -106,10 +124,10 @@ impl Rect {
         }
     }
 
-    pub(crate) fn translate(&self, v: Vec2) -> Self {
-        Self {
-            min: self.min + v,
-            max: self.max + v,
-        }
+    pub(crate) fn support(&self, axis: Vec2) -> f32 {
+        let x = (self.min.x * -axis.x).max(0.0) + (self.max.x * axis.x).max(0.0);
+        let y = (self.min.y * -axis.y).max(0.0) + (self.max.y * axis.y).max(0.0);
+
+        vec2(x, y).dot(axis)
     }
 }

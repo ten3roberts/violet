@@ -11,7 +11,7 @@ use violet::{
     components::{
         constraints, layout, local_position, margin, padding, rect, screen_position, shape, Edges,
     },
-    layout::{CrossAlign, Layout},
+    layout::{CrossAlign, Direction, Layout},
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
     App, Constraints, Frame, FutureEffect, Scope, StreamEffect, Widget,
@@ -161,7 +161,8 @@ impl Widget for List {
             .set(
                 layout(),
                 Layout {
-                    cross_align: CrossAlign::End,
+                    cross_align: CrossAlign::Center,
+                    direction: Direction::HorizontalReverse,
                 },
             )
             .set_default(constraints())
@@ -197,7 +198,7 @@ impl Widget for List {
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::new(10.0, 10.0, 10.0, 10.0),
+                margin: Edges::new(10.0, 25.0, 10.0, 25.0),
             })
             .relative_size(vec2(0.0, 0.4))
             .absolute_size(vec2(50.0, 0.0)),

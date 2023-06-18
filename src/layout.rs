@@ -1,9 +1,8 @@
 use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
-use palette::convert::IntoColorUnclamped;
 
 use crate::{
-    components::{self, children, layout, local_position, padding, rect, Edges, Rect},
+    components::{self, children, layout, padding, Edges, Rect},
     constraints::widget_outer_bounds,
 };
 
@@ -13,48 +12,80 @@ struct MarginCursor {
     start: Vec2,
     cursor: Vec2,
     line_height: f32,
+    axis: Vec2,
+    cross_axis: Vec2,
 }
 
 impl MarginCursor {
+    fn new(start: Vec2, axis: Vec2, cross_axis: Vec2) -> Self {
+        Self {
+            pending_margin: 0.0,
+            start,
+            cursor: start,
+            line_height: 0.0,
+            axis,
+            cross_axis,
+        }
+    }
+
     fn put(&mut self, block: &Block) -> Vec2 {
-        let advance = (self.pending_margin.max(0.0).max(block.margin.left.max(0.0))
+        let (front_margin, back_margin) = block.margin.in_axis(self.axis);
+
+        let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
             + self.pending_margin.min(0.0)
-            + block.margin.left.min(0.0))
+            + back_margin.min(0.0))
         .max(0.0);
 
-        self.pending_margin = block.margin.right;
+        self.pending_margin = front_margin;
 
-        self.cursor.x += advance;
+        self.cursor += advance * self.axis + block.rect.support(-self.axis) * self.axis;
 
-        let pos = self.cursor + vec2(0.0, block.margin.top);
+        let (start_margin, end_margin) = block.margin.in_axis(self.cross_axis);
+        let pos = self.cursor + start_margin * self.cross_axis;
 
-        let size = block.rect.size();
+        let extent = block.rect.support(self.axis);
 
-        self.cursor.x += size.x;
+        self.cursor += extent * self.axis;
 
         self.line_height = self
             .line_height
-            .max(size.y + block.margin.top + block.margin.bottom);
+            .max(block.rect.size().dot(self.cross_axis) + start_margin + end_margin);
 
         pos
     }
 
     fn finish(&mut self) -> Rect {
-        self.cursor.y += self.line_height;
-        self.cursor.x += self.pending_margin;
+        self.cursor += self.line_height * self.cross_axis;
+        self.cursor += self.pending_margin * self.axis;
 
         self.pending_margin = 0.0;
 
-        let line = Rect {
-            min: self.start,
-            max: self.cursor,
-        };
-
-        self.start = vec2(self.start.x, self.cursor.y);
+        let line = Rect::from_two_points(self.start, self.cursor);
+        self.start = self.start * self.axis + self.cursor + self.cross_axis;
 
         line
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    Horizontal,
+    Vertical,
+    HorizontalReverse,
+    VerticalReverse,
+}
+
+impl Direction {
+    fn axis(&self) -> (Vec2, Vec2) {
+        match self {
+            Direction::Horizontal => (Vec2::X, Vec2::Y),
+            Direction::Vertical => (Vec2::Y, Vec2::X),
+            Direction::HorizontalReverse => (-Vec2::X, Vec2::Y),
+            Direction::VerticalReverse => (-Vec2::Y, Vec2::X),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum CrossAlign {
     /// Align items to the start of the cross axis
@@ -78,6 +109,7 @@ impl CrossAlign {
 #[derive(Debug)]
 pub struct Layout {
     pub cross_align: CrossAlign,
+    pub direction: Direction,
 }
 
 impl Layout {
@@ -102,12 +134,9 @@ impl Layout {
         // The inner rect is position relative to the layouts parent
         let inner_rect = content_area.inset(&padding);
 
-        let mut cursor = MarginCursor {
-            start: inner_rect.min,
-            cursor: inner_rect.min,
-            pending_margin: 0.0,
-            line_height: 0.0,
-        };
+        let (axis, cross_axis) = self.direction.axis();
+
+        let mut cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
 
         // Reset to local
         let content_area = Rect {
@@ -139,25 +168,37 @@ impl Layout {
 
         let line = cursor.finish();
 
-        tracing::debug!(line=?line.size(), "Line");
+        let line_size = line.size();
 
-        let mut cursor = MarginCursor {
-            start: inner_rect.min,
-            cursor: inner_rect.min,
-            pending_margin: 0.0,
-            line_height: 0.0,
+        let start = match self.direction {
+            Direction::Horizontal => inner_rect.min,
+            Direction::Vertical => inner_rect.min,
+            Direction::HorizontalReverse => vec2(inner_rect.max.x, inner_rect.min.y),
+            Direction::VerticalReverse => vec2(inner_rect.min.x, inner_rect.max.y),
         };
 
+        tracing::debug!(?axis, ?cross_axis, ?start,line=?line.size(), "Line");
+
+        let mut cursor = MarginCursor::new(start, axis, cross_axis);
+
+        tracing::debug!(?cross_axis, "cross_axis");
         for (entity, block) in blocks {
             // And move it all by the cursor position
-            let height = block.rect.size().y + block.margin.size().y;
+            let height = (block.rect.size() + block.margin.size()).dot(cross_axis);
 
             let pos = cursor.put(&block)
-                + vec2(0.0, self.cross_align.align_offset(line.size().y, height));
+                + self
+                    .cross_align
+                    .align_offset(line_size.dot(cross_axis), height)
+                    * cross_axis;
+
+            tracing::debug!(?pos);
 
             entity.update(components::rect(), |v| *v = block.rect);
             entity.update(components::local_position(), |v| *v = pos);
         }
+        let line = cursor.finish();
+        tracing::debug!(?line, "Final line");
 
         line.pad(&padding)
     }
