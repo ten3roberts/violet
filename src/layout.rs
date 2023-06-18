@@ -55,9 +55,30 @@ impl MarginCursor {
         line
     }
 }
+#[derive(Debug, Clone, Copy)]
+pub enum CrossAlign {
+    /// Align items to the start of the cross axis
+    Start,
+    /// Align items to the center of the cross axis
+    Center,
+    /// Align items to the end of the cross axis
+    End,
+}
+
+impl CrossAlign {
+    fn align_offset(&self, total_size: f32, size: f32) -> f32 {
+        match self {
+            CrossAlign::Start => 0.0,
+            CrossAlign::Center => (total_size - size) / 2.0,
+            CrossAlign::End => total_size - size,
+        }
+    }
+}
 
 #[derive(Debug)]
-pub struct Layout {}
+pub struct Layout {
+    pub cross_align: CrossAlign,
+}
 
 impl Layout {
     /// Position and size the children of the given entity using all the provided available space
@@ -130,11 +151,9 @@ impl Layout {
         for (entity, block) in blocks {
             // And move it all by the cursor position
             let height = block.rect.size().y + block.margin.size().y;
-            let offset = (line.size().y - height) / 2.0;
 
-            tracing::debug!(?offset, ?height, inner_size=?block.rect.size(), margin=?block.margin, "block");
-
-            let pos = cursor.put(&block) + vec2(0.0, offset);
+            let pos = cursor.put(&block)
+                + vec2(0.0, self.cross_align.align_offset(line.size().y, height));
 
             entity.update(components::rect(), |v| *v = block.rect);
             entity.update(components::local_position(), |v| *v = pos);

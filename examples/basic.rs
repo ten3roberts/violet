@@ -11,7 +11,7 @@ use violet::{
     components::{
         constraints, layout, local_position, margin, padding, rect, screen_position, shape, Edges,
     },
-    layout::Layout,
+    layout::{CrossAlign, Layout},
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
     App, Constraints, Frame, FutureEffect, Scope, StreamEffect, Widget,
@@ -158,7 +158,12 @@ impl Widget for List {
                     fill_image: None,
                 }),
             )
-            .set(layout(), Layout {})
+            .set(
+                layout(),
+                Layout {
+                    cross_align: CrossAlign::End,
+                },
+            )
             .set_default(constraints())
             .set_default(screen_position())
             .set_default(local_position())
