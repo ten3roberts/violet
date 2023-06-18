@@ -2,7 +2,7 @@ use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
 
 use crate::{
-    components::{self, children, layout, padding, Edges, Rect},
+    components::{self, children, layout, margin, padding, Edges, Rect},
     constraints::widget_outer_bounds,
 };
 
@@ -96,6 +96,9 @@ pub enum CrossAlign {
     Center,
     /// Align items to the end of the cross axis
     End,
+
+    /// Fill the cross axis
+    Stretch,
 }
 
 impl CrossAlign {
@@ -104,6 +107,7 @@ impl CrossAlign {
             CrossAlign::Start => 0.0,
             CrossAlign::Center => (total_size - size) / 2.0,
             CrossAlign::End => total_size - size,
+            CrossAlign::Stretch => 0.0,
         }
     }
 }
@@ -151,16 +155,28 @@ impl Layout {
         for &child in children {
             let entity = world.entity(child).expect("Invalid child");
 
+            let child_constraints = if let CrossAlign::Stretch = self.cross_align {
+                let margin = entity.get_copy(margin()).unwrap_or_default();
+
+                let size = inner_rect.size() - margin.size();
+                LayoutConstraints {
+                    min: size * cross_axis,
+                    max: size * cross_axis + available_size * axis,
+                }
+            } else {
+                LayoutConstraints {
+                    min: Vec2::ZERO,
+                    max: available_size,
+                }
+            };
+
             // let local_rect = widget_outer_bounds(world, &child, size);
             let block = update_subtree(
                 world,
                 &entity,
                 // Supply our whole inner content area
                 content_area,
-                LayoutConstraints {
-                    min: Vec2::ZERO,
-                    max: available_size,
-                },
+                child_constraints,
             );
 
             cursor.put(&block);
@@ -196,7 +212,7 @@ impl Layout {
         }
         let line = cursor.finish();
 
-        line.pad(&padding)
+        line.pad(&padding).clamp(constraints.min, constraints.max)
     }
 
     pub(crate) fn total_size(&self, world: &World, entity: &EntityRef, size: Vec2) -> Vec2 {
@@ -264,8 +280,6 @@ pub(crate) fn update_subtree(
     if let Ok(layout) = entity.get(layout()) {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
-        assert_eq!(content_area.size(), constraints.max);
-        tracing::info!(?padding, ?content_area, ?constraints, "Flowing {entity}");
 
         let rect = layout.apply(world, entity, padding, content_area, constraints);
 

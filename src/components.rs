@@ -130,4 +130,12 @@ impl Rect {
 
         vec2(x, y).dot(axis)
     }
+
+    pub(crate) fn clamp(&self, min: Vec2, max: Vec2) -> Self {
+        let size = self.size().clamp(min, max);
+        Self {
+            min: self.min,
+            max: self.min + size,
+        }
+    }
 }

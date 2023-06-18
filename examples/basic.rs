@@ -1,5 +1,5 @@
 use anyhow::Context;
-use flax::{child_of, name};
+use flax::name;
 use futures::StreamExt;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
@@ -14,7 +14,7 @@ use violet::{
     layout::{CrossAlign, Direction, Layout},
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
-    App, Constraints, Frame, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
+    App, Constraints, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
 struct MainApp;
@@ -213,7 +213,8 @@ impl<W: WidgetCollection> Widget for List<W> {
             .set_default(constraints())
             .set_default(screen_position())
             .set_default(local_position())
-            .set(padding(), self.padding);
+            .set(padding(), self.padding)
+            .set(margin(), self.margin);
 
         self.items.attach(scope)
     }
@@ -221,8 +222,6 @@ impl<W: WidgetCollection> Widget for List<W> {
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
-        let id = scope.id();
-
         scope
             .set(name(), "MainApp".into())
             // .set(
@@ -234,6 +233,7 @@ impl Widget for MainApp {
             .set_default(rect())
             .set_default(screen_position())
             .set_default(local_position())
+            .set(padding(), Edges::even(5.0))
             .set(padding(), Edges::even(5.0))
             .set(
                 constraints(),
@@ -298,20 +298,22 @@ impl Widget for MainApp {
             .absolute_size(vec2(50.0, 0.0))),
         ))
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
-        .with_padding(Edges::even(10.0));
+        .with_padding(Edges::even(10.0))
+        .with_margin(Edges::even(10.0));
 
         let list3 = List::new((
             Constrained::new(Rectangle {
                 color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::default(),
             })
-            .absolute_size(vec2(20.0, 10.0)),
+            .absolute_size(vec2(80.0, 20.0)),
             Constrained::new(Rectangle {
                 color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::default(),
             })
-            .absolute_size(vec2(50.0, 10.0)),
-        ));
+            .absolute_size(vec2(100.0, 20.0)),
+        ))
+        .with_direction(Direction::Vertical);
 
         let list2 = List::new((
             List::new([list3]).with_padding(Edges::even(10.0)),
@@ -333,10 +335,12 @@ impl Widget for MainApp {
         ))
         .with_cross_align(CrossAlign::Center)
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
-        .with_padding(Edges::even(10.0));
+        .with_padding(Edges::even(10.0))
+        .with_margin(Edges::even(10.0));
 
         scope.attach(
             List::new((list1, list2))
+                .with_cross_align(CrossAlign::Stretch)
                 .with_direction(Direction::Vertical)
                 .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
                 .with_padding(Edges::even(10.0)),
