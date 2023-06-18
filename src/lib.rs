@@ -18,4 +18,4 @@ pub use constraints::Constraints;
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;
 pub use scope::Scope;
-pub use widget::Widget;
+pub use widget::{Widget, WidgetCollection};

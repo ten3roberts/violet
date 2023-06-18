@@ -14,7 +14,7 @@ use violet::{
     layout::{CrossAlign, Direction, Layout},
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
-    App, Constraints, Frame, FutureEffect, Scope, StreamEffect, Widget,
+    App, Constraints, Frame, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
 struct MainApp;
@@ -144,65 +144,78 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
     }
 }
 
-struct List {}
+#[derive(Default)]
+struct List<W> {
+    items: W,
+    layout: Layout,
+    background_color: Option<Srgba>,
 
-impl Widget for List {
+    padding: Edges,
+    margin: Edges,
+}
+
+impl<W: WidgetCollection> List<W> {
+    fn new(items: W) -> Self {
+        Self {
+            items,
+            layout: Layout::default(),
+            background_color: None,
+            padding: Edges::default(),
+            margin: Edges::default(),
+        }
+    }
+
+    /// Set the List's direction
+    pub fn with_direction(mut self, direction: Direction) -> Self {
+        self.layout.direction = direction;
+        self
+    }
+
+    /// Set the List's cross axis alignment
+    pub fn with_cross_align(mut self, cross_align: CrossAlign) -> Self {
+        self.layout.cross_align = cross_align;
+        self
+    }
+
+    /// Set the List's background color
+    pub fn with_background_color(mut self, background_color: Srgba) -> Self {
+        self.background_color = Some(background_color);
+        self
+    }
+
+    pub fn with_padding(mut self, padding: Edges) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    pub fn with_margin(mut self, margin: Edges) -> Self {
+        self.margin = margin;
+        self
+    }
+}
+
+impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
             .set_default(rect())
-            .set(
+            .set_opt(
                 shape(),
-                Shape::FilledRect(FilledRect {
-                    // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
-                    color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
-                    fill_image: None,
+                self.background_color.map(|bg| {
+                    Shape::FilledRect(FilledRect {
+                        // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
+                        // color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
+                        color: bg,
+                        fill_image: None,
+                    })
                 }),
             )
-            .set(
-                layout(),
-                Layout {
-                    cross_align: CrossAlign::Center,
-                    direction: Direction::HorizontalReverse,
-                },
-            )
+            .set(layout(), self.layout)
             .set_default(constraints())
             .set_default(screen_position())
             .set_default(local_position())
-            .set(padding(), Edges::even(0.0));
+            .set(padding(), self.padding);
 
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(10.0),
-            })
-            .relative_size(vec2(0.5, 0.0))
-            .absolute_size(vec2(0.0, 100.0)),
-        );
-
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(10.0),
-            })
-            .absolute_size(vec2(100.0, 50.0)),
-        );
-
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(25.0),
-            })
-            .relative_size(vec2(0.2, 0.0))
-            .absolute_size(vec2(0.0, 60.0)),
-        );
-        scope.attach(
-            Constrained::new(Rectangle {
-                color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::new(10.0, 25.0, 10.0, 25.0),
-            })
-            .relative_size(vec2(0.0, 0.4))
-            .absolute_size(vec2(50.0, 0.0)),
-        );
+        self.items.attach(scope)
     }
 }
 
@@ -259,7 +272,75 @@ impl Widget for MainApp {
                 );
             },
         ));
-        scope.attach(List {});
+        let list1 = List::new((
+            (Constrained::new(Rectangle {
+                color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(10.0),
+            })
+            .relative_size(vec2(0.2, 0.0))
+            .absolute_size(vec2(0.0, 100.0))),
+            (Constrained::new(Rectangle {
+                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(10.0),
+            })
+            .absolute_size(vec2(100.0, 50.0))),
+            (Constrained::new(Rectangle {
+                color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(25.0),
+            })
+            .relative_size(vec2(0.2, 0.0))
+            .absolute_size(vec2(0.0, 60.0))),
+            (Constrained::new(Rectangle {
+                color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::new(10.0, 25.0, 10.0, 25.0),
+            })
+            .relative_size(vec2(0.0, 0.2))
+            .absolute_size(vec2(50.0, 0.0))),
+        ))
+        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
+        .with_padding(Edges::even(10.0));
+
+        let list3 = List::new((
+            Constrained::new(Rectangle {
+                color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::default(),
+            })
+            .absolute_size(vec2(20.0, 10.0)),
+            Constrained::new(Rectangle {
+                color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::default(),
+            })
+            .absolute_size(vec2(50.0, 10.0)),
+        ));
+
+        let list2 = List::new((
+            List::new([list3]).with_padding(Edges::even(10.0)),
+            (Constrained::new(Rectangle {
+                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(5.0),
+            })
+            .absolute_size(vec2(100.0, 50.0))),
+            (Constrained::new(Rectangle {
+                color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(5.0),
+            })
+            .absolute_size(vec2(50.0, 60.0))),
+            (Constrained::new(Rectangle {
+                color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
+                margin: Edges::even(5.0),
+            })
+            .absolute_size(vec2(50.0, 50.0))),
+        ))
+        .with_cross_align(CrossAlign::Center)
+        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
+        .with_padding(Edges::even(10.0));
+
+        scope.attach(
+            List::new((list1, list2))
+                .with_direction(Direction::Vertical)
+                .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
+                .with_padding(Edges::even(10.0)),
+        );
     }
 }
 

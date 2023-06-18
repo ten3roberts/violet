@@ -67,8 +67,9 @@ impl MarginCursor {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum Direction {
+    #[default]
     Horizontal,
     Vertical,
     HorizontalReverse,
@@ -86,8 +87,9 @@ impl Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum CrossAlign {
+    #[default]
     /// Align items to the start of the cross axis
     Start,
     /// Align items to the center of the cross axis
@@ -106,7 +108,7 @@ impl CrossAlign {
     }
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Layout {
     pub cross_align: CrossAlign,
     pub direction: Direction,
