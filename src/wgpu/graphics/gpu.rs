@@ -107,16 +107,12 @@ impl Gpu {
 
         let surface_caps = surface.get_capabilities(&adapter);
 
-        tracing::debug!("Surface capabilities: {surface_caps:?}");
-
         let surface_format = surface_caps
             .formats
             .iter()
             .copied()
             .find(|f| f.is_srgb())
             .unwrap_or_else(|| surface_caps.formats[0]);
-
-        tracing::debug!("Found surface format: {:?}", surface_format);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -127,8 +123,6 @@ impl Gpu {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
-
-        tracing::debug!("Surface configuration: {config:?}");
 
         surface.configure(&device, &config);
 

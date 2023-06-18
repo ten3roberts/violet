@@ -179,11 +179,8 @@ impl Layout {
             Direction::VerticalReverse => vec2(inner_rect.min.x, inner_rect.max.y),
         };
 
-        tracing::debug!(?axis, ?cross_axis, ?start,line=?line.size(), "Line");
-
         let mut cursor = MarginCursor::new(start, axis, cross_axis);
 
-        tracing::debug!(?cross_axis, "cross_axis");
         for (entity, block) in blocks {
             // And move it all by the cursor position
             let height = (block.rect.size() + block.margin.size()).dot(cross_axis);
@@ -194,13 +191,10 @@ impl Layout {
                     .align_offset(line_size.dot(cross_axis), height)
                     * cross_axis;
 
-            tracing::debug!(?pos);
-
             entity.update(components::rect(), |v| *v = block.rect);
             entity.update(components::local_position(), |v| *v = pos);
         }
         let line = cursor.finish();
-        tracing::debug!(?line, "Final line");
 
         line.pad(&padding)
     }
@@ -290,7 +284,6 @@ pub(crate) fn update_subtree(
             // let local_rect = widget_outer_bounds(world, &entity, inner_rect.size());
 
             assert_eq!(content_area.size(), constraints.max);
-            tracing::debug!(?padding, ?content_area, ?constraints, "Stacking {entity}");
             let constraints = LayoutConstraints {
                 min: Vec2::ZERO,
                 max: constraints.max - padding.size(),

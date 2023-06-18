@@ -198,7 +198,6 @@ impl<Data> Executor<Data> {
             tracing::trace!(?id, "Polling task");
 
             if task.poll(&mut context, data).is_ready() {
-                tracing::debug!(?id, "Task completed");
                 self.tasks.remove(id);
             }
         }
