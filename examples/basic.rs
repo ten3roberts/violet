@@ -162,7 +162,7 @@ impl Widget for List {
             .set_default(constraints())
             .set_default(screen_position())
             .set_default(local_position())
-            .set(padding(), Edges::even(5.0));
+            .set(padding(), Edges::even(0.0));
 
         scope.attach(
             Constrained::new(Rectangle {
@@ -192,9 +192,10 @@ impl Widget for List {
         scope.attach(
             Constrained::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(10.0),
+                margin: Edges::new(10.0, 10.0, 10.0, 10.0),
             })
-            .absolute_size(vec2(50.0, 100.0)),
+            .relative_size(vec2(0.0, 0.4))
+            .absolute_size(vec2(50.0, 0.0)),
         );
     }
 }
@@ -202,17 +203,6 @@ impl Widget for List {
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         let id = scope.id();
-
-        scope.spawn_unscoped(StreamEffect::new(
-            interval(Duration::from_secs(5)),
-            move |frame: &mut Frame, deadline| {
-                tracing::info!(
-                    ?deadline,
-                    "{id}: {:#?}",
-                    frame.world().format_hierarchy(child_of, id)
-                )
-            },
-        ));
 
         scope
             .set(name(), "MainApp".into())

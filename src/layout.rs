@@ -1,10 +1,60 @@
 use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
+use palette::convert::IntoColorUnclamped;
 
 use crate::{
-    components::{self, children, layout, local_position, padding, Edges, Rect},
+    components::{self, children, layout, local_position, padding, rect, Edges, Rect},
     constraints::widget_outer_bounds,
 };
+
+#[derive(Debug, Clone)]
+struct MarginCursor {
+    pending_margin: f32,
+    start: Vec2,
+    cursor: Vec2,
+    line_height: f32,
+}
+
+impl MarginCursor {
+    fn put(&mut self, block: &Block) -> Vec2 {
+        let advance = (self.pending_margin.max(0.0).max(block.margin.left.max(0.0))
+            + self.pending_margin.min(0.0)
+            + block.margin.left.min(0.0))
+        .max(0.0);
+
+        self.pending_margin = block.margin.right;
+
+        self.cursor.x += advance;
+
+        let pos = self.cursor + vec2(0.0, block.margin.top);
+
+        let size = block.rect.size();
+
+        self.cursor.x += size.x;
+
+        self.line_height = self
+            .line_height
+            .max(size.y + block.margin.top + block.margin.bottom);
+
+        pos
+    }
+
+    fn finish(&mut self) -> Rect {
+        self.cursor.y += self.line_height;
+        self.cursor.x += self.pending_margin;
+
+        self.pending_margin = 0.0;
+
+        let line = Rect {
+            min: self.start,
+            max: self.cursor,
+        };
+
+        self.start = vec2(self.start.x, self.cursor.y);
+
+        line
+    }
+}
 
 #[derive(Debug)]
 pub struct Layout {}
@@ -31,9 +81,12 @@ impl Layout {
         // The inner rect is position relative to the layouts parent
         let inner_rect = content_area.inset(&padding);
 
-        let mut cursor = inner_rect.min;
-
-        let mut line_height = 0.0f32;
+        let mut cursor = MarginCursor {
+            start: inner_rect.min,
+            cursor: inner_rect.min,
+            pending_margin: 0.0,
+            line_height: 0.0,
+        };
 
         // Reset to local
         let content_area = Rect {
@@ -41,13 +94,13 @@ impl Layout {
             max: inner_rect.size(),
         };
 
-        let mut pending_margin = 0.0f32;
+        let mut blocks = Vec::new();
 
         for &child in children {
             let entity = world.entity(child).expect("Invalid child");
 
             // let local_rect = widget_outer_bounds(world, &child, size);
-            let res = update_subtree(
+            let block = update_subtree(
                 world,
                 &entity,
                 // Supply our whole inner content area
@@ -58,40 +111,36 @@ impl Layout {
                 },
             );
 
-            // Margin
-            {
-                let advance = (pending_margin.max(0.0).max(res.margin.left.max(0.0))
-                    + pending_margin.min(0.0)
-                    + res.margin.left.min(0.0))
-                .max(0.0);
+            cursor.put(&block);
 
-                cursor.x += advance;
+            blocks.push((entity, block));
+        }
 
-                pending_margin = res.margin.right;
-            }
+        let line = cursor.finish();
 
-            entity.update(components::rect(), |v| *v = res.rect);
+        tracing::debug!(line=?line.size(), "Line");
+
+        let mut cursor = MarginCursor {
+            start: inner_rect.min,
+            cursor: inner_rect.min,
+            pending_margin: 0.0,
+            line_height: 0.0,
+        };
+
+        for (entity, block) in blocks {
             // And move it all by the cursor position
-            entity.update(components::local_position(), |v| {
-                *v = cursor + vec2(0.0, res.margin.top)
-            });
+            let height = block.rect.size().y + block.margin.size().y;
+            let offset = (line.size().y - height) / 2.0;
 
-            let size = res.rect.size();
+            tracing::debug!(?offset, ?height, inner_size=?block.rect.size(), margin=?block.margin, "block");
 
-            cursor.x += size.x;
+            let pos = cursor.put(&block) + vec2(0.0, offset);
 
-            line_height = line_height.max(size.y + res.margin.top + res.margin.bottom);
+            entity.update(components::rect(), |v| *v = block.rect);
+            entity.update(components::local_position(), |v| *v = pos);
         }
 
-        // Don't forget the last margin
-        cursor.x += pending_margin;
-        cursor.y += line_height;
-
-        Rect {
-            min: inner_rect.min,
-            max: cursor,
-        }
-        .pad(&padding)
+        line.pad(&padding)
     }
 
     pub(crate) fn total_size(&self, world: &World, entity: &EntityRef, size: Vec2) -> Vec2 {
@@ -122,7 +171,9 @@ pub(crate) struct LayoutConstraints {
     pub max: Vec2,
 }
 
-pub(crate) struct LayoutResult {
+/// A block is a rectangle and surrounding support such as margin
+#[derive(Debug, Clone)]
+pub(crate) struct Block {
     pub(crate) rect: Rect,
     pub(crate) margin: Edges,
 }
@@ -137,7 +188,7 @@ pub(crate) fn update_subtree(
     // The area in which children can be placed without clipping
     content_area: Rect,
     constraints: LayoutConstraints,
-) -> LayoutResult {
+) -> Block {
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
     let margin = entity
         .get(components::margin())
@@ -162,7 +213,7 @@ pub(crate) fn update_subtree(
 
         let rect = layout.apply(world, entity, padding, content_area, constraints);
 
-        LayoutResult { rect, margin }
+        Block { rect, margin }
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
@@ -200,7 +251,7 @@ pub(crate) fn update_subtree(
 
             entity.update(components::rect(), |v| *v = res.rect);
         }
-        LayoutResult {
+        Block {
             rect: total_bounds,
             margin,
         }
@@ -210,10 +261,10 @@ pub(crate) fn update_subtree(
         let rect = v.apply(content_area, constraints);
         // tracing::info!("Constrained {rect:?}");
 
-        LayoutResult { rect, margin }
+        Block { rect, margin }
     } else {
         tracing::warn!(%entity, "Widget is not positioned");
-        LayoutResult {
+        Block {
             rect: Rect::default(),
             margin: Edges::default(),
         }

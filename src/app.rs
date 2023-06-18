@@ -90,6 +90,13 @@ impl App {
                     *ctl = ControlFlow::Exit
                 }
             }
+            Event::RedrawRequested(_) => {
+                tracing::trace!("Redraw requested");
+                if let Err(err) = window_renderer.draw(&gpu, &mut frame) {
+                    tracing::error!("Failed to draw to window: {err:?}");
+                    *ctl = ControlFlow::Exit
+                }
+            }
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::Resized(size) => {
                     frame
