@@ -277,7 +277,7 @@ impl Widget for MainApp {
                 color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(10.0),
             })
-            .relative_size(vec2(0.2, 0.0))
+            .relative_size(vec2(0.5, 0.0))
             .absolute_size(vec2(0.0, 100.0))),
             (Constrained::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
@@ -313,7 +313,8 @@ impl Widget for MainApp {
             })
             .absolute_size(vec2(100.0, 20.0)),
         ))
-        .with_direction(Direction::Vertical);
+        .with_direction(Direction::Vertical)
+        .with_cross_align(CrossAlign::Stretch);
 
         let list2 = List::new((
             List::new([list3]).with_padding(Edges::even(10.0)),

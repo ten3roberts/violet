@@ -23,7 +23,7 @@ pub struct Constraints {
 }
 
 impl Constraints {
-    pub(crate) fn apply(&self, content_area: Rect, constraints: LayoutConstraints) -> Rect {
+    pub(crate) fn apply(&self, content_area: Rect) -> Rect {
         let parent_size = content_area.size();
 
         // let _span = tracing::info_span!("Applying constraints", ?parent_size).entered();

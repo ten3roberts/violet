@@ -1,10 +1,8 @@
 use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
+use itertools::Itertools;
 
-use crate::{
-    components::{self, children, layout, margin, padding, Edges, Rect},
-    constraints::widget_outer_bounds,
-};
+use crate::components::{self, children, layout, margin, padding, Edges, Rect};
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -126,21 +124,31 @@ impl Layout {
         &self,
         world: &World,
         entity: &EntityRef,
-        padding: Edges,
         content_area: Rect,
         constraints: LayoutConstraints,
     ) -> Rect {
-        let children = entity.get(children()).ok();
-        let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
+        let (axis, cross_axis) = self.direction.axis();
 
-        let available_size = constraints.max - padding.size();
+        let (total_min_size, total_preferred_size, blocks) =
+            self.query_size(world, entity, content_area);
+
+        // Size remaining if everything got at least its preferred size
+        let total_preferred_size = total_preferred_size.size().dot(axis);
+        // let preferred_remaining =
+        //     (constraints.max.dot(axis) - preferred_size.size().dot(axis)).max(0.0);
+        //
+        // // Size remaining if everything got at least its min size
+        // let min_remaining =
+        // (constraints.max.dot(axis) - min_size.size().dot(axis) - preferred_remaining).max(0.0);
+
+        tracing::debug!(total_preferred_size, "remaining sizes");
+
+        let available_size = constraints.max;
 
         // Start at the corner of the inner rect
         //
         // The inner rect is position relative to the layouts parent
-        let inner_rect = content_area.inset(&padding);
-
-        let (axis, cross_axis) = self.direction.axis();
+        let inner_rect = content_area;
 
         let mut cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
 
@@ -150,39 +158,44 @@ impl Layout {
             max: inner_rect.size(),
         };
 
-        let mut blocks = Vec::new();
+        let blocks = blocks
+            .into_iter()
+            .map(|(entity, block)| {
+                let axis_sizing = (constraints.max.dot(axis)
+                    * (block.preferred.rect.size().dot(axis) / total_preferred_size))
+                    * axis;
 
-        for &child in children {
-            let entity = world.entity(child).expect("Invalid child");
+                // let axis_sizing = block.preferred.rect.size() * axis;
 
-            let child_constraints = if let CrossAlign::Stretch = self.cross_align {
-                let margin = entity.get_copy(margin()).unwrap_or_default();
+                let child_constraints = if let CrossAlign::Stretch = self.cross_align {
+                    let margin = entity.get_copy(margin()).unwrap_or_default();
 
-                let size = inner_rect.size() - margin.size();
-                LayoutConstraints {
-                    min: size * cross_axis,
-                    max: size * cross_axis + available_size * axis,
-                }
-            } else {
-                LayoutConstraints {
-                    min: Vec2::ZERO,
-                    max: available_size,
-                }
-            };
+                    let size = inner_rect.size().min(constraints.max) - margin.size();
+                    LayoutConstraints {
+                        min: size * cross_axis,
+                        max: size * cross_axis + axis_sizing,
+                    }
+                } else {
+                    LayoutConstraints {
+                        min: Vec2::ZERO,
+                        max: available_size * cross_axis + axis_sizing,
+                    }
+                };
 
-            // let local_rect = widget_outer_bounds(world, &child, size);
-            let block = update_subtree(
-                world,
-                &entity,
-                // Supply our whole inner content area
-                content_area,
-                child_constraints,
-            );
+                // let local_rect = widget_outer_bounds(world, &child, size);
+                let block = update_subtree(
+                    world,
+                    &entity,
+                    // Supply our whole inner content area
+                    content_area,
+                    child_constraints,
+                );
 
-            cursor.put(&block);
+                cursor.put(&block);
 
-            blocks.push((entity, block));
-        }
+                (entity, block)
+            })
+            .collect_vec();
 
         let line = cursor.finish();
 
@@ -212,25 +225,111 @@ impl Layout {
         }
         let line = cursor.finish();
 
-        line.pad(&padding).clamp(constraints.min, constraints.max)
+        line
     }
 
-    pub(crate) fn total_size(&self, world: &World, entity: &EntityRef, size: Vec2) -> Vec2 {
+    pub(crate) fn query_size<'a>(
+        &self,
+        world: &'a World,
+        entity: &EntityRef,
+        inner_rect: Rect,
+    ) -> (Rect, Rect, Vec<(EntityRef<'a>, SizeQuery)>) {
         let children = entity.get(children()).ok();
         let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
 
-        let mut cursor = 0.0;
-        let mut line_height = 0.0f32;
+        let available_size = inner_rect.size();
 
-        for &child in children {
-            let child = world.entity(child).expect("Invalid child");
-            let rect = widget_outer_bounds(world, &child, size);
+        // Start at the corner of the inner rect
+        //
+        // The inner rect is position relative to the layouts parent
 
-            cursor += rect.size().x + 10.0;
-            line_height = line_height.max(rect.size().y);
+        let (axis, cross_axis) = self.direction.axis();
+
+        let mut min_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
+        let mut preferred_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
+
+        // Reset to local
+        let content_area = Rect {
+            min: Vec2::ZERO,
+            max: inner_rect.size(),
+        };
+
+        let blocks = children
+            .iter()
+            .map(|&child| {
+                let entity = world.entity(child).expect("Invalid child");
+
+                // let local_rect = widget_outer_bounds(world, &child, size);
+                let size = query_size(world, &entity, content_area);
+
+                min_cursor.put(&size.min);
+                preferred_cursor.put(&size.preferred);
+                (entity, size)
+            })
+            .collect_vec();
+
+        (min_cursor.finish(), preferred_cursor.finish(), blocks)
+    }
+}
+
+pub struct SizeQuery {
+    min: Block,
+    preferred: Block,
+}
+
+pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> SizeQuery {
+    let margin = entity
+        .get(components::margin())
+        .ok()
+        .as_deref()
+        .copied()
+        .unwrap_or_default();
+
+    let padding = entity
+        .get(padding())
+        .ok()
+        .as_deref()
+        .copied()
+        .unwrap_or_default();
+
+    // Flow
+    if let Ok(layout) = entity.get(layout()) {
+        // For a given layout use the largest size that fits within the constraints and then
+        // potentially shrink it down.
+
+        let (min, preferred, _) = layout.query_size(world, entity, content_area.inset(&padding));
+
+        SizeQuery {
+            min: Block::new(min.pad(&padding), margin),
+            preferred: Block::new(preferred.pad(&padding), margin),
         }
+    }
+    // Stack
+    else if let Ok(children) = entity.get(children()) {
+        todo!()
+    }
+    // Leaf
+    else if let Ok(v) = entity.get(components::constraints()) {
+        let rect = v.apply(content_area);
 
-        vec2(cursor, line_height)
+        // tracing::info!("Constrained {rect:?}");
+
+        let block = Block::new(rect, margin);
+        SizeQuery {
+            min: block,
+            preferred: block,
+        }
+    } else {
+        tracing::warn!(%entity, "Widget is not positioned");
+        let block = Block {
+            rect: Rect::default(),
+            margin: Edges::default(),
+        };
+
+        SizeQuery {
+            min: block,
+            preferred: block,
+        }
     }
 }
 
@@ -244,10 +343,16 @@ pub(crate) struct LayoutConstraints {
 }
 
 /// A block is a rectangle and surrounding support such as margin
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Block {
     pub(crate) rect: Rect,
     pub(crate) margin: Edges,
+}
+
+impl Block {
+    pub(crate) fn new(rect: Rect, margin: Edges) -> Self {
+        Self { rect, margin }
+    }
 }
 
 /// Updates the layout of the given subtree given the passes constraints.
@@ -281,7 +386,18 @@ pub(crate) fn update_subtree(
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        let rect = layout.apply(world, entity, padding, content_area, constraints);
+        let rect = layout
+            .apply(
+                world,
+                entity,
+                content_area.inset(&padding),
+                LayoutConstraints {
+                    min: constraints.min,
+                    max: constraints.max - padding.size(),
+                },
+            )
+            .pad(&padding)
+            .clamp(constraints.min, constraints.max);
 
         Block { rect, margin }
     }
@@ -327,7 +443,9 @@ pub(crate) fn update_subtree(
     }
     // Leaf
     else if let Ok(v) = entity.get(components::constraints()) {
-        let rect = v.apply(content_area, constraints);
+        let rect = v
+            .apply(content_area)
+            .clamp(constraints.min, constraints.max);
         // tracing::info!("Constrained {rect:?}");
 
         Block { rect, margin }
