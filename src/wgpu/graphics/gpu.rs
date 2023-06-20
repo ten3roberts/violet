@@ -48,7 +48,6 @@ impl Surface {
     }
 
     pub fn reconfigure(&mut self, gpu: &Gpu) {
-        tracing::info!("Reconfiguring surface");
         self.surface.configure(&gpu.device, &self.config);
     }
 

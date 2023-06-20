@@ -3,7 +3,7 @@ use glam::Vec2;
 
 use crate::{
     components::{self, children, local_position, rect, screen_position, Rect},
-    layout::{update_subtree, LayoutConstraints},
+    layout::{update_subtree, LayoutLimits},
 };
 
 /// Updates the layout for entities using the given constraints
@@ -22,7 +22,7 @@ pub fn layout_system() -> BoxedSystem {
                             world,
                             &entity,
                             *canvas_rect,
-                            LayoutConstraints {
+                            LayoutLimits {
                                 min: Vec2::ZERO,
                                 max: canvas_rect.size(),
                             },

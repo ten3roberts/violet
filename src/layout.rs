@@ -128,7 +128,7 @@ impl Layout {
         world: &World,
         entity: &EntityRef,
         content_area: Rect,
-        constraints: LayoutConstraints,
+        constraints: LayoutLimits,
     ) -> Rect {
         let (axis, cross_axis) = self.direction.axis();
 
@@ -144,7 +144,7 @@ impl Layout {
         // let min_remaining =
         // (constraints.max.dot(axis) - min_size.size().dot(axis) - preferred_remaining).max(0.0);
 
-        tracing::debug!(total_preferred_size, "remaining sizes");
+        // tracing::debug!(total_preferred_size, "remaining sizes");
 
         let available_size = constraints.max;
 
@@ -164,8 +164,13 @@ impl Layout {
         let blocks = blocks
             .into_iter()
             .map(|(entity, block)| {
-                let axis_sizing = (constraints.max.dot(axis)
-                    * (block.preferred.size().dot(axis) / total_preferred_size))
+                // The size required to go from min to preferred size
+                let min_size = block.min.size().dot(axis);
+                let preferred_size = block.preferred.size().dot(axis);
+
+                let to_preferred = preferred_size - min_size;
+                let axis_sizing = (min_size
+                    + (constraints.max.dot(axis) * (to_preferred / total_preferred_size)))
                     * axis;
 
                 // let axis_sizing = block.preferred.rect.size() * axis;
@@ -174,12 +179,12 @@ impl Layout {
                     let margin = entity.get_copy(margin()).unwrap_or_default();
 
                     let size = inner_rect.size().min(constraints.max) - margin.size();
-                    LayoutConstraints {
+                    LayoutLimits {
                         min: size * cross_axis,
                         max: size * cross_axis + axis_sizing,
                     }
                 } else {
-                    LayoutConstraints {
+                    LayoutLimits {
                         min: Vec2::ZERO,
                         max: available_size * cross_axis + axis_sizing,
                     }
@@ -313,24 +318,16 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
     else if let Ok(children) = entity.get(children()) {
         todo!()
     } else {
-        let min_size = entity
-            .get(components::min_size())
-            .as_deref()
-            .unwrap_or(&Unit::<Vec2>::ZERO)
-            .resolve(content_area.size());
-        let size = entity
-            .get(components::size())
-            .as_deref()
-            .unwrap_or(&Unit::<Vec2>::ZERO)
-            .resolve(content_area.size());
+        let (min_size, preferred_size) = resolve_size(entity, content_area);
 
-        let offset = resolve_pos(entity, content_area, size);
+        let min_offset = resolve_pos(entity, content_area, min_size);
+        let preferred_offset = resolve_pos(entity, content_area, preferred_size);
 
         // Leaf
 
         SizeQuery {
-            min: Rect::from_size_pos(min_size, offset),
-            preferred: Rect::from_size_pos(size, offset),
+            min: Rect::from_size_pos(min_size, min_offset),
+            preferred: Rect::from_size_pos(preferred_size, preferred_offset),
             margin,
         }
     }
@@ -340,7 +337,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
 ///
 /// Allows for the parent to control the size of the children, such as stretching
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LayoutConstraints {
+pub(crate) struct LayoutLimits {
     pub min: Vec2,
     pub max: Vec2,
 }
@@ -367,7 +364,7 @@ pub(crate) fn update_subtree(
     entity: &EntityRef,
     // The area in which children can be placed without clipping
     content_area: Rect,
-    limits: LayoutConstraints,
+    limits: LayoutLimits,
 ) -> Block {
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
     let margin = entity
@@ -394,7 +391,7 @@ pub(crate) fn update_subtree(
                 world,
                 entity,
                 content_area.inset(&padding),
-                LayoutConstraints {
+                LayoutLimits {
                     min: limits.min,
                     max: limits.max - padding.size(),
                 },
@@ -417,7 +414,7 @@ pub(crate) fn update_subtree(
             // let local_rect = widget_outer_bounds(world, &entity, inner_rect.size());
 
             assert_eq!(content_area.size(), limits.max);
-            let constraints = LayoutConstraints {
+            let constraints = LayoutLimits {
                 min: Vec2::ZERO,
                 max: limits.max - padding.size(),
             };
@@ -444,12 +441,8 @@ pub(crate) fn update_subtree(
             margin,
         }
     } else {
-        let size = entity.get(components::size());
-
-        let size = size
-            .as_deref()
-            .unwrap_or(&Unit::ZERO)
-            .resolve(content_area.size())
+        let size = resolve_size(entity, content_area)
+            .1
             .clamp(limits.min, limits.max);
 
         let pos = resolve_pos(entity, content_area, size);
@@ -459,6 +452,24 @@ pub(crate) fn update_subtree(
             margin,
         }
     }
+}
+
+fn resolve_size(entity: &EntityRef, content_area: Rect) -> (Vec2, Vec2) {
+    let parent_size = content_area.size();
+    let min_size = entity
+        .get(components::min_size())
+        .as_deref()
+        .unwrap_or(&Unit::ZERO)
+        .resolve(parent_size);
+
+    let size = entity
+        .get(components::size())
+        .as_deref()
+        .unwrap_or(&Unit::ZERO)
+        .resolve(parent_size)
+        .max(min_size);
+
+    (min_size, size)
 }
 
 fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {

@@ -195,17 +195,17 @@ impl ShapeRenderer {
 
         self.quad.bind(render_pass);
 
-        tracing::info!("Draw commands: {}", self.commands.len());
+        // tracing::info!("Draw commands: {}", self.commands.len());
 
         for cmd in std::mem::take(&mut self.commands) {
             let bind_group = self.bind_groups.get(&cmd.fill_image).unwrap();
             match &cmd.shape {
                 DrawShape::Rect => {
-                    tracing::debug!(
-                        "Drawing instances {}..{}",
-                        cmd.first_instance,
-                        cmd.first_instance + cmd.count
-                    );
+                    // tracing::debug!(
+                    //     "Drawing instances {}..{}",
+                    //     cmd.first_instance,
+                    //     cmd.first_instance + cmd.count
+                    // );
                     render_pass.set_bind_group(1, bind_group, &[]);
 
                     render_pass.draw_indexed(

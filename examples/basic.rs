@@ -55,7 +55,7 @@ impl<W> Sized<W> {
 
     /// Sets the minimum size of a widget
     pub fn with_min_size(mut self, size: Unit<Vec2>) -> Self {
-        self.size = size;
+        self.min_size = size;
         self
     }
 }
@@ -305,6 +305,7 @@ impl Widget for MainApp {
                 color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(10.0),
             })
+            .with_min_size(Unit::px(vec2(100.0, 100.0)))
             .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0))),
             Sized::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
@@ -320,6 +321,7 @@ impl Widget for MainApp {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::new(10.0, 25.0, 10.0, 25.0),
             })
+            .with_min_size(Unit::px(vec2(50.0, 100.0)))
             .with_size(Unit::px(vec2(50.0, 0.0)) + Unit::rel(vec2(0.0, 0.2))),
         ))
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
@@ -348,16 +350,17 @@ impl Widget for MainApp {
                 margin: Edges::even(5.0),
             })
             .with_size(Unit::px(vec2(100.0, 50.0)))),
-            (Sized::new(Rectangle {
+            Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
             })
-            .with_size(Unit::px(vec2(50.0, 60.0)))),
-            (Sized::new(Rectangle {
+            .with_min_size(Unit::px(vec2(20.0, 60.0)))
+            .with_size(Unit::px(vec2(200.0, 60.0))),
+            Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
             })
-            .with_size(Unit::px(vec2(50.0, 50.0)))),
+            .with_size(Unit::px(vec2(50.0, 50.0))),
         ))
         .with_cross_align(CrossAlign::Center)
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())

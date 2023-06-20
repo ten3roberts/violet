@@ -72,7 +72,7 @@ impl WindowRenderer {
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
             Err(e @ SurfaceError::Lost | e @ SurfaceError::Outdated) => {
-                tracing::info!("Reconfiguring surface: {e:?}");
+                // tracing::debug!("Reconfiguring surface: {e:?}");
                 self.surface.reconfigure(gpu);
                 return Ok(());
             }
