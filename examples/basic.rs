@@ -15,7 +15,7 @@ use violet::{
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
     unit::Unit,
-    App, Constraints, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
+    App, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
 struct MainApp;

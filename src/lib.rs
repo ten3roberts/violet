@@ -1,7 +1,6 @@
 mod app;
 pub mod assets;
 pub mod components;
-pub(crate) mod constraints;
 pub mod effect;
 pub mod executor;
 mod frame;
@@ -15,7 +14,6 @@ pub mod wgpu;
 mod widget;
 
 pub use app::App;
-pub use constraints::Constraints;
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;
 pub use scope::Scope;
