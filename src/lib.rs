@@ -10,6 +10,7 @@ mod scope;
 pub mod shapes;
 pub mod systems;
 pub mod time;
+pub mod unit;
 pub mod wgpu;
 mod widget;
 

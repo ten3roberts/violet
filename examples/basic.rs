@@ -9,11 +9,12 @@ use tracing_subscriber::EnvFilter;
 use violet::{
     assets::AssetKey,
     components::{
-        constraints, layout, local_position, margin, padding, rect, screen_position, shape, Edges,
+        self, layout, local_position, margin, padding, rect, screen_position, shape, size, Edges,
     },
     layout::{CrossAlign, Direction, Layout},
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
+    unit::Unit,
     App, Constraints, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
@@ -31,53 +32,83 @@ impl Widget for Counter {
     }
 }
 
-struct Constrained<W> {
-    constraints: Constraints,
+struct Sized<W> {
+    min_size: Unit<Vec2>,
+    size: Unit<Vec2>,
     widget: W,
 }
 
-impl<W> Constrained<W> {
+impl<W> Sized<W> {
     pub fn new(widget: W) -> Self {
         Self {
+            min_size: Unit::ZERO,
+            size: Unit::ZERO,
             widget,
-            constraints: Constraints::default(),
         }
     }
 
-    fn absolute_size(mut self, abs_size: Vec2) -> Self {
-        self.constraints.abs_size = abs_size;
+    /// Sets the preferred size of a widget
+    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
+        self.size = size;
         self
     }
 
-    fn absolute_offset(mut self, abs_offset: Vec2) -> Self {
-        self.constraints.abs_offset = abs_offset;
-        self
-    }
-
-    fn relative_size(mut self, rel_size: Vec2) -> Self {
-        self.constraints.rel_size = rel_size;
-        self
-    }
-
-    fn relative_offset(mut self, rel_offset: Vec2) -> Self {
-        self.constraints.rel_offset = rel_offset;
-        self
-    }
-
-    fn anchor(mut self, anchor: Vec2) -> Self {
-        self.constraints.anchor = anchor;
+    /// Sets the minimum size of a widget
+    pub fn with_min_size(mut self, size: Unit<Vec2>) -> Self {
+        self.size = size;
         self
     }
 }
 
-impl<W> Widget for Constrained<W>
+impl<W> Widget for Sized<W>
 where
     W: Widget,
 {
     fn mount(self, scope: &mut Scope<'_>) {
         self.widget.mount(scope);
 
-        scope.set(constraints(), self.constraints);
+        scope.set(components::size(), self.size);
+        scope.set(components::min_size(), self.min_size);
+    }
+}
+
+struct Positioned<W> {
+    offset: Unit<Vec2>,
+    anchor: Unit<Vec2>,
+    widget: W,
+}
+
+impl<W> Positioned<W> {
+    pub fn new(widget: W) -> Self {
+        Self {
+            offset: Unit::ZERO,
+            anchor: Unit::ZERO,
+            widget,
+        }
+    }
+
+    /// Sets the anchor point of the widget
+    pub fn with_anchor(mut self, anchor: Unit<Vec2>) -> Self {
+        self.anchor = anchor;
+        self
+    }
+
+    /// Offsets the widget relative to its original position
+    pub fn with_offset(mut self, offset: Unit<Vec2>) -> Self {
+        self.offset = offset;
+        self
+    }
+}
+
+impl<W> Widget for Positioned<W>
+where
+    W: Widget,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.widget.mount(scope);
+
+        scope.set(components::anchor(), self.anchor);
+        scope.set(components::offset(), self.offset);
     }
 }
 
@@ -210,7 +241,6 @@ impl<W: WidgetCollection> Widget for List<W> {
                 }),
             )
             .set(layout(), self.layout)
-            .set_default(constraints())
             .set_default(screen_position())
             .set_default(local_position())
             .set(padding(), self.padding)
@@ -235,13 +265,7 @@ impl Widget for MainApp {
             .set_default(local_position())
             .set(padding(), Edges::even(5.0))
             .set(padding(), Edges::even(5.0))
-            .set(
-                constraints(),
-                Constraints {
-                    rel_size: vec2(1.0, 1.0),
-                    ..Default::default()
-                },
-            );
+            .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         // scope.attach(Counter);
         // scope.attach(Rectangle {
@@ -249,90 +273,91 @@ impl Widget for MainApp {
         // });
 
         scope.attach(
-            Constrained::new(Rectangle {
-                color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Default::default(),
-            })
-            .absolute_size(vec2(100.0, 0.0))
-            .relative_size(vec2(0.0, 1.0))
-            .relative_offset(vec2(1.0, 0.0))
-            .anchor(vec2(1.0, 0.0)),
+            Positioned::new(
+                Sized::new(Rectangle {
+                    color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
+                    margin: Default::default(),
+                })
+                .with_size(Unit::px(vec2(100.0, 0.0)) + Unit::rel(vec2(0.0, 1.0))),
+            )
+            .with_offset(Unit::rel(vec2(1.0, 0.0)))
+            // TODO: parent anchor
+            .with_anchor(Unit::rel(vec2(1.0, 0.0))),
         );
 
         scope.spawn(FutureEffect::new(
             sleep(Duration::from_secs(2)),
             move |scope: &mut Scope, _| {
                 scope.attach(
-                    Constrained::new(Image {
-                        path: "./assets/images/uv.png",
-                    })
-                    .absolute_size(vec2(400.0, 400.0))
-                    .relative_offset(vec2(0.0, 1.0))
-                    .anchor(vec2(0.0, 1.0)),
+                    Positioned::new(
+                        Sized::new(Image {
+                            path: "./assets/images/uv.png",
+                        })
+                        .with_size(Unit::px(vec2(400.0, 400.0))),
+                    )
+                    .with_offset(Unit::rel(Vec2::Y))
+                    .with_anchor(Unit::rel(Vec2::Y)),
                 );
             },
         ));
         let list1 = List::new((
-            (Constrained::new(Rectangle {
+            Sized::new(Rectangle {
                 color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(10.0),
             })
-            .relative_size(vec2(0.5, 0.0))
-            .absolute_size(vec2(0.0, 100.0))),
-            (Constrained::new(Rectangle {
+            .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0))),
+            Sized::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(10.0),
             })
-            .absolute_size(vec2(100.0, 50.0))),
-            (Constrained::new(Rectangle {
+            .with_size(Unit::px(vec2(100.0, 50.0))),
+            Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(25.0),
             })
-            .relative_size(vec2(0.2, 0.0))
-            .absolute_size(vec2(0.0, 60.0))),
-            (Constrained::new(Rectangle {
+            .with_size(Unit::px(vec2(0.0, 60.0)) + Unit::rel(vec2(0.2, 0.0))),
+            Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::new(10.0, 25.0, 10.0, 25.0),
             })
-            .relative_size(vec2(0.0, 0.2))
-            .absolute_size(vec2(50.0, 0.0))),
+            .with_size(Unit::px(vec2(50.0, 0.0)) + Unit::rel(vec2(0.0, 0.2))),
         ))
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
         .with_padding(Edges::even(10.0))
         .with_margin(Edges::even(10.0));
 
         let list3 = List::new((
-            Constrained::new(Rectangle {
+            Sized::new(Rectangle {
                 color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::default(),
             })
-            .absolute_size(vec2(80.0, 20.0)),
-            Constrained::new(Rectangle {
+            .with_size(Unit::px(vec2(80.0, 20.0))),
+            Sized::new(Rectangle {
                 color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::default(),
             })
-            .absolute_size(vec2(100.0, 20.0)),
+            .with_size(Unit::px(vec2(100.0, 20.0))),
         ))
         .with_direction(Direction::Vertical)
         .with_cross_align(CrossAlign::Stretch);
 
         let list2 = List::new((
             List::new([list3]).with_padding(Edges::even(10.0)),
-            (Constrained::new(Rectangle {
+            (Sized::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
             })
-            .absolute_size(vec2(100.0, 50.0))),
-            (Constrained::new(Rectangle {
+            .with_size(Unit::px(vec2(100.0, 50.0)))),
+            (Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
             })
-            .absolute_size(vec2(50.0, 60.0))),
-            (Constrained::new(Rectangle {
+            .with_size(Unit::px(vec2(50.0, 60.0)))),
+            (Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
             })
-            .absolute_size(vec2(50.0, 50.0))),
+            .with_size(Unit::px(vec2(50.0, 50.0)))),
         ))
         .with_cross_align(CrossAlign::Center)
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())

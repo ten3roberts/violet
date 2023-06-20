@@ -2,9 +2,20 @@ use flax::{EntityRef, World};
 use glam::Vec2;
 
 use crate::{
-    components::{constraints, layout, padding, Rect},
+    components::{layout, padding, Rect},
     layout::LayoutConstraints,
 };
+
+pub struct Sizing {
+    absolute: Vec2,
+    relative: Vec2,
+}
+
+impl Sizing {
+    pub fn calc(&self, parent_size: Vec2) -> Vec2 {
+        self.absolute + parent_size * self.relative
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct Constraints {

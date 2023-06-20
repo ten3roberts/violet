@@ -1,8 +1,7 @@
 use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
-use palette::named::TOMATO;
 
-use crate::{layout::Layout, shapes::Shape, Constraints};
+use crate::{layout::Layout, shapes::Shape, unit::Unit};
 
 component! {
     /// Ordered list of children for an entity
@@ -21,8 +20,20 @@ component! {
     /// Specifies in screen space where the widget rect upper left corner is
     pub screen_position: Vec2 => [ Debuggable ],
 
-    /// Linear constraints for widget positioning and size
-    pub constraints: Constraints => [ Debuggable ],
+    /// Offset the widget from its original position
+    pub offset: Unit<Vec2> => [ Debuggable ],
+    /// The preferred size of the widget.
+    ///
+    /// The final bounds of a widget may be smaller to fit withing a layout
+    pub size: Unit<Vec2> => [ Debuggable ],
+
+    /// The minimum allowed size of a widget. A widgets bound will not be made any smaller even if
+    /// that implies clipping.
+    pub min_size: Unit<Vec2> => [ Debuggable ],
+
+
+    /// Sets the anchor point withing the bounds of the widget where position is applied
+    pub anchor: Unit<Vec2> => [ Debuggable ],
 
     /// Manages the layout of the children
     pub layout: Layout => [ Debuggable ],

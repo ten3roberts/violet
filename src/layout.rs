@@ -2,7 +2,10 @@ use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
-use crate::components::{self, children, layout, margin, padding, Edges, Rect};
+use crate::{
+    components::{self, children, layout, margin, padding, Edges, Rect},
+    unit::Unit,
+};
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -162,7 +165,7 @@ impl Layout {
             .into_iter()
             .map(|(entity, block)| {
                 let axis_sizing = (constraints.max.dot(axis)
-                    * (block.preferred.rect.size().dot(axis) / total_preferred_size))
+                    * (block.preferred.size().dot(axis) / total_preferred_size))
                     * axis;
 
                 // let axis_sizing = block.preferred.rect.size() * axis;
@@ -260,11 +263,11 @@ impl Layout {
                 let entity = world.entity(child).expect("Invalid child");
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let size = query_size(world, &entity, content_area);
+                let query = query_size(world, &entity, content_area);
 
-                min_cursor.put(&size.min);
-                preferred_cursor.put(&size.preferred);
-                (entity, size)
+                min_cursor.put(&Block::new(query.min, query.margin));
+                preferred_cursor.put(&Block::new(query.preferred, query.margin));
+                (entity, query)
             })
             .collect_vec();
 
@@ -273,8 +276,9 @@ impl Layout {
 }
 
 pub struct SizeQuery {
-    min: Block,
-    preferred: Block,
+    min: Rect,
+    preferred: Rect,
+    margin: Edges,
 }
 
 pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> SizeQuery {
@@ -300,35 +304,34 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
         let (min, preferred, _) = layout.query_size(world, entity, content_area.inset(&padding));
 
         SizeQuery {
-            min: Block::new(min.pad(&padding), margin),
-            preferred: Block::new(preferred.pad(&padding), margin),
+            min: min.pad(&padding),
+            preferred: preferred.pad(&padding),
+            margin,
         }
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
         todo!()
-    }
-    // Leaf
-    else if let Ok(v) = entity.get(components::constraints()) {
-        let rect = v.apply(content_area);
-
-        // tracing::info!("Constrained {rect:?}");
-
-        let block = Block::new(rect, margin);
-        SizeQuery {
-            min: block,
-            preferred: block,
-        }
     } else {
-        tracing::warn!(%entity, "Widget is not positioned");
-        let block = Block {
-            rect: Rect::default(),
-            margin: Edges::default(),
-        };
+        let min_size = entity
+            .get(components::min_size())
+            .as_deref()
+            .unwrap_or(&Unit::<Vec2>::ZERO)
+            .resolve(content_area.size());
+        let size = entity
+            .get(components::size())
+            .as_deref()
+            .unwrap_or(&Unit::<Vec2>::ZERO)
+            .resolve(content_area.size());
+
+        let offset = resolve_pos(entity, content_area, size);
+
+        // Leaf
 
         SizeQuery {
-            min: block,
-            preferred: block,
+            min: Rect::from_size_pos(min_size, offset),
+            preferred: Rect::from_size_pos(size, offset),
+            margin,
         }
     }
 }
@@ -364,7 +367,7 @@ pub(crate) fn update_subtree(
     entity: &EntityRef,
     // The area in which children can be placed without clipping
     content_area: Rect,
-    constraints: LayoutConstraints,
+    limits: LayoutConstraints,
 ) -> Block {
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
     let margin = entity
@@ -392,12 +395,12 @@ pub(crate) fn update_subtree(
                 entity,
                 content_area.inset(&padding),
                 LayoutConstraints {
-                    min: constraints.min,
-                    max: constraints.max - padding.size(),
+                    min: limits.min,
+                    max: limits.max - padding.size(),
                 },
             )
             .pad(&padding)
-            .clamp(constraints.min, constraints.max);
+            .clamp(limits.min, limits.max);
 
         Block { rect, margin }
     }
@@ -413,10 +416,10 @@ pub(crate) fn update_subtree(
 
             // let local_rect = widget_outer_bounds(world, &entity, inner_rect.size());
 
-            assert_eq!(content_area.size(), constraints.max);
+            assert_eq!(content_area.size(), limits.max);
             let constraints = LayoutConstraints {
                 min: Vec2::ZERO,
-                max: constraints.max - padding.size(),
+                max: limits.max - padding.size(),
             };
 
             // We ask ourselves the question:
@@ -440,20 +443,34 @@ pub(crate) fn update_subtree(
             rect: total_bounds,
             margin,
         }
-    }
-    // Leaf
-    else if let Ok(v) = entity.get(components::constraints()) {
-        let rect = v
-            .apply(content_area)
-            .clamp(constraints.min, constraints.max);
-        // tracing::info!("Constrained {rect:?}");
-
-        Block { rect, margin }
     } else {
-        tracing::warn!(%entity, "Widget is not positioned");
+        let size = entity.get(components::size());
+
+        let size = size
+            .as_deref()
+            .unwrap_or(&Unit::ZERO)
+            .resolve(content_area.size())
+            .clamp(limits.min, limits.max);
+
+        let pos = resolve_pos(entity, content_area, size);
+
         Block {
-            rect: Rect::default(),
-            margin: Edges::default(),
+            rect: Rect::from_size_pos(size, pos),
+            margin,
         }
     }
+}
+
+fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {
+    let offset = entity.get(components::offset());
+    let anchor = entity.get(components::anchor());
+
+    let offset = offset
+        .as_deref()
+        .unwrap_or(&Unit::ZERO)
+        .resolve(content_area.size());
+
+    let pos =
+        content_area.pos() + offset - anchor.as_deref().unwrap_or(&Unit::ZERO).resolve(self_size);
+    pos
 }
