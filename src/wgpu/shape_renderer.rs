@@ -11,7 +11,7 @@ use wgpu::{
 };
 
 use crate::{
-    assets::Handle,
+    assets::{map::HandleMap, Handle},
     components::{children, local_position, rect, screen_position, shape, Rect},
     shapes::{FilledRect, Shape},
     Frame,
@@ -27,11 +27,12 @@ use super::{
 };
 
 #[derive(PartialEq)]
-enum DrawShape {
+pub(crate) enum DrawShape {
     Rect,
+    Mesh(Handle<Mesh>),
 }
 
-struct DrawCommand {
+pub(crate) struct DrawCommand {
     first_instance: u32,
     count: u32,
     shape: DrawShape,
@@ -51,7 +52,7 @@ pub struct ShapeRenderer {
     sampler: Sampler,
     white_image: Handle<DynamicImage>,
 
-    bind_groups: HashMap<Handle<DynamicImage>, BindGroup>,
+    bind_groups: HandleMap<DynamicImage, BindGroup>,
 }
 
 impl ShapeRenderer {
@@ -112,7 +113,7 @@ impl ShapeRenderer {
             sampler,
             commands: Vec::new(),
             white_image,
-            bind_groups: HashMap::new(),
+            bind_groups: HandleMap::new(),
         }
     }
 
@@ -147,7 +148,7 @@ impl ShapeRenderer {
                             self.bind_groups
                                 .entry(fill_image.clone())
                                 .or_insert_with_key(|image| {
-                                    let texture = Texture::from_image(gpu, image);
+                                    let texture = Texture::from_image(gpu, &*image);
 
                                     BindGroupBuilder::new("ShapeRenderer::textured_bind_group")
                                         .bind_buffer(&self.object_buffer)

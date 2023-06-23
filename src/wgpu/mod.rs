@@ -1,7 +1,10 @@
 pub mod components;
+pub mod font;
 pub mod graphics;
 mod painter;
 mod shape_renderer;
+pub mod systems;
+pub mod text_renderer;
 mod texture;
 pub mod window_renderer;
 

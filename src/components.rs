@@ -42,6 +42,8 @@ component! {
     pub padding: Edges => [ Debuggable ],
     pub margin: Edges => [ Debuggable ],
 
+
+    pub text: String => [ Debuggable ],
 }
 
 /// Spacing between a outer and inner bounds

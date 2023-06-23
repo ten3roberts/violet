@@ -1,5 +1,6 @@
 use std::{
-    any::{Any, TypeId},
+    any::{type_name, Any, TypeId},
+    borrow::Borrow,
     collections::HashMap,
     hash::Hash,
     sync::{Arc, Weak},
@@ -8,7 +9,9 @@ use std::{
 use dashmap::DashMap;
 
 pub mod cell;
+pub mod fs;
 mod handle;
+pub mod map;
 pub use handle::Handle;
 use tracing::info_span;
 
@@ -20,22 +23,40 @@ slotmap::new_key_type! {
 
 type KeyMap<K> = HashMap<K, WeakHandle<<K as AssetKey>::Output>>;
 
-/// Stores assets which are accessible through handles
+#[derive(Clone)]
 pub struct AssetCache {
-    keys: HashMap<TypeId, Box<dyn Any>>,
-    cells: HashMap<TypeId, Box<dyn Any>>,
+    inner: Arc<AssetCacheInner>,
+}
+
+impl std::fmt::Debug for AssetCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssetCache").finish()
+    }
+}
+
+/// Stores assets which are accessible through handles
+struct AssetCacheInner {
+    keys: DashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    cells: DashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
 
 impl AssetCache {
     pub fn new() -> Self {
         Self {
-            keys: HashMap::new(),
-            cells: HashMap::new(),
+            inner: Arc::new(AssetCacheInner {
+                keys: DashMap::new(),
+                cells: DashMap::new(),
+            }),
         }
     }
 
-    pub fn load<K: AssetKey>(&mut self, key: K) -> Handle<K::Output> {
-        if let Some(handle) = self.get(&key) {
+    #[tracing::instrument(level = "info", skip(key), fields(key = type_name::<K>()))]
+    pub fn load<K>(&self, key: &K) -> Handle<K::Output>
+    where
+        K: AssetKey + Clone,
+    {
+        let key = key.borrow();
+        if let Some(handle) = self.get(key) {
             return handle;
         }
 
@@ -44,19 +65,21 @@ impl AssetCache {
 
         let handle = self.insert(value);
 
-        self.keys
+        self.inner
+            .keys
             .entry(TypeId::of::<K>())
             .or_insert_with(|| Box::<HashMap<K, WeakHandle<<K as AssetKey>::Output>>>::default())
             .downcast_mut::<KeyMap<K>>()
             .unwrap()
-            .insert(key, handle.downgrade());
+            .insert(key.clone(), handle.downgrade());
 
         handle
     }
 
+    #[tracing::instrument(level = "info", skip(key), fields(key = type_name::<K>()))]
     pub fn get<K: AssetKey>(&self, key: &K) -> Option<Handle<K::Output>> {
         // Keys of K
-        let keys = self.keys.get(&TypeId::of::<K>())?;
+        let keys = self.inner.keys.get(&TypeId::of::<K>())?;
 
         let handle = keys
             .downcast_ref::<KeyMap<K>>()
@@ -67,25 +90,14 @@ impl AssetCache {
         Some(handle)
     }
 
-    pub fn insert<T: 'static + Send + Sync>(&mut self, value: T) -> Handle<T> {
-        self.cell_mut::<T>().insert(value)
-    }
-
-    fn cell_mut<V: 'static>(&mut self) -> &mut AssetCell<V> {
-        self.cells
-            .entry(TypeId::of::<V>())
-            .or_insert_with(|| Box::new(AssetCell::<V>::new()))
-            .downcast_mut::<AssetCell<V>>()
+    pub fn insert<T: 'static + Send + Sync>(&self, value: T) -> Handle<T> {
+        self.inner
+            .cells
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(AssetCell::<T>::new()))
+            .downcast_mut::<AssetCell<T>>()
             .unwrap()
-    }
-
-    fn cell<V: 'static>(&self) -> Option<&AssetCell<V>> {
-        Some(
-            self.cells
-                .get(&TypeId::of::<V>())?
-                .downcast_ref::<AssetCell<V>>()
-                .unwrap(),
-        )
+            .insert(value)
     }
 }
 
@@ -108,7 +120,7 @@ mod tests {
 
     #[test]
     fn asset_cache() {
-        #[derive(Hash, Eq, PartialEq)]
+        #[derive(Hash, Eq, PartialEq, Clone)]
         struct Key(String);
 
         impl AssetKey for Key {
@@ -121,9 +133,9 @@ mod tests {
 
         let mut assets = AssetCache::new();
 
-        let content = assets.load(Key("Foo".to_string()));
-        let content2 = assets.load(Key("Foo".to_string()));
-        let _content3 = assets.load(Key("Bar".to_string()));
+        let content = assets.load(&Key("Foo".to_string()));
+        let content2 = assets.load(&Key("Foo".to_string()));
+        let _content3 = assets.load(&Key("Bar".to_string()));
 
         assert_eq!(&content, &content2);
 

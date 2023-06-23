@@ -39,5 +39,8 @@ tracing-subscriber = { version = "0.3", features = [
 tracing = "0.1"
 pin-project = "1.1"
 
+fontdue = "0.7"
+guillotiere = "0.6"
+
 [profile.dev.package.image]
 opt-level = 2

@@ -10,6 +10,10 @@ pub struct Texture {
 }
 
 impl Texture {
+    pub fn from_texture(texture: wgpu::Texture) -> Self {
+        Self { texture }
+    }
+
     pub fn from_image(gpu: &Gpu, image: &image::DynamicImage) -> Self {
         let image = image.to_rgba8();
         let dimensions = image.dimensions();

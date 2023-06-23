@@ -15,6 +15,7 @@ use violet::{
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
     unit::Unit,
+    wgpu::font::{FontAtlas, FontFromBytes},
     App, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
@@ -250,6 +251,48 @@ impl<W: WidgetCollection> Widget for List<W> {
     }
 }
 
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+struct BytesFromFile {
+    path: PathBuf,
+}
+
+impl AssetKey for BytesFromFile {
+    type Output = Vec<u8>;
+
+    fn load(&self, _: &violet::assets::AssetCache) -> Self::Output {
+        std::fs::read(&self.path).unwrap()
+    }
+}
+
+struct FontAtlasView {}
+
+impl Widget for FontAtlasView {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let assets = scope.assets_mut();
+
+        let bytes = assets.load(BytesFromFile {
+            path: PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf"),
+        });
+
+        let font = assets.load(FontFromBytes { bytes });
+
+        let atlas = FontAtlas::new(assets, font.as_ref().unwrap(), 128.0, 'a'..='z').unwrap();
+
+        scope
+            .set(name(), "Inter Font".into())
+            .set_default(screen_position())
+            .set_default(local_position())
+            .set(
+                shape(),
+                Shape::FilledRect(FilledRect {
+                    color: Srgba::new(1.0, 1.0, 1.0, 1.0),
+                    fill_image: Some(atlas.image),
+                }),
+            )
+            .set_default(rect());
+    }
+}
+
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
@@ -285,21 +328,28 @@ impl Widget for MainApp {
             .with_anchor(Unit::rel(vec2(1.0, 0.0))),
         );
 
-        scope.spawn(FutureEffect::new(
-            sleep(Duration::from_secs(2)),
-            move |scope: &mut Scope, _| {
-                scope.attach(
-                    Positioned::new(
-                        Sized::new(Image {
-                            path: "./assets/images/uv.png",
-                        })
-                        .with_size(Unit::px(vec2(400.0, 400.0))),
-                    )
-                    .with_offset(Unit::rel(Vec2::Y))
-                    .with_anchor(Unit::rel(Vec2::Y)),
-                );
-            },
-        ));
+        // scope.spawn(FutureEffect::new(
+        //     sleep(Duration::from_secs(2)),
+        //     move |scope: &mut Scope, _| {
+        //         scope.attach(
+        //             Positioned::new(
+        //                 Sized::new(Image {
+        //                     path: "./assets/images/uv.png",
+        //                 })
+        //                 .with_size(Unit::px(vec2(400.0, 400.0))),
+        //             )
+        //             .with_offset(Unit::rel(Vec2::Y))
+        //             .with_anchor(Unit::rel(Vec2::Y)),
+        //         );
+        //     },
+        // ));
+
+        scope.attach(
+            Positioned::new(Sized::new(FontAtlasView {}).with_size(Unit::px(vec2(400.0, 400.0))))
+                .with_offset(Unit::rel(Vec2::Y))
+                .with_anchor(Unit::rel(Vec2::Y)),
+        );
+
         let list1 = List::new((
             Sized::new(Rectangle {
                 color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
@@ -341,15 +391,15 @@ impl Widget for MainApp {
             .with_size(Unit::px(vec2(100.0, 20.0))),
         ))
         .with_direction(Direction::Vertical)
-        .with_cross_align(CrossAlign::Stretch);
+        .with_cross_align(CrossAlign::End);
 
         let list2 = List::new((
-            List::new([list3]).with_padding(Edges::even(10.0)),
             (Sized::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
             })
             .with_size(Unit::px(vec2(100.0, 50.0)))),
+            List::new([list3]).with_padding(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),
