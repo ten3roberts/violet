@@ -7,18 +7,18 @@ use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
-    assets::AssetKey,
+    assets::{fs::BytesFromFile, AssetKey},
     components::{
         self, color, filled_rect, layout, local_position, margin, padding, rect, screen_position,
-        size, Edges,
+        size, text, Edges,
     },
     layout::{CrossAlign, Direction, Layout},
     shapes::FilledRect,
     time::interval,
     unit::Unit,
     wgpu::{
-        components::model_matrix,
-        font::{FontAtlas, FontFromBytes},
+        components::{font_from_file, model_matrix},
+        font::{FontAtlas, FontFromBytes, FontFromFile},
     },
     App, Scope, StreamEffect, Widget, WidgetCollection,
 };
@@ -258,44 +258,20 @@ impl<W: WidgetCollection> Widget for List<W> {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-struct BytesFromFile {
-    path: PathBuf,
-}
-
-impl AssetKey for BytesFromFile {
-    type Output = Vec<u8>;
-
-    fn load(&self, _: &violet::assets::AssetCache) -> Self::Output {
-        std::fs::read(&self.path).unwrap()
-    }
-}
-
 struct FontAtlasView {}
 
 impl Widget for FontAtlasView {
     fn mount(self, scope: &mut Scope<'_>) {
-        let assets = scope.assets_mut();
-
-        let bytes = assets.load(&BytesFromFile {
-            path: PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf"),
-        });
-
-        let font = assets.load(&FontFromBytes { bytes });
-
-        let atlas = FontAtlas::new(assets, &font, 128.0, 'a'..='z').unwrap();
+        let font = FontFromFile {
+            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+        };
 
         scope
             .set(name(), "Inter Font".into())
             .set_default(screen_position())
             .set_default(local_position())
-            .set(
-                filled_rect(),
-                FilledRect {
-                    color: Srgba::new(1.0, 1.0, 1.0, 1.0),
-                    fill_image: Some(atlas.image),
-                },
-            )
+            .set(font_from_file(), font)
+            .set(text(), "Hello, World!".into())
             .set_default(model_matrix())
             .set_default(rect());
     }
@@ -353,7 +329,7 @@ impl Widget for MainApp {
         // ));
 
         scope.attach(
-            Positioned::new(Sized::new(FontAtlasView {}).with_size(Unit::px(vec2(400.0, 400.0))))
+            Positioned::new(Sized::new(FontAtlasView {}).with_size(Unit::px(vec2(400.0, 200.0))))
                 .with_offset(Unit::rel(Vec2::Y))
                 .with_anchor(Unit::rel(Vec2::Y)),
         );

@@ -1,9 +1,10 @@
 use flax::{
-    entity_ids, filter::ChangeFilter, All, And, CommandBuffer, Component, EntityIds, Mutable, Query,
+    entity_ids, filter::ChangeFilter, All, And, CommandBuffer, Component, EntityIds, Mutable,
+    Query, With,
 };
 use glam::{Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
     assets::{map::HandleMap, Handle},
@@ -14,7 +15,10 @@ use crate::{
 
 use super::{
     components::{draw_cmd, model_matrix},
-    graphics::{texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh},
+    graphics::{
+        shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh,
+        Shader, Vertex, VertexDesc,
+    },
     shape_renderer::DrawCommand,
     Gpu,
 };
@@ -27,15 +31,23 @@ pub struct RectRenderer {
 
     rect_query: Query<(EntityIds, Component<FilledRect>), And<All, ChangeFilter<FilledRect>>>,
 
-    object_query: Query<(Component<Rect>, Component<Vec2>, Mutable<Mat4>)>,
+    object_query: Query<(Component<Rect>, Component<Vec2>, Mutable<Mat4>), And<All, With>>,
 
     bind_groups: HandleMap<DynamicImage, Handle<BindGroup>>,
 
     mesh: Handle<Mesh>,
+
+    shader: Handle<Shader>,
 }
 
 impl RectRenderer {
-    pub fn new(gpu: &Gpu, frame: &mut Frame) -> Self {
+    pub fn new(
+        gpu: &Gpu,
+        frame: &mut Frame,
+        color_format: TextureFormat,
+        global_layout: &BindGroupLayout,
+        object_bind_group_layout: &BindGroupLayout,
+    ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
@@ -60,14 +72,27 @@ impl RectRenderer {
 
         let mesh = frame.assets.insert(Mesh::quad(gpu));
 
+        let shader = frame.assets.insert(Shader::new(
+            gpu,
+            &ShaderDesc {
+                label: "ShapeRenderer::shader",
+                source: include_str!("../../assets/shaders/solid.wgsl").into(),
+                format: color_format,
+                vertex_layouts: &[Vertex::layout()],
+                layouts: &[global_layout, &object_bind_group_layout, &layout],
+            },
+        ));
+
         Self {
             white_image,
             layout,
             sampler,
             rect_query: Query::new((entity_ids(), filled_rect())).filter(filled_rect().modified()),
-            object_query: Query::new((rect(), screen_position(), model_matrix().as_mut())),
+            object_query: Query::new((rect(), screen_position(), model_matrix().as_mut()))
+                .with(filled_rect()),
             bind_groups: HandleMap::new(),
             mesh,
+            shader,
         }
     }
 
@@ -96,6 +121,8 @@ impl RectRenderer {
                     DrawCommand {
                         mesh: self.mesh.clone(),
                         bind_group: bind_group.clone(),
+                        shader: self.shader.clone(),
+                        index_count: 6,
                     },
                 );
             });
@@ -108,7 +135,6 @@ impl RectRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|(&rect, &pos, model)| {
-                tracing::info!("Updating rect: {rect:?} at {pos}");
                 let pos = pos + rect.pos();
                 let size = rect.size();
                 *model = Mat4::from_scale_rotation_translation(

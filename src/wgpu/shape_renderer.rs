@@ -17,6 +17,7 @@ use super::{
         Vertex, VertexDesc,
     },
     rect_renderer::RectRenderer,
+    text_renderer::TextRenderer,
     Gpu,
 };
 
@@ -28,8 +29,10 @@ new_key_type! {
 /// Specifies what to use when drawing a single entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DrawCommand {
+    pub(crate) shader: Handle<Shader>,
     pub(crate) mesh: Handle<Mesh>,
     pub(crate) bind_group: Handle<BindGroup>,
+    pub(crate) index_count: u32,
 }
 
 /// Compatible draw commands are given an instance in the object buffer and merged together
@@ -52,11 +55,11 @@ pub struct ShapeRenderer {
     object_buffer: TypedBuffer<ObjectData>,
     object_bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
-    shader: Shader,
 
     commands: Vec<InstancedDrawCommand>,
 
     rect_renderer: RectRenderer,
+    text_renderer: TextRenderer,
 }
 
 impl ShapeRenderer {
@@ -87,26 +90,27 @@ impl ShapeRenderer {
             .bind_texture(ShaderStages::FRAGMENT)
             .build(gpu);
 
-        let shader = Shader::new(
-            gpu,
-            ShaderDesc {
-                label: "ShapeRenderer::shader",
-                source: include_str!("../../assets/shaders/solid.wgsl").into(),
-                format: color_format,
-                vertex_layouts: Cow::Borrowed(&[Vertex::layout()]),
-                layouts: &[global_layout, &object_bind_group_layout, &solid_layout],
-            },
-        );
-
         Self {
             quad: Mesh::quad(gpu),
             objects: Vec::new(),
             object_buffer,
-            object_bind_group_layout,
             bind_group,
-            shader,
             commands: Vec::new(),
-            rect_renderer: RectRenderer::new(gpu, frame),
+            rect_renderer: RectRenderer::new(
+                gpu,
+                frame,
+                color_format,
+                global_layout,
+                &object_bind_group_layout,
+            ),
+            text_renderer: TextRenderer::new(
+                gpu,
+                frame,
+                color_format,
+                global_layout,
+                &object_bind_group_layout,
+            ),
+            object_bind_group_layout,
         }
     }
 
@@ -119,15 +123,15 @@ impl ShapeRenderer {
     ) -> anyhow::Result<()> {
         self.object_buffer.write(&gpu.queue, &self.objects);
 
-        render_pass.set_pipeline(self.shader.pipeline());
-        render_pass.set_bind_group(0, globals_bind_group, &[]);
-
         self.quad.bind(render_pass);
 
         // tracing::info!("Draw commands: {}", self.commands.len());
 
         self.rect_renderer.update(gpu, frame);
         self.rect_renderer.build_commands(gpu, frame);
+
+        self.text_renderer.update_text_meshes(gpu, frame);
+        self.text_renderer.update(gpu, frame);
 
         let mut query = Query::new((
             color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
@@ -180,11 +184,14 @@ impl ShapeRenderer {
             let cmd = &instanced_cmd.cmd;
             cmd.mesh.bind(render_pass);
 
+            render_pass.set_pipeline(cmd.shader.pipeline());
+
+            render_pass.set_bind_group(0, globals_bind_group, &[]);
             render_pass.set_bind_group(1, &self.bind_group, &[]);
             render_pass.set_bind_group(2, &cmd.bind_group, &[]);
 
             render_pass.draw_indexed(
-                0..6,
+                0..cmd.index_count,
                 0,
                 instanced_cmd.first_instance
                     ..(instanced_cmd.first_instance + instanced_cmd.instance_count),

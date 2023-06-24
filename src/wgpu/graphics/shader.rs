@@ -7,24 +7,25 @@ use wgpu::{
 #[derive(Debug, Clone)]
 pub struct ShaderDesc<'a> {
     pub label: &'a str,
-    pub source: Cow<'a, str>,
+    pub source: &'a str,
     pub format: TextureFormat,
-    pub vertex_layouts: Cow<'a, [VertexBufferLayout<'static>]>,
+    pub vertex_layouts: &'a [VertexBufferLayout<'static>],
     pub layouts: &'a [&'a BindGroupLayout],
 }
 
 /// Represents a graphics shader
+#[derive(Debug)]
 pub struct Shader {
     pipeline: RenderPipeline,
 }
 
 impl Shader {
-    pub fn new(gpu: &Gpu, desc: ShaderDesc) -> Self {
+    pub fn new(gpu: &Gpu, desc: &ShaderDesc) -> Self {
         let shader = gpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(desc.source),
+                label: Some(desc.label),
+                source: wgpu::ShaderSource::Wgsl(desc.source.into()),
             });
 
         let layout = gpu

@@ -33,6 +33,30 @@ impl VertexDesc for Vertex {
     }
 }
 
+#[repr(C)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Debug, Clone)]
+pub struct Vertex2d {
+    pos: Vec2,
+    tex_coord: Vec2,
+}
+
+impl Vertex2d {
+    pub const fn new(pos: Vec2, tex_coord: Vec2) -> Self {
+        Self { pos, tex_coord }
+    }
+}
+impl VertexDesc for Vertex2d {
+    fn layout() -> VertexBufferLayout<'static> {
+        static ATTRIBUTES: &[VertexAttribute] = &vertex_attr_array![0 => Float32x3, 1 => Float32x2];
+
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: ATTRIBUTES,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Mesh {
     vertex_count: u32,

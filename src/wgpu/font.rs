@@ -1,10 +1,13 @@
 use std::collections::BTreeMap;
 
-use glam::{ivec2, uvec2, IVec2};
+use glam::{ivec2, uvec2, IVec2, Vec2};
 use guillotiere::{size2, AtlasAllocator};
-use image::{DynamicImage, ImageBuffer, Luma};
+use image::{ImageBuffer, Luma};
+use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
 use crate::assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle};
+
+use super::{graphics::texture::Texture, Gpu};
 
 /// Loads a font from memory
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -14,7 +17,7 @@ pub struct FontFromBytes {
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct FontFromFile {
-    path: BytesFromFile,
+    pub path: BytesFromFile,
 }
 
 impl AssetKey for FontFromFile {
@@ -44,18 +47,20 @@ impl AssetKey for FontFromBytes {
     }
 }
 
-struct GlyphLocation {
-    position: IVec2,
+pub struct GlyphLocation {
+    pub min: Vec2,
+    pub max: Vec2,
 }
 
 pub struct FontAtlas {
-    pub image: Handle<DynamicImage>,
-    glyphs: BTreeMap<char, GlyphLocation>,
+    pub texture: Texture,
+    pub glyphs: BTreeMap<u16, GlyphLocation>,
 }
 
 impl FontAtlas {
     pub fn new(
-        assets: &mut AssetCache,
+        assets: &AssetCache,
+        gpu: &Gpu,
         font: &Font,
         px: f32,
         glyphs: impl IntoIterator<Item = char>,
@@ -79,43 +84,47 @@ impl FontAtlas {
                     ))
                     .unwrap();
 
-                let position = ivec2(v.rectangle.min.x + padding, v.rectangle.min.y + padding);
+                let min = ivec2(v.rectangle.min.x + padding, v.rectangle.min.y + padding);
+                let max = ivec2(v.rectangle.max.x - padding, v.rectangle.max.y - padding);
 
-                blit_to_image(
-                    &pixels,
-                    &mut image,
-                    position,
-                    metrics.width,
-                    size.x as usize,
-                );
+                tracing::debug!("Glyph: {:?} {:?}", glyph, metrics);
+                if metrics.width > 0 {
+                    blit_to_image(&pixels, &mut image, min, metrics.width, size.x as usize);
+                }
 
-                Ok((glyph, GlyphLocation { position })) as anyhow::Result<_>
+                Ok((
+                    font.font.lookup_glyph_index(glyph),
+                    GlyphLocation {
+                        min: min.as_vec2(),
+                        max: max.as_vec2(),
+                    },
+                )) as anyhow::Result<_>
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
 
-        // let texture = gpu.device.create_texture_with_data(
-        //     &gpu.queue,
-        //     &TextureDescriptor {
-        //         label: Some("FontAtlas"),
-        //         size: Extent3d {
-        //             width: size.x,
-        //             height: size.y,
-        //             depth_or_array_layers: 1,
-        //         },
-        //         mip_level_count: 1,
-        //         sample_count: 1,
-        //         dimension: TextureDimension::D2,
-        //         format: wgpu::TextureFormat::R8Unorm,
-        //         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-        //         view_formats: &[],
-        //     },
-        //     &atlas_data,
-        // );
+        let texture = gpu.device.create_texture_with_data(
+            &gpu.queue,
+            &TextureDescriptor {
+                label: Some("FontAtlas"),
+                size: Extent3d {
+                    width: size.x,
+                    height: size.y,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: wgpu::TextureFormat::R8Unorm,
+                usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            &image,
+        );
         //
         // let texture = assets.insert(Texture::from_texture(texture));
 
         Ok(Self {
-            image: assets.insert(image::DynamicImage::ImageLuma8(image)),
+            texture: Texture::from_texture(texture),
             glyphs,
         })
     }

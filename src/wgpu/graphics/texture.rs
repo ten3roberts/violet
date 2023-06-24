@@ -6,6 +6,14 @@ pub struct Texture {
     texture: wgpu::Texture,
 }
 
+impl std::ops::Deref for Texture {
+    type Target = wgpu::Texture;
+
+    fn deref(&self) -> &Self::Target {
+        &self.texture
+    }
+}
+
 impl Texture {
     pub fn from_texture(texture: wgpu::Texture) -> Self {
         Self { texture }
