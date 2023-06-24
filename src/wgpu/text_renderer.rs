@@ -2,14 +2,12 @@ use std::collections::HashMap;
 
 use flax::{entity_ids, Query};
 use fontdue::layout::TextStyle;
-use palette::convert::FromColorUnclampedMutGuard;
 
 use crate::{assets::Handle, components::text, Frame};
 
 use super::{
     components::{draw_cmd, font_from_file},
     font::{Font, FontFromFile},
-    shape_renderer::DrawCommand,
     Gpu,
 };
 
@@ -36,7 +34,7 @@ impl TextRenderer {
             layout.append(
                 &[&font.font],
                 &TextStyle {
-                    text: &*text,
+                    text,
                     px: 12.0,
                     font_index: 0,
                     user_data: (),

@@ -1,28 +1,20 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::borrow::Cow;
 
-use flax::{child_of, Entity, FetchExt, Query, World};
+use flax::{child_of, FetchExt, Query};
 use glam::{vec4, Mat4, Vec4};
-use image::{DynamicImage, ImageBuffer};
+use image::DynamicImage;
 use itertools::Itertools;
 use palette::Srgba;
-use slotmap::{new_key_type, SlotMap};
-use wgpu::{
-    BindGroup, BindGroupLayout, BufferUsages, RenderPass, Sampler, SamplerDescriptor, ShaderStages,
-    TextureFormat,
-};
+use slotmap::new_key_type;
+use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
-use crate::{
-    assets::{map::HandleMap, Handle},
-    components::{children, color, local_position, rect, screen_position, Rect},
-    shapes::{FilledRect, Shape},
-    Frame,
-};
+use crate::{assets::Handle, components::color, Frame};
 
 use super::{
     components::{draw_cmd, model_matrix},
     graphics::{
-        shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh,
-        Shader, TypedBuffer, Vertex, VertexDesc,
+        shader::ShaderDesc, BindGroupBuilder, BindGroupLayoutBuilder, Mesh, Shader, TypedBuffer,
+        Vertex, VertexDesc,
     },
     rect_renderer::RectRenderer,
     Gpu,
@@ -31,21 +23,6 @@ use super::{
 new_key_type! {
     pub struct MeshKey;
     pub struct BindGroupKey;
-}
-
-struct DrawResources {}
-
-#[derive(Debug, PartialEq)]
-pub(crate) enum DrawShape {
-    Rect {
-        fill_image: Handle<DynamicImage>,
-    },
-    /// Draws an arbitrary mesh
-    Mesh {
-        mesh: Handle<Mesh>,
-        first_index: u32,
-        index_count: u32,
-    },
 }
 
 /// Specifies what to use when drawing a single entity

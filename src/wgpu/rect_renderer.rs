@@ -1,20 +1,20 @@
 use flax::{
     entity_ids, filter::ChangeFilter, All, And, CommandBuffer, Component, EntityIds, Mutable, Query,
 };
-use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
+use glam::{Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
-use wgpu::{BindGroup, BindGroupLayout, BufferUsages, SamplerDescriptor, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages};
 
 use crate::{
     assets::{map::HandleMap, Handle},
     components::{filled_rect, rect, screen_position, Rect},
-    shapes::{FilledRect, Shape},
+    shapes::FilledRect,
     Frame,
 };
 
 use super::{
     components::{draw_cmd, model_matrix},
-    graphics::{texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh, TypedBuffer},
+    graphics::{texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh},
     shape_renderer::DrawCommand,
     Gpu,
 };
@@ -103,7 +103,7 @@ impl RectRenderer {
         cmd.apply(&mut frame.world).unwrap();
     }
 
-    pub fn update(&mut self, gpu: &Gpu, frame: &mut Frame) {
+    pub fn update(&mut self, _: &Gpu, frame: &mut Frame) {
         self.object_query
             .borrow(&frame.world)
             .iter()

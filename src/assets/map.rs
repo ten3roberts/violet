@@ -1,8 +1,6 @@
-use std::marker::PhantomData;
-
 use slotmap::{secondary, SecondaryMap};
 
-use super::{AssetId, AssetKey, Handle};
+use super::{AssetId, Handle};
 
 /// Associates handles with locally owned data
 pub struct HandleMap<K, V> {

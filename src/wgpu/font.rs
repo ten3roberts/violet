@@ -1,19 +1,10 @@
-use std::{collections::BTreeMap, iter::repeat};
+use std::collections::BTreeMap;
 
-use anyhow::Context;
-use fontdue::layout::GlyphPosition;
-use glam::{ivec2, uvec2, IVec2, UVec2};
-use guillotiere::{size2, AtlasAllocator, Size};
+use glam::{ivec2, uvec2, IVec2};
+use guillotiere::{size2, AtlasAllocator};
 use image::{DynamicImage, ImageBuffer, Luma};
-use itertools::Itertools;
-use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
-use crate::{
-    assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle},
-    components::Rect,
-};
-
-use super::{graphics::texture::Texture, Gpu};
+use crate::assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle};
 
 /// Loads a font from memory
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]

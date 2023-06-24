@@ -1,6 +1,3 @@
-use std::ops::Deref;
-
-use image::GenericImageView;
 use wgpu::{TextureView, TextureViewDescriptor};
 
 use super::Gpu;

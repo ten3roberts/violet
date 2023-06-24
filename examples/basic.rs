@@ -13,14 +13,14 @@ use violet::{
         size, Edges,
     },
     layout::{CrossAlign, Direction, Layout},
-    shapes::{FilledRect, Shape},
-    time::{interval, sleep},
+    shapes::FilledRect,
+    time::interval,
     unit::Unit,
     wgpu::{
         components::model_matrix,
         font::{FontAtlas, FontFromBytes},
     },
-    App, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
+    App, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
 struct MainApp;

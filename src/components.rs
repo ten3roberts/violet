@@ -2,11 +2,7 @@ use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
 use palette::Srgba;
 
-use crate::{
-    layout::Layout,
-    shapes::{FilledRect, Shape},
-    unit::Unit,
-};
+use crate::{layout::Layout, shapes::FilledRect, unit::Unit};
 
 component! {
     /// Ordered list of children for an entity

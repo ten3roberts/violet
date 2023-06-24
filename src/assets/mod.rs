@@ -3,7 +3,7 @@ use std::{
     borrow::Borrow,
     collections::HashMap,
     hash::Hash,
-    sync::{Arc, Weak},
+    sync::Arc,
 };
 
 use dashmap::DashMap;
@@ -13,7 +13,6 @@ pub mod fs;
 mod handle;
 pub mod map;
 pub use handle::Handle;
-use tracing::info_span;
 
 use self::{cell::AssetCell, handle::WeakHandle};
 
@@ -131,7 +130,7 @@ mod tests {
             }
         }
 
-        let mut assets = AssetCache::new();
+        let assets = AssetCache::new();
 
         let content = assets.load(&Key("Foo".to_string()));
         let content2 = assets.load(&Key("Foo".to_string()));

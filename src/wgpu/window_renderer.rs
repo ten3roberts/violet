@@ -1,5 +1,4 @@
 use anyhow::Context;
-use flax::Entity;
 use glam::Mat4;
 use wgpu::{BufferUsages, Operations, RenderPassDescriptor, ShaderStages, SurfaceError};
 use winit::dpi::PhysicalSize;
@@ -8,7 +7,6 @@ use crate::Frame;
 
 use super::{
     graphics::{BindGroupBuilder, BindGroupLayoutBuilder, Gpu, Surface, TypedBuffer},
-    rect_renderer::RectRenderer,
     ShapeRenderer,
 };
 
@@ -19,7 +17,6 @@ pub struct WindowRenderer {
     globals: Globals,
     globals_buffer: TypedBuffer<Globals>,
     globals_bind_group: wgpu::BindGroup,
-    globals_layout: wgpu::BindGroupLayout,
     shape_renderer: ShapeRenderer,
 }
 
@@ -51,7 +48,6 @@ impl WindowRenderer {
             surface,
             globals_buffer,
             globals_bind_group,
-            globals_layout,
             shape_renderer,
             globals,
         }

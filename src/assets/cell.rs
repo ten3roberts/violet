@@ -19,8 +19,9 @@ impl<V> AssetCell<V> {
     }
 
     pub fn insert(&mut self, value: V) -> Handle<V> {
-        self.prune();
-        let count = Arc::new(());
+        if self.values.len() as f32 >= self.values.capacity() as f32 * 0.7 {
+            self.prune();
+        }
 
         let value = Arc::new(value);
 

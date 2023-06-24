@@ -5,7 +5,7 @@ use crate::{
     wgpu::{
         font::{Font, FontFromFile},
         graphics::texture::Texture,
-        shape_renderer::{DrawCommand, DrawShape},
+        shape_renderer::DrawCommand,
     },
 };
 

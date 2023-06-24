@@ -18,8 +18,3 @@ impl std::fmt::Debug for FilledRect {
             .finish()
     }
 }
-
-#[derive(Clone, Debug)]
-pub enum Shape {
-    FilledRect(FilledRect),
-}

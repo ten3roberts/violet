@@ -132,8 +132,7 @@ impl Layout {
     ) -> Rect {
         let (axis, cross_axis) = self.direction.axis();
 
-        let (total_min_size, total_preferred_size, blocks) =
-            self.query_size(world, entity, content_area);
+        let (_, total_preferred_size, blocks) = self.query_size(world, entity, content_area);
 
         // Size remaining if everything got at least its preferred size
         let total_preferred_size = total_preferred_size.size().dot(axis);
@@ -231,9 +230,8 @@ impl Layout {
             entity.update(components::rect(), |v| *v = block.rect);
             entity.update(components::local_position(), |v| *v = pos);
         }
-        let line = cursor.finish();
 
-        line
+        cursor.finish()
     }
 
     pub(crate) fn query_size<'a>(
@@ -245,7 +243,7 @@ impl Layout {
         let children = entity.get(children()).ok();
         let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
 
-        let available_size = inner_rect.size();
+        // let available_size = inner_rect.size();
 
         // Start at the corner of the inner rect
         //

@@ -1,7 +1,6 @@
 pub mod components;
 pub mod font;
 pub mod graphics;
-mod painter;
 pub mod rect_renderer;
 mod shape_renderer;
 pub mod systems;
