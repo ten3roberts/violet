@@ -33,6 +33,7 @@ impl VertexDesc for Vertex {
     }
 }
 
+#[derive(Debug)]
 pub struct Mesh {
     vertex_count: u32,
     index_count: u32,

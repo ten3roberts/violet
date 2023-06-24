@@ -1,15 +1,17 @@
 use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
+use palette::Srgba;
 
-use crate::{layout::Layout, shapes::Shape, unit::Unit};
+use crate::{
+    layout::Layout,
+    shapes::{FilledRect, Shape},
+    unit::Unit,
+};
 
 component! {
     /// Ordered list of children for an entity
     pub children: Vec<Entity> => [ Debuggable ],
     // pub child_of(parent): Entity => [ Debuggable ],
-
-    /// The shape of a widget when drawn
-    pub shape: Shape => [ Debuggable ],
 
     /// Defines the outer bounds of a widget relative to its position
     pub rect: Rect => [ Debuggable ],
@@ -44,6 +46,11 @@ component! {
 
 
     pub text: String => [ Debuggable ],
+
+    /// The color of the widget
+    pub color: Srgba => [ Debuggable ],
+
+    pub filled_rect: FilledRect => [ Debuggable ],
 }
 
 /// Spacing between a outer and inner bounds

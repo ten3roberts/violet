@@ -48,8 +48,10 @@ impl<'a, K, V> Entry<'a, K, V> {
     where
         F: FnOnce(&mut V),
     {
-        self.entry.and_modify(f);
-        self
+        Entry {
+            entry: self.entry.and_modify(f),
+            handle: self.handle,
+        }
     }
 
     pub fn or_insert(self, default: V) -> &'a mut V {

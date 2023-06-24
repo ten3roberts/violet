@@ -9,13 +9,17 @@ use tracing_subscriber::EnvFilter;
 use violet::{
     assets::AssetKey,
     components::{
-        self, layout, local_position, margin, padding, rect, screen_position, shape, size, Edges,
+        self, color, filled_rect, layout, local_position, margin, padding, rect, screen_position,
+        size, Edges,
     },
     layout::{CrossAlign, Direction, Layout},
     shapes::{FilledRect, Shape},
     time::{interval, sleep},
     unit::Unit,
-    wgpu::font::{FontAtlas, FontFromBytes},
+    wgpu::{
+        components::model_matrix,
+        font::{FontAtlas, FontFromBytes},
+    },
     App, FutureEffect, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
@@ -122,16 +126,18 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "Rectangle".into())
-            .set(
-                shape(),
-                Shape::FilledRect(FilledRect {
-                    color: self.color,
-                    fill_image: None,
-                }),
-            )
             .set(margin(), self.margin)
             .set_default(screen_position())
             .set_default(local_position())
+            .set_default(model_matrix())
+            .set(
+                filled_rect(),
+                FilledRect {
+                    color: self.color,
+                    fill_image: None,
+                },
+            )
+            .set(color(), self.color)
             .set_default(rect());
     }
 }
@@ -157,7 +163,7 @@ struct Image<P> {
 
 impl<P: Into<PathBuf>> Widget for Image<P> {
     fn mount(self, scope: &mut Scope) {
-        let image = scope.assets_mut().load(ImageFromPath {
+        let image = scope.assets_mut().load(&ImageFromPath {
             path: self.path.into(),
         });
 
@@ -166,12 +172,13 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
             .set_default(screen_position())
             .set_default(local_position())
             .set(
-                shape(),
-                Shape::FilledRect(FilledRect {
+                filled_rect(),
+                FilledRect {
                     color: Srgba::new(1.0, 1.0, 1.0, 1.0),
                     fill_image: Some(image),
-                }),
+                },
             )
+            .set_default(model_matrix())
             .set_default(rect());
     }
 }
@@ -231,19 +238,19 @@ impl<W: WidgetCollection> Widget for List<W> {
         scope
             .set_default(rect())
             .set_opt(
-                shape(),
-                self.background_color.map(|bg| {
-                    Shape::FilledRect(FilledRect {
-                        // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
-                        // color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
-                        color: bg,
-                        fill_image: None,
-                    })
+                filled_rect(),
+                self.background_color.map(|bg| FilledRect {
+                    // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
+                    // color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
+                    color: bg,
+                    fill_image: None,
                 }),
             )
             .set(layout(), self.layout)
             .set_default(screen_position())
             .set_default(local_position())
+            .set_default(model_matrix())
+            .set_opt(color(), self.background_color)
             .set(padding(), self.padding)
             .set(margin(), self.margin);
 
@@ -270,25 +277,26 @@ impl Widget for FontAtlasView {
     fn mount(self, scope: &mut Scope<'_>) {
         let assets = scope.assets_mut();
 
-        let bytes = assets.load(BytesFromFile {
+        let bytes = assets.load(&BytesFromFile {
             path: PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf"),
         });
 
-        let font = assets.load(FontFromBytes { bytes });
+        let font = assets.load(&FontFromBytes { bytes });
 
-        let atlas = FontAtlas::new(assets, font.as_ref().unwrap(), 128.0, 'a'..='z').unwrap();
+        let atlas = FontAtlas::new(assets, &font, 128.0, 'a'..='z').unwrap();
 
         scope
             .set(name(), "Inter Font".into())
             .set_default(screen_position())
             .set_default(local_position())
             .set(
-                shape(),
-                Shape::FilledRect(FilledRect {
+                filled_rect(),
+                FilledRect {
                     color: Srgba::new(1.0, 1.0, 1.0, 1.0),
                     fill_image: Some(atlas.image),
-                }),
+                },
             )
+            .set_default(model_matrix())
             .set_default(rect());
     }
 }

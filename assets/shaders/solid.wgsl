@@ -25,10 +25,10 @@ var<uniform> globals: Globals;
 @group(1) @binding(0)
 var<storage> objects: array<Object>;
 
-@group(1) @binding(1)
+@group(2) @binding(0)
 var default_sampler: sampler;
 
-@group(1) @binding(2)
+@group(2) @binding(1)
 var fill_image: texture_2d<f32>;
 
 @vertex

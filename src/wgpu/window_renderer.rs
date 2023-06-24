@@ -8,6 +8,7 @@ use crate::Frame;
 
 use super::{
     graphics::{BindGroupBuilder, BindGroupLayoutBuilder, Gpu, Surface, TypedBuffer},
+    rect_renderer::RectRenderer,
     ShapeRenderer,
 };
 
@@ -67,12 +68,9 @@ impl WindowRenderer {
     }
 
     pub fn draw(&mut self, gpu: &Gpu, frame: &mut Frame) -> anyhow::Result<()> {
-        self.shape_renderer.update(gpu, frame);
-
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
-            Err(e @ SurfaceError::Lost | e @ SurfaceError::Outdated) => {
-                // tracing::debug!("Reconfiguring surface: {e:?}");
+            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
                 self.surface.reconfigure(gpu);
                 return Ok(());
             }
@@ -108,7 +106,7 @@ impl WindowRenderer {
             });
 
             self.shape_renderer
-                .draw(gpu, &self.globals_bind_group, &mut render_pass)
+                .draw(gpu, frame, &self.globals_bind_group, &mut render_pass)
                 .context("Failed to draw shapes")?;
         }
 

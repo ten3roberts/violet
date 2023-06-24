@@ -5,6 +5,7 @@ use crate::{
     wgpu::{
         font::{Font, FontFromFile},
         graphics::texture::Texture,
+        shape_renderer::{DrawCommand, DrawShape},
     },
 };
 
@@ -15,5 +16,10 @@ component! {
     pub(crate) font: Handle<Font>,
 
     pub font_from_file: FontFromFile => [ Debuggable ],
-    pub text_mesh: Handle<Mesh>,
+
+    /// Renderer specific data for drawing a shape
+    pub(crate) draw_cmd: DrawCommand => [ Debuggable ],
+
+    pub model_matrix: glam::Mat4 => [ Debuggable ],
+
 }
