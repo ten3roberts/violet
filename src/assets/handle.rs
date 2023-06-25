@@ -75,30 +75,35 @@ impl<T: ?Sized> Handle<T> {
         }
     }
 
+    #[inline]
     pub fn id(&self) -> AssetId {
         self.id
     }
 }
 
 impl<T: ?Sized> Hash for Handle<T> {
+    #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
 }
 
 impl<T: ?Sized> PartialOrd for Handle<T> {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.id.partial_cmp(&other.id)
     }
 }
 
 impl<T: ?Sized> Ord for Handle<T> {
+    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(&other.id)
     }
 }
 
 impl<T: ?Sized> PartialEq for Handle<T> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }

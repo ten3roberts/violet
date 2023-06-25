@@ -21,5 +21,4 @@ component! {
     pub(crate) draw_cmd: DrawCommand => [ Debuggable ],
 
     pub model_matrix: glam::Mat4 => [ Debuggable ],
-
 }

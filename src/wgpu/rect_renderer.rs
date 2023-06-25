@@ -104,7 +104,7 @@ impl RectRenderer {
             .for_each(|(id, rect)| {
                 let image = rect.fill_image.as_ref().unwrap_or(&self.white_image);
 
-                let bind_group = self.bind_groups.entry(image.clone()).or_insert_with(|| {
+                let bind_group = self.bind_groups.entry(&image.clone()).or_insert_with(|| {
                     let texture = Texture::from_image(gpu, image);
 
                     let bind_group = BindGroupBuilder::new("ShapeRenderer::textured_bind_group")

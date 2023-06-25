@@ -28,7 +28,7 @@ impl<K, V> HandleMap<K, V> {
         self.inner.get_mut(handle.id())
     }
 
-    pub fn entry(&mut self, handle: Handle<K>) -> Entry<K, V> {
+    pub fn entry<'a, 'h>(&'a mut self, handle: &'h Handle<K>) -> Entry<'a, 'h, K, V> {
         Entry {
             entry: self.inner.entry(handle.id()).expect("Invalid handle"),
             handle,
@@ -36,12 +36,12 @@ impl<K, V> HandleMap<K, V> {
     }
 }
 
-pub struct Entry<'a, K, V> {
+pub struct Entry<'a, 'h, K, V> {
     entry: secondary::Entry<'a, AssetId, V>,
-    handle: Handle<K>,
+    handle: &'h Handle<K>,
 }
 
-impl<'a, K, V> Entry<'a, K, V> {
+impl<'a, 'h, K, V> Entry<'a, 'h, K, V> {
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(&mut V),
@@ -65,7 +65,7 @@ impl<'a, K, V> Entry<'a, K, V> {
 
     pub fn or_insert_with_key<F>(self, default: F) -> &'a mut V
     where
-        F: FnOnce(Handle<K>) -> V,
+        F: FnOnce(&'h Handle<K>) -> V,
     {
         self.entry.or_insert_with(|| default(self.handle))
     }

@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use glam::{ivec2, uvec2, IVec2, Vec2};
+use fontdue::layout::GlyphRasterConfig;
+use glam::{ivec2, uvec2, IVec2, UVec2, Vec2};
 use guillotiere::{size2, AtlasAllocator};
-use image::{ImageBuffer, Luma};
+use image::{buffer::ConvertBuffer, GenericImage, GenericImageView, ImageBuffer, Luma, Rgb, Rgba};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
 use crate::assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle};
@@ -48,13 +49,14 @@ impl AssetKey for FontFromBytes {
 }
 
 pub struct GlyphLocation {
-    pub min: Vec2,
-    pub max: Vec2,
+    pub min: UVec2,
+    pub max: UVec2,
 }
 
 pub struct FontAtlas {
     pub texture: Texture,
     pub glyphs: BTreeMap<u16, GlyphLocation>,
+    pub chars: BTreeSet<char>,
 }
 
 impl FontAtlas {
@@ -65,42 +67,66 @@ impl FontAtlas {
         px: f32,
         glyphs: impl IntoIterator<Item = char>,
     ) -> anyhow::Result<Self> {
-        let size = uvec2(512, 512);
-        let mut atlas = AtlasAllocator::new(size2(size.x as _, size.y as _));
+        let mut atlas = AtlasAllocator::new(size2(128, 128));
 
-        let mut image = ImageBuffer::from_pixel(size.x as _, size.y as _, Luma([0]));
+        let chars = glyphs.into_iter().collect::<BTreeSet<_>>();
 
-        let glyphs = glyphs
-            .into_iter()
-            .map(|glyph| {
-                let (metrics, pixels) = font.font.rasterize(glyph, px);
+        let glyphs = chars
+            .iter()
+            .map(|&c| {
+                tracing::debug!(?c);
 
+                let index = font.font.lookup_glyph_index(c);
+
+                let metrics = font.font.metrics_indexed(index, px);
                 let padding = 10;
 
-                let v = atlas
-                    .allocate(size2(
-                        metrics.width as i32 + padding * 2,
-                        metrics.height as i32 + padding * 2,
-                    ))
-                    .unwrap();
+                let requested_size = size2(
+                    metrics.width as i32 + padding * 2,
+                    metrics.height as i32 + padding * 2,
+                );
+                let v = loop {
+                    if let Some(v) = atlas.allocate(requested_size) {
+                        break v;
+                    } else {
+                        atlas.grow(atlas.size() * 2)
+                    }
+                };
+                let min = uvec2(
+                    (v.rectangle.min.x + padding) as u32,
+                    (v.rectangle.min.y + padding) as u32,
+                );
+                let max = uvec2(
+                    (v.rectangle.max.x - padding) as u32,
+                    (v.rectangle.max.y - padding) as u32,
+                );
 
-                let min = ivec2(v.rectangle.min.x + padding, v.rectangle.min.y + padding);
-                let max = ivec2(v.rectangle.max.x - padding, v.rectangle.max.y - padding);
-
-                tracing::debug!("Glyph: {:?} {:?}", glyph, metrics);
-                if metrics.width > 0 {
-                    blit_to_image(&pixels, &mut image, min, metrics.width, size.x as usize);
-                }
-
-                Ok((
-                    font.font.lookup_glyph_index(glyph),
-                    GlyphLocation {
-                        min: min.as_vec2(),
-                        max: max.as_vec2(),
-                    },
-                )) as anyhow::Result<_>
+                (index, GlyphLocation { min, max })
             })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
+            .collect::<BTreeMap<_, _>>();
+
+        let size = atlas.size();
+        let size = uvec2(size.width as _, size.height as _);
+        let mut image = ImageBuffer::from_pixel(size.x, size.y, Luma([0]));
+
+        // Rasterize and blit without storing all the small bitmaps in memory at the same time
+        glyphs.iter().for_each(|(&glyph, loc)| {
+            let (metrics, pixels) = font.font.rasterize_indexed(glyph, px);
+
+            tracing::debug!(?glyph, ?metrics.width, ?metrics.height);
+
+            // tracing::debug!("Glyph: {:?} {:?}", glyph, metrics);
+            if metrics.width > 0 {
+                blit_to_image(
+                    &pixels,
+                    &mut image,
+                    loc.min.x as i32,
+                    loc.min.y as i32,
+                    metrics.width as u32,
+                    size.x,
+                );
+            }
+        });
 
         let texture = gpu.device.create_texture_with_data(
             &gpu.queue,
@@ -120,26 +146,27 @@ impl FontAtlas {
             },
             &image,
         );
-        //
-        // let texture = assets.insert(Texture::from_texture(texture));
 
         Ok(Self {
             texture: Texture::from_texture(texture),
             glyphs,
+            chars,
         })
+    }
+
+    pub(crate) fn size(&self) -> Extent3d {
+        self.texture.size()
+    }
+
+    pub(crate) fn contains_char(&self, glyph: char) -> bool {
+        self.chars.contains(&glyph)
     }
 }
 
-pub fn blit_to_image(
-    src: &[u8],
-    dst: &mut [u8],
-    position: IVec2,
-    src_width: usize,
-    dst_width: usize,
-) {
-    for (row_index, row) in src.chunks_exact(src_width).enumerate() {
-        let dst_index = position.x as usize + (position.y as usize + row_index) * dst_width;
+pub fn blit_to_image(src: &[u8], dst: &mut [u8], x: i32, y: i32, src_stride: u32, dst_stride: u32) {
+    for (row_index, row) in src.chunks_exact(src_stride as usize).enumerate() {
+        let dst_index = x as usize + (y as usize + row_index) * dst_stride as usize;
 
-        dst[dst_index..(dst_index + src_width)].copy_from_slice(row);
+        dst[dst_index..(dst_index + src_stride as usize)].copy_from_slice(row);
     }
 }
