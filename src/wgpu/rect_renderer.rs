@@ -1,6 +1,7 @@
 use flax::{
-    entity_ids, filter::ChangeFilter, All, And, CommandBuffer, Component, EntityIds, Mutable,
-    Query, With,
+    entity_ids,
+    filter::{All, And, ChangeFilter, With},
+    CommandBuffer, Component, EntityIds, Mutable, Query,
 };
 use glam::{Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};

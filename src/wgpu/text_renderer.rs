@@ -1,6 +1,10 @@
 use std::collections::{btree_map, BTreeMap};
 
-use flax::{entity_ids, All, And, CommandBuffer, Component, Fetch, Mutable, Query, With};
+use flax::{
+    entity_ids,
+    filter::{All, And, ChangeFilter, Or, With},
+    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
+};
 use fontdue::layout::{Layout, TextStyle};
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use itertools::Itertools;
@@ -8,7 +12,7 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 
 use crate::{
     assets::{map::HandleMap, AssetCache, Handle},
-    components::{rect, screen_position, text, Rect},
+    components::{font_size, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
         graphics::{BindGroupBuilder, Mesh},
@@ -18,14 +22,14 @@ use crate::{
 };
 
 use super::{
-    components::{draw_cmd, font_from_file, model_matrix},
-    font::Font,
+    components::{draw_cmd, font, font_from_file, model_matrix},
+    font::{Font, FontFromFile},
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     Gpu,
 };
 
 #[derive(Fetch)]
-pub struct ObjectQuery {
+struct ObjectQuery {
     rect: Component<Rect>,
     pos: Component<Vec2>,
     model_matrix: Mutable<Mat4>,
@@ -41,6 +45,27 @@ impl ObjectQuery {
     }
 }
 
+#[derive(Fetch, Debug, Clone)]
+pub struct TextMeshQuery {
+    id: EntityIds,
+    rect: Component<Rect>,
+    text: Component<String>,
+    font: Component<Handle<Font>>,
+    font_size: OptOr<Component<f32>, f32>,
+}
+
+impl TextMeshQuery {
+    fn new() -> Self {
+        Self {
+            id: EntityIds,
+            rect: rect(),
+            text: text(),
+            font: font(),
+            font_size: font_size().opt_or(16.0),
+        }
+    }
+}
+
 pub struct RasterizedFont {
     /// Stored to retrieve *where* the character is located
     atlas: FontAtlas,
@@ -48,7 +73,44 @@ pub struct RasterizedFont {
 }
 
 pub struct RenderFont {
+    font: Handle<Font>,
+    sampler: Handle<Sampler>,
     rasterized: BTreeMap<u32, RasterizedFont>,
+}
+
+impl RenderFont {
+    fn get(
+        &mut self,
+        gpu: &Gpu,
+        assets: &AssetCache,
+        px: u32,
+        text: &str,
+        text_layout: &BindGroupLayout,
+    ) -> &mut RasterizedFont {
+        let rasterize = || {
+            let atlas = FontAtlas::new(assets, gpu, &self.font, px as f32, text.chars()).unwrap();
+
+            let bind_group = assets.insert(
+                BindGroupBuilder::new("TextRenderer::bind_group")
+                    .bind_sampler(&self.sampler)
+                    .bind_texture(&atlas.texture.view(&Default::default()))
+                    .build(gpu, text_layout),
+            );
+
+            RasterizedFont { atlas, bind_group }
+        };
+
+        match self.rasterized.entry(px) {
+            btree_map::Entry::Vacant(slot) => slot.insert(rasterize()),
+            btree_map::Entry::Occupied(slot) => {
+                let rasterized = slot.into_mut();
+                if !text.chars().all(|c| rasterized.atlas.contains_char(c)) {
+                    *rasterized = rasterize();
+                }
+                rasterized
+            }
+        }
+    }
 }
 
 pub struct TextRenderer {
@@ -56,7 +118,10 @@ pub struct TextRenderer {
     shader: Handle<Shader>,
     text_layout: BindGroupLayout,
 
+    text_mesh_query:
+        Query<TextMeshQuery, And<All, Or<(ChangeFilter<String>, ChangeFilter<Handle<Font>>)>>>,
     object_query: Query<ObjectQuery, And<All, With>>,
+
     sampler: Handle<Sampler>,
 }
 
@@ -71,7 +136,7 @@ impl TextRenderer {
         let text_layout = BindGroupLayoutBuilder::new("TextRenderer::text_layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(&gpu);
+            .build(gpu);
 
         let shader = frame.assets.insert(Shader::new(
             gpu,
@@ -88,7 +153,7 @@ impl TextRenderer {
             .assets
             .insert(gpu.device.create_sampler(&SamplerDescriptor {
                 label: Some("ShapeRenderer::sampler"),
-                anisotropy_clamp: 16,
+                anisotropy_clamp: 1,
                 mag_filter: wgpu::FilterMode::Linear,
                 mipmap_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
@@ -100,67 +165,42 @@ impl TextRenderer {
             fonts: HandleMap::new(),
             text_layout,
             shader,
-            object_query: Query::new(ObjectQuery::new()).with(text()),
             sampler,
-        }
-    }
-
-    fn load_font(
-        &mut self,
-        assets: &AssetCache,
-        gpu: &Gpu,
-        font: &Handle<Font>,
-        px: u32,
-        text: &str,
-    ) -> &mut RasterizedFont {
-        let render_font = self.fonts.entry(font).or_insert_with_key(|key| RenderFont {
-            rasterized: BTreeMap::new(),
-        });
-
-        let rasterize = || {
-            let atlas = FontAtlas::new(assets, gpu, font, px as f32, text.chars()).unwrap();
-
-            let bind_group = assets.insert(
-                BindGroupBuilder::new("TextRenderer::bind_group")
-                    .bind_sampler(&self.sampler)
-                    .bind_texture(&atlas.texture.view(&Default::default()))
-                    .build(gpu, &self.text_layout),
-            );
-
-            RasterizedFont { atlas, bind_group }
-        };
-
-        match render_font.rasterized.entry(px) {
-            btree_map::Entry::Vacant(slot) => slot.insert(rasterize()),
-            btree_map::Entry::Occupied(slot) => {
-                let rasterized = slot.into_mut();
-                if !text.chars().all(|c| rasterized.atlas.contains_char(c)) {
-                    *rasterized = rasterize();
-                }
-                rasterized
-            }
+            object_query: Query::new(ObjectQuery::new()).with(text()),
+            text_mesh_query: Query::new(TextMeshQuery::new())
+                .filter(text().modified() | font().modified()),
         }
     }
 
     pub fn update_text_meshes(&mut self, gpu: &Gpu, frame: &mut Frame) {
-        let mut query = Query::new((entity_ids(), rect(), font_from_file(), text()));
-
         let mut cmd = CommandBuffer::new();
 
-        for (id, rect, font_from_file, text) in &mut query.borrow(frame.world()) {
-            let font_px = 58;
-            tracing::info!("Updating mesh for text {id}");
+        (self.text_mesh_query.borrow(&frame.world)).for_each(|item| {
+            tracing::info!(id = ?item.id, "Updating mesh for text");
 
-            let font = frame.assets.load(font_from_file);
+            let render_font = self
+                .fonts
+                .entry(item.font)
+                .or_insert_with_key(|key| RenderFont {
+                    rasterized: BTreeMap::new(),
+                    font: key.clone(),
+                    sampler: self.sampler.clone(),
+                });
 
-            let rasterized = self.load_font(&frame.assets, gpu, &font, font_px, text);
+            let rasterized = render_font.get(
+                gpu,
+                &frame.assets,
+                *item.font_size as _,
+                item.text,
+                &self.text_layout,
+            );
 
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
 
-            let size = rect.size();
+            let size = item.rect.size();
             layout.reset(&fontdue::layout::LayoutSettings {
-                x: rect.min.x,
-                y: rect.min.x,
+                x: item.rect.min.x,
+                y: item.rect.min.x,
                 max_width: Some(size.x),
                 max_height: Some(size.y),
                 horizontal_align: fontdue::layout::HorizontalAlign::Left,
@@ -171,10 +211,10 @@ impl TextRenderer {
             });
 
             layout.append(
-                &[&font.font],
+                &[&item.font.font],
                 &TextStyle {
-                    text,
-                    px: font_px as f32,
+                    text: item.text,
+                    px: *item.font_size,
                     font_index: 0,
                     user_data: (),
                 },
@@ -196,8 +236,6 @@ impl TextRenderer {
 
                     let uv_min = atlas_glyph.min.as_vec2() / atlas_size;
                     let uv_max = atlas_glyph.max.as_vec2() / atlas_size;
-
-                    tracing::debug!(?glyph.x, glyph_width, ?glyph_height, "Glyph");
 
                     [
                         // Bottom left
@@ -227,7 +265,7 @@ impl TextRenderer {
             let mesh = frame.assets.insert(Mesh::new(gpu, &vertices, &indices));
 
             cmd.set(
-                id,
+                item.id,
                 draw_cmd(),
                 DrawCommand {
                     mesh,
@@ -236,7 +274,7 @@ impl TextRenderer {
                     index_count: indices.len() as u32,
                 },
             );
-        }
+        });
 
         cmd.apply(&mut frame.world).unwrap();
     }
@@ -245,10 +283,10 @@ impl TextRenderer {
         self.object_query
             .borrow(&frame.world)
             .iter()
-            .for_each(|query| {
-                let pos = *query.pos + query.rect.pos();
+            .for_each(|item| {
+                let pos = *item.pos + item.rect.pos();
                 // tracing::info!("Updating text rect: {rect:?} at {pos}");
-                *query.model_matrix = Mat4::from_scale_rotation_translation(
+                *item.model_matrix = Mat4::from_scale_rotation_translation(
                     Vec3::ONE,
                     Quat::IDENTITY,
                     pos.extend(0.1),

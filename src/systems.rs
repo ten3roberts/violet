@@ -1,5 +1,9 @@
-use flax::{child_of, BoxedSystem, Dfs, DfsBorrow, Query, QueryBorrow, System, World};
+use flax::{
+    child_of, entity_ids, BoxedSystem, CommandBuffer, ComponentValue, Dfs, DfsBorrow, Entity,
+    Fetch, FetchItem, Query, QueryBorrow, System, World,
+};
 use glam::Vec2;
+use image::buffer::ConvertBuffer;
 
 use crate::{
     components::{self, children, local_position, rect, screen_position, Rect},
@@ -51,4 +55,21 @@ pub fn transform_system() -> BoxedSystem {
             );
         })
         .boxed()
+}
+
+pub fn hydrate<Q, F, Func>(query: Q, filter: F, mut hydrate: Func)
+where
+    Q: ComponentValue + for<'x> Fetch<'x>,
+    F: ComponentValue + for<'x> Fetch<'x>,
+    Func: ComponentValue + for<'x> FnMut(&mut CommandBuffer, Entity, <Q as FetchItem<'x>>::Item),
+{
+    System::builder()
+        .write::<CommandBuffer>()
+        .with(Query::new((entity_ids(), query)).filter(filter))
+        .build(
+            move |cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
+                query.for_each(|(id, item)| hydrate(cmd, id, item))
+            },
+        )
+        .boxed();
 }

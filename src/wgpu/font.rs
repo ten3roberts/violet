@@ -74,8 +74,6 @@ impl FontAtlas {
         let glyphs = chars
             .iter()
             .map(|&c| {
-                tracing::debug!(?c);
-
                 let index = font.font.lookup_glyph_index(c);
 
                 let metrics = font.font.metrics_indexed(index, px);
@@ -113,9 +111,6 @@ impl FontAtlas {
         glyphs.iter().for_each(|(&glyph, loc)| {
             let (metrics, pixels) = font.font.rasterize_indexed(glyph, px);
 
-            tracing::debug!(?glyph, ?metrics.width, ?metrics.height);
-
-            // tracing::debug!("Glyph: {:?} {:?}", glyph, metrics);
             if metrics.width > 0 {
                 blit_to_image(
                     &pixels,

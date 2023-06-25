@@ -9,8 +9,8 @@ use tracing_subscriber::EnvFilter;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
     components::{
-        self, color, filled_rect, layout, local_position, margin, padding, rect, screen_position,
-        size, text, Edges,
+        self, color, filled_rect, font_size, layout, local_position, margin, padding, rect,
+        screen_position, size, text, Edges,
     },
     layout::{CrossAlign, Direction, Layout},
     shapes::FilledRect,
@@ -18,24 +18,12 @@ use violet::{
     unit::Unit,
     wgpu::{
         components::{font_from_file, model_matrix},
-        font::{FontAtlas, FontFromBytes, FontFromFile},
+        font::FontFromFile,
     },
     App, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
 struct MainApp;
-
-struct Counter;
-impl Widget for Counter {
-    fn mount(self, scope: &mut Scope) {
-        scope.spawn(StreamEffect::new(
-            interval(Duration::from_millis(200)).enumerate(),
-            move |scope: &mut Scope, (i, _)| {
-                scope.set(name(), format!("Counter: {:#?}", i));
-            },
-        ));
-    }
-}
 
 struct Sized<W> {
     min_size: Unit<Vec2>,
@@ -178,6 +166,33 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
                     fill_image: Some(image),
                 },
             )
+            .set_default(model_matrix())
+            .set_default(rect());
+    }
+}
+
+struct Counter;
+
+impl Widget for Counter {
+    fn mount(self, scope: &mut Scope) {
+        scope.spawn(StreamEffect::new(
+            interval(Duration::from_millis(200)).enumerate(),
+            move |scope: &mut Scope, (i, _)| {
+                scope.set(text(), format!("Counter: {:#?}", i));
+            },
+        ));
+
+        let font = FontFromFile {
+            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+        };
+
+        scope
+            .set(name(), "Inter Font".into())
+            .set(font_size(), 16.0)
+            .set_default(screen_position())
+            .set_default(local_position())
+            .set(font_from_file(), font)
+            .set(text(), "Hello, World!".into())
             .set_default(model_matrix())
             .set_default(rect());
     }
@@ -378,11 +393,12 @@ impl Widget for MainApp {
         .with_cross_align(CrossAlign::End);
 
         let list2 = List::new((
-            (Sized::new(Rectangle {
-                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(5.0),
-            })
-            .with_size(Unit::px(vec2(100.0, 50.0)))),
+            Sized::new(Counter).with_size(Unit::px(vec2(100.0, 50.0))),
+            // (Sized::new(Rectangle {
+            //     color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+            //     margin: Edges::even(5.0),
+            // })
+            // .with_size(Unit::px(vec2(100.0, 50.0)))),
             List::new([list3]).with_padding(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),

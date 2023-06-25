@@ -11,7 +11,7 @@ use crate::{
     components::{self, local_position, rect, screen_position, Rect},
     executor::Executor,
     systems::{layout_system, transform_system},
-    wgpu::{graphics::Gpu, window_renderer::WindowRenderer},
+    wgpu::{graphics::Gpu, systems::load_fonts_system, window_renderer::WindowRenderer},
     Frame, Widget,
 };
 
@@ -77,7 +77,8 @@ impl App {
 
         let mut schedule = Schedule::new()
             .with_system(layout_system())
-            .with_system(transform_system());
+            .with_system(transform_system())
+            .with_system(load_fonts_system(frame.assets.clone()));
 
         event_loop.run(move |event, _, ctl| match event {
             Event::MainEventsCleared => {

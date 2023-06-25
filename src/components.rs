@@ -42,6 +42,7 @@ component! {
 
 
     pub text: String => [ Debuggable ],
+    pub font_size: f32 => [ Debuggable ],
 
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
