@@ -16,7 +16,7 @@ flax = { git = "https://github.com/ten3roberts/flax", version = "0.4.0", feature
     "derive",
 ] }
 
-itertools = "0.10"
+itertools = "0.11"
 glam = { version = "0.24", features = ["bytemuck"] }
 futures = "0.3"
 flume = "0.10"
@@ -30,12 +30,13 @@ winit = "0.28"
 wgpu = { version = "0.16" }
 palette = { version = "0.7", features = [] }
 dashmap = "5.4"
-image = "0.24"
+image = { version = "0.24", default_features = false, features = ["png"] }
 
 tracing-subscriber = { version = "0.3", features = [
     "parking_lot",
     "env-filter",
 ] }
+
 tracing = "0.1"
 pin-project = "1.1"
 

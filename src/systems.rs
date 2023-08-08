@@ -32,7 +32,7 @@ pub fn layout_system() -> BoxedSystem {
                             },
                         );
 
-                        entity.update(components::rect(), |v| *v = res.rect);
+                        entity.update_dedup(components::rect(), res.rect);
                     }
                 });
         })

@@ -91,7 +91,7 @@ impl<T: ?Sized> Hash for Handle<T> {
 impl<T: ?Sized> PartialOrd for Handle<T> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(&other.id)
+        Some(self.cmp(other))
     }
 }
 

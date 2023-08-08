@@ -2,6 +2,7 @@ use std::collections::{btree_map, BTreeMap};
 
 use flax::{
     entity_ids,
+    fetch::{Modified, TransformFetch},
     filter::{All, And, ChangeFilter, Or, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
 };
@@ -22,8 +23,8 @@ use crate::{
 };
 
 use super::{
-    components::{draw_cmd, font, font_from_file, model_matrix},
-    font::{Font, FontFromFile},
+    components::{draw_cmd, font, model_matrix},
+    font::Font,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     Gpu,
 };
@@ -46,8 +47,9 @@ impl ObjectQuery {
 }
 
 #[derive(Fetch, Debug, Clone)]
+#[fetch(transforms = [Modified])]
+/// Query text entities in the world and allocate them a slot in the mesh and atlas
 pub struct TextMeshQuery {
-    id: EntityIds,
     rect: Component<Rect>,
     text: Component<String>,
     font: Component<Handle<Font>>,
@@ -57,7 +59,6 @@ pub struct TextMeshQuery {
 impl TextMeshQuery {
     fn new() -> Self {
         Self {
-            id: EntityIds,
             rect: rect(),
             text: text(),
             font: font(),
@@ -118,9 +119,11 @@ pub struct TextRenderer {
     shader: Handle<Shader>,
     text_layout: BindGroupLayout,
 
-    text_mesh_query:
-        Query<TextMeshQuery, And<All, Or<(ChangeFilter<String>, ChangeFilter<Handle<Font>>)>>>,
-    object_query: Query<ObjectQuery, And<All, With>>,
+    text_mesh_query: Query<(
+        EntityIds,
+        <TextMeshQuery as TransformFetch<Modified>>::Output,
+    )>,
+    object_query: Query<ObjectQuery, (All, With)>,
 
     sampler: Handle<Sampler>,
 }
@@ -167,16 +170,15 @@ impl TextRenderer {
             shader,
             sampler,
             object_query: Query::new(ObjectQuery::new()).with(text()),
-            text_mesh_query: Query::new(TextMeshQuery::new())
-                .filter(text().modified() | font().modified()),
+            text_mesh_query: Query::new((entity_ids(), TextMeshQuery::new().modified())),
         }
     }
 
     pub fn update_text_meshes(&mut self, gpu: &Gpu, frame: &mut Frame) {
         let mut cmd = CommandBuffer::new();
 
-        (self.text_mesh_query.borrow(&frame.world)).for_each(|item| {
-            tracing::info!(id = ?item.id, "Updating mesh for text");
+        (self.text_mesh_query.borrow(&frame.world)).for_each(|(id, item)| {
+            tracing::info!(%id, "Updating mesh for {:?}", item.text);
 
             let render_font = self
                 .fonts
@@ -265,7 +267,7 @@ impl TextRenderer {
             let mesh = frame.assets.insert(Mesh::new(gpu, &vertices, &indices));
 
             cmd.set(
-                item.id,
+                id,
                 draw_cmd(),
                 DrawCommand {
                     mesh,

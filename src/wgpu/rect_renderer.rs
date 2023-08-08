@@ -1,7 +1,8 @@
 use flax::{
     entity_ids,
-    filter::{All, And, ChangeFilter, With},
-    CommandBuffer, Component, EntityIds, Mutable, Query,
+    fetch::{Modified, TransformFetch},
+    filter::{All, With},
+    CommandBuffer, Component, EntityIds, FetchExt, Mutable, Query,
 };
 use glam::{Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
@@ -30,9 +31,12 @@ pub struct RectRenderer {
     layout: BindGroupLayout,
     sampler: wgpu::Sampler,
 
-    rect_query: Query<(EntityIds, Component<FilledRect>), And<All, ChangeFilter<FilledRect>>>,
+    rect_query: Query<(
+        EntityIds,
+        <Component<FilledRect> as TransformFetch<Modified>>::Output,
+    )>,
 
-    object_query: Query<(Component<Rect>, Component<Vec2>, Mutable<Mat4>), And<All, With>>,
+    object_query: Query<(Component<Rect>, Component<Vec2>, Mutable<Mat4>), (All, With)>,
 
     bind_groups: HandleMap<DynamicImage, Handle<BindGroup>>,
 
@@ -88,7 +92,7 @@ impl RectRenderer {
             white_image,
             layout,
             sampler,
-            rect_query: Query::new((entity_ids(), filled_rect())).filter(filled_rect().modified()),
+            rect_query: Query::new((entity_ids(), filled_rect().modified())),
             object_query: Query::new((rect(), screen_position(), model_matrix().as_mut()))
                 .with(filled_rect()),
             bind_groups: HandleMap::new(),

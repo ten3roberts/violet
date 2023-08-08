@@ -93,7 +93,7 @@ impl Edges {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// Defines the penultimate bounds of a widget
 pub struct Rect {
     pub min: Vec2,

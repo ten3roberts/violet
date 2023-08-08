@@ -227,8 +227,8 @@ impl Layout {
                     .align_offset(line_size.dot(cross_axis), height)
                     * cross_axis;
 
-            entity.update(components::rect(), |v| *v = block.rect);
-            entity.update(components::local_position(), |v| *v = pos);
+            entity.update_dedup(components::rect(), block.rect);
+            entity.update_dedup(components::local_position(), pos);
         }
 
         cursor.finish()
@@ -432,7 +432,7 @@ pub(crate) fn update_subtree(
 
             let res = update_subtree(world, &entity, content_area, constraints);
 
-            entity.update(components::rect(), |v| *v = res.rect);
+            entity.update_dedup(components::rect(), res.rect);
         }
         Block {
             rect: total_bounds,

@@ -176,7 +176,7 @@ struct Counter;
 impl Widget for Counter {
     fn mount(self, scope: &mut Scope) {
         scope.spawn(StreamEffect::new(
-            interval(Duration::from_millis(200)).enumerate(),
+            interval(Duration::from_millis(500)).enumerate(),
             move |scope: &mut Scope, (i, _)| {
                 scope.set(text(), format!("Counter: {:#?}", i));
             },
@@ -192,7 +192,7 @@ impl Widget for Counter {
             .set_default(screen_position())
             .set_default(local_position())
             .set(font_from_file(), font)
-            .set(text(), "Hello, World!".into())
+            .set(text(), "".into())
             .set_default(model_matrix())
             .set_default(rect());
     }
@@ -273,16 +273,17 @@ impl<W: WidgetCollection> Widget for List<W> {
     }
 }
 
-struct FontAtlasView {}
+struct HelloWorld {}
 
-impl Widget for FontAtlasView {
+impl Widget for HelloWorld {
     fn mount(self, scope: &mut Scope<'_>) {
         let font = FontFromFile {
-            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+            path: BytesFromFile("assets/fonts/Inter/static/Inter-Bold.ttf".into()),
         };
 
         scope
             .set(name(), "Inter Font".into())
+            .set(font_size(), 24.0)
             .set_default(screen_position())
             .set_default(local_position())
             .set(font_from_file(), font)
@@ -344,7 +345,7 @@ impl Widget for MainApp {
         // ));
 
         scope.attach(
-            Positioned::new(Sized::new(FontAtlasView {}).with_size(Unit::px(vec2(400.0, 200.0))))
+            Positioned::new(Sized::new(HelloWorld {}).with_size(Unit::px(vec2(400.0, 200.0))))
                 .with_offset(Unit::rel(Vec2::Y))
                 .with_anchor(Unit::rel(Vec2::Y)),
         );
