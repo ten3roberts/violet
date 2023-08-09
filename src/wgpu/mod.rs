@@ -7,6 +7,7 @@ pub mod systems;
 pub mod text_renderer;
 mod texture;
 pub mod window_renderer;
+pub mod allocator;
 
 pub use graphics::Gpu;
 pub use shape_renderer::ShapeRenderer;
