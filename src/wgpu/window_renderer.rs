@@ -1,12 +1,13 @@
 use anyhow::Context;
 use glam::Mat4;
-use wgpu::{BufferUsages, Operations, RenderPassDescriptor, ShaderStages, SurfaceError};
+use wgpu::{Operations, RenderPassDescriptor, SurfaceError};
 use winit::dpi::PhysicalSize;
 
 use crate::Frame;
 
 use super::{
-    graphics::{BindGroupBuilder, BindGroupLayoutBuilder, Gpu, Surface, TypedBuffer},
+    graphics::{Gpu, Surface},
+    renderer::RendererContext,
     ShapeRenderer,
 };
 
@@ -14,42 +15,20 @@ use super::{
 pub struct WindowRenderer {
     surface: Surface,
 
-    globals: Globals,
-    globals_buffer: TypedBuffer<Globals>,
-    globals_bind_group: wgpu::BindGroup,
+    ctx: RendererContext,
     shape_renderer: ShapeRenderer,
 }
 
 impl WindowRenderer {
     pub fn new(gpu: &Gpu, frame: &mut Frame, surface: Surface) -> Self {
-        let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
-            .bind_uniform_buffer(ShaderStages::VERTEX)
-            .build(gpu);
+        let mut ctx = RendererContext::new(gpu);
 
-        let globals = Globals {
-            projview: Mat4::IDENTITY,
-        };
-
-        let globals_buffer = TypedBuffer::new(
-            gpu,
-            "WindowRenderer::globals_buffer",
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            &[globals],
-        );
-
-        let globals_bind_group = BindGroupBuilder::new("WindowRenderer::globals")
-            .bind_buffer(&globals_buffer)
-            .build(gpu, &globals_layout);
-
-        let shape_renderer =
-            ShapeRenderer::new(gpu, frame, &globals_layout, surface.surface_format());
+        let shape_renderer = ShapeRenderer::new(gpu, frame, &mut ctx, surface.surface_format());
 
         Self {
             surface,
-            globals_buffer,
-            globals_bind_group,
             shape_renderer,
-            globals,
+            ctx,
         }
     }
 
@@ -57,8 +36,10 @@ impl WindowRenderer {
         let w = new_size.width as f32;
         let h = new_size.height as f32;
 
-        self.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
-        self.globals_buffer.write(&gpu.queue, &[self.globals]);
+        self.ctx.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
+        self.ctx
+            .globals_buffer
+            .write(&gpu.queue, 0, &[self.ctx.globals]);
 
         self.surface.resize(gpu, new_size);
     }
@@ -102,7 +83,7 @@ impl WindowRenderer {
             });
 
             self.shape_renderer
-                .draw(gpu, frame, &self.globals_bind_group, &mut render_pass)
+                .draw(gpu, frame, &mut self.ctx, &mut render_pass)
                 .context("Failed to draw shapes")?;
         }
 
@@ -111,10 +92,4 @@ impl WindowRenderer {
 
         Ok(())
     }
-}
-
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-struct Globals {
-    projview: Mat4,
 }

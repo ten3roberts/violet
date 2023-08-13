@@ -4,7 +4,7 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, FetchExt, Mutable, Query,
 };
-use glam::{Mat4, Quat, Vec2};
+use glam::{vec2, vec3, Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
@@ -21,6 +21,8 @@ use super::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh,
         Shader, Vertex, VertexDesc,
     },
+    mesh_buffer::MeshHandle,
+    renderer::RendererContext,
     shape_renderer::DrawCommand,
     Gpu,
 };
@@ -40,7 +42,7 @@ pub struct RectRenderer {
 
     bind_groups: HandleMap<DynamicImage, Handle<BindGroup>>,
 
-    mesh: Handle<Mesh>,
+    mesh: MeshHandle,
 
     shader: Handle<Shader>,
 }
@@ -50,7 +52,7 @@ impl RectRenderer {
         gpu: &Gpu,
         frame: &mut Frame,
         color_format: TextureFormat,
-        global_layout: &BindGroupLayout,
+        ctx: &mut RendererContext,
         object_bind_group_layout: &BindGroupLayout,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
@@ -75,7 +77,16 @@ impl RectRenderer {
             ..Default::default()
         });
 
-        let mesh = frame.assets.insert(Mesh::quad(gpu));
+        let vertices = [
+            Vertex::new(vec3(0.0, 0.0, 0.0), vec2(0.0, 0.0)),
+            Vertex::new(vec3(1.0, 0.0, 0.0), vec2(1.0, 0.0)),
+            Vertex::new(vec3(1.0, 1.0, 0.0), vec2(1.0, 1.0)),
+            Vertex::new(vec3(0.0, 1.0, 0.0), vec2(0.0, 1.0)),
+        ];
+
+        let indices = [0, 1, 2, 2, 3, 0];
+
+        let mesh = ctx.mesh_buffer.insert(gpu, &vertices, &indices);
 
         let shader = frame.assets.insert(Shader::new(
             gpu,
@@ -84,7 +95,7 @@ impl RectRenderer {
                 source: include_str!("../../assets/shaders/solid.wgsl").into(),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[global_layout, &object_bind_group_layout, &layout],
+                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
 
@@ -128,6 +139,7 @@ impl RectRenderer {
                         bind_group: bind_group.clone(),
                         shader: self.shader.clone(),
                         index_count: 6,
+                        vertex_offset: 0,
                     },
                 );
             });

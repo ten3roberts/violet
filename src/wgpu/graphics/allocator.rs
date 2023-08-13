@@ -1,30 +1,49 @@
-use std::{collections::BTreeSet, mem};
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Block {
-    start: u32,
-    size: u32,
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+/// Maintain allocations into an external buffer
+pub struct Allocation {
+    start: usize,
+    size: usize,
 }
-impl Block {
+
+impl Allocation {
     #[inline(always)]
-    fn continues_to(&self, right: &Block) -> bool {
+    fn continues_to(&self, right: &Allocation) -> bool {
         self.start + self.size == right.start
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
     }
 }
 
-pub struct Allocator {
-    free: Vec<Block>,
+pub struct BufferAllocator {
+    free: Vec<Allocation>,
+    total_size: usize,
 }
 
-impl Allocator {
-    pub fn new(size: u32) -> Self {
+impl BufferAllocator {
+    pub fn new(size: usize) -> Self {
         Self {
-            free: vec![Block { start: 0, size }],
+            free: vec![Allocation { start: 0, size }],
+            total_size: size,
         }
     }
 
-    pub fn allocate(&mut self, size: u32) -> Option<Block> {
-        let size = size.max(4).next_power_of_two();
+    pub fn grow(&mut self, size: usize) {
+        self.deallocate(Allocation {
+            start: self.total_size,
+            size,
+        });
+
+        self.total_size += size;
+    }
+
+    pub fn allocate(&mut self, size: usize) -> Option<Allocation> {
+        tracing::debug!("Allocating {size}, free_list: {:?}", self.free);
 
         let (idx, block) = self
             .free
@@ -38,21 +57,23 @@ impl Allocator {
         } else {
             // Split off
             let start = block.start;
-            *block = Block {
+            *block = Allocation {
                 start: block.start + size,
                 size: block.size - size,
             };
 
-            eprintln!("Split off {size}, leaving {block:?}");
-
-            Some(Block { start, size })
+            Some(Allocation { start, size })
         }
     }
 
-    pub fn deallocate(&mut self, block: Block) {
-        eprintln!("deallocate {block:?}");
+    pub fn deallocate(&mut self, block: Allocation) {
+        if block.size() == 0 {
+            return;
+        }
+
         if self.free.is_empty() {
             self.free.push(block);
+            tracing::debug!("Pushing to end of free list");
             return;
         }
 
@@ -60,23 +81,23 @@ impl Allocator {
             .free
             .binary_search_by_key(&block.start, |v| v.start)
             .expect_err("Block is not in free list");
-        dbg!(idx);
 
         if idx == 0 {
             // merge right
             let r = &mut self.free[0];
             if block.continues_to(r) {
-                eprintln!("Merging right");
                 r.start -= block.size;
                 assert_eq!(r.start, block.start);
                 r.size += block.size;
             } else {
                 self.free.insert(0, block);
             }
-        } else if let [l, r] = &mut self.free[idx - 1..=idx] {
-            eprintln!("Merge left right");
+        } else if idx != self.free.len() {
+            let [l, r] = &mut self.free[idx - 1..=idx] else {
+                unreachable!()
+            };
+
             if l.continues_to(&block) && block.continues_to(r) {
-                eprintln!("Merge left and right");
                 l.size += block.size + r.size;
                 self.free.remove(idx);
             } else if l.continues_to(&block) {
@@ -87,11 +108,10 @@ impl Allocator {
                 self.free.insert(idx, block);
             }
         } else {
-            eprintln!("Last {idx}");
             assert_eq!(idx, self.free.len());
             assert_ne!(idx, 0);
 
-            let l = &mut self.free[idx];
+            let l = &mut self.free[idx - 1];
 
             if l.continues_to(&block) {
                 l.size += block.size;
@@ -99,6 +119,10 @@ impl Allocator {
                 self.free.insert(idx, block);
             }
         }
+    }
+
+    pub fn total_size(&self) -> usize {
+        self.total_size
     }
 }
 
@@ -109,16 +133,16 @@ mod tests {
 
     #[test]
     fn test_alloc() {
-        let mut allocator = Allocator::new(128);
+        let mut allocator = BufferAllocator::new(128);
 
         let b1 = allocator.allocate(4).unwrap();
-        assert_eq!(b1, Block { start: 0, size: 4 });
+        assert_eq!(b1, Allocation { start: 0, size: 4 });
         let b2 = allocator.allocate(8).unwrap();
-        assert_eq!(b2, Block { start: 4, size: 8 });
+        assert_eq!(b2, Allocation { start: 4, size: 8 });
 
         assert_eq!(
             allocator.free,
-            [Block {
+            [Allocation {
                 start: 12,
                 size: 116
             }]
@@ -127,7 +151,7 @@ mod tests {
         allocator.deallocate(b2);
         assert_eq!(
             allocator.free,
-            [Block {
+            [Allocation {
                 start: 4,
                 size: 124
             }]
@@ -135,7 +159,7 @@ mod tests {
         allocator.deallocate(b1);
         assert_eq!(
             allocator.free,
-            [Block {
+            [Allocation {
                 start: 0,
                 size: 128
             }]
@@ -144,36 +168,36 @@ mod tests {
 
     #[test]
     fn test_alloc_mid() {
-        let mut allocator = Allocator::new(128);
+        let mut allocator = BufferAllocator::new(128);
 
         let b0 = allocator.allocate(8).unwrap();
         let b1 = allocator.allocate(4).unwrap();
-        assert_eq!(b1, Block { start: 8, size: 4 });
+        assert_eq!(b1, Allocation { start: 8, size: 4 });
 
         let b2 = allocator.allocate(32).unwrap();
         assert_eq!(
             b2,
-            Block {
+            Allocation {
                 start: 12,
                 size: 32
             }
         );
 
         let b3 = allocator.allocate(6).unwrap();
-        assert_eq!(b3, Block { start: 44, size: 8 });
+        assert_eq!(b3, Allocation { start: 44, size: 6 });
 
         assert_eq!(
             allocator.free,
-            [Block {
-                start: 52,
-                size: 76
+            [Allocation {
+                start: 50,
+                size: 78
             }]
         );
 
         allocator.deallocate(b3);
         assert_eq!(
             allocator.free,
-            [Block {
+            [Allocation {
                 start: 44,
                 size: 84
             }]
@@ -183,8 +207,8 @@ mod tests {
         assert_eq!(
             allocator.free,
             [
-                Block { start: 8, size: 4 },
-                Block {
+                Allocation { start: 8, size: 4 },
+                Allocation {
                     start: 44,
                     size: 84
                 }
@@ -195,7 +219,7 @@ mod tests {
 
         assert_eq!(
             allocator.free,
-            [Block {
+            [Allocation {
                 start: 8,
                 size: 120
             },]
@@ -205,7 +229,7 @@ mod tests {
 
         assert_eq!(
             allocator.free,
-            [Block {
+            [Allocation {
                 start: 0,
                 size: 128
             },]

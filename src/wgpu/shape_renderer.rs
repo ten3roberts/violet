@@ -1,22 +1,18 @@
-use std::borrow::Cow;
-
 use flax::{child_of, FetchExt, Query};
 use glam::{vec4, Mat4, Vec4};
-use image::DynamicImage;
 use itertools::Itertools;
 use palette::Srgba;
 use slotmap::new_key_type;
-use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
+use wgpu::{BindGroup, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{assets::Handle, components::color, Frame};
 
 use super::{
     components::{draw_cmd, model_matrix},
-    graphics::{
-        shader::ShaderDesc, BindGroupBuilder, BindGroupLayoutBuilder, Mesh, Shader, TypedBuffer,
-        Vertex, VertexDesc,
-    },
+    graphics::{BindGroupBuilder, BindGroupLayoutBuilder, Mesh, Shader, TypedBuffer},
+    mesh_buffer::MeshHandle,
     rect_renderer::RectRenderer,
+    renderer::RendererContext,
     text_renderer::TextRenderer,
     Gpu,
 };
@@ -29,10 +25,11 @@ new_key_type! {
 /// Specifies what to use when drawing a single entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DrawCommand {
+    pub(crate) mesh: MeshHandle,
     pub(crate) shader: Handle<Shader>,
-    pub(crate) mesh: Handle<Mesh>,
     pub(crate) bind_group: Handle<BindGroup>,
     pub(crate) index_count: u32,
+    pub(crate) vertex_offset: i32,
 }
 
 /// Compatible draw commands are given an instance in the object buffer and merged together
@@ -66,7 +63,7 @@ impl ShapeRenderer {
     pub fn new(
         gpu: &Gpu,
         frame: &mut Frame,
-        global_layout: &BindGroupLayout,
+        ctx: &mut RendererContext,
         color_format: TextureFormat,
     ) -> Self {
         let object_bind_group_layout =
@@ -82,7 +79,7 @@ impl ShapeRenderer {
         );
 
         let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
-            .bind_buffer(&object_buffer)
+            .bind_buffer(&object_buffer.buffer())
             .build(gpu, &object_bind_group_layout);
 
         let solid_layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
@@ -100,14 +97,14 @@ impl ShapeRenderer {
                 gpu,
                 frame,
                 color_format,
-                global_layout,
+                ctx,
                 &object_bind_group_layout,
             ),
             text_renderer: TextRenderer::new(
                 gpu,
                 frame,
                 color_format,
-                global_layout,
+                ctx,
                 &object_bind_group_layout,
             ),
             object_bind_group_layout,
@@ -118,19 +115,17 @@ impl ShapeRenderer {
         &'a mut self,
         gpu: &Gpu,
         frame: &mut Frame,
-        globals_bind_group: &'a wgpu::BindGroup,
+        ctx: &'a mut RendererContext,
         render_pass: &mut RenderPass<'a>,
     ) -> anyhow::Result<()> {
-        self.object_buffer.write(&gpu.queue, &self.objects);
+        self.object_buffer.write(&gpu.queue, 0, &self.objects);
 
         self.quad.bind(render_pass);
-
-        // tracing::info!("Draw commands: {}", self.commands.len());
 
         self.rect_renderer.update(gpu, frame);
         self.rect_renderer.build_commands(gpu, frame);
 
-        self.text_renderer.update_text_meshes(gpu, frame);
+        self.text_renderer.update_meshes(gpu, ctx, frame);
         self.text_renderer.update(gpu, frame);
 
         let mut query = Query::new((
@@ -139,6 +134,7 @@ impl ShapeRenderer {
             draw_cmd(),
         ))
         .topo(child_of);
+
         let mut query = query.borrow(&frame.world);
 
         self.objects.clear();
@@ -180,57 +176,26 @@ impl ShapeRenderer {
         self.commands.clear();
         self.commands.extend(commands);
 
+        ctx.mesh_buffer.bind(render_pass);
+
         self.commands.iter().for_each(|instanced_cmd| {
             let cmd = &instanced_cmd.cmd;
-            cmd.mesh.bind(render_pass);
 
             render_pass.set_pipeline(cmd.shader.pipeline());
 
-            render_pass.set_bind_group(0, globals_bind_group, &[]);
+            render_pass.set_bind_group(0, &ctx.globals_bind_group, &[]);
             render_pass.set_bind_group(1, &self.bind_group, &[]);
             render_pass.set_bind_group(2, &cmd.bind_group, &[]);
 
+            let first_index = cmd.mesh.ib().start() as u32;
+
             render_pass.draw_indexed(
-                0..cmd.index_count,
-                0,
+                first_index..(first_index + cmd.index_count),
+                cmd.vertex_offset,
                 instanced_cmd.first_instance
                     ..(instanced_cmd.first_instance + instanced_cmd.instance_count),
             )
         });
-
-        // for cmd in query.iter() {
-        //     let bind_group = self.bind_groups.get(&cmd.fill_image).unwrap();
-        //     match &cmd.shape {
-        //         DrawShape::Mesh {
-        //             mesh,
-        //             first_index,
-        //             index_count,
-        //         } => {
-        //             mesh.bind(render_pass);
-        //             render_pass.set_bind_group(1, bind_group, &[]);
-        //
-        //             render_pass.draw_indexed(
-        //                 *first_index..(*first_index + *index_count),
-        //                 0,
-        //                 cmd.first_instance..(cmd.first_instance + cmd.count),
-        //             )
-        //         }
-        //         DrawShape::Rect => {
-        //             // tracing::debug!(
-        //             //     "Drawing instances {}..{}",
-        //             //     cmd.first_instance,
-        //             //     cmd.first_instance + cmd.count
-        //             // );
-        //             render_pass.set_bind_group(1, bind_group, &[]);
-        //
-        //             render_pass.draw_indexed(
-        //                 0..6,
-        //                 0,
-        //                 cmd.first_instance..(cmd.first_instance + cmd.count),
-        //             )
-        //         }
-        //     }
-        // }
 
         Ok(())
     }

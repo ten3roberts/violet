@@ -1,33 +1,47 @@
 use std::collections::{btree_map, BTreeMap};
 
 use flax::{
-    entity_ids,
+    components, entity_ids,
     fetch::{Modified, TransformFetch},
     filter::{All, And, ChangeFilter, Or, With},
-    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
+    BoxedSystem, CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt,
+    OptOr, Query, QueryBorrow, System,
 };
 use fontdue::layout::{Layout, TextStyle};
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use itertools::Itertools;
-use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
+use wgpu::{
+    BindGroup, BindGroupLayout, BufferUsages, Sampler, SamplerDescriptor, ShaderStages,
+    TextureFormat,
+};
 
 use crate::{
     assets::{map::HandleMap, AssetCache, Handle},
     components::{font_size, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
-        graphics::{BindGroupBuilder, Mesh},
+        graphics::{allocator::Allocation, BindGroupBuilder, Mesh},
+        mesh_buffer,
         shape_renderer::DrawCommand,
     },
     Frame,
 };
 
 use super::{
-    components::{draw_cmd, font, model_matrix},
+    components::{draw_cmd, font, mesh_handle, model_matrix},
     font::Font,
-    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
+    graphics::{
+        allocator::BufferAllocator, multi_buffer::MultiBuffer, shader::ShaderDesc,
+        BindGroupLayoutBuilder, Shader, TypedBuffer, Vertex, VertexDesc,
+    },
+    mesh_buffer::MeshHandle,
+    renderer::RendererContext,
     Gpu,
 };
+
+flax::component! {
+    text_mesh: Allocation => [ Debuggable ],
+}
 
 #[derive(Fetch)]
 struct ObjectQuery {
@@ -121,8 +135,10 @@ pub struct TextRenderer {
 
     text_mesh_query: Query<(
         EntityIds,
+        Opt<Mutable<MeshHandle>>,
         <TextMeshQuery as TransformFetch<Modified>>::Output,
     )>,
+
     object_query: Query<ObjectQuery, (All, With)>,
 
     sampler: Handle<Sampler>,
@@ -133,7 +149,7 @@ impl TextRenderer {
         gpu: &Gpu,
         frame: &mut Frame,
         color_format: TextureFormat,
-        global_layout: &BindGroupLayout,
+        ctx: &mut RendererContext,
         object_bind_group_layout: &BindGroupLayout,
     ) -> Self {
         let text_layout = BindGroupLayoutBuilder::new("TextRenderer::text_layout")
@@ -148,7 +164,7 @@ impl TextRenderer {
                 source: include_str!("../../assets/shaders/text.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[global_layout, object_bind_group_layout, &text_layout],
+                layouts: &[&ctx.globals_layout, object_bind_group_layout, &text_layout],
             },
         ));
 
@@ -170,14 +186,18 @@ impl TextRenderer {
             shader,
             sampler,
             object_query: Query::new(ObjectQuery::new()).with(text()),
-            text_mesh_query: Query::new((entity_ids(), TextMeshQuery::new().modified())),
+            text_mesh_query: Query::new((
+                entity_ids(),
+                mesh_handle().as_mut().opt(),
+                TextMeshQuery::new().modified(),
+            )),
         }
     }
 
-    pub fn update_text_meshes(&mut self, gpu: &Gpu, frame: &mut Frame) {
+    pub fn update_meshes(&mut self, gpu: &Gpu, ctx: &mut RendererContext, frame: &mut Frame) {
         let mut cmd = CommandBuffer::new();
 
-        (self.text_mesh_query.borrow(&frame.world)).for_each(|(id, item)| {
+        (self.text_mesh_query.borrow(&frame.world)).for_each(|(id, mesh, item)| {
             tracing::info!(%id, "Updating mesh for {:?}", item.text);
 
             let render_font = self
@@ -264,7 +284,21 @@ impl TextRenderer {
                 .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
                 .collect_vec();
 
-            let mesh = frame.assets.insert(Mesh::new(gpu, &vertices, &indices));
+            let mesh = match mesh {
+                Some(mesh) => {
+                    ctx.mesh_buffer
+                        .reallocate(gpu, mesh, vertices.len(), indices.len());
+
+                    *mesh
+                }
+                None => {
+                    let mesh = ctx.mesh_buffer.allocate(gpu, vertices.len(), indices.len());
+                    cmd.set(id, mesh_handle(), mesh);
+                    mesh
+                }
+            };
+
+            ctx.mesh_buffer.write(gpu, &mesh, &vertices, &indices);
 
             cmd.set(
                 id,
@@ -274,6 +308,7 @@ impl TextRenderer {
                     bind_group: rasterized.bind_group.clone(),
                     shader: self.shader.clone(),
                     index_count: indices.len() as u32,
+                    vertex_offset: mesh.vb().start() as i32,
                 },
             );
         });

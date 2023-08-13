@@ -3,7 +3,6 @@ use flax::{
     Fetch, FetchItem, Query, QueryBorrow, System, World,
 };
 use glam::Vec2;
-use image::buffer::ConvertBuffer;
 
 use crate::{
     components::{self, children, local_position, rect, screen_position, Rect},
@@ -13,8 +12,8 @@ use crate::{
 /// Updates the layout for entities using the given constraints
 pub fn layout_system() -> BoxedSystem {
     System::builder()
-        .read()
-        .with(Query::new((rect(), children())).without_relation(child_of))
+        .with_world()
+        .with_query(Query::new((rect(), children())).without_relation(child_of))
         .build(move |world: &World, mut roots: QueryBorrow<_, _>| {
             (&mut roots)
                 .into_iter()
@@ -41,7 +40,7 @@ pub fn layout_system() -> BoxedSystem {
 
 pub fn transform_system() -> BoxedSystem {
     System::builder()
-        .with(
+        .with_query(
             Query::new((screen_position().as_mut(), local_position()))
                 .with_strategy(Dfs::new(child_of)),
         )
@@ -64,8 +63,8 @@ where
     Func: ComponentValue + for<'x> FnMut(&mut CommandBuffer, Entity, <Q as FetchItem<'x>>::Item),
 {
     System::builder()
-        .write::<CommandBuffer>()
-        .with(Query::new((entity_ids(), query)).filter(filter))
+        .with_cmd_mut()
+        .with_query(Query::new((entity_ids(), query)).filter(filter))
         .build(
             move |cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
                 query.for_each(|(id, item)| hydrate(cmd, id, item))

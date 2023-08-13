@@ -1,9 +1,14 @@
-use std::{marker::PhantomData, mem};
+use std::{
+    marker::PhantomData,
+    mem::{self, size_of},
+    ops::{Bound, RangeBounds},
+};
 
 use bytemuck::Pod;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    Buffer, BufferDescriptor, BufferUsages, CommandEncoder, Queue,
+    Buffer, BufferDescriptor, BufferSlice, BufferUsages, CommandEncoder, CommandEncoderDescriptor,
+    Queue,
 };
 
 use crate::wgpu::Gpu;
@@ -12,24 +17,19 @@ use crate::wgpu::Gpu;
 pub struct TypedBuffer<T> {
     buffer: Buffer,
     len: usize,
+    label: String,
     _marker: PhantomData<T>,
-}
-
-impl<T> std::ops::Deref for TypedBuffer<T> {
-    type Target = Buffer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.buffer
-    }
 }
 
 impl<T> TypedBuffer<T>
 where
     T: Pod,
 {
-    pub fn new(gpu: &Gpu, label: &str, usage: BufferUsages, data: &[T]) -> Self {
+    pub fn new(gpu: &Gpu, label: impl Into<String>, usage: BufferUsages, data: &[T]) -> Self {
+        let label = label.into();
+
         let buffer = gpu.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some(label),
+            label: Some(&label),
             contents: bytemuck::cast_slice(data),
             usage,
         });
@@ -37,21 +37,29 @@ where
         Self {
             buffer,
             len: data.len(),
+            label,
             _marker: PhantomData,
         }
     }
 
-    pub fn new_uninit(gpu: &Gpu, label: &str, usage: BufferUsages, len: usize) -> Self {
+    pub fn new_uninit(
+        gpu: &Gpu,
+        label: impl Into<String>,
+        usage: BufferUsages,
+        len: usize,
+    ) -> Self {
+        let label = label.into();
         let buffer = gpu.device.create_buffer(&BufferDescriptor {
-            label: Some(label),
+            label: Some(&label),
             usage,
-            size: (mem::size_of::<T>() as u64 * len as u64),
+            size: (size_of::<T>() as u64 * len as u64),
             mapped_at_creation: false,
         });
 
         Self {
             buffer,
             len,
+            label,
             _marker: PhantomData,
         }
     }
@@ -61,12 +69,79 @@ where
         self.len
     }
 
-    pub fn copy_from_buffer(&mut self, encoder: &mut CommandEncoder, src: &Self) {
-        encoder.copy_buffer_to_buffer(&src.buffer, 0, &self.buffer, 0, src.len() as _)
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
-    pub fn write(&self, queue: &Queue, data: &[T]) {
-        assert!(self.len() >= data.len());
-        queue.write_buffer(self, 0, bytemuck::cast_slice(data));
+    pub fn copy_to_buffer(&self, encoder: &mut CommandEncoder, dst: &Self) {
+        encoder.copy_buffer_to_buffer(
+            &self.buffer,
+            0,
+            &dst.buffer,
+            0,
+            self.len() as u64 * mem::size_of::<T>() as u64,
+        )
+    }
+
+    pub fn write(&self, queue: &Queue, offset: usize, data: &[T]) {
+        assert!(
+            self.len() >= offset + data.len(),
+            "write {}:{} out of bounds",
+            offset,
+            data.len()
+        );
+
+        let offset = offset as u64 * mem::size_of::<T>() as u64;
+
+        queue.write_buffer(self.buffer(), offset, bytemuck::cast_slice(data));
+    }
+
+    pub fn resize(&mut self, gpu: &Gpu, new_len: usize) {
+        tracing::debug!(?new_len, "resize");
+        let mut encoder = gpu
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some(&self.label),
+            });
+
+        let buffer = gpu.device.create_buffer(&BufferDescriptor {
+            label: Some(&self.label),
+            usage: self.buffer.usage(),
+            size: (size_of::<T>() as u64 * new_len as u64),
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_buffer_to_buffer(
+            self.buffer(),
+            0,
+            &buffer,
+            0,
+            self.len() as u64 * mem::size_of::<T>() as u64,
+        );
+
+        gpu.queue.submit([encoder.finish()]);
+
+        self.len = new_len;
+        self.buffer = buffer;
+    }
+    pub fn slice(&self, bounds: impl RangeBounds<usize>) -> BufferSlice<'_> {
+        let start = match bounds.start_bound() {
+            Bound::Included(&bound) => Bound::Included(bound as u64 * size_of::<T>() as u64),
+            Bound::Excluded(&bound) => Bound::Excluded(bound as u64 * size_of::<T>() as u64),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        let end = match bounds.end_bound() {
+            Bound::Included(&bound) => Bound::Included(bound as u64 * size_of::<T>() as u64),
+            Bound::Excluded(&bound) => Bound::Excluded(bound as u64 * size_of::<T>() as u64),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        self.buffer.slice((start, end))
+    }
+
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
     }
 }

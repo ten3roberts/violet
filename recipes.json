@@ -2,7 +2,7 @@
     "check": {
         "cmd": "cargo check --all-targets --all-features"
     },
-    "run basic": {
+    "run-basic": {
         "cmd": [
             "cargo",
             "run",
@@ -12,6 +12,27 @@
             "basic",
             "--"
         ],
+        "env": {
+            "RUST_BACKTRACE": "1",
+            "RUST_LOG": "violet=debug,wgpu=warn,info"
+        }
+    },
+    "debug-basic": {
+        "cmd": [
+            "cargo",
+            "build",
+            "--package",
+            "violet",
+            "--example",
+            "basic",
+            "--"
+        ],
+        "components": {
+            "dap": {
+                "program": "./target/debug/examples/basic",
+                "adapter": "rust"
+            }
+        },
         "env": {
             "RUST_BACKTRACE": "1",
             "RUST_LOG": "violet=debug,wgpu=warn,info"
