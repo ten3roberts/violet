@@ -60,19 +60,14 @@ pub struct ShapeRenderer {
 }
 
 impl ShapeRenderer {
-    pub fn new(
-        gpu: &Gpu,
-        frame: &mut Frame,
-        ctx: &mut RendererContext,
-        color_format: TextureFormat,
-    ) -> Self {
+    pub fn new(frame: &mut Frame, ctx: &mut RendererContext, color_format: TextureFormat) -> Self {
         let object_bind_group_layout =
             BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
                 .bind_storage_buffer(ShaderStages::VERTEX)
-                .build(gpu);
+                .build(&ctx.gpu);
 
         let object_buffer = TypedBuffer::new_uninit(
-            gpu,
+            &ctx.gpu,
             "ShapeRenderer::object_buffer",
             BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
             128,
@@ -80,53 +75,40 @@ impl ShapeRenderer {
 
         let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
             .bind_buffer(&object_buffer.buffer())
-            .build(gpu, &object_bind_group_layout);
+            .build(&ctx.gpu, &object_bind_group_layout);
 
         let solid_layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(gpu);
+            .build(&ctx.gpu);
 
         Self {
-            quad: Mesh::quad(gpu),
+            quad: Mesh::quad(&ctx.gpu),
             objects: Vec::new(),
             object_buffer,
             bind_group,
             commands: Vec::new(),
-            rect_renderer: RectRenderer::new(
-                gpu,
-                frame,
-                color_format,
-                ctx,
-                &object_bind_group_layout,
-            ),
-            text_renderer: TextRenderer::new(
-                gpu,
-                frame,
-                color_format,
-                ctx,
-                &object_bind_group_layout,
-            ),
+            rect_renderer: RectRenderer::new(ctx, frame, color_format, &object_bind_group_layout),
+            text_renderer: TextRenderer::new(ctx, frame, color_format, &object_bind_group_layout),
             object_bind_group_layout,
         }
     }
 
     pub fn draw<'a>(
         &'a mut self,
-        gpu: &Gpu,
-        frame: &mut Frame,
         ctx: &'a mut RendererContext,
+        frame: &mut Frame,
         render_pass: &mut RenderPass<'a>,
     ) -> anyhow::Result<()> {
-        self.object_buffer.write(&gpu.queue, 0, &self.objects);
+        self.object_buffer.write(&ctx.gpu.queue, 0, &self.objects);
 
         self.quad.bind(render_pass);
 
-        self.rect_renderer.update(gpu, frame);
-        self.rect_renderer.build_commands(gpu, frame);
+        self.rect_renderer.update(&ctx.gpu, frame);
+        self.rect_renderer.build_commands(&ctx.gpu, frame);
 
-        self.text_renderer.update_meshes(gpu, ctx, frame);
-        self.text_renderer.update(gpu, frame);
+        self.text_renderer.update_meshes(ctx, frame);
+        self.text_renderer.update(&ctx.gpu, frame);
 
         let mut query = Query::new((
             color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),

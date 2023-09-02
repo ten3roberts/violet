@@ -5,7 +5,7 @@ use flax::{
     fetch::{Modified, TransformFetch},
     filter::{All, And, ChangeFilter, Or, With},
     BoxedSystem, CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt,
-    OptOr, Query, QueryBorrow, System,
+    OptOr, Query, QueryBorrow, Schedule, System,
 };
 use fontdue::layout::{Layout, TextStyle};
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
@@ -60,10 +60,67 @@ impl ObjectQuery {
     }
 }
 
+struct MeshGenerator {
+    fonts: HandleMap<Font, RenderFont>,
+    shader: Handle<Shader>,
+    text_layout: BindGroupLayout,
+
+    sampler: Handle<Sampler>,
+}
+
+impl MeshGenerator {
+    fn new(
+        ctx: &mut RendererContext,
+        frame: &mut Frame,
+        color_format: TextureFormat,
+        object_layout: &BindGroupLayout,
+    ) -> Self {
+        let text_layout = BindGroupLayoutBuilder::new("TextRenderer::text_layout")
+            .bind_sampler(ShaderStages::FRAGMENT)
+            .bind_texture(ShaderStages::FRAGMENT)
+            .build(&ctx.gpu);
+
+        let shader = frame.assets.insert(Shader::new(
+            &ctx.gpu,
+            &ShaderDesc {
+                label: "ShapeRenderer::shader",
+                source: include_str!("../../assets/shaders/text.wgsl"),
+                format: color_format,
+                vertex_layouts: &[Vertex::layout()],
+                layouts: &[&ctx.globals_layout, object_layout, &text_layout],
+            },
+        ));
+
+        let sampler = frame
+            .assets
+            .insert(ctx.gpu.device.create_sampler(&SamplerDescriptor {
+                label: Some("ShapeRenderer::sampler"),
+                anisotropy_clamp: 1,
+                mag_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+
+                ..Default::default()
+            }));
+
+        Self {
+            fonts: HandleMap::new(),
+            shader,
+            text_layout,
+            sampler,
+        }
+    }
+}
+
 #[derive(Fetch, Debug, Clone)]
 #[fetch(transforms = [Modified])]
 /// Query text entities in the world and allocate them a slot in the mesh and atlas
 pub struct TextMeshQuery {
+    #[fetch(ignore)]
+    id: EntityIds,
+    #[fetch(ignore)]
+    mesh: Opt<Mutable<MeshHandle>>,
+
     rect: Component<Rect>,
     text: Component<String>,
     font: Component<Handle<Font>>,
@@ -73,6 +130,8 @@ pub struct TextMeshQuery {
 impl TextMeshQuery {
     fn new() -> Self {
         Self {
+            id: entity_ids(),
+            mesh: mesh_handle().as_mut().opt(),
             rect: rect(),
             text: text(),
             font: font(),
@@ -129,92 +188,49 @@ impl RenderFont {
 }
 
 pub struct TextRenderer {
-    fonts: HandleMap<Font, RenderFont>,
-    shader: Handle<Shader>,
-    text_layout: BindGroupLayout,
-
-    text_mesh_query: Query<(
-        EntityIds,
-        Opt<Mutable<MeshHandle>>,
-        <TextMeshQuery as TransformFetch<Modified>>::Output,
-    )>,
+    mesh_generator: MeshGenerator,
 
     object_query: Query<ObjectQuery, (All, With)>,
-
-    sampler: Handle<Sampler>,
+    mesh_query: Query<<TextMeshQuery as TransformFetch<Modified>>::Output, All>,
 }
 
 impl TextRenderer {
     pub fn new(
-        gpu: &Gpu,
+        ctx: &mut RendererContext,
         frame: &mut Frame,
         color_format: TextureFormat,
-        ctx: &mut RendererContext,
-        object_bind_group_layout: &BindGroupLayout,
+        object_layout: &BindGroupLayout,
     ) -> Self {
-        let text_layout = BindGroupLayoutBuilder::new("TextRenderer::text_layout")
-            .bind_sampler(ShaderStages::FRAGMENT)
-            .bind_texture(ShaderStages::FRAGMENT)
-            .build(gpu);
-
-        let shader = frame.assets.insert(Shader::new(
-            gpu,
-            &ShaderDesc {
-                label: "ShapeRenderer::shader",
-                source: include_str!("../../assets/shaders/text.wgsl"),
-                format: color_format,
-                vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, object_bind_group_layout, &text_layout],
-            },
-        ));
-
-        let sampler = frame
-            .assets
-            .insert(gpu.device.create_sampler(&SamplerDescriptor {
-                label: Some("ShapeRenderer::sampler"),
-                anisotropy_clamp: 1,
-                mag_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-
-                ..Default::default()
-            }));
-
+        let mesh_generator = MeshGenerator::new(ctx, frame, color_format, object_layout);
         Self {
-            fonts: HandleMap::new(),
-            text_layout,
-            shader,
-            sampler,
             object_query: Query::new(ObjectQuery::new()).with(text()),
-            text_mesh_query: Query::new((
-                entity_ids(),
-                mesh_handle().as_mut().opt(),
-                TextMeshQuery::new().modified(),
-            )),
+            mesh_generator,
+            mesh_query: Query::new(TextMeshQuery::new().transform_fetch(Modified)),
         }
     }
 
-    pub fn update_meshes(&mut self, gpu: &Gpu, ctx: &mut RendererContext, frame: &mut Frame) {
+    pub fn update_meshes(&mut self, ctx: &mut RendererContext, frame: &mut Frame) {
         let mut cmd = CommandBuffer::new();
 
-        (self.text_mesh_query.borrow(&frame.world)).for_each(|(id, mesh, item)| {
-            tracing::info!(%id, "Updating mesh for {:?}", item.text);
+        (self.mesh_query.borrow(&frame.world)).for_each(|item| {
+            tracing::info!(%item.id, "Updating mesh for {:?}", item.text);
 
             let render_font = self
+                .mesh_generator
                 .fonts
                 .entry(item.font)
                 .or_insert_with_key(|key| RenderFont {
                     rasterized: BTreeMap::new(),
                     font: key.clone(),
-                    sampler: self.sampler.clone(),
+                    sampler: self.mesh_generator.sampler.clone(),
                 });
 
             let rasterized = render_font.get(
-                gpu,
+                &ctx.gpu,
                 &frame.assets,
                 *item.font_size as _,
                 item.text,
-                &self.text_layout,
+                &self.mesh_generator.text_layout,
             );
 
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
@@ -284,29 +300,31 @@ impl TextRenderer {
                 .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
                 .collect_vec();
 
-            let mesh = match mesh {
+            let mesh = match item.mesh {
                 Some(mesh) => {
                     ctx.mesh_buffer
-                        .reallocate(gpu, mesh, vertices.len(), indices.len());
+                        .reallocate(&ctx.gpu, mesh, vertices.len(), indices.len());
 
                     *mesh
                 }
                 None => {
-                    let mesh = ctx.mesh_buffer.allocate(gpu, vertices.len(), indices.len());
-                    cmd.set(id, mesh_handle(), mesh);
+                    let mesh = ctx
+                        .mesh_buffer
+                        .allocate(&ctx.gpu, vertices.len(), indices.len());
+                    cmd.set(item.id, mesh_handle(), mesh);
                     mesh
                 }
             };
 
-            ctx.mesh_buffer.write(gpu, &mesh, &vertices, &indices);
+            ctx.mesh_buffer.write(&ctx.gpu, &mesh, &vertices, &indices);
 
             cmd.set(
-                id,
+                item.id,
                 draw_cmd(),
                 DrawCommand {
                     mesh,
                     bind_group: rasterized.bind_group.clone(),
-                    shader: self.shader.clone(),
+                    shader: self.mesh_generator.shader.clone(),
                     index_count: indices.len() as u32,
                     vertex_offset: mesh.vb().start() as i32,
                 },
@@ -316,7 +334,7 @@ impl TextRenderer {
         cmd.apply(&mut frame.world).unwrap();
     }
 
-    pub fn update(&mut self, _: &Gpu, frame: &mut Frame) {
+    pub fn update(&mut self, _: &Gpu, frame: &Frame) {
         self.object_query
             .borrow(&frame.world)
             .iter()

@@ -8,6 +8,7 @@ use super::{
 };
 
 pub struct RendererContext {
+    pub gpu: Gpu,
     pub globals: Globals,
     pub globals_buffer: TypedBuffer<Globals>,
     pub mesh_buffer: MeshBuffer,
@@ -16,17 +17,17 @@ pub struct RendererContext {
 }
 
 impl RendererContext {
-    pub fn new(gpu: &Gpu) -> Self {
+    pub fn new(gpu: Gpu) -> Self {
         let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
             .bind_uniform_buffer(ShaderStages::VERTEX)
-            .build(gpu);
+            .build(&gpu);
 
         let globals = Globals {
             projview: Mat4::IDENTITY,
         };
 
         let globals_buffer = TypedBuffer::new(
-            gpu,
+            &gpu,
             "WindowRenderer::globals_buffer",
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             &[globals],
@@ -34,9 +35,9 @@ impl RendererContext {
 
         let globals_bind_group = BindGroupBuilder::new("WindowRenderer::globals")
             .bind_buffer(&globals_buffer.buffer())
-            .build(gpu, &globals_layout);
+            .build(&gpu, &globals_layout);
 
-        let mesh_buffer = MeshBuffer::new(gpu, "MeshBuffer", 4);
+        let mesh_buffer = MeshBuffer::new(&gpu, "MeshBuffer", 4);
 
         Self {
             globals_layout,
@@ -44,6 +45,7 @@ impl RendererContext {
             globals_bind_group,
             globals_buffer,
             mesh_buffer,
+            gpu,
         }
     }
 }

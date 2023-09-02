@@ -18,8 +18,8 @@ use crate::{
 use super::{
     components::{draw_cmd, model_matrix},
     graphics::{
-        shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Mesh,
-        Shader, Vertex, VertexDesc,
+        shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
+        Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
@@ -49,16 +49,15 @@ pub struct RectRenderer {
 
 impl RectRenderer {
     pub fn new(
-        gpu: &Gpu,
+        ctx: &mut RendererContext,
         frame: &mut Frame,
         color_format: TextureFormat,
-        ctx: &mut RendererContext,
         object_bind_group_layout: &BindGroupLayout,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(gpu);
+            .build(&ctx.gpu);
 
         let white_image = frame
             .assets
@@ -68,7 +67,7 @@ impl RectRenderer {
                 image::Rgba([255, 255, 255, 255]),
             )));
 
-        let sampler = gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = ctx.gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 16,
             mag_filter: wgpu::FilterMode::Linear,
@@ -86,10 +85,10 @@ impl RectRenderer {
 
         let indices = [0, 1, 2, 2, 3, 0];
 
-        let mesh = ctx.mesh_buffer.insert(gpu, &vertices, &indices);
+        let mesh = ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices);
 
         let shader = frame.assets.insert(Shader::new(
-            gpu,
+            &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../assets/shaders/solid.wgsl").into(),

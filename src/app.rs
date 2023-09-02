@@ -73,7 +73,7 @@ impl App {
         // TODO: Make this a proper effect
         let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
 
-        let mut window_renderer = WindowRenderer::new(&gpu, &mut frame, surface);
+        let mut window_renderer = WindowRenderer::new(gpu, &mut frame, surface);
 
         let mut schedule = Schedule::new()
             .with_system(layout_system())
@@ -86,14 +86,14 @@ impl App {
 
                 schedule.execute_seq(&mut frame.world).unwrap();
 
-                if let Err(err) = window_renderer.draw(&gpu, &mut frame) {
+                if let Err(err) = window_renderer.draw(&mut frame) {
                     tracing::error!("Failed to draw to window: {err:?}");
                     *ctl = ControlFlow::Exit
                 }
             }
             Event::RedrawRequested(_) => {
                 tracing::trace!("Redraw requested");
-                if let Err(err) = window_renderer.draw(&gpu, &mut frame) {
+                if let Err(err) = window_renderer.draw(&mut frame) {
                     tracing::error!("Failed to draw to window: {err:?}");
                     *ctl = ControlFlow::Exit
                 }
@@ -112,7 +112,7 @@ impl App {
                         )
                         .unwrap();
 
-                    window_renderer.resize(&gpu, size);
+                    window_renderer.resize(size);
                 }
                 WindowEvent::CloseRequested => {
                     *ctl = ControlFlow::Exit;

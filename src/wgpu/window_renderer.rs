@@ -20,10 +20,10 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
-    pub fn new(gpu: &Gpu, frame: &mut Frame, surface: Surface) -> Self {
+    pub fn new(gpu: Gpu, frame: &mut Frame, surface: Surface) -> Self {
         let mut ctx = RendererContext::new(gpu);
 
-        let shape_renderer = ShapeRenderer::new(gpu, frame, &mut ctx, surface.surface_format());
+        let shape_renderer = ShapeRenderer::new(frame, &mut ctx, surface.surface_format());
 
         Self {
             surface,
@@ -32,23 +32,23 @@ impl WindowRenderer {
         }
     }
 
-    pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         let w = new_size.width as f32;
         let h = new_size.height as f32;
 
         self.ctx.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
         self.ctx
             .globals_buffer
-            .write(&gpu.queue, 0, &[self.ctx.globals]);
+            .write(&self.ctx.gpu.queue, 0, &[self.ctx.globals]);
 
-        self.surface.resize(gpu, new_size);
+        self.surface.resize(&self.ctx.gpu, new_size);
     }
 
-    pub fn draw(&mut self, gpu: &Gpu, frame: &mut Frame) -> anyhow::Result<()> {
+    pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<()> {
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
             Err(SurfaceError::Lost | SurfaceError::Outdated) => {
-                self.surface.reconfigure(gpu);
+                self.surface.reconfigure(&self.ctx.gpu);
                 return Ok(());
             }
             Err(err) => return Err(err).context("Failed to acquire surface texture"),
@@ -56,11 +56,13 @@ impl WindowRenderer {
 
         let view = target.texture.create_view(&Default::default());
 
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("WindowRenderer::draw"),
-            });
+        let mut encoder =
+            self.ctx
+                .gpu
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("WindowRenderer::draw"),
+                });
 
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -83,11 +85,11 @@ impl WindowRenderer {
             });
 
             self.shape_renderer
-                .draw(gpu, frame, &mut self.ctx, &mut render_pass)
+                .draw(&mut self.ctx, frame, &mut render_pass)
                 .context("Failed to draw shapes")?;
         }
 
-        gpu.queue.submit([encoder.finish()]);
+        self.ctx.gpu.queue.submit([encoder.finish()]);
         target.present();
 
         Ok(())
