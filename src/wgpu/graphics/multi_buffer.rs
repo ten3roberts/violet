@@ -84,4 +84,8 @@ where
     pub fn len(&self) -> usize {
         self.buffer.len()
     }
+
+    pub fn label(&self) -> &str {
+        self.label.as_ref()
+    }
 }

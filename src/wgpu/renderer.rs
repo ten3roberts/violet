@@ -34,7 +34,7 @@ impl RendererContext {
         );
 
         let globals_bind_group = BindGroupBuilder::new("WindowRenderer::globals")
-            .bind_buffer(&globals_buffer.buffer())
+            .bind_buffer(globals_buffer.buffer())
             .build(&gpu, &globals_layout);
 
         let mesh_buffer = MeshBuffer::new(&gpu, "MeshBuffer", 4);

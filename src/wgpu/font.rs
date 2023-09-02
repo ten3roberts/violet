@@ -1,9 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use fontdue::layout::GlyphRasterConfig;
-use glam::{ivec2, uvec2, IVec2, UVec2, Vec2};
+use glam::{uvec2, UVec2};
 use guillotiere::{size2, AtlasAllocator};
-use image::{buffer::ConvertBuffer, GenericImage, GenericImageView, ImageBuffer, Luma, Rgb, Rgba};
+use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
 use crate::assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle};
@@ -38,7 +37,7 @@ pub struct Font {
 impl AssetKey for FontFromBytes {
     type Output = Font;
 
-    fn load(&self, assets: &crate::assets::AssetCache) -> Self::Output {
+    fn load(&self, _assets: &crate::assets::AssetCache) -> Self::Output {
         let bytes = &*self.bytes;
         let font = fontdue::Font::from_bytes(bytes.as_ref(), fontdue::FontSettings::default())
             .map_err(|v| anyhow::anyhow!("Error loading font: {v:?}"))
@@ -61,7 +60,7 @@ pub struct FontAtlas {
 
 impl FontAtlas {
     pub fn new(
-        assets: &AssetCache,
+        _assets: &AssetCache,
         gpu: &Gpu,
         font: &Font,
         px: f32,

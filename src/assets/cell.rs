@@ -34,7 +34,7 @@ impl<V> AssetCell<V> {
     }
 
     pub fn prune(&mut self) {
-        self.values.retain(|k, v| v.strong_count() > 0)
+        self.values.retain(|_, v| v.strong_count() > 0)
     }
 
     pub(super) fn get(&self, id: AssetId) -> Option<&WeakHandle<V>> {

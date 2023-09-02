@@ -14,7 +14,6 @@ use super::{
     rect_renderer::RectRenderer,
     renderer::RendererContext,
     text_renderer::TextRenderer,
-    Gpu,
 };
 
 new_key_type! {
@@ -74,7 +73,7 @@ impl ShapeRenderer {
         );
 
         let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
-            .bind_buffer(&object_buffer.buffer())
+            .bind_buffer(object_buffer.buffer())
             .build(&ctx.gpu, &object_bind_group_layout);
 
         let solid_layout = BindGroupLayoutBuilder::new("RectRenderer::layout")

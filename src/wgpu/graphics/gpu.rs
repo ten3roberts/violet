@@ -1,7 +1,4 @@
-use wgpu::{
-    Adapter, Backends, SurfaceCapabilities, SurfaceConfiguration, SurfaceError, SurfaceTexture,
-    TextureFormat,
-};
+use wgpu::{Adapter, Backends, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
 /// Represents the Gpu and graphics state
@@ -32,7 +29,7 @@ impl Surface {
         &self.window
     }
 
-    pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
+    pub fn resize(&mut self, _gpu: &Gpu, new_size: PhysicalSize<u32>) {
         tracing::info_span!("resize", ?new_size);
         if new_size == self.size {
             tracing::info!(size=?new_size, "Duplicate resize message ignored");

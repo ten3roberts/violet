@@ -1,27 +1,22 @@
 use std::collections::{btree_map, BTreeMap};
 
 use flax::{
-    components, entity_ids,
+    entity_ids,
     fetch::{Modified, TransformFetch},
-    filter::{All, And, ChangeFilter, Or, With},
-    BoxedSystem, CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt,
-    OptOr, Query, QueryBorrow, Schedule, System,
+    filter::{All, With},
+    CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
 use fontdue::layout::{Layout, TextStyle};
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use itertools::Itertools;
-use wgpu::{
-    BindGroup, BindGroupLayout, BufferUsages, Sampler, SamplerDescriptor, ShaderStages,
-    TextureFormat,
-};
+use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
     assets::{map::HandleMap, AssetCache, Handle},
     components::{font_size, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
-        graphics::{allocator::Allocation, BindGroupBuilder, Mesh},
-        mesh_buffer,
+        graphics::{allocator::Allocation, BindGroupBuilder},
         shape_renderer::DrawCommand,
     },
     Frame,
@@ -30,10 +25,7 @@ use crate::{
 use super::{
     components::{draw_cmd, font, mesh_handle, model_matrix},
     font::Font,
-    graphics::{
-        allocator::BufferAllocator, multi_buffer::MultiBuffer, shader::ShaderDesc,
-        BindGroupLayoutBuilder, Shader, TypedBuffer, Vertex, VertexDesc,
-    },
+    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
     Gpu,

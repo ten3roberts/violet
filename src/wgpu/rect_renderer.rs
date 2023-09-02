@@ -2,7 +2,7 @@ use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
     filter::{All, With},
-    CommandBuffer, Component, EntityIds, FetchExt, Mutable, Query,
+    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Query,
 };
 use glam::{vec2, vec3, Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
@@ -27,6 +27,23 @@ use super::{
     Gpu,
 };
 
+#[derive(Fetch)]
+struct RectQuery {
+    rect: Component<Rect>,
+    pos: Component<Vec2>,
+    model: Mutable<Mat4>,
+}
+
+impl RectQuery {
+    fn new() -> Self {
+        Self {
+            rect: rect(),
+            pos: screen_position(),
+            model: model_matrix().as_mut(),
+        }
+    }
+}
+
 pub struct RectRenderer {
     white_image: Handle<DynamicImage>,
 
@@ -38,7 +55,7 @@ pub struct RectRenderer {
         <Component<FilledRect> as TransformFetch<Modified>>::Output,
     )>,
 
-    object_query: Query<(Component<Rect>, Component<Vec2>, Mutable<Mat4>), (All, With)>,
+    object_query: Query<RectQuery, (All, With)>,
 
     bind_groups: HandleMap<DynamicImage, Handle<BindGroup>>,
 
@@ -50,7 +67,7 @@ pub struct RectRenderer {
 impl RectRenderer {
     pub fn new(
         ctx: &mut RendererContext,
-        frame: &mut Frame,
+        frame: &Frame,
         color_format: TextureFormat,
         object_bind_group_layout: &BindGroupLayout,
     ) -> Self {
@@ -91,7 +108,7 @@ impl RectRenderer {
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
-                source: include_str!("../../assets/shaders/solid.wgsl").into(),
+                source: include_str!("../../assets/shaders/solid.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
                 layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
@@ -103,8 +120,7 @@ impl RectRenderer {
             layout,
             sampler,
             rect_query: Query::new((entity_ids(), filled_rect().modified())),
-            object_query: Query::new((rect(), screen_position(), model_matrix().as_mut()))
-                .with(filled_rect()),
+            object_query: Query::new(RectQuery::new()).with(filled_rect()),
             bind_groups: HandleMap::new(),
             mesh,
             shader,
@@ -134,7 +150,7 @@ impl RectRenderer {
                     id,
                     draw_cmd(),
                     DrawCommand {
-                        mesh: self.mesh.clone(),
+                        mesh: self.mesh,
                         bind_group: bind_group.clone(),
                         shader: self.shader.clone(),
                         index_count: 6,
@@ -146,14 +162,14 @@ impl RectRenderer {
         cmd.apply(&mut frame.world).unwrap();
     }
 
-    pub fn update(&mut self, _: &Gpu, frame: &mut Frame) {
+    pub fn update(&mut self, _: &Gpu, frame: &Frame) {
         self.object_query
             .borrow(&frame.world)
             .iter()
-            .for_each(|(&rect, &pos, model)| {
-                let pos = pos + rect.pos();
-                let size = rect.size();
-                *model = Mat4::from_scale_rotation_translation(
+            .for_each(|item| {
+                let pos = *item.pos + item.rect.pos();
+                let size = item.rect.size();
+                *item.model = Mat4::from_scale_rotation_translation(
                     size.extend(1.0),
                     Quat::IDENTITY,
                     pos.extend(0.1),

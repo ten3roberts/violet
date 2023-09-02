@@ -1,5 +1,4 @@
 use crate::wgpu::Gpu;
-use std::borrow::Cow;
 use wgpu::{
     BindGroupLayout, PipelineLayoutDescriptor, RenderPipeline, TextureFormat, VertexBufferLayout,
 };
@@ -43,8 +42,8 @@ impl Shader {
                 layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main",        // 1.
-                    buffers: &desc.vertex_layouts, // 2.
+                    entry_point: "vs_main",       // 1.
+                    buffers: desc.vertex_layouts, // 2.
                 },
                 fragment: Some(wgpu::FragmentState {
                     // 3.
