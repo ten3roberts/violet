@@ -22,7 +22,7 @@ component! {
     pub offset: Unit<Vec2> => [ Debuggable ],
     /// The preferred size of the widget.
     ///
-    /// The final bounds of a widget may be smaller to fit withing a layout
+    /// The final bounds of a widget may be smaller to fit within a layout
     pub size: Unit<Vec2> => [ Debuggable ],
 
     /// The minimum allowed size of a widget. A widgets bound will not be made any smaller even if
@@ -154,5 +154,12 @@ impl Rect {
             min: self.min,
             max: self.min + size,
         }
+    }
+
+    pub(crate) fn contains_point(&self, local_pos: Vec2) -> bool {
+        local_pos.x >= self.min.x
+            && local_pos.x <= self.max.x
+            && local_pos.y >= self.min.y
+            && local_pos.y <= self.max.y
     }
 }

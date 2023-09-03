@@ -10,6 +10,7 @@ use crate::{
     assets::AssetCache,
     components::{self, local_position, rect, screen_position, Rect},
     executor::Executor,
+    input::InputState,
     systems::{layout_system, transform_system},
     wgpu::{graphics::Gpu, systems::load_fonts_system, window_renderer::WindowRenderer},
     Frame, Widget,
@@ -64,6 +65,8 @@ impl App {
         let window_size = window.inner_size();
         let window_size = vec2(window_size.width as f32, window_size.height as f32);
 
+        let mut input_state = InputState::new(Vec2::ZERO);
+
         // Mount the root widget
         let root = frame.new_root(Canvas {
             size: window_size,
@@ -99,6 +102,17 @@ impl App {
                 }
             }
             Event::WindowEvent { window_id, event } => match event {
+                WindowEvent::MouseInput { state, button, .. } => {
+                    input_state.on_mouse_input(&mut frame, state, button);
+                }
+                WindowEvent::KeyboardInput {
+                    input,
+                    is_synthetic,
+                    ..
+                } => input_state.on_keyboard_input(&mut frame, input),
+                WindowEvent::CursorMoved { position, .. } => {
+                    input_state.on_cursor_move(vec2(position.x as f32, position.y as f32))
+                }
                 WindowEvent::Resized(size) => {
                     frame
                         .world_mut()

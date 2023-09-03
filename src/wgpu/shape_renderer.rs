@@ -49,7 +49,6 @@ pub struct ShapeRenderer {
     quad: Mesh,
     objects: Vec<ObjectData>,
     object_buffer: TypedBuffer<ObjectData>,
-    object_bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
 
     commands: Vec<InstancedDrawCommand>,
@@ -76,10 +75,10 @@ impl ShapeRenderer {
             .bind_buffer(object_buffer.buffer())
             .build(&ctx.gpu, &object_bind_group_layout);
 
-        let solid_layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
-            .bind_sampler(ShaderStages::FRAGMENT)
-            .bind_texture(ShaderStages::FRAGMENT)
-            .build(&ctx.gpu);
+        // let solid_layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
+        //     .bind_sampler(ShaderStages::FRAGMENT)
+        //     .bind_texture(ShaderStages::FRAGMENT)
+        //     .build(&ctx.gpu);
 
         Self {
             quad: Mesh::quad(&ctx.gpu),
@@ -89,7 +88,6 @@ impl ShapeRenderer {
             commands: Vec::new(),
             rect_renderer: RectRenderer::new(ctx, frame, color_format, &object_bind_group_layout),
             text_renderer: TextRenderer::new(ctx, frame, color_format, &object_bind_group_layout),
-            object_bind_group_layout,
         }
     }
 

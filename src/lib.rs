@@ -4,6 +4,7 @@ pub mod components;
 pub mod effect;
 pub mod executor;
 mod frame;
+pub mod input;
 pub mod layout;
 mod scope;
 pub mod shapes;

@@ -7,6 +7,7 @@ use super::{
     Gpu,
 };
 
+/// Contains the device, globals and mesh buffer
 pub struct RendererContext {
     pub gpu: Gpu,
     pub globals: Globals,

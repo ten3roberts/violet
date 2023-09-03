@@ -3,7 +3,7 @@ use flax::name;
 use futures::StreamExt;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
-use palette::{Hsla, IntoColor, Srgba};
+use palette::{named::WHITE, Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
@@ -12,6 +12,7 @@ use violet::{
         self, color, filled_rect, font_size, layout, local_position, margin, padding, rect,
         screen_position, size, text, Edges,
     },
+    input::{on_focus, on_mouse_input},
     layout::{CrossAlign, Direction, Layout},
     shapes::FilledRect,
     time::interval,
@@ -20,8 +21,9 @@ use violet::{
         components::{font_from_file, model_matrix},
         font::FontFromFile,
     },
-    App, Scope, StreamEffect, Widget, WidgetCollection,
+    App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
+use winit::event::ElementState;
 
 struct MainApp;
 
@@ -127,6 +129,55 @@ impl Widget for Rectangle {
             )
             .set(color(), self.color)
             .set_default(rect());
+    }
+}
+
+pub struct Button {
+    normal_color: Srgba,
+    pressed_color: Srgba,
+    margin: Edges,
+
+    on_click: Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>,
+}
+
+impl Widget for Button {
+    fn mount(mut self, scope: &mut Scope<'_>) {
+        scope
+            .set(name(), "Button".into())
+            .set_default(screen_position())
+            .set_default(local_position())
+            .set_default(model_matrix())
+            .set(margin(), self.margin)
+            .set_default(rect())
+            .set(
+                filled_rect(),
+                FilledRect {
+                    color: WHITE.into_format().into_color(),
+                    fill_image: None,
+                },
+            )
+            .set(color(), self.normal_color)
+            .set(
+                on_focus(),
+                Box::new(move |_, entity, focus| {
+                    entity.update_dedup(
+                        color(),
+                        if focus {
+                            self.pressed_color
+                        } else {
+                            self.normal_color
+                        },
+                    );
+                }),
+            )
+            .set(
+                on_mouse_input(),
+                Box::new(move |frame, _, state, button| {
+                    if state == ElementState::Released {
+                        (self.on_click)(frame, button);
+                    }
+                }),
+            );
     }
 }
 
@@ -351,8 +402,12 @@ impl Widget for MainApp {
         );
 
         let list1 = List::new((
-            Sized::new(Rectangle {
-                color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
+            Sized::new(Button {
+                normal_color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
+                pressed_color: Hsla::new(0.0, 0.5, 0.2, 1.0).into_color(),
+                on_click: Box::new(|_, _| {
+                    tracing::info!("Clicked!");
+                }),
                 margin: Edges::even(10.0),
             })
             .with_min_size(Unit::px(vec2(100.0, 100.0)))

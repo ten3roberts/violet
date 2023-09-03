@@ -205,7 +205,7 @@ impl TextRenderer {
         let mut cmd = CommandBuffer::new();
 
         (self.mesh_query.borrow(&frame.world)).for_each(|item| {
-            tracing::info!(%item.id, "Updating mesh for {:?}", item.text);
+            tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
 
             let render_font = self
                 .mesh_generator

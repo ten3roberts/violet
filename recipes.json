@@ -14,7 +14,7 @@
         ],
         "env": {
             "RUST_BACKTRACE": "1",
-            "RUST_LOG": "violet=debug,wgpu=warn,info"
+            "RUST_LOG": "violet=info,wgpu=warn,info"
         }
     },
     "debug-basic": {
