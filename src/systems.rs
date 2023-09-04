@@ -1,13 +1,38 @@
 use flax::{
-    child_of, entity_ids, BoxedSystem, CommandBuffer, ComponentValue, Dfs, DfsBorrow, Entity,
-    Fetch, FetchItem, Query, QueryBorrow, System, World,
+    child_of, entity_ids, filter::Or, BoxedSystem, CommandBuffer, ComponentValue, Dfs, DfsBorrow,
+    Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
-use glam::Vec2;
+use glam::{Mat4, Vec2};
 
 use crate::{
-    components::{self, children, local_position, rect, screen_position, Rect},
+    components::{self, children, is_widget, local_position, rect, screen_position, Rect},
     layout::{update_subtree, LayoutLimits},
+    wgpu::components::model_matrix,
 };
+
+pub fn templating_system() -> BoxedSystem {
+    let query = Query::new(entity_ids()).filter(Or((
+        screen_position().without(),
+        local_position().without(),
+        model_matrix().without(),
+        rect().without(),
+    )));
+
+    System::builder()
+        .with_query(query)
+        .with_cmd_mut()
+        .build(|mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
+            for id in &mut query {
+                tracing::debug!(%id, "incomplete widget");
+
+                cmd.set_missing(id, screen_position(), Vec2::ZERO)
+                    .set_missing(id, local_position(), Vec2::ZERO)
+                    .set_missing(id, model_matrix(), Mat4::IDENTITY)
+                    .set_missing(id, rect(), Rect::default());
+            }
+        })
+        .boxed()
+}
 
 /// Updates the layout for entities using the given constraints
 pub fn layout_system() -> BoxedSystem {

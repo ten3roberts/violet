@@ -5,6 +5,7 @@ use palette::Srgba;
 use crate::{layout::Layout, shapes::FilledRect, unit::Unit};
 
 component! {
+    pub is_widget: () => [ Debuggable ],
     /// Ordered list of children for an entity
     pub children: Vec<Entity> => [ Debuggable ],
     // pub child_of(parent): Entity => [ Debuggable ],
@@ -47,6 +48,7 @@ component! {
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
 
+    /// The widget will be rendered as a filled rectange coverings its bounds
     pub filled_rect: FilledRect => [ Debuggable ],
 }
 

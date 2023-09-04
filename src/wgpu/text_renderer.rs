@@ -197,7 +197,7 @@ impl TextRenderer {
         Self {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
-            mesh_query: Query::new(TextMeshQuery::new().transform_fetch(Modified)),
+            mesh_query: Query::new(TextMeshQuery::new().modified()),
         }
     }
 

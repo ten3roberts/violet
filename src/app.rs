@@ -11,7 +11,7 @@ use crate::{
     components::{self, local_position, rect, screen_position, Rect},
     executor::Executor,
     input::InputState,
-    systems::{layout_system, transform_system},
+    systems::{layout_system, templating_system, transform_system},
     wgpu::{graphics::Gpu, systems::load_fonts_system, window_renderer::WindowRenderer},
     Frame, Widget,
 };
@@ -79,6 +79,7 @@ impl App {
         let mut window_renderer = WindowRenderer::new(gpu, &mut frame, surface);
 
         let mut schedule = Schedule::new()
+            .with_system(templating_system())
             .with_system(layout_system())
             .with_system(transform_system())
             .with_system(load_fonts_system(frame.assets.clone()));

@@ -2,7 +2,7 @@
     "check": {
         "cmd": "cargo check --all-targets --all-features"
     },
-    "run-basic": {
+    "run basic": {
         "cmd": [
             "cargo",
             "run",
@@ -14,7 +14,7 @@
         ],
         "env": {
             "RUST_BACKTRACE": "1",
-            "RUST_LOG": "violet=info,wgpu=warn,info"
+            "RUST_LOG": "violet=debug,wgpu=warn,info"
         }
     },
     "debug-basic": {

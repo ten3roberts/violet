@@ -8,11 +8,8 @@ use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{
-        self, color, filled_rect, font_size, layout, local_position, margin, padding, rect,
-        screen_position, size, text, Edges,
-    },
-    input::{on_focus, on_mouse_input},
+    components::{self, color, filled_rect, font_size, layout, margin, padding, size, text, Edges},
+    input::{focus_sticky, on_focus, on_mouse_input},
     layout::{CrossAlign, Direction, Layout},
     shapes::FilledRect,
     time::interval,
@@ -117,9 +114,6 @@ impl Widget for Rectangle {
         scope
             .set(name(), "Rectangle".into())
             .set(margin(), self.margin)
-            .set_default(screen_position())
-            .set_default(local_position())
-            .set_default(model_matrix())
             .set(
                 filled_rect(),
                 FilledRect {
@@ -127,15 +121,13 @@ impl Widget for Rectangle {
                     fill_image: None,
                 },
             )
-            .set(color(), self.color)
-            .set_default(rect());
+            .set(color(), self.color);
     }
 }
 
 pub struct Button {
     normal_color: Srgba,
     pressed_color: Srgba,
-    margin: Edges,
 
     on_click: Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>,
 }
@@ -143,12 +135,6 @@ pub struct Button {
 impl Widget for Button {
     fn mount(mut self, scope: &mut Scope<'_>) {
         scope
-            .set(name(), "Button".into())
-            .set_default(screen_position())
-            .set_default(local_position())
-            .set_default(model_matrix())
-            .set(margin(), self.margin)
-            .set_default(rect())
             .set(
                 filled_rect(),
                 FilledRect {
@@ -157,6 +143,7 @@ impl Widget for Button {
                 },
             )
             .set(color(), self.normal_color)
+            .set(focus_sticky(), ())
             .set(
                 on_focus(),
                 Box::new(move |_, entity, focus| {
@@ -206,19 +193,13 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
             path: self.path.into(),
         });
 
-        scope
-            .set(name(), "Image".into())
-            .set_default(screen_position())
-            .set_default(local_position())
-            .set(
-                filled_rect(),
-                FilledRect {
-                    color: Srgba::new(1.0, 1.0, 1.0, 1.0),
-                    fill_image: Some(image),
-                },
-            )
-            .set_default(model_matrix())
-            .set_default(rect());
+        scope.set(name(), "Image".into()).set(
+            filled_rect(),
+            FilledRect {
+                color: Srgba::new(1.0, 1.0, 1.0, 1.0),
+                fill_image: Some(image),
+            },
+        );
     }
 }
 
@@ -240,12 +221,8 @@ impl Widget for Counter {
         scope
             .set(name(), "Inter Font".into())
             .set(font_size(), 16.0)
-            .set_default(screen_position())
-            .set_default(local_position())
             .set(font_from_file(), font)
-            .set(text(), "".into())
-            .set_default(model_matrix())
-            .set_default(rect());
+            .set(text(), "".into());
     }
 }
 
@@ -302,7 +279,6 @@ impl<W: WidgetCollection> List<W> {
 impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
-            .set_default(rect())
             .set_opt(
                 filled_rect(),
                 self.background_color.map(|bg| FilledRect {
@@ -313,9 +289,6 @@ impl<W: WidgetCollection> Widget for List<W> {
                 }),
             )
             .set(layout(), self.layout)
-            .set_default(screen_position())
-            .set_default(local_position())
-            .set_default(model_matrix())
             .set_opt(color(), self.background_color)
             .set(padding(), self.padding)
             .set(margin(), self.margin);
@@ -335,12 +308,8 @@ impl Widget for HelloWorld {
         scope
             .set(name(), "Inter Font".into())
             .set(font_size(), 24.0)
-            .set_default(screen_position())
-            .set_default(local_position())
             .set(font_from_file(), font)
-            .set(text(), "Hello, World!".into())
-            .set_default(model_matrix())
-            .set_default(rect());
+            .set(text(), "Hello, World!".into());
     }
 }
 
@@ -348,15 +317,6 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "MainApp".into())
-            // .set(
-            //     shape(),
-            //     Shape::FilledRect(FilledRect {
-            //         color: named::BLUE.into_format().with_alpha(1.0),
-            //     }),
-            // )
-            .set_default(rect())
-            .set_default(screen_position())
-            .set_default(local_position())
             .set(padding(), Edges::even(5.0))
             .set(padding(), Edges::even(5.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
@@ -408,7 +368,6 @@ impl Widget for MainApp {
                 on_click: Box::new(|_, _| {
                     tracing::info!("Clicked!");
                 }),
-                margin: Edges::even(10.0),
             })
             .with_min_size(Unit::px(vec2(100.0, 100.0)))
             .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0))),

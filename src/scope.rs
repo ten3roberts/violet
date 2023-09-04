@@ -1,9 +1,12 @@
 use std::{
+    any::type_name,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use flax::{child_of, Component, ComponentValue, Entity, EntityBuilder, EntityRef, EntityRefMut};
+use flax::{
+    child_of, name, Component, ComponentValue, Entity, EntityBuilder, EntityRef, EntityRefMut,
+};
 use pin_project::pin_project;
 
 use crate::{assets::AssetCache, components::children, effect::Effect, Frame, Widget};
@@ -26,6 +29,7 @@ impl<'a> std::fmt::Debug for Scope<'a> {
 impl<'a> Scope<'a> {
     pub(crate) fn new(frame: &'a mut Frame) -> Self {
         let id = frame.world_mut().spawn();
+
         Self {
             frame,
             id,
@@ -97,7 +101,7 @@ impl<'a> Scope<'a> {
     }
 
     /// Attaches a widget in a sub-scope.
-    pub fn attach(&mut self, widget: impl Widget) -> Entity {
+    pub fn attach<W: Widget>(&mut self, widget: W) -> Entity {
         self.flush();
         let id = self.frame.world.spawn();
 
@@ -114,6 +118,8 @@ impl<'a> Scope<'a> {
             let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
+            s.set(name(), type_name::<W>().into());
+
             widget.mount(&mut s);
             s.id
         };
