@@ -29,7 +29,7 @@ impl Surface {
         &self.window
     }
 
-    pub fn resize(&mut self, _gpu: &Gpu, new_size: PhysicalSize<u32>) {
+    pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
         tracing::info_span!("resize", ?new_size);
         if new_size == self.size {
             tracing::info!(size=?new_size, "Duplicate resize message ignored");
@@ -41,6 +41,7 @@ impl Surface {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.size = new_size;
+            self.reconfigure(gpu);
         }
     }
 
