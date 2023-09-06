@@ -1,5 +1,5 @@
 use anyhow::Context;
-use flax::name;
+use flax::{child_of, name, Entity};
 use futures::StreamExt;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
@@ -226,6 +226,31 @@ impl Widget for Counter {
     }
 }
 
+struct ShowWorld;
+
+impl Widget for ShowWorld {
+    fn mount(self, scope: &mut Scope) {
+        scope.spawn(StreamEffect::new(
+            interval(Duration::from_millis(200)).enumerate(),
+            move |scope: &mut Scope, (_, _)| {
+                let frame = scope.frame();
+
+                scope.set(text(), format!("{:#?}", frame.world()));
+            },
+        ));
+
+        let font = FontFromFile {
+            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+        };
+
+        scope
+            .set(name(), "Inter Font".into())
+            .set(font_size(), 10.0)
+            .set(font_from_file(), font)
+            .set(text(), "".into());
+    }
+}
+
 #[derive(Default)]
 struct List<W> {
     items: W,
@@ -432,12 +457,25 @@ impl Widget for MainApp {
         .with_padding(Edges::even(10.0))
         .with_margin(Edges::even(10.0));
 
+        let list3 = List::new((Sized::new(ShowWorld).with_size(Unit::px(vec2(200.0, 0.0))),))
+            .with_cross_align(CrossAlign::Stretch)
+            .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
+            .with_padding(Edges::even(10.0))
+            .with_margin(Edges::even(10.0));
+
         scope.attach(
-            List::new((list1, list2))
-                .with_cross_align(CrossAlign::Stretch)
-                .with_direction(Direction::Vertical)
-                .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
-                .with_padding(Edges::even(10.0)),
+            List::new((
+                list3,
+                List::new((list1, list2))
+                    .with_cross_align(CrossAlign::Stretch)
+                    .with_direction(Direction::Vertical)
+                    .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
+                    .with_padding(Edges::even(10.0)),
+            ))
+            .with_cross_align(CrossAlign::Stretch)
+            .with_direction(Direction::Horizontal)
+            .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
+            .with_padding(Edges::even(10.0)),
         );
     }
 }

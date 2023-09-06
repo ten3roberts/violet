@@ -25,7 +25,7 @@ use crate::{
 use super::{
     components::{draw_cmd, font, mesh_handle, model_matrix},
     font::Font,
-    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
+    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Mesh, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
     Gpu,
@@ -52,12 +52,65 @@ impl ObjectQuery {
     }
 }
 
-struct MeshGenerator {
-    fonts: HandleMap<Font, RenderFont>,
-    shader: Handle<Shader>,
-    text_layout: BindGroupLayout,
-
+struct FontRasterizer {
+    rasterized: BTreeMap<(Handle<Font>, u32), RasterizedFont>,
     sampler: Handle<Sampler>,
+    text_layout: BindGroupLayout,
+}
+
+impl FontRasterizer {
+    pub fn get(
+        &mut self,
+        ctx: &RendererContext,
+        assets: &AssetCache,
+        font: Handle<Font>,
+        px: f32,
+        text: &str,
+    ) -> &RasterizedFont {
+        match self.rasterized.entry((font, px as u32)) {
+            btree_map::Entry::Vacant(slot) => {
+                let font = &slot.key().0;
+                let atlas =
+                    FontAtlas::new(assets, &ctx.gpu, &font, px as f32, text.chars()).unwrap();
+
+                let bind_group = assets.insert(
+                    BindGroupBuilder::new("TextRenderer::bind_group")
+                        .bind_sampler(&self.sampler)
+                        .bind_texture(&atlas.texture.view(&Default::default()))
+                        .build(&ctx.gpu, &self.text_layout),
+                );
+
+                &*slot.insert(RasterizedFont { atlas, bind_group })
+            }
+            btree_map::Entry::Occupied(slot) => {
+                let font = &slot.key().0;
+
+                let rasterized = slot.get();
+
+                if !text.chars().all(|c| rasterized.atlas.contains_char(c)) {
+                    let atlas = FontAtlas::new(assets, &ctx.gpu, &font, px, text.chars()).unwrap();
+
+                    let bind_group = assets.insert(
+                        BindGroupBuilder::new("TextRenderer::bind_group")
+                            .bind_sampler(&self.sampler)
+                            .bind_texture(&atlas.texture.view(&Default::default()))
+                            .build(&ctx.gpu, &self.text_layout),
+                    );
+
+                    let rasterized = slot.into_mut();
+                    *rasterized = RasterizedFont { atlas, bind_group };
+                    rasterized
+                } else {
+                    slot.into_mut()
+                }
+            }
+        }
+    }
+}
+
+struct MeshGenerator {
+    rasterizer: FontRasterizer,
+    shader: Handle<Shader>,
 }
 
 impl MeshGenerator {
@@ -96,11 +149,102 @@ impl MeshGenerator {
             }));
 
         Self {
-            fonts: HandleMap::new(),
+            rasterizer: FontRasterizer {
+                rasterized: BTreeMap::new(),
+                sampler,
+                text_layout,
+            },
             shader,
-            text_layout,
-            sampler,
         }
+    }
+
+    fn update_mesh(
+        &mut self,
+        ctx: &mut RendererContext,
+        assets: &AssetCache,
+        font: &Handle<Font>,
+        font_size: f32,
+        rect: Rect,
+        text: &str,
+        mesh: &mut MeshHandle,
+    ) -> &RasterizedFont {
+        let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
+
+        layout.reset(&fontdue::layout::LayoutSettings {
+            x: rect.min.x,
+            y: rect.min.x,
+            max_width: Some(rect.max.x),
+            max_height: Some(rect.max.y),
+            horizontal_align: fontdue::layout::HorizontalAlign::Left,
+            vertical_align: fontdue::layout::VerticalAlign::Top,
+            line_height: 1.0,
+            wrap_style: fontdue::layout::WrapStyle::Word,
+            wrap_hard_breaks: true,
+        });
+
+        layout.append(
+            &[&font.font],
+            &TextStyle {
+                text,
+                px: font_size,
+                font_index: 0,
+                user_data: (),
+            },
+        );
+
+        let glyph_count = layout.glyphs().len();
+
+        let rasterized = self
+            .rasterizer
+            .get(ctx, &assets, font.clone(), font_size, text);
+
+        let vertices = layout
+            .glyphs()
+            .iter()
+            .flat_map(|glyph| {
+                let atlas_glyph = rasterized.atlas.glyphs.get(&glyph.key.glyph_index).unwrap();
+
+                let glyph_width = glyph.width as f32;
+                let glyph_height = glyph.height as f32;
+
+                let atlas_size = rasterized.atlas.size();
+                let atlas_size = vec2(atlas_size.width as f32, atlas_size.height as f32);
+
+                let uv_min = atlas_glyph.min.as_vec2() / atlas_size;
+                let uv_max = atlas_glyph.max.as_vec2() / atlas_size;
+
+                [
+                    // Bottom left
+                    Vertex::new(
+                        vec3(glyph.x, glyph.y + glyph_height, 0.0),
+                        vec2(uv_min.x, uv_max.y),
+                    ),
+                    Vertex::new(
+                        vec3(glyph.x + glyph_width, glyph.y + glyph_height, 0.0),
+                        vec2(uv_max.x, uv_max.y),
+                    ),
+                    Vertex::new(
+                        vec3(glyph.x + glyph_width, glyph.y, 0.0),
+                        vec2(uv_max.x, uv_min.y),
+                    ),
+                    Vertex::new(vec3(glyph.x, glyph.y, 0.0), vec2(uv_min.x, uv_min.y)),
+                ]
+            })
+            .collect_vec();
+
+        let indices = (0..)
+            .step_by(4)
+            .take(glyph_count)
+            .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
+            .collect_vec();
+
+        tracing::info!("vb {} ib {}", vertices.len(), indices.len());
+        ctx.mesh_buffer
+            .reallocate(&ctx.gpu, mesh, vertices.len(), indices.len());
+
+        ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
+
+        rasterized
     }
 }
 
@@ -205,120 +349,43 @@ impl TextRenderer {
         let mut cmd = CommandBuffer::new();
 
         (self.mesh_query.borrow(&frame.world)).for_each(|item| {
-            tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
+            // tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
 
-            let render_font = self
-                .mesh_generator
-                .fonts
-                .entry(item.font)
-                .or_insert_with_key(|key| RenderFont {
-                    rasterized: BTreeMap::new(),
-                    font: key.clone(),
-                    sampler: self.mesh_generator.sampler.clone(),
-                });
-
-            let rasterized = render_font.get(
-                &ctx.gpu,
-                &frame.assets,
-                *item.font_size as _,
-                item.text,
-                &self.mesh_generator.text_layout,
-            );
-
-            let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
-
-            let size = item.rect.size();
-            layout.reset(&fontdue::layout::LayoutSettings {
-                x: item.rect.min.x,
-                y: item.rect.min.x,
-                max_width: Some(size.x),
-                max_height: Some(size.y),
-                horizontal_align: fontdue::layout::HorizontalAlign::Left,
-                vertical_align: fontdue::layout::VerticalAlign::Top,
-                line_height: 1.0,
-                wrap_style: fontdue::layout::WrapStyle::Word,
-                wrap_hard_breaks: true,
-            });
-
-            layout.append(
-                &[&item.font.font],
-                &TextStyle {
-                    text: item.text,
-                    px: *item.font_size,
-                    font_index: 0,
-                    user_data: (),
-                },
-            );
-
-            let glyph_count = layout.glyphs().len();
-
-            let vertices = layout
-                .glyphs()
-                .iter()
-                .flat_map(|glyph| {
-                    let atlas_glyph = rasterized.atlas.glyphs.get(&glyph.key.glyph_index).unwrap();
-
-                    let glyph_width = glyph.width as f32;
-                    let glyph_height = glyph.height as f32;
-
-                    let atlas_size = rasterized.atlas.size();
-                    let atlas_size = vec2(atlas_size.width as f32, atlas_size.height as f32);
-
-                    let uv_min = atlas_glyph.min.as_vec2() / atlas_size;
-                    let uv_max = atlas_glyph.max.as_vec2() / atlas_size;
-
-                    [
-                        // Bottom left
-                        Vertex::new(
-                            vec3(glyph.x, glyph.y + glyph_height, 0.0),
-                            vec2(uv_min.x, uv_max.y),
-                        ),
-                        Vertex::new(
-                            vec3(glyph.x + glyph_width, glyph.y + glyph_height, 0.0),
-                            vec2(uv_max.x, uv_max.y),
-                        ),
-                        Vertex::new(
-                            vec3(glyph.x + glyph_width, glyph.y, 0.0),
-                            vec2(uv_max.x, uv_min.y),
-                        ),
-                        Vertex::new(vec3(glyph.x, glyph.y, 0.0), vec2(uv_min.x, uv_min.y)),
-                    ]
-                })
-                .collect_vec();
-
-            let indices = (0..)
-                .step_by(4)
-                .take(glyph_count)
-                .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
-                .collect_vec();
-
-            let mesh = match item.mesh {
-                Some(mesh) => {
-                    ctx.mesh_buffer
-                        .reallocate(&ctx.gpu, mesh, vertices.len(), indices.len());
-
-                    *mesh
-                }
+            let mut new_mesh = match item.mesh {
+                Some(&mut v) => v,
                 None => {
-                    let mesh = ctx
-                        .mesh_buffer
-                        .allocate(&ctx.gpu, vertices.len(), indices.len());
+                    let mesh = ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0);
                     cmd.set(item.id, mesh_handle(), mesh);
                     mesh
                 }
             };
 
-            ctx.mesh_buffer.write(&ctx.gpu, &mesh, &vertices, &indices);
+            let rasterized = self.mesh_generator.update_mesh(
+                ctx,
+                &frame.assets,
+                item.font,
+                *item.font_size,
+                *item.rect,
+                item.text,
+                &mut new_mesh,
+            );
+
+            match item.mesh {
+                Some(v) => *v = new_mesh,
+                None => {
+                    cmd.set(item.id, mesh_handle(), new_mesh);
+                }
+            }
 
             cmd.set(
                 item.id,
                 draw_cmd(),
                 DrawCommand {
-                    mesh,
+                    mesh: new_mesh,
                     bind_group: rasterized.bind_group.clone(),
                     shader: self.mesh_generator.shader.clone(),
-                    index_count: indices.len() as u32,
-                    vertex_offset: mesh.vb().start() as i32,
+                    index_count: new_mesh.ib().len() as u32,
+                    vertex_offset: new_mesh.vb().offset() as i32,
                 },
             );
         });

@@ -166,7 +166,7 @@ impl ShapeRenderer {
             render_pass.set_bind_group(1, &self.bind_group, &[]);
             render_pass.set_bind_group(2, &cmd.bind_group, &[]);
 
-            let first_index = cmd.mesh.ib().start() as u32;
+            let first_index = cmd.mesh.ib().offset() as u32;
 
             render_pass.draw_indexed(
                 first_index..(first_index + cmd.index_count),

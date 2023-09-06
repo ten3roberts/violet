@@ -149,6 +149,10 @@ impl<'a> Scope<'a> {
     pub fn assets_mut(&mut self) -> &mut AssetCache {
         &mut self.frame.assets
     }
+
+    pub fn frame(&self) -> &&'a mut Frame {
+        &self.frame
+    }
 }
 
 impl Drop for Scope<'_> {

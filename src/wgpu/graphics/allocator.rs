@@ -42,6 +42,14 @@ impl BufferAllocator {
         self.total_size += size;
     }
 
+    pub fn grow_to(&mut self, size: usize) {
+        self.deallocate(Allocation {
+            start: self.total_size,
+            size: size - self.total_size,
+        });
+
+        self.total_size = size;
+    }
     pub fn allocate(&mut self, size: usize) -> Option<Allocation> {
         tracing::debug!("Allocating {size}, free_list: {:?}", self.free);
 

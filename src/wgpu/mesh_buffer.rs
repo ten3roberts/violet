@@ -1,29 +1,32 @@
 use wgpu::{BufferUsages, RenderPass};
 
 use super::{
-    graphics::{allocator::Allocation, multi_buffer::MultiBuffer, Vertex},
+    graphics::{
+        multi_buffer::{MultiBuffer, SubBuffer},
+        Vertex,
+    },
     Gpu,
 };
 
 pub struct MeshBuffer {
     label: String,
-    pub vb: MultiBuffer<Vertex>,
-    pub ib: MultiBuffer<u32>,
+    pub vertex_buffers: MultiBuffer<Vertex>,
+    pub index_buffers: MultiBuffer<u32>,
 }
 
 /// Handle to an allocation within a mesh
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MeshHandle {
-    vb: Allocation,
-    ib: Allocation,
+    vb: SubBuffer<Vertex>,
+    ib: SubBuffer<u32>,
 }
 
 impl MeshHandle {
-    pub fn vb(&self) -> Allocation {
+    pub fn vb(&self) -> SubBuffer<Vertex> {
         self.vb
     }
 
-    pub fn ib(&self) -> Allocation {
+    pub fn ib(&self) -> SubBuffer<u32> {
         self.ib
     }
 }
@@ -47,27 +50,27 @@ impl MeshBuffer {
 
         Self {
             label,
-            vb: vertex_buffer,
-            ib: index_buffer,
+            vertex_buffers: vertex_buffer,
+            index_buffers: index_buffer,
         }
     }
 
     /// Allocate a mesh in the buffer
     pub fn allocate(&mut self, gpu: &Gpu, vertex_count: usize, index_count: usize) -> MeshHandle {
         tracing::debug!("Allocating {vertex_count} {index_count}");
-        let vb = match self.vb.allocate(vertex_count) {
+        let vb = match self.vertex_buffers.allocate(vertex_count) {
             Some(v) => v,
             None => {
-                self.vb.grow(gpu, vertex_count);
-                self.vb.allocate(vertex_count).unwrap()
+                self.vertex_buffers.grow(gpu, vertex_count);
+                self.vertex_buffers.allocate(vertex_count).unwrap()
             }
         };
 
-        let ib = match self.ib.allocate(index_count) {
+        let ib = match self.index_buffers.allocate(index_count) {
             Some(v) => v,
             None => {
-                self.ib.grow(gpu, index_count);
-                self.ib.allocate(index_count).unwrap()
+                self.index_buffers.grow(gpu, index_count);
+                self.index_buffers.allocate(index_count).unwrap()
             }
         };
 
@@ -81,8 +84,8 @@ impl MeshBuffer {
     }
 
     pub fn bind<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
-        render_pass.set_vertex_buffer(0, self.vb.slice(..));
-        render_pass.set_index_buffer(self.ib.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.set_vertex_buffer(0, self.vertex_buffers.slice(..));
+        render_pass.set_index_buffer(self.index_buffers.slice(..), wgpu::IndexFormat::Uint32);
     }
 
     pub(crate) fn reallocate(
@@ -92,25 +95,30 @@ impl MeshBuffer {
         vertex_count: usize,
         index_count: usize,
     ) {
-        handle.vb = match self.vb.try_reallocate(handle.vb, vertex_count) {
+        handle.vb = match self.vertex_buffers.try_reallocate(handle.vb, vertex_count) {
             Some(v) => v,
             None => {
-                self.vb.grow(gpu, vertex_count);
-                self.vb.allocate(vertex_count).unwrap()
+                self.vertex_buffers.grow(gpu, vertex_count);
+                self.vertex_buffers.allocate(vertex_count).unwrap()
             }
         };
 
-        handle.ib = match self.ib.try_reallocate(handle.ib, index_count) {
+        handle.ib = match self.index_buffers.try_reallocate(handle.ib, index_count) {
             Some(v) => v,
             None => {
-                self.ib.grow(gpu, index_count);
-                self.ib.allocate(index_count).unwrap()
+                self.index_buffers.grow(gpu, index_count);
+                self.index_buffers.allocate(index_count).unwrap()
             }
         };
     }
 
+    pub(crate) fn deallocate(&mut self, gpu: &Gpu, handle: &MeshHandle) {
+        self.vertex_buffers.deallocate(handle.vb);
+        self.index_buffers.deallocate(handle.ib);
+    }
+
     pub fn write(&mut self, gpu: &Gpu, handle: &MeshHandle, vertices: &[Vertex], indices: &[u32]) {
-        self.vb.write(&gpu.queue, &handle.vb, vertices);
-        self.ib.write(&gpu.queue, &handle.ib, indices);
+        self.vertex_buffers.write(&gpu.queue, &handle.vb, vertices);
+        self.index_buffers.write(&gpu.queue, &handle.ib, indices);
     }
 }

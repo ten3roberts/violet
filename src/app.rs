@@ -80,6 +80,7 @@ impl App {
 
         let mut schedule = Schedule::new()
             .with_system(templating_system())
+            .flush()
             .with_system(layout_system())
             .with_system(transform_system())
             .with_system(load_fonts_system(frame.assets.clone()));

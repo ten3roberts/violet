@@ -24,5 +24,5 @@ component! {
 
     pub(crate) mesh_handle: MeshHandle => [ Debuggable ],
 
-    pub model_matrix: glam::Mat4 => [ Debuggable ],
+    pub model_matrix: glam::Mat4 => [ ],
 }

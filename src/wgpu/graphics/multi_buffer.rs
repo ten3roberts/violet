@@ -1,4 +1,4 @@
-use std::ops::RangeBounds;
+use std::{marker::PhantomData, ops::RangeBounds};
 
 use bytemuck::Pod;
 use wgpu::{Buffer, BufferSlice, BufferUsages, Queue};
@@ -7,6 +7,52 @@ use super::{
     allocator::{Allocation, BufferAllocator},
     Gpu, TypedBuffer,
 };
+
+pub struct SubBuffer<T> {
+    len: usize,
+    block: Allocation,
+    _marker: PhantomData<T>,
+}
+
+impl<T> SubBuffer<T> {
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn offset(&self) -> usize {
+        self.block.start()
+    }
+}
+
+impl<T> std::hash::Hash for SubBuffer<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.block.hash(state);
+    }
+}
+
+impl<T> Eq for SubBuffer<T> {}
+
+impl<T> PartialEq for SubBuffer<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.block.eq(&other.block)
+    }
+}
+
+impl<T> Clone for SubBuffer<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for SubBuffer<T> {}
+
+impl<T> std::fmt::Debug for SubBuffer<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubBuffer")
+            .field("block", &self.block)
+            .finish()
+    }
+}
 
 pub struct MultiBuffer<T> {
     label: String,
@@ -31,46 +77,57 @@ where
     }
 
     pub fn grow(&mut self, gpu: &Gpu, size: usize) {
-        let size = (self.buffer.len() + size).next_power_of_two() - self.buffer.len();
+        let size = (self.buffer.len() + size.next_power_of_two()).next_power_of_two();
         tracing::debug!(?size, "grow");
-        self.allocator.grow(size);
+        self.allocator.grow_to(size);
 
         self.buffer.resize(gpu, self.allocator.total_size());
     }
 
-    pub fn allocate(&mut self, len: usize) -> Option<Allocation> {
-        self.allocator.allocate(len)
+    pub fn allocate(&mut self, len: usize) -> Option<SubBuffer<T>> {
+        Some(SubBuffer {
+            len,
+            block: self.allocator.allocate(len.next_power_of_two())?,
+            _marker: PhantomData,
+        })
     }
 
-    pub fn try_reallocate(&mut self, allocation: Allocation, new_len: usize) -> Option<Allocation> {
-        if allocation.size() >= new_len {
-            Some(allocation)
+    pub fn try_reallocate(
+        &mut self,
+        sub_buffer: SubBuffer<T>,
+        new_len: usize,
+    ) -> Option<SubBuffer<T>> {
+        if sub_buffer.block.size() >= new_len {
+            Some(SubBuffer {
+                len: new_len,
+                block: sub_buffer.block,
+                _marker: PhantomData,
+            })
         } else {
-            tracing::debug!("reallocating {allocation:?} to {new_len}");
-            self.allocator.allocate(new_len)
+            tracing::debug!("reallocating {sub_buffer:?} to {new_len}");
+            self.deallocate(sub_buffer);
+            self.allocate(new_len)
         }
     }
 
-    pub fn deallocate(&mut self, block: Allocation) {
-        self.allocator.deallocate(block)
+    pub fn deallocate(&mut self, sub_buffer: SubBuffer<T>) {
+        self.allocator.deallocate(sub_buffer.block)
     }
 
-    pub fn get(&self, block: &Allocation) -> BufferSlice {
-        let start = block.start();
-        let size = block.size();
-
-        self.buffer.slice(start..start + size)
+    pub fn get(&self, sub_buffer: &SubBuffer<T>) -> BufferSlice {
+        self.buffer
+            .slice(sub_buffer.offset()..sub_buffer.offset() + sub_buffer.len())
     }
 
-    pub fn write(&self, queue: &Queue, allocation: &Allocation, data: &[T]) {
+    pub fn write(&self, queue: &Queue, allocation: &SubBuffer<T>, data: &[T]) {
         assert!(
-            data.len() <= allocation.size(),
+            data.len() <= allocation.len,
             "write exceeds allocation {} > {}",
             data.len(),
-            allocation.size()
+            allocation.len
         );
 
-        self.buffer.write(queue, allocation.start(), data);
+        self.buffer.write(queue, allocation.block.start(), data);
     }
 
     pub fn slice(&self, bounds: impl RangeBounds<usize>) -> BufferSlice {
