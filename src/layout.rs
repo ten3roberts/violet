@@ -3,7 +3,7 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
-    components::{self, children, layout, margin, padding, Edges, Rect},
+    components::{self, children, intrinsic_size, layout, margin, padding, Edges, Rect},
     unit::Unit,
 };
 
@@ -460,12 +460,20 @@ fn resolve_size(entity: &EntityRef, content_area: Rect) -> (Vec2, Vec2) {
         .unwrap_or(&Unit::ZERO)
         .resolve(parent_size);
 
-    let size = entity
-        .get(components::size())
-        .as_deref()
-        .unwrap_or(&Unit::ZERO)
-        .resolve(parent_size)
-        .max(min_size);
+    let size = if let Ok(size) = entity.get(components::size()) {
+        size.resolve(parent_size)
+    } else {
+        entity
+            .get_copy(intrinsic_size())
+            .expect("intrinsic size required")
+    };
+
+    // let size = entity
+    //     .get(components::size())
+    //     .as_deref()
+    //     .unwrap_or(&Unit::ZERO)
+    //     .resolve(parent_size)
+    //     .max(min_size);
 
     (min_size, size)
 }

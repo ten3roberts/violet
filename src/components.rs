@@ -21,6 +21,7 @@ component! {
 
     /// Offset the widget from its original position
     pub offset: Unit<Vec2> => [ Debuggable ],
+
     /// The preferred size of the widget.
     ///
     /// The final bounds of a widget may be smaller to fit within a layout
@@ -31,7 +32,7 @@ component! {
     pub min_size: Unit<Vec2> => [ Debuggable ],
 
     /// Heuristic text size of a text widget
-    pub text_bounds: Vec2 => [ Debuggable ],
+    pub intrinsic_size: Vec2 => [ Debuggable ],
 
     /// Sets the anchor point withing the bounds of the widget where position is applied
     pub anchor: Unit<Vec2> => [ Debuggable ],

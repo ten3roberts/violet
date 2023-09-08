@@ -1,5 +1,5 @@
 use anyhow::Context;
-use flax::{child_of, name, Entity};
+use flax::name;
 use futures::StreamExt;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
@@ -14,10 +14,7 @@ use violet::{
     shapes::FilledRect,
     time::interval,
     unit::Unit,
-    wgpu::{
-        components::{font_from_file, model_matrix},
-        font::FontFromFile,
-    },
+    wgpu::{components::font_from_file, font::FontFromFile},
     App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
 use winit::event::ElementState;
@@ -219,10 +216,28 @@ impl Widget for Counter {
         };
 
         scope
-            .set(name(), "Inter Font".into())
+            .set(name(), "Counter".into())
             .set(font_size(), 16.0)
             .set(font_from_file(), font)
             .set(text(), "".into());
+    }
+}
+
+struct Text {
+    text: String,
+}
+
+impl Widget for Text {
+    fn mount(self, scope: &mut Scope) {
+        let font = FontFromFile {
+            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+        };
+
+        scope
+            .set(font_size(), 16.0)
+            .set(font_from_file(), font)
+            .set(margin(), Edges::even(10.0))
+            .set(text(), self.text);
     }
 }
 
@@ -433,13 +448,19 @@ impl Widget for MainApp {
         .with_cross_align(CrossAlign::End);
 
         let list2 = List::new((
-            Sized::new(Counter).with_size(Unit::px(vec2(100.0, 50.0))),
+            Counter,
             // (Sized::new(Rectangle {
             //     color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
             //     margin: Edges::even(5.0),
             // })
             // .with_size(Unit::px(vec2(100.0, 50.0)))),
             List::new([list3]).with_padding(Edges::even(10.0)),
+            Text {
+                text: "Hello There!".into(),
+            },
+            Text {
+                text: "General Kenobi".into(),
+            },
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
                 margin: Edges::even(5.0),

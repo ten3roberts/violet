@@ -12,7 +12,11 @@ use crate::{
     executor::Executor,
     input::InputState,
     systems::{layout_system, templating_system, transform_system},
-    wgpu::{graphics::Gpu, systems::load_fonts_system, window_renderer::WindowRenderer},
+    wgpu::{
+        graphics::Gpu,
+        systems::{load_fonts_system, update_text_heuristics},
+        window_renderer::WindowRenderer,
+    },
     Frame, Widget,
 };
 
@@ -81,6 +85,7 @@ impl App {
         let mut schedule = Schedule::new()
             .with_system(templating_system())
             .flush()
+            .with_system(update_text_heuristics())
             .with_system(layout_system())
             .with_system(transform_system())
             .with_system(load_fonts_system(frame.assets.clone()));

@@ -13,7 +13,7 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 
 use crate::{
     assets::{map::HandleMap, AssetCache, Handle},
-    components::{font_size, rect, screen_position, text, Rect},
+    components::{font_size, intrinsic_size, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
         graphics::{allocator::Allocation, BindGroupBuilder},
@@ -164,39 +164,15 @@ impl MeshGenerator {
         assets: &AssetCache,
         font: &Handle<Font>,
         font_size: f32,
-        rect: Rect,
+        layout: Layout,
         text: &str,
         mesh: &mut MeshHandle,
     ) -> &RasterizedFont {
-        let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
-
-        layout.reset(&fontdue::layout::LayoutSettings {
-            x: rect.min.x,
-            y: rect.min.x,
-            max_width: Some(rect.max.x),
-            max_height: Some(rect.max.y),
-            horizontal_align: fontdue::layout::HorizontalAlign::Left,
-            vertical_align: fontdue::layout::VerticalAlign::Top,
-            line_height: 1.0,
-            wrap_style: fontdue::layout::WrapStyle::Word,
-            wrap_hard_breaks: true,
-        });
-
-        layout.append(
-            &[&font.font],
-            &TextStyle {
-                text,
-                px: font_size,
-                font_index: 0,
-                user_data: (),
-            },
-        );
-
-        let glyph_count = layout.glyphs().len();
-
         let rasterized = self
             .rasterizer
-            .get(ctx, &assets, font.clone(), font_size, text);
+            .get(ctx, assets, font.clone(), font_size, text);
+
+        let glyph_count = layout.glyphs().len();
 
         let vertices = layout
             .glyphs()
@@ -238,7 +214,6 @@ impl MeshGenerator {
             .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
             .collect_vec();
 
-        tracing::info!("vb {} ib {}", vertices.len(), indices.len());
         ctx.mesh_buffer
             .reallocate(&ctx.gpu, mesh, vertices.len(), indices.len());
 
@@ -258,6 +233,7 @@ pub struct TextMeshQuery {
     mesh: Opt<Mutable<MeshHandle>>,
 
     rect: Component<Rect>,
+    intrinsic_size: Component<Vec2>,
     text: Component<String>,
     font: Component<Handle<Font>>,
     font_size: OptOr<Component<f32>, f32>,
@@ -268,6 +244,7 @@ impl TextMeshQuery {
         Self {
             id: entity_ids(),
             mesh: mesh_handle().as_mut().opt(),
+            intrinsic_size: intrinsic_size(),
             rect: rect(),
             text: text(),
             font: font(),
@@ -351,6 +328,42 @@ impl TextRenderer {
         (self.mesh_query.borrow(&frame.world)).for_each(|item| {
             // tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
 
+            // Update intrinsic sizes
+
+            tracing::info!(?item.id, ?item.rect, "text rect");
+            let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
+
+            // Due to padding the text may not fit exactly
+            let (max_width, max_height) = if item.rect.max.x >= item.intrinsic_size.x
+                && item.rect.max.y >= item.intrinsic_size.y
+            {
+                (None, None)
+            } else {
+                (Some(item.rect.size().x), Some(item.rect.size().y))
+            };
+
+            layout.reset(&fontdue::layout::LayoutSettings {
+                x: item.rect.min.x,
+                y: item.rect.min.x,
+                max_width,
+                max_height,
+                horizontal_align: fontdue::layout::HorizontalAlign::Left,
+                vertical_align: fontdue::layout::VerticalAlign::Top,
+                line_height: 1.0,
+                wrap_style: fontdue::layout::WrapStyle::Word,
+                wrap_hard_breaks: true,
+            });
+
+            layout.append(
+                &[&item.font.font],
+                &TextStyle {
+                    text: item.text,
+                    px: *item.font_size,
+                    font_index: 0,
+                    user_data: (),
+                },
+            );
+
             let mut new_mesh = match item.mesh {
                 Some(&mut v) => v,
                 None => {
@@ -365,7 +378,7 @@ impl TextRenderer {
                 &frame.assets,
                 item.font,
                 *item.font_size,
-                *item.rect,
+                layout,
                 item.text,
                 &mut new_mesh,
             );

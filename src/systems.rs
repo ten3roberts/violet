@@ -2,10 +2,12 @@ use flax::{
     child_of, entity_ids, filter::Or, BoxedSystem, CommandBuffer, ComponentValue, Dfs, DfsBorrow,
     Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
-use glam::{Mat4, Vec2};
+use glam::{Mat4, Vec2, Vec3};
 
 use crate::{
-    components::{self, children, is_widget, local_position, rect, screen_position, Rect},
+    components::{
+        self, children, intrinsic_size, is_widget, local_position, rect, screen_position, Rect,
+    },
     layout::{update_subtree, LayoutLimits},
     wgpu::components::model_matrix,
 };
@@ -15,6 +17,7 @@ pub fn templating_system() -> BoxedSystem {
         screen_position().without(),
         local_position().without(),
         model_matrix().without(),
+        intrinsic_size().without(),
         rect().without(),
     )));
 
@@ -28,6 +31,7 @@ pub fn templating_system() -> BoxedSystem {
                 cmd.set_missing(id, screen_position(), Vec2::ZERO)
                     .set_missing(id, local_position(), Vec2::ZERO)
                     .set_missing(id, model_matrix(), Mat4::IDENTITY)
+                    .set_missing(id, intrinsic_size(), Vec2::ZERO)
                     .set_missing(id, rect(), Rect::default());
             }
         })
