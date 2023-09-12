@@ -13,6 +13,7 @@ pub mod time;
 pub mod unit;
 pub mod wgpu;
 mod widget;
+pub mod style;
 
 pub use app::App;
 pub use effect::{FutureEffect, StreamEffect};

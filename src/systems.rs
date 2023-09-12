@@ -12,14 +12,16 @@ use crate::{
     wgpu::components::model_matrix,
 };
 
-pub fn templating_system() -> BoxedSystem {
-    let query = Query::new(entity_ids()).filter(Or((
-        screen_position().without(),
-        local_position().without(),
-        model_matrix().without(),
-        intrinsic_size().without(),
-        rect().without(),
-    )));
+pub fn templating_system(root: Entity) -> BoxedSystem {
+    let query = Query::new(entity_ids())
+        .filter(Or((
+            screen_position().without(),
+            local_position().without(),
+            model_matrix().without(),
+            intrinsic_size().without(),
+            rect().without(),
+        )))
+        .filter(root.traverse(child_of));
 
     System::builder()
         .with_query(query)

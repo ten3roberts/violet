@@ -8,10 +8,11 @@ use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, font_size, layout, margin, padding, size, text, Edges},
+    components::{self, color, filled_rect, font_size, layout, padding, size, text, Edges},
     input::{focus_sticky, on_focus, on_mouse_input},
     layout::{CrossAlign, Direction, Layout},
     shapes::FilledRect,
+    style::StyleExt,
     time::interval,
     unit::Unit,
     wgpu::{components::font_from_file, font::FontFromFile},
@@ -103,14 +104,12 @@ where
 
 struct Rectangle {
     color: Srgba,
-    margin: Edges,
 }
 
 impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "Rectangle".into())
-            .set(margin(), self.margin)
             .set(
                 filled_rect(),
                 FilledRect {
@@ -236,7 +235,6 @@ impl Widget for Text {
         scope
             .set(font_size(), 16.0)
             .set(font_from_file(), font)
-            .set(margin(), Edges::even(10.0))
             .set(text(), self.text);
     }
 }
@@ -271,9 +269,6 @@ struct List<W> {
     items: W,
     layout: Layout,
     background_color: Option<Srgba>,
-
-    padding: Edges,
-    margin: Edges,
 }
 
 impl<W: WidgetCollection> List<W> {
@@ -282,8 +277,6 @@ impl<W: WidgetCollection> List<W> {
             items,
             layout: Layout::default(),
             background_color: None,
-            padding: Edges::default(),
-            margin: Edges::default(),
         }
     }
 
@@ -304,16 +297,6 @@ impl<W: WidgetCollection> List<W> {
         self.background_color = Some(background_color);
         self
     }
-
-    pub fn with_padding(mut self, padding: Edges) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    pub fn with_margin(mut self, margin: Edges) -> Self {
-        self.margin = margin;
-        self
-    }
 }
 
 impl<W: WidgetCollection> Widget for List<W> {
@@ -329,11 +312,9 @@ impl<W: WidgetCollection> Widget for List<W> {
                 }),
             )
             .set(layout(), self.layout)
-            .set_opt(color(), self.background_color)
-            .set(padding(), self.padding)
-            .set(margin(), self.margin);
+            .set_opt(color(), self.background_color);
 
-        self.items.attach(scope)
+        self.items.attach(scope);
     }
 }
 
@@ -357,8 +338,6 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "MainApp".into())
-            .set(padding(), Edges::even(5.0))
-            .set(padding(), Edges::even(5.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         // scope.attach(Counter);
@@ -370,7 +349,6 @@ impl Widget for MainApp {
             Positioned::new(
                 Sized::new(Rectangle {
                     color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
-                    margin: Default::default(),
                 })
                 .with_size(Unit::px(vec2(100.0, 0.0)) + Unit::rel(vec2(0.0, 1.0))),
             )
@@ -410,79 +388,80 @@ impl Widget for MainApp {
                 }),
             })
             .with_min_size(Unit::px(vec2(100.0, 100.0)))
-            .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0))),
+            .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0)))
+            .with_margin(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(10.0),
             })
-            .with_size(Unit::px(vec2(100.0, 50.0))),
+            .with_size(Unit::px(vec2(100.0, 50.0)))
+            .with_margin(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(25.0),
             })
-            .with_size(Unit::px(vec2(0.0, 60.0)) + Unit::rel(vec2(0.2, 0.0))),
+            .with_size(Unit::px(vec2(0.0, 60.0)) + Unit::rel(vec2(0.2, 0.0)))
+            .with_margin(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::new(10.0, 25.0, 10.0, 25.0),
             })
             .with_min_size(Unit::px(vec2(50.0, 100.0)))
-            .with_size(Unit::px(vec2(50.0, 0.0)) + Unit::rel(vec2(0.0, 0.2))),
+            .with_size(Unit::px(vec2(50.0, 0.0)) + Unit::rel(vec2(0.0, 0.2)))
+            .with_margin(Edges::even(10.0)),
         ))
-        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
-        .with_padding(Edges::even(10.0))
-        .with_margin(Edges::even(10.0));
+        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
         let list3 = List::new((
             Sized::new(Rectangle {
                 color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::default(),
             })
-            .with_size(Unit::px(vec2(80.0, 20.0))),
+            .with_size(Unit::px(vec2(80.0, 20.0)))
+            .with_margin(Edges::even(2.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::default(),
             })
-            .with_size(Unit::px(vec2(100.0, 20.0))),
+            .with_size(Unit::px(vec2(100.0, 20.0)))
+            .with_margin(Edges::even(2.0)),
+            Sized::new(Rectangle {
+                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+            })
+            .with_size(Unit::px(vec2(120.0, 10.0)))
+            .with_margin(Edges::even(2.0)),
         ))
         .with_direction(Direction::Vertical)
         .with_cross_align(CrossAlign::End);
 
         let list2 = List::new((
-            Counter,
+            Counter.with_margin(Edges::even(10.0)),
             // (Sized::new(Rectangle {
             //     color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-            //     margin: Edges::even(5.0),
             // })
             // .with_size(Unit::px(vec2(100.0, 50.0)))),
             List::new([list3]).with_padding(Edges::even(10.0)),
             Text {
                 text: "Hello There!".into(),
-            },
+            }
+            .with_margin(Edges::even(10.0)),
             Text {
                 text: "General Kenobi".into(),
-            },
+            }
+            .with_margin(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(5.0),
             })
             .with_min_size(Unit::px(vec2(20.0, 60.0)))
-            .with_size(Unit::px(vec2(200.0, 60.0))),
+            .with_size(Unit::px(vec2(200.0, 60.0)))
+            .with_margin(Edges::even(10.0)),
             Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-                margin: Edges::even(5.0),
             })
-            .with_size(Unit::px(vec2(50.0, 50.0))),
+            .with_size(Unit::px(vec2(50.0, 50.0)))
+            .with_margin(Edges::even(10.0)),
         ))
         .with_cross_align(CrossAlign::Center)
-        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
-        .with_padding(Edges::even(10.0))
-        .with_margin(Edges::even(10.0));
+        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
         let list3 = List::new((Sized::new(ShowWorld).with_size(Unit::px(vec2(200.0, 0.0))),))
             .with_cross_align(CrossAlign::Stretch)
-            .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color())
-            .with_padding(Edges::even(10.0))
-            .with_margin(Edges::even(10.0));
+            .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
         scope.attach(
             List::new((
@@ -490,13 +469,11 @@ impl Widget for MainApp {
                 List::new((list1, list2))
                     .with_cross_align(CrossAlign::Stretch)
                     .with_direction(Direction::Vertical)
-                    .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
-                    .with_padding(Edges::even(10.0)),
+                    .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
             ))
             .with_cross_align(CrossAlign::Stretch)
             .with_direction(Direction::Horizontal)
-            .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color())
-            .with_padding(Edges::even(10.0)),
+            .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
         );
     }
 }

@@ -83,7 +83,7 @@ impl App {
         let mut window_renderer = WindowRenderer::new(gpu, &mut frame, surface);
 
         let mut schedule = Schedule::new()
-            .with_system(templating_system())
+            .with_system(templating_system(root))
             .flush()
             .with_system(update_text_heuristics())
             .with_system(layout_system())
