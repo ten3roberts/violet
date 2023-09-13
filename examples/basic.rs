@@ -134,12 +134,11 @@ impl Widget for Button {
             .set(
                 filled_rect(),
                 FilledRect {
-                    color: WHITE.into_format().into_color(),
+                    color: self.normal_color,
                     fill_image: None,
                 },
             )
             .set(color(), self.normal_color)
-            .set(focus_sticky(), ())
             .set(
                 on_focus(),
                 Box::new(move |_, entity, focus| {
@@ -410,18 +409,24 @@ impl Widget for MainApp {
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
         let list3 = List::new((
-            Sized::new(Rectangle {
-                color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
+            Sized::new(Button {
+                normal_color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
+                pressed_color: Hsla::new(180.0, 0.5, 0.2, 1.0).into_color(),
+                on_click: Box::new(|_, _| {}),
             })
             .with_size(Unit::px(vec2(80.0, 20.0)))
             .with_margin(Edges::even(2.0)),
-            Sized::new(Rectangle {
-                color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
+            Sized::new(Button {
+                normal_color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
+                pressed_color: Hsla::new(270.0, 0.5, 0.2, 1.0).into_color(),
+                on_click: Box::new(|_, _| {}),
             })
             .with_size(Unit::px(vec2(100.0, 20.0)))
             .with_margin(Edges::even(2.0)),
-            Sized::new(Rectangle {
-                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+            Sized::new(Button {
+                normal_color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
+                pressed_color: Hsla::new(30.0, 0.5, 0.2, 1.0).into_color(),
+                on_click: Box::new(|_, _| {}),
             })
             .with_size(Unit::px(vec2(120.0, 10.0)))
             .with_margin(Edges::even(2.0)),
@@ -435,7 +440,9 @@ impl Widget for MainApp {
             //     color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
             // })
             // .with_size(Unit::px(vec2(100.0, 50.0)))),
-            List::new([list3]).with_padding(Edges::even(10.0)),
+            List::new([list3])
+                .with_background_color(Hsla::new(190.0, 0.048, 0.2, 1.0).into_color())
+                .with_padding(Edges::even(10.0)),
             Text {
                 text: "Hello There!".into(),
             }

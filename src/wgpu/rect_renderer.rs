@@ -167,12 +167,12 @@ impl RectRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                let pos = *item.pos + item.rect.pos();
-                let size = item.rect.size();
+                let rect = item.rect.translate(*item.pos).align_to_grid();
+
                 *item.model = Mat4::from_scale_rotation_translation(
-                    size.extend(1.0),
+                    rect.size().extend(1.0),
                     Quat::IDENTITY,
-                    pos.extend(0.1),
+                    rect.pos().extend(0.1),
                 );
             })
     }

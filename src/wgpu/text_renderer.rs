@@ -333,18 +333,19 @@ impl TextRenderer {
             tracing::info!(?item.id, ?item.rect, "text rect");
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
 
+            let rect = item.rect.align_to_grid();
+
             // Due to padding the text may not fit exactly
-            let (max_width, max_height) = if item.rect.max.x >= item.intrinsic_size.x
-                && item.rect.max.y >= item.intrinsic_size.y
-            {
-                (None, None)
-            } else {
-                (Some(item.rect.size().x), Some(item.rect.size().y))
-            };
+            let (max_width, max_height) =
+                if rect.max.x >= item.intrinsic_size.x && rect.max.y >= item.intrinsic_size.y {
+                    (None, None)
+                } else {
+                    (Some(rect.size().x), Some(rect.size().y))
+                };
 
             layout.reset(&fontdue::layout::LayoutSettings {
-                x: item.rect.min.x,
-                y: item.rect.min.x,
+                x: rect.min.x.round(),
+                y: rect.min.x.round(),
                 max_width,
                 max_height,
                 horizontal_align: fontdue::layout::HorizontalAlign::Left,
@@ -411,12 +412,11 @@ impl TextRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                let pos = *item.pos + item.rect.pos();
-                // tracing::info!("Updating text rect: {rect:?} at {pos}");
+                let rect = item.rect.translate(*item.pos).align_to_grid();
                 *item.model_matrix = Mat4::from_scale_rotation_translation(
                     Vec3::ONE,
                     Quat::IDENTITY,
-                    pos.extend(0.1),
+                    rect.pos().extend(0.1),
                 );
             })
     }

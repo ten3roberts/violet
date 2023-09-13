@@ -99,7 +99,7 @@ impl Edges {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-/// Defines the penultimate bounds of a widget
+/// Defines the bounds of a widget
 pub struct Rect {
     pub min: Vec2,
     pub max: Vec2,
@@ -117,6 +117,13 @@ impl Rect {
         Self {
             min: pos,
             max: pos + size,
+        }
+    }
+
+    pub fn align_to_grid(&self) -> Self {
+        Self {
+            min: self.min.floor(),
+            max: self.max.floor(),
         }
     }
 
@@ -166,5 +173,12 @@ impl Rect {
             && local_pos.x <= self.max.x
             && local_pos.y >= self.min.y
             && local_pos.y <= self.max.y
+    }
+
+    pub(crate) fn translate(&self, pos: Vec2) -> Self {
+        Self {
+            min: self.min + pos,
+            max: self.max + pos,
+        }
     }
 }
