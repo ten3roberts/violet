@@ -65,7 +65,7 @@ pub struct Edges {
 }
 
 impl Edges {
-    pub fn new(left: f32, right: f32, top: f32, bottom: f32) -> Self {
+    pub const fn new(left: f32, right: f32, top: f32, bottom: f32) -> Self {
         Self {
             left,
             right,
@@ -74,7 +74,7 @@ impl Edges {
         }
     }
 
-    pub fn even(distance: f32) -> Self {
+    pub const fn even(distance: f32) -> Self {
         Self {
             left: distance,
             right: distance,

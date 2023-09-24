@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use flax::{child_of, FetchExt, Query};
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
@@ -8,7 +10,7 @@ use wgpu::{BindGroup, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 use crate::{assets::Handle, components::color, Frame};
 
 use super::{
-    components::{draw_cmd, model_matrix},
+    components::{draw_cmd, mesh_handle, model_matrix},
     graphics::{BindGroupBuilder, BindGroupLayoutBuilder, Mesh, Shader, TypedBuffer},
     mesh_buffer::MeshHandle,
     rect_renderer::RectRenderer,
@@ -24,8 +26,8 @@ new_key_type! {
 /// Specifies what to use when drawing a single entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DrawCommand {
-    pub(crate) mesh: MeshHandle,
     pub(crate) shader: Handle<Shader>,
+    /// TODO: generate inside renderer
     pub(crate) bind_group: Handle<BindGroup>,
     pub(crate) index_count: u32,
     pub(crate) vertex_offset: i32,
@@ -34,12 +36,14 @@ pub(crate) struct DrawCommand {
 /// Compatible draw commands are given an instance in the object buffer and merged together
 struct InstancedDrawCommand {
     cmd: DrawCommand,
+    mesh: Arc<MeshHandle>,
     first_instance: u32,
     instance_count: u32,
 }
 
 struct InstancedDrawCommandRef<'a> {
     cmd: &'a DrawCommand,
+    mesh: &'a Arc<MeshHandle>,
     first_instance: u32,
     instance_count: u32,
 }
@@ -109,6 +113,7 @@ impl ShapeRenderer {
 
         let mut query = Query::new((
             color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
+            mesh_handle(),
             model_matrix(),
             draw_cmd(),
         ))
@@ -120,7 +125,7 @@ impl ShapeRenderer {
 
         let commands = query
             .iter()
-            .map(|(&color, &model, cmd)| {
+            .map(|(&color, mesh, &model, cmd)| {
                 let instance = self.objects.len() as u32;
 
                 self.objects.push(ObjectData {
@@ -128,17 +133,20 @@ impl ShapeRenderer {
                     color: srgba_to_vec4(color),
                 });
 
+                // tracing::info!(?mesh, "drawing");
                 InstancedDrawCommandRef {
                     cmd,
+                    mesh,
                     first_instance: instance,
                     instance_count: 1,
                 }
             })
             .coalesce(|prev, current| {
-                if prev.cmd == current.cmd {
+                if prev.cmd == current.cmd && prev.mesh == current.mesh {
                     assert!(prev.first_instance + prev.instance_count == current.first_instance);
                     Ok(InstancedDrawCommandRef {
                         cmd: prev.cmd,
+                        mesh: prev.mesh,
                         first_instance: prev.first_instance,
                         instance_count: prev.instance_count + 1,
                     })
@@ -148,6 +156,7 @@ impl ShapeRenderer {
             })
             .map(|cmd| InstancedDrawCommand {
                 cmd: cmd.cmd.clone(),
+                mesh: cmd.mesh.clone(),
                 first_instance: cmd.first_instance,
                 instance_count: cmd.instance_count,
             });
@@ -166,11 +175,11 @@ impl ShapeRenderer {
             render_pass.set_bind_group(1, &self.bind_group, &[]);
             render_pass.set_bind_group(2, &cmd.bind_group, &[]);
 
-            let first_index = cmd.mesh.ib().offset() as u32;
+            let first_index = instanced_cmd.mesh.ib().offset() as u32;
 
             render_pass.draw_indexed(
                 first_index..(first_index + cmd.index_count),
-                cmd.vertex_offset,
+                cmd.vertex_offset + instanced_cmd.mesh.vb().offset() as i32,
                 instanced_cmd.first_instance
                     ..(instanced_cmd.first_instance + instanced_cmd.instance_count),
             )

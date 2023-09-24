@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use flax::{component, Debuggable};
 
 use crate::{
@@ -22,7 +24,7 @@ component! {
     /// Renderer specific data for drawing a shape
     pub(crate) draw_cmd: DrawCommand => [ Debuggable ],
 
-    pub(crate) mesh_handle: MeshHandle => [ Debuggable ],
+    pub(crate) mesh_handle: Arc<MeshHandle> => [ Debuggable ],
 
     pub model_matrix: glam::Mat4 => [ ],
 }

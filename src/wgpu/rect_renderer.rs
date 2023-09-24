@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -16,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    components::{draw_cmd, model_matrix},
+    components::{draw_cmd, mesh_handle, model_matrix},
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
@@ -59,7 +61,7 @@ pub struct RectRenderer {
 
     bind_groups: HandleMap<DynamicImage, Handle<BindGroup>>,
 
-    mesh: MeshHandle,
+    mesh: Arc<MeshHandle>,
 
     shader: Handle<Shader>,
 }
@@ -102,7 +104,7 @@ impl RectRenderer {
 
         let indices = [0, 1, 2, 2, 3, 0];
 
-        let mesh = ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices);
+        let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
 
         let shader = frame.assets.insert(Shader::new(
             &ctx.gpu,
@@ -146,11 +148,10 @@ impl RectRenderer {
                     frame.assets.insert(bind_group)
                 });
 
-                cmd.set(
+                cmd.set(id, mesh_handle(), self.mesh.clone()).set(
                     id,
                     draw_cmd(),
                     DrawCommand {
-                        mesh: self.mesh,
                         bind_group: bind_group.clone(),
                         shader: self.shader.clone(),
                         index_count: 6,

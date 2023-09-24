@@ -4,6 +4,7 @@ use crate::{
     assets::AssetCache,
     effect::Effect,
     executor::{Spawner, TaskHandle},
+    scope::ScopedEffect,
     Scope, Widget,
 };
 
@@ -11,6 +12,7 @@ pub struct Frame {
     pub world: World,
     pub spawner: Spawner<Self>,
     pub assets: AssetCache,
+    pub delta_time: f32,
 }
 
 impl Frame {
@@ -33,6 +35,15 @@ impl Frame {
     #[inline]
     pub fn spawn(&self, effect: impl 'static + Effect<Frame>) -> TaskHandle {
         self.spawner.spawn(effect)
+    }
+
+    #[inline]
+    pub fn spawn_scoped(
+        &self,
+        id: Entity,
+        effect: impl 'static + for<'x> Effect<Scope<'x>>,
+    ) -> TaskHandle {
+        self.spawner.spawn(ScopedEffect { id, effect })
     }
 
     /// Scope the frame to a particular *existing* entity

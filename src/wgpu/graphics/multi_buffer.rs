@@ -9,14 +9,13 @@ use super::{
 };
 
 pub struct SubBuffer<T> {
-    len: usize,
     block: Allocation,
     _marker: PhantomData<T>,
 }
 
 impl<T> SubBuffer<T> {
-    pub fn len(&self) -> usize {
-        self.len
+    pub fn size(&self) -> usize {
+        self.block.size()
     }
 
     pub fn offset(&self) -> usize {
@@ -86,8 +85,7 @@ where
 
     pub fn allocate(&mut self, len: usize) -> Option<SubBuffer<T>> {
         Some(SubBuffer {
-            len,
-            block: self.allocator.allocate(len.next_power_of_two())?,
+            block: self.allocator.allocate(len)?,
             _marker: PhantomData,
         })
     }
@@ -97,9 +95,8 @@ where
         sub_buffer: SubBuffer<T>,
         new_len: usize,
     ) -> Option<SubBuffer<T>> {
-        if sub_buffer.block.size() >= new_len {
+        if sub_buffer.block.size() == new_len {
             Some(SubBuffer {
-                len: new_len,
                 block: sub_buffer.block,
                 _marker: PhantomData,
             })
@@ -116,15 +113,15 @@ where
 
     pub fn get(&self, sub_buffer: &SubBuffer<T>) -> BufferSlice {
         self.buffer
-            .slice(sub_buffer.offset()..sub_buffer.offset() + sub_buffer.len())
+            .slice(sub_buffer.offset()..sub_buffer.offset() + sub_buffer.size())
     }
 
     pub fn write(&self, queue: &Queue, allocation: &SubBuffer<T>, data: &[T]) {
         assert!(
-            data.len() <= allocation.len,
+            data.len() <= allocation.size(),
             "write exceeds allocation {} > {}",
             data.len(),
-            allocation.len
+            allocation.size()
         );
 
         self.buffer.write(queue, allocation.block.start(), data);

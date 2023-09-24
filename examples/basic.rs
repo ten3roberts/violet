@@ -1,26 +1,30 @@
 use anyhow::Context;
 use flax::name;
 use futures::StreamExt;
+use futures_signals::signal::{Mutable, SignalExt};
 use glam::{vec2, Vec2};
 use image::DynamicImage;
-use palette::{named::WHITE, Hsla, IntoColor, Srgba};
+use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, font_size, layout, padding, size, text, Edges},
-    input::{focus_sticky, on_focus, on_mouse_input},
+    components::{self, color, filled_rect, font_size, layout, size, text, Edges},
+    input::{on_focus, on_mouse_input},
     layout::{CrossAlign, Direction, Layout},
     shapes::FilledRect,
     style::StyleExt,
     time::interval,
     unit::Unit,
     wgpu::{components::font_from_file, font::FontFromFile},
+    widget::SignalWidget,
     App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
 use winit::event::ElementState;
 
 struct MainApp;
+
+const MARGIN: Edges = Edges::even(10.0);
 
 struct Sized<W> {
     min_size: Unit<Vec2>,
@@ -198,14 +202,14 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
     }
 }
 
-struct Counter;
+struct Ticker;
 
-impl Widget for Counter {
+impl Widget for Ticker {
     fn mount(self, scope: &mut Scope) {
         scope.spawn(StreamEffect::new(
-            interval(Duration::from_millis(500)).enumerate(),
+            interval(Duration::from_millis(50)).enumerate(),
             move |scope: &mut Scope, (i, _)| {
-                scope.set(text(), format!("Counter: {:#?}", i));
+                scope.set(text(), format!("Tick: {:#?}", i % 64));
             },
         ));
 
@@ -221,8 +225,41 @@ impl Widget for Counter {
     }
 }
 
+struct Counter {}
+
+impl Widget for Counter {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let count = Mutable::new(0);
+
+        List::new((
+            SignalWidget::new(
+                count
+                    .signal()
+                    .map(|count| Text::new(format!("Count: {}", count))),
+            )
+            .with_margin(MARGIN),
+            Sized::new(Button {
+                normal_color: Hsla::new(200.0, 0.5, 0.5, 1.0).into_color(),
+                pressed_color: Hsla::new(200.0, 0.5, 0.2, 1.0).into_color(),
+                on_click: Box::new(move |_, _| {
+                    *count.lock_mut() += 1;
+                }),
+            })
+            .with_min_size(Unit::px(vec2(100.0, 50.0)))
+            .with_size(Unit::px(vec2(100.0, 50.0))),
+        ))
+        .mount(scope);
+    }
+}
+
 struct Text {
     text: String,
+}
+
+impl Text {
+    fn new(text: impl Into<String>) -> Self {
+        Self { text: text.into() }
+    }
 }
 
 impl Widget for Text {
@@ -388,23 +425,24 @@ impl Widget for MainApp {
             })
             .with_min_size(Unit::px(vec2(100.0, 100.0)))
             .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0)))
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
+            Counter {}.with_margin(MARGIN),
             Sized::new(Rectangle {
                 color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
             })
             .with_size(Unit::px(vec2(100.0, 50.0)))
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
             })
             .with_size(Unit::px(vec2(0.0, 60.0)) + Unit::rel(vec2(0.2, 0.0)))
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
             Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
             })
             .with_min_size(Unit::px(vec2(50.0, 100.0)))
             .with_size(Unit::px(vec2(50.0, 0.0)) + Unit::rel(vec2(0.0, 0.2)))
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
         ))
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
@@ -435,44 +473,44 @@ impl Widget for MainApp {
         .with_cross_align(CrossAlign::End);
 
         let list2 = List::new((
-            Counter.with_margin(Edges::even(10.0)),
+            Ticker.with_margin(MARGIN),
             // (Sized::new(Rectangle {
             //     color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
             // })
             // .with_size(Unit::px(vec2(100.0, 50.0)))),
             List::new([list3])
                 .with_background_color(Hsla::new(190.0, 0.048, 0.2, 1.0).into_color())
-                .with_padding(Edges::even(10.0)),
+                .with_padding(MARGIN),
             Text {
                 text: "Hello There!".into(),
             }
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
             Text {
                 text: "General Kenobi".into(),
             }
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
             Sized::new(Rectangle {
                 color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
             })
             .with_min_size(Unit::px(vec2(20.0, 60.0)))
             .with_size(Unit::px(vec2(200.0, 60.0)))
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
             Sized::new(Rectangle {
                 color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
             })
             .with_size(Unit::px(vec2(50.0, 50.0)))
-            .with_margin(Edges::even(10.0)),
+            .with_margin(MARGIN),
         ))
         .with_cross_align(CrossAlign::Center)
         .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
-        let list3 = List::new((Sized::new(ShowWorld).with_size(Unit::px(vec2(200.0, 0.0))),))
-            .with_cross_align(CrossAlign::Stretch)
-            .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
+        // let list3 = List::new((Sized::new(ShowWorld).with_size(Unit::px(vec2(200.0, 0.0))),))
+        //     .with_cross_align(CrossAlign::Stretch)
+        //     .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
         scope.attach(
             List::new((
-                list3,
+                // list3,
                 List::new((list1, list2))
                     .with_cross_align(CrossAlign::Stretch)
                     .with_direction(Direction::Vertical)

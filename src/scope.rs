@@ -129,6 +129,22 @@ impl<'a> Scope<'a> {
         id
     }
 
+    /// Detaches a child from the current scope
+    pub fn detach(&mut self, id: Entity) {
+        assert!(
+            self.frame.world.has(id, child_of(self.id)),
+            "Attempt to despawn a widget {id} that is not a child of the current scope {}",
+            self.id
+        );
+
+        self.entity_mut()
+            .get_mut(children())
+            .unwrap()
+            .retain(|&x| x != id);
+
+        self.frame.world.despawn_recursive(id, child_of).unwrap();
+    }
+
     /// Spawns an effect scoped to the lifetime of this entity and scope
     pub fn spawn(&mut self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
         self.frame.spawn(ScopedEffect {
@@ -162,10 +178,10 @@ impl Drop for Scope<'_> {
 }
 
 #[pin_project]
-struct ScopedEffect<E> {
-    id: Entity,
+pub(crate) struct ScopedEffect<E> {
+    pub(crate) id: Entity,
     #[pin]
-    effect: E,
+    pub(crate) effect: E,
 }
 
 impl<E: for<'x> Effect<Scope<'x>>> Effect<Frame> for ScopedEffect<E> {

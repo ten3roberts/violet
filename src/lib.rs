@@ -8,12 +8,12 @@ pub mod input;
 pub mod layout;
 mod scope;
 pub mod shapes;
+pub mod style;
 pub mod systems;
 pub mod time;
 pub mod unit;
 pub mod wgpu;
-mod widget;
-pub mod style;
+pub mod widget;
 
 pub use app::App;
 pub use effect::{FutureEffect, StreamEffect};

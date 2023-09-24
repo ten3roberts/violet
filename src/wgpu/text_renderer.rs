@@ -1,4 +1,7 @@
-use std::collections::{btree_map, BTreeMap};
+use std::{
+    collections::{btree_map, BTreeMap},
+    sync::Arc,
+};
 
 use flax::{
     entity_ids,
@@ -12,7 +15,7 @@ use itertools::Itertools;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{map::HandleMap, AssetCache, Handle},
+    assets::{AssetCache, Handle},
     components::{font_size, intrinsic_size, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
@@ -25,7 +28,7 @@ use crate::{
 use super::{
     components::{draw_cmd, font, mesh_handle, model_matrix},
     font::Font,
-    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Mesh, Shader, Vertex, VertexDesc},
+    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
     Gpu,
@@ -70,8 +73,7 @@ impl FontRasterizer {
         match self.rasterized.entry((font, px as u32)) {
             btree_map::Entry::Vacant(slot) => {
                 let font = &slot.key().0;
-                let atlas =
-                    FontAtlas::new(assets, &ctx.gpu, &font, px as f32, text.chars()).unwrap();
+                let atlas = FontAtlas::new(assets, &ctx.gpu, font, px, text.chars()).unwrap();
 
                 let bind_group = assets.insert(
                     BindGroupBuilder::new("TextRenderer::bind_group")
@@ -82,13 +84,27 @@ impl FontRasterizer {
 
                 &*slot.insert(RasterizedFont { atlas, bind_group })
             }
-            btree_map::Entry::Occupied(slot) => {
-                let font = &slot.key().0;
+            btree_map::Entry::Occupied(mut slot) => {
+                let font = slot.key().0.clone();
 
-                let rasterized = slot.get();
+                let rasterized = slot.get_mut();
 
                 if !text.chars().all(|c| rasterized.atlas.contains_char(c)) {
-                    let atlas = FontAtlas::new(assets, &ctx.gpu, &font, px, text.chars()).unwrap();
+                    let missing = text
+                        .chars()
+                        .filter(|&c| !rasterized.atlas.contains_char(c))
+                        .sorted();
+
+                    tracing::info!(
+                        missing = ?missing.collect_vec(),
+                        "Atlas missing characters, re-rasterizing"
+                    );
+
+                    let mut chars = std::mem::take(&mut rasterized.atlas.chars);
+
+                    chars.extend(text.chars());
+
+                    let atlas = FontAtlas::new(assets, &ctx.gpu, &font, px, chars).unwrap();
 
                     let bind_group = assets.insert(
                         BindGroupBuilder::new("TextRenderer::bind_group")
@@ -166,8 +182,8 @@ impl MeshGenerator {
         font_size: f32,
         layout: Layout,
         text: &str,
-        mesh: &mut MeshHandle,
-    ) -> &RasterizedFont {
+        mesh: &mut Arc<MeshHandle>,
+    ) -> (&RasterizedFont, u32) {
         let rasterized = self
             .rasterizer
             .get(ctx, assets, font.clone(), font_size, text);
@@ -214,12 +230,14 @@ impl MeshGenerator {
             .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
             .collect_vec();
 
-        ctx.mesh_buffer
-            .reallocate(&ctx.gpu, mesh, vertices.len(), indices.len());
+        if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
+            ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
+        } else {
+            tracing::info!(?glyph_count, "Allocating new mesh for text");
+            *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
+        }
 
-        ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
-
-        rasterized
+        (rasterized, indices.len() as u32)
     }
 }
 
@@ -230,7 +248,7 @@ pub struct TextMeshQuery {
     #[fetch(ignore)]
     id: EntityIds,
     #[fetch(ignore)]
-    mesh: Opt<Mutable<MeshHandle>>,
+    mesh: Opt<Mutable<Arc<MeshHandle>>>,
 
     rect: Component<Rect>,
     intrinsic_size: Component<Vec2>,
@@ -330,7 +348,7 @@ impl TextRenderer {
 
             // Update intrinsic sizes
 
-            tracing::info!(?item.id, ?item.rect, "text rect");
+            // tracing::info!(?item.id, ?item.rect, "text rect");
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
 
             let rect = item.rect.align_to_grid();
@@ -365,43 +383,37 @@ impl TextRenderer {
                 },
             );
 
-            let mut new_mesh = match item.mesh {
-                Some(&mut v) => v,
-                None => {
-                    let mesh = ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0);
-                    cmd.set(item.id, mesh_handle(), mesh);
-                    mesh
-                }
+            let mut new_mesh = None;
+
+            let mesh = match item.mesh {
+                Some(v) => v,
+                None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
             };
 
-            let rasterized = self.mesh_generator.update_mesh(
+            let (rasterized, index_count) = self.mesh_generator.update_mesh(
                 ctx,
                 &frame.assets,
                 item.font,
                 *item.font_size,
                 layout,
                 item.text,
-                &mut new_mesh,
+                mesh,
             );
-
-            match item.mesh {
-                Some(v) => *v = new_mesh,
-                None => {
-                    cmd.set(item.id, mesh_handle(), new_mesh);
-                }
-            }
 
             cmd.set(
                 item.id,
                 draw_cmd(),
                 DrawCommand {
-                    mesh: new_mesh,
                     bind_group: rasterized.bind_group.clone(),
                     shader: self.mesh_generator.shader.clone(),
-                    index_count: new_mesh.ib().len() as u32,
-                    vertex_offset: new_mesh.vb().offset() as i32,
+                    index_count,
+                    vertex_offset: 0,
                 },
             );
+
+            if let Some(v) = new_mesh {
+                cmd.set(item.id, mesh_handle(), v);
+            }
         });
 
         cmd.apply(&mut frame.world).unwrap();

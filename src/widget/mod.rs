@@ -1,4 +1,7 @@
 use crate::Scope;
+mod future;
+
+pub use future::{SignalWidget, StreamWidget};
 
 /// Represents a widget in the UI tree which can mount itself into the frame.
 ///

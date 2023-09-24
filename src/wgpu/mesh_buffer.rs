@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use wgpu::{BufferUsages, RenderPass};
 
 use super::{
@@ -8,17 +10,37 @@ use super::{
     Gpu,
 };
 
+pub struct MeshBufferInner {}
+
 pub struct MeshBuffer {
+    next_id: u64,
     label: String,
     pub vertex_buffers: MultiBuffer<Vertex>,
     pub index_buffers: MultiBuffer<u32>,
+    dropped: Arc<Mutex<Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>>>,
 }
 
 /// Handle to an allocation within a mesh
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct MeshHandle {
+    id: u64,
     vb: SubBuffer<Vertex>,
     ib: SubBuffer<u32>,
+    on_drop: Arc<Mutex<Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>>>,
+}
+
+impl std::hash::Hash for MeshHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl Eq for MeshHandle {}
+
+impl PartialEq for MeshHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 impl MeshHandle {
@@ -28,6 +50,12 @@ impl MeshHandle {
 
     pub fn ib(&self) -> SubBuffer<u32> {
         self.ib
+    }
+}
+
+impl Drop for MeshHandle {
+    fn drop(&mut self) {
+        self.on_drop.lock().unwrap().push((self.vb, self.ib));
     }
 }
 
@@ -52,11 +80,34 @@ impl MeshBuffer {
             label,
             vertex_buffers: vertex_buffer,
             index_buffers: index_buffer,
+            dropped: Arc::default(),
+            next_id: 0,
+        }
+    }
+
+    fn reclaim(&mut self) {
+        for (vb, ib) in self.dropped.lock().unwrap().drain(..) {
+            tracing::debug!(?vb, ?ib, "reclaim");
+            self.vertex_buffers.deallocate(vb);
+            self.index_buffers.deallocate(ib);
         }
     }
 
     /// Allocate a mesh in the buffer
     pub fn allocate(&mut self, gpu: &Gpu, vertex_count: usize, index_count: usize) -> MeshHandle {
+        self.allocate_exact(
+            gpu,
+            vertex_count.next_power_of_two(),
+            index_count.next_power_of_two(),
+        )
+    }
+    pub fn allocate_exact(
+        &mut self,
+        gpu: &Gpu,
+        vertex_count: usize,
+        index_count: usize,
+    ) -> MeshHandle {
+        self.reclaim();
         tracing::debug!("Allocating {vertex_count} {index_count}");
         let vb = match self.vertex_buffers.allocate(vertex_count) {
             Some(v) => v,
@@ -74,7 +125,15 @@ impl MeshBuffer {
             }
         };
 
-        MeshHandle { vb, ib }
+        let next_id = self.next_id;
+        self.next_id += 1;
+
+        MeshHandle {
+            id: next_id,
+            vb,
+            ib,
+            on_drop: self.dropped.clone(),
+        }
     }
 
     pub fn insert(&mut self, gpu: &Gpu, vertices: &[Vertex], indices: &[u32]) -> MeshHandle {
@@ -95,6 +154,12 @@ impl MeshBuffer {
         vertex_count: usize,
         index_count: usize,
     ) {
+        if handle.vb.size() >= vertex_count && handle.ib.size() >= index_count {
+            panic!("");
+            return;
+        }
+
+        self.reclaim();
         handle.vb = match self.vertex_buffers.try_reallocate(handle.vb, vertex_count) {
             Some(v) => v,
             None => {
@@ -110,11 +175,6 @@ impl MeshBuffer {
                 self.index_buffers.allocate(index_count).unwrap()
             }
         };
-    }
-
-    pub(crate) fn deallocate(&mut self, gpu: &Gpu, handle: &MeshHandle) {
-        self.vertex_buffers.deallocate(handle.vb);
-        self.index_buffers.deallocate(handle.ib);
     }
 
     pub fn write(&mut self, gpu: &Gpu, handle: &MeshHandle, vertices: &[Vertex], indices: &[u32]) {

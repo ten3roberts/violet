@@ -28,10 +28,10 @@ pub fn load_fonts_system(assets: AssetCache) -> BoxedSystem {
 pub fn update_text_heuristics() -> BoxedSystem {
     System::builder()
         .with_query(Query::new((
-            (name(), font(), text(), font_size().opt_or(11.0)).modified(),
+            (font(), text(), font_size().opt_or(11.0)).modified(),
             intrinsic_size().as_mut(),
         )))
-        .for_each(|((name, font, text, font_size), instrinsic_size)| {
+        .for_each(|((font, text, font_size), instrinsic_size)| {
             // Update intrinsic sizes
 
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
@@ -66,7 +66,6 @@ pub fn update_text_heuristics() -> BoxedSystem {
 
             let size = max;
 
-            tracing::debug!(?name, ?size, "text size");
             *instrinsic_size = size;
         })
         .boxed()

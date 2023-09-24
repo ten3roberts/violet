@@ -174,31 +174,35 @@ impl<Data> Executor<Data> {
     }
 
     pub fn tick(&mut self, data: &mut Data) {
-        {
-            assert!(self.processing.is_empty());
-            core::mem::swap(&mut *self.shared.ready.lock(), &mut self.processing);
-        }
+        assert!(self.processing.is_empty());
+        loop {
+            // Add new tasks
+            self.processing
+                .extend(self.incoming.borrow_mut().drain(..).map(|task| {
+                    self.tasks.insert_with_key(|id| {
+                        let waker = waker(Arc::new(TaskWaker {
+                            id,
+                            shared: self.shared.clone(),
+                        }));
 
-        // Add new tasks
-        self.processing
-            .extend(self.incoming.borrow_mut().drain(..).map(|task| {
-                self.tasks.insert_with_key(|id| {
-                    let waker = waker(Arc::new(TaskWaker {
-                        id,
-                        shared: self.shared.clone(),
-                    }));
+                        (task, waker)
+                    })
+                }));
 
-                    (task, waker)
-                })
-            }));
+            self.processing.append(&mut self.shared.ready.lock());
 
-        for id in self.processing.drain(..) {
-            let (task, waker) = self.tasks.get_mut(id).unwrap();
-            let mut context = Context::from_waker(&*waker);
-            tracing::trace!(?id, "Polling task");
+            if self.processing.is_empty() {
+                break;
+            }
 
-            if task.poll(&mut context, data).is_ready() {
-                self.tasks.remove(id);
+            for id in self.processing.drain(..) {
+                let (task, waker) = self.tasks.get_mut(id).unwrap();
+                let mut context = Context::from_waker(&*waker);
+                tracing::trace!(?id, "Polling task");
+
+                if task.poll(&mut context, data).is_ready() {
+                    self.tasks.remove(id);
+                }
             }
         }
     }

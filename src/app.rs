@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use flax::{name, Schedule, World};
 use glam::{vec2, Vec2};
 use winit::{
@@ -61,6 +63,7 @@ impl App {
             world,
             spawner,
             assets: AssetCache::new(),
+            delta_time: 0.0,
         };
 
         let event_loop = EventLoopBuilder::new().build();
@@ -85,13 +88,27 @@ impl App {
         let mut schedule = Schedule::new()
             .with_system(templating_system(root))
             .flush()
+            .with_system(load_fonts_system(frame.assets.clone()))
+            .flush()
             .with_system(update_text_heuristics())
             .with_system(layout_system())
-            .with_system(transform_system())
-            .with_system(load_fonts_system(frame.assets.clone()));
+            .with_system(transform_system());
+
+        let mut cur_time = Instant::now();
 
         event_loop.run(move |event, _, ctl| match event {
             Event::MainEventsCleared => {
+                let new_time = Instant::now();
+
+                let dt = new_time.duration_since(cur_time);
+                let delta_time = dt.as_secs_f32();
+
+                cur_time = new_time;
+
+                frame.delta_time = delta_time;
+
+                tracing::info!(?dt, fps = 1.0 / delta_time);
+
                 ex.tick(&mut frame);
 
                 schedule.execute_seq(&mut frame.world).unwrap();
@@ -102,7 +119,7 @@ impl App {
                 }
             }
             Event::RedrawRequested(_) => {
-                tracing::trace!("Redraw requested");
+                tracing::info!("Redraw requested");
                 if let Err(err) = window_renderer.draw(&mut frame) {
                     tracing::error!("Failed to draw to window: {err:?}");
                     *ctl = ControlFlow::Exit
