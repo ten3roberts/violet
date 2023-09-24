@@ -106,6 +106,13 @@ pub struct Rect {
 }
 
 impl Rect {
+    pub fn merge(self, other: Self) -> Self {
+        Self {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+        }
+    }
+
     pub fn from_two_points(a: Vec2, b: Vec2) -> Self {
         Self {
             min: a.min(b),

@@ -9,23 +9,33 @@ use crate::{
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
+    /// Margin of the last widget to be merged before the next
     pending_margin: f32,
     start: Vec2,
-    cursor: Vec2,
+    pos: f32,
+    /// Cross axis cursor
+    cross_pos: f32,
     line_height: f32,
     axis: Vec2,
     cross_axis: Vec2,
+    start_margin: f32,
+    end_margin: f32,
 }
 
 impl MarginCursor {
     fn new(start: Vec2, axis: Vec2, cross_axis: Vec2) -> Self {
         Self {
-            pending_margin: 0.0,
+            // Setting this to -inf will cause the marging to leak out of the container. This would
+            // be akin to having no back support for the widget to be placed against.
+            pending_margin: f32::MIN,
             start,
-            cursor: start,
+            pos: start.dot(axis),
+            cross_pos: start.dot(cross_axis),
             line_height: 0.0,
             axis,
             cross_axis,
+            start_margin: 0.0,
+            end_margin: 0.0,
         }
     }
 
@@ -37,32 +47,41 @@ impl MarginCursor {
             + back_margin.min(0.0))
         .max(0.0);
 
+        if back_margin - self.pos < 0.0 {
+            tracing::info!("Leaks");
+            self.start_margin = self.start_margin.max(self.pos - back_margin);
+        }
+
         self.pending_margin = front_margin;
 
-        self.cursor += advance * self.axis + block.rect.support(-self.axis) * self.axis;
+        self.pos += advance + block.rect.support(-self.axis);
 
         let (start_margin, end_margin) = block.margin.in_axis(self.cross_axis);
-        let pos = self.cursor + start_margin * self.cross_axis;
+        let placement_pos = self.pos * self.axis + start_margin * self.cross_axis;
 
         let extent = block.rect.support(self.axis);
 
-        self.cursor += extent * self.axis;
+        self.pos += extent;
 
         self.line_height = self
             .line_height
             .max(block.rect.size().dot(self.cross_axis) + start_margin + end_margin);
 
-        pos
+        placement_pos
     }
 
+    /// Finishes the current line and moves the cursor to the next
     fn finish(&mut self) -> Rect {
-        self.cursor += self.line_height * self.cross_axis;
-        self.cursor += self.pending_margin * self.axis;
+        self.cross_pos += self.line_height;
+        // self.pos += self.pending_margin;
 
         self.pending_margin = 0.0;
 
-        let line = Rect::from_two_points(self.start, self.cursor);
-        self.start = self.start * self.axis + self.cursor + self.cross_axis;
+        let line = Rect::from_two_points(
+            self.start,
+            self.pos * self.axis + self.cross_pos * self.cross_axis,
+        );
+        // self.start = self.start * self.axis + self.cursor + self.cross_axis;
 
         line
     }
@@ -314,7 +333,30 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
-        todo!()
+        let mut inner_min = Rect {
+            min: Vec2::ZERO,
+            max: Vec2::ZERO,
+        };
+        let mut inner_preferred = Rect {
+            min: Vec2::ZERO,
+            max: Vec2::ZERO,
+        };
+
+        for &child in &*children {
+            let entity = world.entity(child).expect("Invalid child");
+
+            // let local_rect = widget_outer_bounds(world, &child, size);
+            let query = query_size(world, &entity, content_area);
+
+            inner_min = inner_min.merge(query.min);
+            inner_preferred = inner_preferred.merge(query.preferred);
+        }
+
+        SizeQuery {
+            min: inner_min.pad(&padding),
+            preferred: inner_preferred.pad(&padding),
+            margin,
+        }
     } else {
         let (min_size, preferred_size) = resolve_size(entity, content_area);
 

@@ -1,7 +1,9 @@
 use flax::{Component, ComponentValue};
+use glam::Vec2;
 
 use crate::{
     components::{self, Edges},
+    unit::Unit,
     Widget,
 };
 
@@ -11,6 +13,14 @@ pub trait StyleExt {
         Self: Sized;
 
     fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges>
+    where
+        Self: Sized;
+
+    fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
+    where
+        Self: Sized;
+
+    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
         Self: Sized;
 }
@@ -52,5 +62,15 @@ where
     #[inline]
     fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges> {
         WithComponent::new(self, components::padding(), padding)
+    }
+
+    #[inline]
+    fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
+        WithComponent::new(self, components::size(), size)
+    }
+
+    #[inline]
+    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
+        WithComponent::new(self, components::min_size(), min_size)
     }
 }
