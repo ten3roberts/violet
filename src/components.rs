@@ -42,8 +42,12 @@ component! {
 
     /// Spacing between a outer and inner bounds
     pub padding: Edges => [ Debuggable ],
+    /// Spacing between the item outer bounds and another items outer bounds
+    ///
+    /// Margins will be merged
+    ///
+    /// A margin is in essence a minimum allowed distance to another items bounds
     pub margin: Edges => [ Debuggable ],
-
 
     pub text: String => [ ],
     pub font_size: f32 => [ Debuggable ],
@@ -56,12 +60,60 @@ component! {
 }
 
 /// Spacing between a outer and inner bounds
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Edges {
     pub left: f32,
     pub right: f32,
     pub top: f32,
     pub bottom: f32,
+}
+
+impl std::ops::Sub for Edges {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            left: self.left - rhs.left,
+            right: self.right - rhs.right,
+            top: self.top - rhs.top,
+            bottom: self.bottom - rhs.bottom,
+        }
+    }
+}
+
+impl std::ops::SubAssign for Edges {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.left -= rhs.left;
+        self.right -= rhs.right;
+        self.top -= rhs.top;
+        self.bottom -= rhs.bottom;
+    }
+}
+
+impl std::ops::Add for Edges {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            left: self.left + rhs.left,
+            right: self.right + rhs.right,
+            top: self.top + rhs.top,
+            bottom: self.bottom + rhs.bottom,
+        }
+    }
+}
+
+impl std::ops::Mul<f32> for Edges {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            left: self.left * rhs,
+            right: self.right * rhs,
+            top: self.top * rhs,
+            bottom: self.bottom * rhs,
+        }
+    }
 }
 
 impl Edges {
@@ -95,6 +147,24 @@ impl Edges {
         let back_margin = -pos.min(neg);
 
         (front_margin, back_margin)
+    }
+
+    pub(crate) fn merge(&self, other: Self) -> Self {
+        Self {
+            left: self.left.max(other.left),
+            right: self.right.max(other.right),
+            top: self.top.max(other.top),
+            bottom: self.bottom.max(other.bottom),
+        }
+    }
+
+    pub(crate) fn max(&self, value: f32) -> Self {
+        Self {
+            left: self.left.max(value),
+            right: self.right.max(value),
+            top: self.top.max(value),
+            bottom: self.bottom.max(value),
+        }
     }
 }
 
@@ -167,8 +237,24 @@ impl Rect {
         vec2(x, y).dot(axis)
     }
 
-    pub(crate) fn clamp(&self, min: Vec2, max: Vec2) -> Self {
+    pub(crate) fn clamp_size(&self, min: Vec2, max: Vec2) -> Self {
         let size = self.size().clamp(min, max);
+        Self {
+            min: self.min,
+            max: self.min + size,
+        }
+    }
+
+    pub(crate) fn min_size(&self, size: Vec2) -> Self {
+        let size = self.size().min(size);
+        Self {
+            min: self.min,
+            max: self.min + size,
+        }
+    }
+
+    pub(crate) fn max_size(&self, size: Vec2) -> Self {
+        let size = self.size().max(size);
         Self {
             min: self.min,
             max: self.min + size,

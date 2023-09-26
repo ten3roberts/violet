@@ -344,6 +344,11 @@ impl<W: WidgetCollection> List<W> {
         self.background_color = Some(background_color);
         self
     }
+
+    pub fn contain_margins(mut self, enable: bool) -> Self {
+        self.layout.contain_margins = enable;
+        self
+    }
 }
 
 impl<W: WidgetCollection> Widget for List<W> {
@@ -392,17 +397,17 @@ impl Widget for MainApp {
         //     color: palette::named::BLUEVIOLET.into_format().with_alpha(1.0),
         // });
 
-        scope.attach(
-            Positioned::new(
-                Sized::new(Rectangle {
-                    color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
-                })
-                .with_size(Unit::px(vec2(100.0, 0.0)) + Unit::rel(vec2(0.0, 1.0))),
-            )
-            .with_offset(Unit::rel(vec2(1.0, 0.0)))
-            // TODO: parent anchor
-            .with_anchor(Unit::rel(vec2(1.0, 0.0))),
-        );
+        // scope.attach(
+        //     Positioned::new(
+        //         Sized::new(Rectangle {
+        //             color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
+        //         })
+        //         .with_size(Unit::px(vec2(100.0, 0.0)) + Unit::rel(vec2(0.0, 1.0))),
+        //     )
+        //     .with_offset(Unit::rel(vec2(1.0, 0.0)))
+        //     // TODO: parent anchor
+        //     .with_anchor(Unit::rel(vec2(1.0, 0.0))),
+        // );
 
         // scope.spawn(FutureEffect::new(
         //     sleep(Duration::from_secs(2)),
@@ -520,7 +525,27 @@ impl Widget for MainApp {
         //     .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
         scope.attach(
-            LayoutTest,
+            List::new((
+                LayoutTest {
+                    contain_margins: false,
+                },
+                LayoutTest {
+                    contain_margins: false,
+                },
+                LayoutTest {
+                    contain_margins: true,
+                },
+                LayoutTest {
+                    contain_margins: true,
+                },
+                LayoutTest {
+                    contain_margins: false,
+                },
+                Text::new("Hello, World!"),
+            ))
+            .contain_margins(true)
+            .with_direction(Direction::Vertical)
+            .with_padding(Edges::even(0.0)),
             // List::new((
             //     // list3,
             //     List::new((list1, list2))
@@ -534,8 +559,6 @@ impl Widget for MainApp {
         );
     }
 }
-
-struct LayoutTest;
 
 #[derive(Debug, serde::Deserialize)]
 struct ColorPalette {
@@ -669,6 +692,10 @@ macro_rules! srgba {
     }};
 }
 
+struct LayoutTest {
+    contain_margins: bool,
+}
+
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
         const EERIE_BLACK: Srgba = srgba!("#222525");
@@ -680,25 +707,44 @@ impl Widget for LayoutTest {
         const BRONZE: Srgba = srgba!("#cd7f32");
         const CHILI_RED: Srgba = srgba!("#d34131");
 
+        let row_2 = List::new((
+            Rectangle { color: BRONZE }
+                .with_margin(MARGIN)
+                .with_min_size(Unit::px(vec2(100.0, 50.0)))
+                .with_size(Unit::px(vec2(100.0, 50.0))),
+            Rectangle { color: EMERALD }
+                .with_margin(MARGIN)
+                .with_min_size(Unit::px(vec2(20.0, 50.0)))
+                .with_size(Unit::px(vec2(20.0, 50.0))),
+        ))
+        .contain_margins(self.contain_margins)
+        .with_background_color(EERIE_BLACK_300)
+        .with_margin(MARGIN);
+
         let row_1 = List::new((
             Rectangle { color: CHILI_RED }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(200.0, 50.0))),
+            row_2,
             Rectangle { color: TEAL }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 50.0))),
             Rectangle { color: EMERALD }
                 .with_margin(MARGIN)
-                .with_size(Unit::rel(vec2(0.5, 0.1))),
+                .with_size(Unit::rel(vec2(0.2, 0.1))),
+            Rectangle { color: TEAL }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(50.0, 50.0))),
         ))
+        .contain_margins(self.contain_margins)
         .with_background_color(EERIE_BLACK)
         .with_margin(MARGIN);
 
-        let col_1 = List::new((row_1,)).with_background_color(EERIE_BLACK_300);
+        let col_1 = List::new((row_1,))
+            .contain_margins(self.contain_margins)
+            .with_background_color(EERIE_BLACK_300);
 
         col_1.mount(scope);
-        // let palette: ColorPalette = serde_json::from_str(include_str!("../colors.json")).unwrap();
-        // tracing::info!("Palette: {palette:#?}");
     }
 }
 

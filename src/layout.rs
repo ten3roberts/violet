@@ -12,30 +12,33 @@ struct MarginCursor {
     /// Margin of the last widget to be merged before the next
     pending_margin: f32,
     start: Vec2,
-    pos: f32,
-    /// Cross axis cursor
-    cross_pos: f32,
+    main_cursor: f32,
+    cross_cursor: f32,
+
     line_height: f32,
     axis: Vec2,
     cross_axis: Vec2,
-    start_margin: f32,
-    end_margin: f32,
+    main_margin: (f32, f32),
+    cross_margin: (f32, f32),
+    contain_margins: bool,
 }
 
 impl MarginCursor {
-    fn new(start: Vec2, axis: Vec2, cross_axis: Vec2) -> Self {
+    fn new(start: Vec2, axis: Vec2, cross_axis: Vec2, contain_margins: bool) -> Self {
         Self {
             // Setting this to -inf will cause the marging to leak out of the container. This would
             // be akin to having no back support for the widget to be placed against.
-            pending_margin: f32::MIN,
+            pending_margin: if contain_margins { 0.0 } else { f32::MIN },
             start,
-            pos: start.dot(axis),
-            cross_pos: start.dot(cross_axis),
+
+            main_cursor: start.dot(axis),
+            cross_cursor: start.dot(cross_axis),
             line_height: 0.0,
             axis,
             cross_axis,
-            start_margin: 0.0,
-            end_margin: 0.0,
+            main_margin: (0.0, 0.0),
+            cross_margin: (0.0, 0.0),
+            contain_margins,
         }
     }
 
@@ -47,43 +50,55 @@ impl MarginCursor {
             + back_margin.min(0.0))
         .max(0.0);
 
-        if back_margin - self.pos < 0.0 {
-            tracing::info!("Leaks");
-            self.start_margin = self.start_margin.max(self.pos - back_margin);
+        if self.main_cursor - back_margin < 0.0 {
+            self.main_margin.0 = self.main_margin.0.max(back_margin - self.main_cursor);
         }
 
         self.pending_margin = front_margin;
 
-        self.pos += advance + block.rect.support(-self.axis);
+        self.main_cursor += advance + block.rect.support(-self.axis);
 
         let (start_margin, end_margin) = block.margin.in_axis(self.cross_axis);
-        let placement_pos = self.pos * self.axis + start_margin * self.cross_axis;
+        let placement_pos;
+
+        if self.contain_margins {
+            placement_pos =
+                self.main_cursor * self.axis + (self.cross_cursor + start_margin) * self.cross_axis;
+
+            self.line_height = self
+                .line_height
+                .max(block.rect.size().dot(self.cross_axis) + start_margin + end_margin);
+        } else {
+            placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+
+            self.cross_margin.0 = self.cross_margin.0.max(start_margin);
+            self.cross_margin.1 = self.cross_margin.1.max(end_margin);
+            self.line_height = self.line_height.max(block.rect.size().dot(self.cross_axis));
+        }
 
         let extent = block.rect.support(self.axis);
 
-        self.pos += extent;
-
-        self.line_height = self
-            .line_height
-            .max(block.rect.size().dot(self.cross_axis) + start_margin + end_margin);
+        self.main_cursor += extent;
 
         placement_pos
     }
 
     /// Finishes the current line and moves the cursor to the next
     fn finish(&mut self) -> Rect {
-        self.cross_pos += self.line_height;
-        // self.pos += self.pending_margin;
+        self.cross_cursor += self.line_height;
+
+        self.main_margin.1 = self.main_margin.1.max(self.pending_margin);
+
+        if self.contain_margins {
+            self.main_cursor += self.pending_margin
+        }
 
         self.pending_margin = 0.0;
 
-        let line = Rect::from_two_points(
+        Rect::from_two_points(
             self.start,
-            self.pos * self.axis + self.cross_pos * self.cross_axis,
-        );
-        // self.start = self.start * self.axis + self.cursor + self.cross_axis;
-
-        line
+            self.main_cursor * self.axis + self.cross_cursor * self.cross_axis,
+        )
     }
 }
 
@@ -103,6 +118,15 @@ impl Direction {
             Direction::Vertical => (Vec2::Y, Vec2::X),
             Direction::HorizontalReverse => (-Vec2::X, Vec2::Y),
             Direction::VerticalReverse => (-Vec2::Y, Vec2::X),
+        }
+    }
+
+    fn to_edges(self, main: (f32, f32), cross: (f32, f32)) -> Edges {
+        match self {
+            Direction::Horizontal => Edges::new(main.0, main.1, cross.0, cross.1),
+            Direction::Vertical => Edges::new(cross.0, cross.1, main.0, main.1),
+            Direction::HorizontalReverse => Edges::new(main.1, main.0, cross.0, cross.1),
+            Direction::VerticalReverse => Edges::new(cross.1, cross.0, main.0, main.1),
         }
     }
 }
@@ -136,6 +160,7 @@ impl CrossAlign {
 pub struct Layout {
     pub cross_align: CrossAlign,
     pub direction: Direction,
+    pub contain_margins: bool,
 }
 
 impl Layout {
@@ -148,10 +173,10 @@ impl Layout {
         entity: &EntityRef,
         content_area: Rect,
         constraints: LayoutLimits,
-    ) -> Rect {
+    ) -> Block {
         let (axis, cross_axis) = self.direction.axis();
 
-        let (_, total_preferred_size, blocks) = self.query_size(world, entity, content_area);
+        let (_, total_preferred_size, _, blocks) = self.query_size(world, entity, content_area);
 
         // Size remaining if everything got at least its preferred size
         let total_preferred_size = total_preferred_size.size().dot(axis);
@@ -171,7 +196,7 @@ impl Layout {
         // The inner rect is position relative to the layouts parent
         let inner_rect = content_area;
 
-        let mut cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
+        let mut cursor = MarginCursor::new(inner_rect.min, axis, cross_axis, self.contain_margins);
 
         // Reset to local
         let content_area = Rect {
@@ -234,7 +259,7 @@ impl Layout {
             Direction::VerticalReverse => vec2(inner_rect.min.x, inner_rect.max.y),
         };
 
-        let mut cursor = MarginCursor::new(start, axis, cross_axis);
+        let mut cursor = MarginCursor::new(start, axis, cross_axis, self.contain_margins);
 
         for (entity, block) in blocks {
             // And move it all by the cursor position
@@ -250,7 +275,13 @@ impl Layout {
             entity.update_dedup(components::local_position(), pos);
         }
 
-        cursor.finish()
+        let rect = cursor.finish();
+
+        let margin = self
+            .direction
+            .to_edges(cursor.main_margin, cursor.cross_margin);
+
+        Block::new(rect, margin)
     }
 
     pub(crate) fn query_size<'a>(
@@ -258,7 +289,7 @@ impl Layout {
         world: &'a World,
         entity: &EntityRef,
         inner_rect: Rect,
-    ) -> (Rect, Rect, Vec<(EntityRef<'a>, SizeQuery)>) {
+    ) -> (Rect, Rect, Edges, Vec<(EntityRef<'a>, SizeQuery)>) {
         let children = entity.get(children()).ok();
         let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
 
@@ -270,8 +301,9 @@ impl Layout {
 
         let (axis, cross_axis) = self.direction.axis();
 
-        let mut min_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
-        let mut preferred_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis);
+        let mut min_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
+        let mut preferred_cursor =
+            MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
 
         // Reset to local
         let content_area = Rect {
@@ -293,7 +325,22 @@ impl Layout {
             })
             .collect_vec();
 
-        (min_cursor.finish(), preferred_cursor.finish(), blocks)
+        let min_margin = self
+            .direction
+            .to_edges(min_cursor.main_margin, min_cursor.cross_margin);
+
+        let preferred_margin = self
+            .direction
+            .to_edges(preferred_cursor.main_margin, preferred_cursor.cross_margin);
+
+        assert_eq!(min_margin, preferred_margin);
+
+        (
+            min_cursor.finish(),
+            preferred_cursor.finish(),
+            min_margin,
+            blocks,
+        )
     }
 }
 
@@ -323,12 +370,13 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        let (min, preferred, _) = layout.query_size(world, entity, content_area.inset(&padding));
+        let (min, preferred, inner_margin, _) =
+            layout.query_size(world, entity, content_area.inset(&padding));
 
         SizeQuery {
             min: min.pad(&padding),
             preferred: preferred.pad(&padding),
-            margin,
+            margin: margin.merge(inner_margin),
         }
     }
     // Stack
@@ -426,20 +474,22 @@ pub(crate) fn update_subtree(
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        let rect = layout
-            .apply(
-                world,
-                entity,
-                content_area.inset(&padding),
-                LayoutLimits {
-                    min: limits.min,
-                    max: limits.max - padding.size(),
-                },
-            )
-            .pad(&padding)
-            .clamp(limits.min, limits.max);
+        let mut block = layout.apply(
+            world,
+            entity,
+            content_area.inset(&padding),
+            LayoutLimits {
+                min: limits.min,
+                max: limits.max - padding.size(),
+            },
+        );
 
-        Block { rect, margin }
+        block.rect = block.rect.pad(&padding).max_size(limits.min);
+
+        // TODO: reduce margin?
+        block.margin = (block.margin - padding).max(0.0) + margin;
+
+        block
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
