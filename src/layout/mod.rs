@@ -1,3 +1,5 @@
+mod stack;
+
 use flax::{EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
@@ -6,6 +8,8 @@ use crate::{
     components::{self, children, intrinsic_size, layout, margin, padding, Edges, Rect},
     unit::Unit,
 };
+
+use self::stack::Stack;
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -344,6 +348,7 @@ impl Layout {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SizeQuery {
     min: Rect,
     preferred: Rect,
@@ -376,34 +381,17 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
         SizeQuery {
             min: min.pad(&padding),
             preferred: preferred.pad(&padding),
-            margin: margin.merge(inner_margin),
+            margin: margin.max(inner_margin),
         }
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
-        let mut inner_min = Rect {
-            min: Vec2::ZERO,
-            max: Vec2::ZERO,
-        };
-        let mut inner_preferred = Rect {
-            min: Vec2::ZERO,
-            max: Vec2::ZERO,
-        };
-
-        for &child in &*children {
-            let entity = world.entity(child).expect("Invalid child");
-
-            // let local_rect = widget_outer_bounds(world, &child, size);
-            let query = query_size(world, &entity, content_area);
-
-            inner_min = inner_min.merge(query.min);
-            inner_preferred = inner_preferred.merge(query.preferred);
-        }
+        let query = Stack {}.query_size(world, &children, content_area.inset(&padding));
 
         SizeQuery {
-            min: inner_min.pad(&padding),
-            preferred: inner_preferred.pad(&padding),
-            margin,
+            min: query.min.pad(&padding),
+            preferred: query.preferred.pad(&padding),
+            margin: query.margin.max(query.margin),
         }
     } else {
         let (min_size, preferred_size) = resolve_size(entity, content_area);
@@ -431,7 +419,7 @@ pub(crate) struct LayoutLimits {
 }
 
 /// A block is a rectangle and surrounding support such as margin
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct Block {
     pub(crate) rect: Rect,
     pub(crate) margin: Edges,
@@ -486,50 +474,51 @@ pub(crate) fn update_subtree(
 
         block.rect = block.rect.pad(&padding).max_size(limits.min);
 
-        // TODO: reduce margin?
-        block.margin = (block.margin - padding).max(0.0) + margin;
+        block.margin = (block.margin - padding).max(Edges::even(0.0)).max(margin);
 
         block
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
-        let total_bounds = Rect {
-            min: Vec2::ZERO,
-            max: Vec2::ONE,
-        };
+        let block = Stack {}.apply(world, &children, content_area.inset(&padding), limits);
 
-        for &child in &*children {
-            let entity = world.entity(child).unwrap();
-
-            // let local_rect = widget_outer_bounds(world, &entity, inner_rect.size());
-
-            assert_eq!(content_area.size(), limits.max);
-            let constraints = LayoutLimits {
-                min: Vec2::ZERO,
-                max: limits.max - padding.size(),
-            };
-
-            // We ask ourselves the question:
-            //
-            // Relative to ourselves, where can our children be placed without clipping.
-            //
-            // The answer is a origin bound rect of the same size as our content area, inset by the
-            // imposed padding.
-            let content_area = Rect {
-                min: Vec2::ZERO,
-                max: content_area.size(),
-            }
-            .inset(&padding);
-            assert_eq!(content_area.size(), constraints.max);
-
-            let res = update_subtree(world, &entity, content_area, constraints);
-
-            entity.update_dedup(components::rect(), res.rect);
-        }
         Block {
-            rect: total_bounds,
-            margin,
+            rect: block.rect.pad(&padding),
+            margin: (block.margin - padding).max(Edges::even(0.0)).max(margin),
         }
+        // for &child in &*children {
+        //     let entity = world.entity(child).unwrap();
+
+        //     // let local_rect = widget_outer_bounds(world, &entity, inner_rect.size());
+
+        //     assert_eq!(content_area.size(), limits.max);
+        //     let constraints = LayoutLimits {
+        //         min: Vec2::ZERO,
+        //         max: limits.max - padding.size(),
+        //     };
+
+        //     // We ask ourselves the question:
+        //     //
+        //     // Relative to ourselves, where can our children be placed without clipping.
+        //     //
+        //     // The answer is a origin bound rect of the same size as our content area, inset by the
+        //     // imposed padding.
+        //     let content_area = Rect {
+        //         min: Vec2::ZERO,
+        //         max: content_area.size(),
+        //     }
+        //     .inset(&padding);
+
+        //     assert_eq!(content_area.size(), constraints.max);
+
+        //     let res = update_subtree(world, &entigy, content_area, constraints);
+
+        //     entity.update_dedup(components::rect(), res.rect);
+        // }
+        // Block {
+        //     rect: total_bounds,
+        //     margin,
+        // }
     } else {
         let size = resolve_size(entity, content_area)
             .1
@@ -558,7 +547,8 @@ fn resolve_size(entity: &EntityRef, content_area: Rect) -> (Vec2, Vec2) {
         entity
             .get_copy(intrinsic_size())
             .expect("intrinsic size required")
-    };
+    }
+    .max(min_size);
 
     // let size = entity
     //     .get(components::size())

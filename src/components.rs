@@ -117,6 +117,13 @@ impl std::ops::Mul<f32> for Edges {
 }
 
 impl Edges {
+    pub const ZERO: Self = Self {
+        left: 0.0,
+        right: 0.0,
+        top: 0.0,
+        bottom: 0.0,
+    };
+
     pub const fn new(left: f32, right: f32, top: f32, bottom: f32) -> Self {
         Self {
             left,
@@ -149,7 +156,7 @@ impl Edges {
         (front_margin, back_margin)
     }
 
-    pub(crate) fn merge(&self, other: Self) -> Self {
+    pub(crate) fn max(&self, other: Self) -> Self {
         Self {
             left: self.left.max(other.left),
             right: self.right.max(other.right),
@@ -158,12 +165,12 @@ impl Edges {
         }
     }
 
-    pub(crate) fn max(&self, value: f32) -> Self {
+    pub(crate) fn min(&self, other: Self) -> Self {
         Self {
-            left: self.left.max(value),
-            right: self.right.max(value),
-            top: self.top.max(value),
-            bottom: self.bottom.max(value),
+            left: self.left.min(other.left),
+            right: self.right.min(other.right),
+            top: self.top.min(other.top),
+            bottom: self.bottom.min(other.bottom),
         }
     }
 }
@@ -176,6 +183,12 @@ pub struct Rect {
 }
 
 impl Rect {
+    pub const ZERO: Self = Self {
+        min: Vec2::ZERO,
+        max: Vec2::ZERO,
+    };
+
+    #[must_use]
     pub fn merge(self, other: Self) -> Self {
         Self {
             min: self.min.min(other.min),
@@ -183,6 +196,7 @@ impl Rect {
         }
     }
 
+    #[must_use]
     pub fn from_two_points(a: Vec2, b: Vec2) -> Self {
         Self {
             min: a.min(b),
@@ -190,6 +204,7 @@ impl Rect {
         }
     }
 
+    #[must_use]
     pub fn from_size_pos(size: Vec2, pos: Vec2) -> Self {
         Self {
             min: pos,
@@ -197,6 +212,7 @@ impl Rect {
         }
     }
 
+    #[must_use]
     pub fn align_to_grid(&self) -> Self {
         Self {
             min: self.min.floor(),
@@ -215,7 +231,8 @@ impl Rect {
     }
 
     /// Makes the rect smaller by the given padding
-    pub fn inset(&self, padding: &Edges) -> Rect {
+    #[must_use]
+    pub fn inset(&self, padding: &Edges) -> Self {
         Self {
             min: self.min + vec2(padding.left, padding.top),
             max: self.max - vec2(padding.right, padding.bottom),
@@ -223,7 +240,8 @@ impl Rect {
     }
 
     /// Makes the rect larger by the given padding
-    pub fn pad(&self, padding: &Edges) -> Rect {
+    #[must_use]
+    pub fn pad(&self, padding: &Edges) -> Self {
         Self {
             min: self.min - vec2(padding.left, padding.top),
             max: self.max + vec2(padding.right, padding.bottom),
@@ -237,6 +255,7 @@ impl Rect {
         vec2(x, y).dot(axis)
     }
 
+    #[must_use]
     pub(crate) fn clamp_size(&self, min: Vec2, max: Vec2) -> Self {
         let size = self.size().clamp(min, max);
         Self {
@@ -245,6 +264,7 @@ impl Rect {
         }
     }
 
+    #[must_use]
     pub(crate) fn min_size(&self, size: Vec2) -> Self {
         let size = self.size().min(size);
         Self {
@@ -253,6 +273,7 @@ impl Rect {
         }
     }
 
+    #[must_use]
     pub(crate) fn max_size(&self, size: Vec2) -> Self {
         let size = self.size().max(size);
         Self {
@@ -268,6 +289,7 @@ impl Rect {
             && local_pos.y <= self.max.y
     }
 
+    #[must_use]
     pub(crate) fn translate(&self, pos: Vec2) -> Self {
         Self {
             min: self.min + pos,

@@ -1,4 +1,4 @@
-use flax::{entity_ids, name, BoxedSystem, CommandBuffer, FetchExt, Query, QueryBorrow, System};
+use flax::{entity_ids, BoxedSystem, CommandBuffer, FetchExt, Query, QueryBorrow, System};
 use fontdue::layout::{Layout, TextStyle};
 use glam::{vec2, Vec2};
 

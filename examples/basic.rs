@@ -1,15 +1,11 @@
 use anyhow::Context;
 use flax::name;
 use futures::StreamExt;
-use futures_signals::signal::{Mutable, SignalExt};
+use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
-use palette::{
-    rgb::{Rgb, Rgba},
-    Hsla, IntoColor, Srgb, Srgba, WithAlpha,
-};
-use serde::{de::Visitor, Deserialize};
-use std::{collections::BTreeMap, path::PathBuf, time::Duration};
+use palette::{Hsla, IntoColor, Srgba};
+use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
@@ -21,14 +17,30 @@ use violet::{
     time::interval,
     unit::Unit,
     wgpu::{components::font_from_file, font::FontFromFile},
-    widget::SignalWidget,
     App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
 use winit::event::ElementState;
 
 struct MainApp;
 
+macro_rules! srgba {
+    ($color:literal) => {{
+        let [r, g, b] = color_hex::color_from_hex!($color);
+
+        Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
+    }};
+}
+
 const MARGIN: Edges = Edges::even(10.0);
+
+const EERIE_BLACK: Srgba = srgba!("#222525");
+const EERIE_BLACK_300: Srgba = srgba!("#151616");
+const PLATINUM: Srgba = srgba!("#dddddf");
+const VIOLET: Srgba = srgba!("#8000ff");
+const TEAL: Srgba = srgba!("#247b7b");
+const EMERALD: Srgba = srgba!("#50c878");
+const BRONZE: Srgba = srgba!("#cd7f32");
+const CHILI_RED: Srgba = srgba!("#d34131");
 
 struct Sized<W> {
     min_size: Unit<Vec2>,
@@ -426,9 +438,11 @@ impl Widget for MainApp {
         // ));
 
         scope.attach(
-            Positioned::new(Sized::new(HelloWorld {}).with_size(Unit::px(vec2(400.0, 200.0))))
-                .with_offset(Unit::rel(Vec2::Y))
-                .with_anchor(Unit::rel(Vec2::Y)),
+            Positioned::new(
+                Sized::new(Rectangle { color: BRONZE }).with_size(Unit::px(vec2(400.0, 200.0))),
+            )
+            .with_offset(Unit::rel(Vec2::Y))
+            .with_anchor(Unit::rel(Vec2::Y)),
         );
 
         let list1 = List::new((
@@ -560,136 +574,34 @@ impl Widget for MainApp {
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
-struct ColorPalette {
-    eerie_black: Shades,
-    platinum: Shades,
-    violet: Shades,
-    teal: Shades,
-    emerald: Shades,
-    bronze: Shades,
-    chili_red: Shades,
-}
+struct StackTest {}
 
-#[derive(Debug)]
-struct Shades {
-    shade_100: Srgba,
-    shade_200: Srgba,
-    shade_300: Srgba,
-    shade_400: Srgba,
-    shade_500: Srgba,
-    shade_600: Srgba,
-    shade_700: Srgba,
-    shade_800: Srgba,
-    shade_900: Srgba,
-    default: Srgba,
-}
+impl Widget for StackTest {
+    fn mount(self, scope: &mut Scope<'_>) {
+        // scope.attach(Text::new("Overlay"));
+        scope.attach(
+            Positioned::new(Rectangle { color: VIOLET })
+                .with_offset(Unit::px(vec2(10.0, 0.0)))
+                .with_min_size(Unit::px(vec2(30.0, 10.0))),
+        );
+        scope.attach(
+            Positioned::new(Rectangle { color: VIOLET })
+                .with_offset(Unit::px(vec2(50.0, 20.0)))
+                .with_min_size(Unit::px(vec2(10.0, 10.0))),
+        );
+        // scope.attach(
+        //     Rectangle { color: CHILI_RED }
+        //         .with_min_size(Unit::px(vec2(50.0, 50.0)))
+        //         .with_size(Unit::px(vec2(50.0, 50.0))),
+        // );
 
-impl<'de> Deserialize<'de> for Shades {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct Shade(Srgba);
-
-        impl<'de> Deserialize<'de> for Shade {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                deserializer.deserialize_str(ShadeVisitor)
-            }
+        Rectangle {
+            color: EERIE_BLACK_300,
         }
-
-        struct ShadeVisitor;
-        impl<'de> Visitor<'de> for ShadeVisitor {
-            type Value = Shade;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a hex coded rgb color")
-            }
-
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                let s: Srgb<u8> = v
-                    .parse()
-                    .map_err(|_| serde::de::Error::custom(format!("Invalid color {v}")))?;
-
-                Ok(Shade(s.into_format().with_alpha(1.0)))
-            }
-        }
-
-        struct ShadesVisitor;
-
-        impl<'de> Visitor<'de> for ShadesVisitor {
-            type Value = Shades;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a map of shades")
-            }
-
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let mut shades = [None; 10];
-                while let Some(key) = map.next_key()? {
-                    let shade = match key {
-                        "100" => &mut shades[0],
-                        "200" => &mut shades[1],
-                        "300" => &mut shades[2],
-                        "400" => &mut shades[3],
-                        "500" => &mut shades[4],
-                        "600" => &mut shades[5],
-                        "700" => &mut shades[6],
-                        "800" => &mut shades[7],
-                        "900" => &mut shades[8],
-                        "DEFAULT" => &mut shades[9],
-                        v => return Err(serde::de::Error::custom(format!("Invalid shade {v}"))),
-                    };
-
-                    if shade.is_some() {
-                        return Err(serde::de::Error::custom("Duplicate shade"));
-                    }
-
-                    let Shade(value) = map.next_value()?;
-
-                    *shade = Some(value.into_format());
-                }
-
-                if let [Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(default)] =
-                    shades
-                {
-                    Ok(Shades {
-                        shade_100: a,
-                        shade_200: b,
-                        shade_300: c,
-                        shade_400: d,
-                        shade_500: e,
-                        shade_600: f,
-                        shade_700: g,
-                        shade_800: h,
-                        shade_900: i,
-                        default,
-                    })
-                } else {
-                    Err(serde::de::Error::custom("Missing shades"))
-                }
-            }
-        }
-
-        deserializer.deserialize_map(ShadesVisitor)
+        .with_margin(MARGIN)
+        .with_padding(Edges::even(5.0))
+        .mount(scope);
     }
-}
-
-macro_rules! srgba {
-    ($color:literal) => {{
-        let [r, g, b] = color_hex::color_from_hex!($color);
-
-        Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
-    }};
 }
 
 struct LayoutTest {
@@ -698,15 +610,6 @@ struct LayoutTest {
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        const EERIE_BLACK: Srgba = srgba!("#222525");
-        const EERIE_BLACK_300: Srgba = srgba!("#151616");
-        const PLATINUM: Srgba = srgba!("#dddddf");
-        const VIOLET: Srgba = srgba!("#8000ff");
-        const TEAL: Srgba = srgba!("#247b7b");
-        const EMERALD: Srgba = srgba!("#50c878");
-        const BRONZE: Srgba = srgba!("#cd7f32");
-        const CHILI_RED: Srgba = srgba!("#d34131");
-
         let row_2 = List::new((
             Rectangle { color: BRONZE }
                 .with_margin(MARGIN)
@@ -729,9 +632,7 @@ impl Widget for LayoutTest {
             Rectangle { color: TEAL }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 50.0))),
-            Rectangle { color: EMERALD }
-                .with_margin(MARGIN)
-                .with_size(Unit::rel(vec2(0.2, 0.1))),
+            StackTest {},
             Rectangle { color: TEAL }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(50.0, 50.0))),

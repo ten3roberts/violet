@@ -22,9 +22,9 @@ component! {
     pub font_from_file: FontFromFile => [ Debuggable ],
 
     /// Renderer specific data for drawing a shape
-    pub(crate) draw_cmd: DrawCommand => [ Debuggable ],
+    pub(crate) draw_cmd: DrawCommand,
 
-    pub(crate) mesh_handle: Arc<MeshHandle> => [ Debuggable ],
+    pub(crate) mesh_handle: Arc<MeshHandle>,
 
     pub model_matrix: glam::Mat4 => [ ],
 }
