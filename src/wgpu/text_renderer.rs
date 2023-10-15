@@ -364,8 +364,10 @@ impl TextRenderer {
                 };
 
             layout.reset(&fontdue::layout::LayoutSettings {
-                x: rect.min.x.round(),
-                y: rect.min.x.round(),
+                // x: rect.min.x.round(),
+                // y: rect.min.x.round(),
+                x: 0.0,
+                y: 0.0,
                 max_width,
                 max_height,
                 horizontal_align: fontdue::layout::HorizontalAlign::Left,
