@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
 use flax::{component, Debuggable};
+use fontdue::Font;
 
 use crate::{
     assets::Handle,
-    wgpu::{
-        font::{Font, FontFromFile},
-        graphics::texture::Texture,
-        shape_renderer::DrawCommand,
-    },
+    wgpu::{font::FontFromFile, graphics::texture::Texture, shape_renderer::DrawCommand},
 };
 
 use super::mesh_buffer::MeshHandle;

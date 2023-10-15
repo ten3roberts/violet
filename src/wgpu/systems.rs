@@ -49,7 +49,7 @@ pub fn update_text_heuristics() -> BoxedSystem {
             });
 
             layout.append(
-                &[&font.font],
+                &[&**font],
                 &TextStyle {
                     text,
                     px: *font_size,

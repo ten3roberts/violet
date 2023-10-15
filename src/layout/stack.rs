@@ -98,8 +98,8 @@ impl Stack {
                 let entity = world.entity(child).expect("invalid child");
 
                 let limits = LayoutLimits {
-                    min: Vec2::ZERO,
-                    max: limits.max,
+                    min_size: Vec2::ZERO,
+                    max_size: limits.max_size,
                 };
 
                 let block = update_subtree(world, &entity, inner_rect, limits);
@@ -152,7 +152,9 @@ impl Stack {
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
 
-        tracing::debug!("margin discrepency: {:?}", min_margin - preferred_margin);
+        if min_margin != preferred_margin {
+            tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
+        }
 
         SizeQuery {
             min: min_bounds.inner,

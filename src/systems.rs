@@ -1,6 +1,7 @@
 use flax::{
-    child_of, entity_ids, filter::Or, BoxedSystem, CommandBuffer, ComponentValue, Dfs, DfsBorrow,
-    Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
+    component::ComponentValue, components::child_of, entity_ids, filter::Or, BoxedSystem,
+    CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System,
+    World,
 };
 use glam::{Mat4, Vec2, Vec3};
 
@@ -57,8 +58,8 @@ pub fn layout_system() -> BoxedSystem {
                             &entity,
                             *canvas_rect,
                             LayoutLimits {
-                                min: Vec2::ZERO,
-                                max: canvas_rect.size(),
+                                min_size: Vec2::ZERO,
+                                max_size: canvas_rect.size(),
                             },
                         );
 

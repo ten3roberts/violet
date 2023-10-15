@@ -1,12 +1,16 @@
 use anyhow::Context;
-use flax::name;
+use flax::components::name;
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
+use itertools::Position;
 use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{
+    prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
+};
+use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
     components::{self, color, filled_rect, font_size, layout, size, text, Edges},
@@ -555,7 +559,7 @@ impl Widget for MainApp {
                 LayoutTest {
                     contain_margins: false,
                 },
-                Text::new("Hello, World!"),
+                // Text::new("Hello, World!"),
             ))
             .contain_margins(true)
             .with_direction(Direction::Vertical)
@@ -578,7 +582,20 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // scope.attach(Text::new("Overlay"));
+        scope.attach(Text::new("This is an overlaid text"));
+
+        // scope.attach(
+        //     Positioned::new(
+        //         Text::new("This is an overlaid text").with_size(Unit::px(vec2(100.0, 17.0))),
+        //     )
+        //     .with_offset(Unit::px(vec2(50.0, 10.0))),
+        // );
+
+        // scope.attach(
+        //     Positioned::new(Rectangle { color: BRONZE }.with_size(Unit::px(vec2(100.0, 17.0))))
+        //         .with_offset(Unit::px(vec2(50.0, 10.0))),
+        // );
+
         scope.attach(
             Positioned::new(Rectangle { color: VIOLET })
                 .with_offset(Unit::px(vec2(10.0, 0.0)))
@@ -613,11 +630,9 @@ impl Widget for LayoutTest {
         let row_2 = List::new((
             Rectangle { color: BRONZE }
                 .with_margin(MARGIN)
-                .with_min_size(Unit::px(vec2(100.0, 50.0)))
                 .with_size(Unit::px(vec2(100.0, 50.0))),
             Rectangle { color: EMERALD }
                 .with_margin(MARGIN)
-                .with_min_size(Unit::px(vec2(20.0, 50.0)))
                 .with_size(Unit::px(vec2(20.0, 50.0))),
         ))
         .contain_margins(self.contain_margins)
@@ -629,10 +644,10 @@ impl Widget for LayoutTest {
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(200.0, 50.0))),
             row_2,
+            StackTest {},
             Rectangle { color: TEAL }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 50.0))),
-            StackTest {},
             Rectangle { color: TEAL }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(50.0, 50.0))),
@@ -641,18 +656,21 @@ impl Widget for LayoutTest {
         .with_background_color(EERIE_BLACK)
         .with_margin(MARGIN);
 
-        let col_1 = List::new((row_1,))
+        List::new((row_1,))
             .contain_margins(self.contain_margins)
-            .with_background_color(EERIE_BLACK_300);
-
-        col_1.mount(scope);
+            .with_background_color(EERIE_BLACK_300)
+            .mount(scope);
     }
 }
 
 pub fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .without_time()
+    registry()
+        .with(
+            HierarchicalLayer::default()
+                .with_deferred_spans(true)
+                .with_span_retrace(true),
+        )
+        .with(EnvFilter::from_default_env())
         .init();
 
     App::new().run(MainApp)

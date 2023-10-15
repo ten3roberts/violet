@@ -1,12 +1,16 @@
 mod stack;
 
 use flax::{EntityRef, World};
+use fontdue::{layout::TextStyle, Font};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
-    components::{self, children, intrinsic_size, layout, margin, padding, Edges, Rect},
+    components::{
+        self, children, font_size, intrinsic_size, layout, margin, padding, text, Edges, Rect,
+    },
     unit::Unit,
+    wgpu::components::font,
 };
 
 use self::stack::Stack;
@@ -193,7 +197,7 @@ impl Layout {
 
         // tracing::debug!(total_preferred_size, "remaining sizes");
 
-        let available_size = constraints.max;
+        let available_size = constraints.max_size;
 
         // Start at the corner of the inner rect
         //
@@ -217,7 +221,7 @@ impl Layout {
 
                 let to_preferred = preferred_size - min_size;
                 let axis_sizing = (min_size
-                    + (constraints.max.dot(axis) * (to_preferred / total_preferred_size)))
+                    + (constraints.max_size.dot(axis) * (to_preferred / total_preferred_size)))
                     * axis;
 
                 // let axis_sizing = block.preferred.rect.size() * axis;
@@ -225,15 +229,15 @@ impl Layout {
                 let child_constraints = if let CrossAlign::Stretch = self.cross_align {
                     let margin = entity.get_copy(margin()).unwrap_or_default();
 
-                    let size = inner_rect.size().min(constraints.max) - margin.size();
+                    let size = inner_rect.size().min(constraints.max_size) - margin.size();
                     LayoutLimits {
-                        min: size * cross_axis,
-                        max: size * cross_axis + axis_sizing,
+                        min_size: size * cross_axis,
+                        max_size: size * cross_axis + axis_sizing,
                     }
                 } else {
                     LayoutLimits {
-                        min: Vec2::ZERO,
-                        max: available_size * cross_axis + axis_sizing,
+                        min_size: Vec2::ZERO,
+                        max_size: available_size * cross_axis + axis_sizing,
                     }
                 };
 
@@ -394,7 +398,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
             margin: query.margin.max(query.margin),
         }
     } else {
-        let (min_size, preferred_size) = resolve_size(entity, content_area);
+        let (min_size, preferred_size) = resolve_size(entity, content_area, None);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
@@ -414,8 +418,8 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
 /// Allows for the parent to control the size of the children, such as stretching
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LayoutLimits {
-    pub min: Vec2,
-    pub max: Vec2,
+    pub min_size: Vec2,
+    pub max_size: Vec2,
 }
 
 /// A block is a rectangle and surrounding support such as margin
@@ -467,12 +471,12 @@ pub(crate) fn update_subtree(
             entity,
             content_area.inset(&padding),
             LayoutLimits {
-                min: limits.min,
-                max: limits.max - padding.size(),
+                min_size: limits.min_size,
+                max_size: limits.max_size - padding.size(),
             },
         );
 
-        block.rect = block.rect.pad(&padding).max_size(limits.min);
+        block.rect = block.rect.pad(&padding).max_size(limits.min_size);
 
         block.margin = (block.margin - padding).max(Edges::even(0.0)).max(margin);
 
@@ -519,10 +523,10 @@ pub(crate) fn update_subtree(
         //     rect: total_bounds,
         //     margin,
         // }
-    } else {
-        let size = resolve_size(entity, content_area)
-            .1
-            .clamp(limits.min, limits.max);
+    }
+    // Text widgets height are influenced by their available width.
+    else {
+        let (_, size) = resolve_size(entity, content_area, Some(limits));
 
         let pos = resolve_pos(entity, content_area, size);
 
@@ -533,7 +537,12 @@ pub(crate) fn update_subtree(
     }
 }
 
-fn resolve_size(entity: &EntityRef, content_area: Rect) -> (Vec2, Vec2) {
+#[inline]
+fn resolve_size(
+    entity: &EntityRef,
+    content_area: Rect,
+    limits: Option<LayoutLimits>,
+) -> (Vec2, Vec2) {
     let parent_size = content_area.size();
     let min_size = entity
         .get(components::min_size())
@@ -541,23 +550,71 @@ fn resolve_size(entity: &EntityRef, content_area: Rect) -> (Vec2, Vec2) {
         .unwrap_or(&Unit::ZERO)
         .resolve(parent_size);
 
-    let size = if let Ok(size) = entity.get(components::size()) {
+    let mut size = if let Ok(size) = entity.get(components::size()) {
         size.resolve(parent_size)
+    } else if let Some((text, font, &font_size)) =
+        entity.query(&(text(), font(), font_size())).get()
+    {
+        let size = resolve_text_size(text, font, font_size, limits);
+        tracing::info!(%entity, ?size, ?content_area,"resolved text size");
+        size
     } else {
+        // tracing::info!(%entity, "using intrinsic_size");
         entity
             .get_copy(intrinsic_size())
             .expect("intrinsic size required")
     }
     .max(min_size);
 
-    // let size = entity
-    //     .get(components::size())
-    //     .as_deref()
-    //     .unwrap_or(&Unit::ZERO)
-    //     .resolve(parent_size)
-    //     .max(min_size);
+    if let Some(limits) = limits {
+        size = size.clamp(limits.min_size, limits.max_size);
+    }
 
     (min_size, size)
+}
+
+fn resolve_text_size(
+    text: &str,
+    font: &Font,
+    font_size: f32,
+    limits: Option<LayoutLimits>,
+) -> Vec2 {
+    let _span = tracing::debug_span!("resolve_text_size", ?font, font_size).entered();
+    let mut layout =
+        fontdue::layout::Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
+
+    let size = match limits {
+        Some(v) => (Some(v.max_size.x), Some(v.max_size.y)),
+        None => (None, None),
+    };
+
+    layout.reset(&fontdue::layout::LayoutSettings {
+        x: 0.0,
+        y: 0.0,
+        max_width: size.0,
+        max_height: size.1,
+        horizontal_align: fontdue::layout::HorizontalAlign::Left,
+        vertical_align: fontdue::layout::VerticalAlign::Top,
+        line_height: 1.0,
+        wrap_style: fontdue::layout::WrapStyle::Word,
+        wrap_hard_breaks: true,
+    });
+
+    layout.append(
+        &[font],
+        &TextStyle {
+            text,
+            px: font_size,
+            font_index: 0,
+            user_data: (),
+        },
+    );
+
+    layout
+        .glyphs()
+        .iter()
+        .map(|v| vec2(v.x + v.width as f32, v.y + v.height as f32))
+        .fold(Vec2::ZERO, |acc, v| acc.max(v))
 }
 
 fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {

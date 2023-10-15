@@ -1,4 +1,4 @@
-use flax::{Component, ComponentValue};
+use flax::{component::ComponentValue, Component};
 use glam::Vec2;
 
 use crate::{

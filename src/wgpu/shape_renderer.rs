@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use flax::{child_of, FetchExt, Query};
+use flax::{components::child_of, FetchExt, Query};
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
 use palette::Srgba;

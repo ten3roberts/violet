@@ -5,7 +5,9 @@ use std::{
 };
 
 use flax::{
-    child_of, name, Component, ComponentValue, Entity, EntityBuilder, EntityRef, EntityRefMut,
+    component::ComponentValue,
+    components::{child_of, name},
+    Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
 };
 use pin_project::pin_project;
 

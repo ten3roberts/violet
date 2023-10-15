@@ -9,7 +9,10 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use fontdue::layout::{Layout, TextStyle};
+use fontdue::{
+    layout::{Layout, TextStyle},
+    Font,
+};
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use itertools::Itertools;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
@@ -27,7 +30,6 @@ use crate::{
 
 use super::{
     components::{draw_cmd, font, mesh_handle, model_matrix},
-    font::Font,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
@@ -374,7 +376,7 @@ impl TextRenderer {
             });
 
             layout.append(
-                &[&item.font.font],
+                &[&**item.font],
                 &TextStyle {
                     text: item.text,
                     px: *item.font_size,

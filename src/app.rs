@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use flax::{name, Schedule, World};
+use flax::{components::name, Schedule, World};
 use glam::{vec2, Vec2};
 use winit::{
     event::{Event, WindowEvent},

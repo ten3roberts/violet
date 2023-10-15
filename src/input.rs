@@ -1,5 +1,7 @@
 use flax::{
-    child_of, component, entity_ids,
+    component,
+    components::child_of,
+    entity_ids,
     fetch::{entity_refs, EntityRefs, Satisfied},
     filter::All,
     Component, Entity, EntityIds, EntityRef, Fetch, FetchExt, Query, Topo,

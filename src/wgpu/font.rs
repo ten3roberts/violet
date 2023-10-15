@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use fontdue::Font;
 use glam::{uvec2, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
@@ -30,20 +31,14 @@ impl AssetKey for FontFromFile {
     }
 }
 
-pub struct Font {
-    pub(crate) font: fontdue::Font,
-}
-
 impl AssetKey for FontFromBytes {
     type Output = Font;
 
     fn load(&self, _assets: &crate::assets::AssetCache) -> Self::Output {
         let bytes = &*self.bytes;
-        let font = fontdue::Font::from_bytes(bytes.as_ref(), fontdue::FontSettings::default())
+        fontdue::Font::from_bytes(bytes.as_ref(), fontdue::FontSettings::default())
             .map_err(|v| anyhow::anyhow!("Error loading font: {v:?}"))
-            .unwrap();
-
-        Font { font }
+            .unwrap()
     }
 }
 
@@ -73,9 +68,9 @@ impl FontAtlas {
         let glyphs = chars
             .iter()
             .map(|&c| {
-                let index = font.font.lookup_glyph_index(c);
+                let index = font.lookup_glyph_index(c);
 
-                let metrics = font.font.metrics_indexed(index, px);
+                let metrics = font.metrics_indexed(index, px);
                 let padding = 10;
 
                 let requested_size = size2(
@@ -108,7 +103,7 @@ impl FontAtlas {
 
         // Rasterize and blit without storing all the small bitmaps in memory at the same time
         glyphs.iter().for_each(|(&glyph, loc)| {
-            let (metrics, pixels) = font.font.rasterize_indexed(glyph, px);
+            let (metrics, pixels) = font.rasterize_indexed(glyph, px);
 
             if metrics.width > 0 {
                 blit_to_image(
