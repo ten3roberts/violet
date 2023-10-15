@@ -13,9 +13,9 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, font_size, layout, size, text, Edges},
+    components::{self, color, filled_rect, flow, font_size, size, text, Edges},
     input::{on_focus, on_mouse_input},
-    layout::{CrossAlign, Direction, Layout},
+    layout::{CrossAlign, Direction, Flow},
     shapes::FilledRect,
     style::StyleExt,
     time::interval,
@@ -330,7 +330,7 @@ impl Widget for ShowWorld {
 #[derive(Default)]
 struct List<W> {
     items: W,
-    layout: Layout,
+    layout: Flow,
     background_color: Option<Srgba>,
 }
 
@@ -338,7 +338,7 @@ impl<W: WidgetCollection> List<W> {
     fn new(items: W) -> Self {
         Self {
             items,
-            layout: Layout::default(),
+            layout: Flow::default(),
             background_color: None,
         }
     }
@@ -379,7 +379,7 @@ impl<W: WidgetCollection> Widget for List<W> {
                     fill_image: None,
                 }),
             )
-            .set(layout(), self.layout)
+            .set(flow(), self.layout)
             .set_opt(color(), self.background_color);
 
         self.items.attach(scope);

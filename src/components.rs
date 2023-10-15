@@ -2,7 +2,7 @@ use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
 use palette::Srgba;
 
-use crate::{layout::Layout, shapes::FilledRect, unit::Unit};
+use crate::{layout::Flow, shapes::FilledRect, unit::Unit};
 
 component! {
     pub is_widget: () => [ Debuggable ],
@@ -37,8 +37,8 @@ component! {
     /// Sets the anchor point withing the bounds of the widget where position is applied
     pub anchor: Unit<Vec2> => [ Debuggable ],
 
-    /// Manages the layout of the children
-    pub layout: Layout => [ Debuggable ],
+    /// Manages the layout of the children in a flowing list
+    pub flow: Flow => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
     pub padding: Edges => [ Debuggable ],
