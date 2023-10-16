@@ -217,9 +217,7 @@ fn resolve_size(
     } else if let Some((text, font, &font_size)) =
         entity.query(&(text(), font(), font_size())).get()
     {
-        let size = resolve_text_size(text, font, font_size, limits);
-        tracing::info!(%entity, ?size, ?content_area,"resolved text size");
-        size
+        resolve_text_size(text, font, font_size, limits)
     } else {
         // tracing::info!(%entity, "using intrinsic_size");
         entity

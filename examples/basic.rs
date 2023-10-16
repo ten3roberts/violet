@@ -35,7 +35,7 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(10.0);
+const MARGIN: Edges = Edges::even(0.0);
 
 const EERIE_BLACK: Srgba = srgba!("#222525");
 const EERIE_BLACK_300: Srgba = srgba!("#151616");
@@ -666,7 +666,8 @@ pub fn main() -> anyhow::Result<()> {
         .with(
             HierarchicalLayer::default()
                 .with_deferred_spans(true)
-                .with_span_retrace(true),
+                .with_span_retrace(true)
+                .with_indent_lines(true),
         )
         .with(EnvFilter::from_default_env())
         .init();

@@ -174,24 +174,17 @@ impl Flow {
         world: &World,
         entity: &EntityRef,
         content_area: Rect,
-        constraints: LayoutLimits,
+        limits: LayoutLimits,
     ) -> Block {
+        let _span = tracing::info_span!("Flow::apply", ?limits, flow=?self).entered();
         let (axis, cross_axis) = self.direction.axis();
 
         let (_, total_preferred_size, _, blocks) = self.query_size(world, entity, content_area);
 
         // Size remaining if everything got at least its preferred size
         let total_preferred_size = total_preferred_size.size().dot(axis);
-        // let preferred_remaining =
-        //     (constraints.max.dot(axis) - preferred_size.size().dot(axis)).max(0.0);
-        //
-        // // Size remaining if everything got at least its min size
-        // let min_remaining =
-        // (constraints.max.dot(axis) - min_size.size().dot(axis) - preferred_remaining).max(0.0);
 
-        // tracing::debug!(total_preferred_size, "remaining sizes");
-
-        let available_size = constraints.max_size;
+        let available_size = limits.max_size;
 
         // Start at the corner of the inner rect
         //
@@ -206,6 +199,8 @@ impl Flow {
             max: inner_rect.size(),
         };
 
+        let mut sum = 0.0;
+
         let blocks = blocks
             .into_iter()
             .map(|(entity, block)| {
@@ -214,16 +209,17 @@ impl Flow {
                 let preferred_size = block.preferred.size().dot(axis);
 
                 let to_preferred = preferred_size - min_size;
+                let ratio = to_preferred / total_preferred_size;
+                tracing::info!("sizing: {}", ratio);
+                sum += ratio;
                 let axis_sizing = (min_size
-                    + (constraints.max_size.dot(axis) * (to_preferred / total_preferred_size)))
+                    + (limits.max_size.dot(axis) * (to_preferred / total_preferred_size)))
                     * axis;
-
-                // let axis_sizing = block.preferred.rect.size() * axis;
 
                 let child_constraints = if let CrossAlign::Stretch = self.cross_align {
                     let margin = entity.get_copy(margin()).unwrap_or_default();
 
-                    let size = inner_rect.size().min(constraints.max_size) - margin.size();
+                    let size = inner_rect.size().min(limits.max_size) - margin.size();
                     LayoutLimits {
                         min_size: size * cross_axis,
                         max_size: size * cross_axis + axis_sizing,
@@ -249,6 +245,8 @@ impl Flow {
                 (entity, block)
             })
             .collect_vec();
+
+        tracing::info!(sum, "sum");
 
         let line = cursor.finish();
 
