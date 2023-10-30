@@ -7,7 +7,7 @@ use crate::{
     layout::query_size,
 };
 
-use super::{update_subtree, Block, LayoutLimits, SizeQuery};
+use super::{update_subtree, Block, LayoutLimits, Sizing};
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -23,6 +23,7 @@ struct MarginCursor {
     main_margin: (f32, f32),
     cross_margin: (f32, f32),
     contain_margins: bool,
+    total_margin: f32,
 }
 
 impl MarginCursor {
@@ -41,6 +42,7 @@ impl MarginCursor {
             main_margin: (0.0, 0.0),
             cross_margin: (0.0, 0.0),
             contain_margins,
+            total_margin: 0.0,
         }
     }
 
@@ -56,10 +58,12 @@ impl MarginCursor {
             self.main_margin.0 = self.main_margin.0.max(back_margin - self.main_cursor);
         }
 
+        self.total_margin += advance;
         self.pending_margin = front_margin;
 
         self.main_cursor += advance + block.rect.support(-self.axis);
 
+        // Cross axis margin calculation
         let (start_margin, end_margin) = block.margin.in_axis(self.cross_axis);
         let placement_pos;
 
@@ -92,7 +96,8 @@ impl MarginCursor {
         self.main_margin.1 = self.main_margin.1.max(self.pending_margin);
 
         if self.contain_margins {
-            self.main_cursor += self.pending_margin
+            self.main_cursor += self.pending_margin;
+            self.total_margin += self.pending_margin;
         }
 
         self.pending_margin = 0.0;
@@ -158,6 +163,14 @@ impl CrossAlign {
     }
 }
 
+pub(crate) struct Row<'a> {
+    pub(crate) min: Rect,
+    pub(crate) preferred: Rect,
+    pub(crate) margin: Edges,
+    pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
+    pub(crate) total_margin: f32,
+}
+
 #[derive(Default, Debug)]
 pub struct Flow {
     pub cross_align: CrossAlign,
@@ -179,10 +192,21 @@ impl Flow {
         let _span = tracing::info_span!("Flow::apply", ?limits, flow=?self).entered();
         let (axis, cross_axis) = self.direction.axis();
 
-        let (_, total_preferred_size, _, blocks) = self.query_size(world, entity, content_area);
+        let row = self.query_size(world, entity, content_area);
 
         // Size remaining if everything got at least its preferred size
-        let total_preferred_size = total_preferred_size.size().dot(axis);
+        let total_preferred_size = row.preferred.size().dot(axis) - row.total_margin;
+
+        let target_size = total_preferred_size.min(limits.max_size.dot(axis));
+        let max_size = limits.max_size.dot(axis) - row.total_margin;
+
+        tracing::info!(
+            row.total_margin,
+            total_preferred_size,
+            target_size,
+            %limits.max_size,
+            "query size"
+        );
 
         let available_size = limits.max_size;
 
@@ -201,20 +225,21 @@ impl Flow {
 
         let mut sum = 0.0;
 
-        let blocks = blocks
+        let blocks = row
+            .blocks
             .into_iter()
-            .map(|(entity, block)| {
+            .map(|(entity, sizing)| {
                 // The size required to go from min to preferred size
-                let min_size = block.min.size().dot(axis);
-                let preferred_size = block.preferred.size().dot(axis);
+                let min_size = sizing.min.size().dot(axis);
+                let preferred_size = sizing.preferred.size().dot(axis);
 
                 let to_preferred = preferred_size - min_size;
                 let ratio = to_preferred / total_preferred_size;
-                tracing::info!("sizing: {}", ratio);
+
                 sum += ratio;
-                let axis_sizing = (min_size
-                    + (limits.max_size.dot(axis) * (to_preferred / total_preferred_size)))
-                    * axis;
+
+                let axis_sizing = (min_size + (max_size * ratio)) * axis;
+                tracing::info!(%axis_sizing, "sizing: {}", ratio);
 
                 let child_constraints = if let CrossAlign::Stretch = self.cross_align {
                     let margin = entity.get_copy(margin()).unwrap_or_default();
@@ -222,12 +247,12 @@ impl Flow {
                     let size = inner_rect.size().min(limits.max_size) - margin.size();
                     LayoutLimits {
                         min_size: size * cross_axis,
-                        max_size: size * cross_axis + axis_sizing,
+                        max_size: axis_sizing + size * cross_axis,
                     }
                 } else {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
-                        max_size: available_size * cross_axis + axis_sizing,
+                        max_size: axis_sizing + available_size * cross_axis,
                     }
                 };
 
@@ -289,7 +314,7 @@ impl Flow {
         world: &'a World,
         entity: &EntityRef,
         inner_rect: Rect,
-    ) -> (Rect, Rect, Edges, Vec<(EntityRef<'a>, SizeQuery)>) {
+    ) -> Row<'a> {
         let children = entity.get(children()).ok();
         let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
 
@@ -335,11 +360,15 @@ impl Flow {
 
         assert_eq!(min_margin, preferred_margin);
 
-        (
-            min_cursor.finish(),
-            preferred_cursor.finish(),
-            min_margin,
+        let preferred = preferred_cursor.finish();
+        let min = min_cursor.finish();
+
+        Row {
+            min,
+            preferred,
+            margin: preferred_margin,
+            total_margin: preferred_cursor.total_margin,
             blocks,
-        )
+        }
     }
 }

@@ -15,13 +15,13 @@ pub use flow::{CrossAlign, Direction, Flow};
 pub use stack::Stack;
 
 #[derive(Debug, Clone)]
-pub struct SizeQuery {
+pub struct Sizing {
     min: Rect,
     preferred: Rect,
     margin: Edges,
 }
 
-pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> SizeQuery {
+pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizing {
     let margin = entity
         .get(components::margin())
         .ok()
@@ -41,20 +41,19 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        let (min, preferred, inner_margin, _) =
-            layout.query_size(world, entity, content_area.inset(&padding));
+        let row = layout.query_size(world, entity, content_area.inset(&padding));
 
-        SizeQuery {
-            min: min.pad(&padding),
-            preferred: preferred.pad(&padding),
-            margin: margin.max(inner_margin),
+        Sizing {
+            min: row.min.pad(&padding),
+            preferred: row.preferred.pad(&padding),
+            margin: row.margin.max(row.margin),
         }
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
         let query = Stack {}.query_size(world, &children, content_area.inset(&padding));
 
-        SizeQuery {
+        Sizing {
             min: query.min.pad(&padding),
             preferred: query.preferred.pad(&padding),
             margin: query.margin.max(query.margin),
@@ -67,7 +66,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Size
 
         // Leaf
 
-        SizeQuery {
+        Sizing {
             min: Rect::from_size_pos(min_size, min_offset),
             preferred: Rect::from_size_pos(preferred_size, preferred_offset),
             margin,
@@ -124,11 +123,11 @@ pub(crate) fn update_subtree(
         .unwrap_or_default();
 
     // Flow
-    if let Ok(layout) = entity.get(flow()) {
+    if let Ok(flow) = entity.get(flow()) {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        let mut block = layout.apply(
+        let mut block = flow.apply(
             world,
             entity,
             content_area.inset(&padding),
@@ -146,7 +145,15 @@ pub(crate) fn update_subtree(
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
-        let block = Stack {}.apply(world, &children, content_area.inset(&padding), limits);
+        let block = Stack {}.apply(
+            world,
+            &children,
+            content_area.inset(&padding),
+            LayoutLimits {
+                min_size: limits.min_size,
+                max_size: limits.max_size - padding.size(),
+            },
+        );
 
         Block {
             rect: block.rect.pad(&padding),

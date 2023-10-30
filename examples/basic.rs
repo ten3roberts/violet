@@ -13,7 +13,7 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, flow, font_size, size, text, Edges},
+    components::{self, color, filled_rect, flow, font_size, padding, size, text, Edges},
     input::{on_focus, on_mouse_input},
     layout::{CrossAlign, Direction, Flow},
     shapes::FilledRect,
@@ -35,7 +35,7 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(0.0);
+const MARGIN: Edges = Edges::even(10.0);
 
 const EERIE_BLACK: Srgba = srgba!("#222525");
 const EERIE_BLACK_300: Srgba = srgba!("#151616");
@@ -406,6 +406,7 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "MainApp".into())
+            .set(padding(), Edges::even(10.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         // scope.attach(Counter);
@@ -542,39 +543,42 @@ impl Widget for MainApp {
         //     .with_cross_align(CrossAlign::Stretch)
         //     .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
 
-        scope.attach(
-            List::new((
-                LayoutTest {
-                    contain_margins: false,
-                },
-                LayoutTest {
-                    contain_margins: false,
-                },
-                LayoutTest {
-                    contain_margins: true,
-                },
-                LayoutTest {
-                    contain_margins: true,
-                },
-                LayoutTest {
-                    contain_margins: false,
-                },
-                // Text::new("Hello, World!"),
-            ))
-            .contain_margins(true)
-            .with_direction(Direction::Vertical)
-            .with_padding(Edges::even(0.0)),
-            // List::new((
-            //     // list3,
-            //     List::new((list1, list2))
-            //         .with_cross_align(CrossAlign::Stretch)
-            //         .with_direction(Direction::Vertical)
-            //         .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
-            // ))
-            // .with_cross_align(CrossAlign::Stretch)
-            // .with_direction(Direction::Horizontal)
-            // .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
-        );
+        scope.attach(LayoutTest {
+            contain_margins: true,
+        });
+        // scope.attach(
+        //     List::new((
+        //         LayoutTest {
+        //             contain_margins: false,
+        //         },
+        //         LayoutTest {
+        //             contain_margins: false,
+        //         },
+        //         LayoutTest {
+        //             contain_margins: true,
+        //         },
+        //         LayoutTest {
+        //             contain_margins: true,
+        //         },
+        //         LayoutTest {
+        //             contain_margins: false,
+        //         },
+        //         // Text::new("Hello, World!"),
+        //     ))
+        //     .contain_margins(true)
+        //     .with_direction(Direction::Vertical)
+        //     .with_padding(Edges::even(0.0)),
+        //     // List::new((
+        //     //     // list3,
+        //     //     List::new((list1, list2))
+        //     //         .with_cross_align(CrossAlign::Stretch)
+        //     //         .with_direction(Direction::Vertical)
+        //     //         .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
+        //     // ))
+        //     // .with_cross_align(CrossAlign::Stretch)
+        //     // .with_direction(Direction::Horizontal)
+        //     // .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
+        // );
     }
 }
 
@@ -625,39 +629,41 @@ struct LayoutTest {
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        let row_2 = List::new((
-            Rectangle { color: BRONZE }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 50.0))),
-            Rectangle { color: EMERALD }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(20.0, 50.0))),
-        ))
-        .contain_margins(self.contain_margins)
-        .with_background_color(EERIE_BLACK_300)
-        .with_margin(MARGIN);
+        // let row_2 = List::new((
+        //     Rectangle { color: BRONZE }
+        //         .with_margin(MARGIN)
+        //         .with_size(Unit::px(vec2(100.0, 50.0))),
+        //     Rectangle { color: EMERALD }
+        //         .with_margin(MARGIN)
+        //         .with_size(Unit::px(vec2(20.0, 50.0))),
+        // ))
+        // .contain_margins(self.contain_margins)
+        // .with_background_color(EERIE_BLACK_300)
+        // .with_margin(MARGIN);
 
         let row_1 = List::new((
             Rectangle { color: CHILI_RED }
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(200.0, 50.0))),
-            row_2,
-            StackTest {},
+            // row_2,
+            // StackTest {},
+            // Text::new("Hello, World!"),
             Rectangle { color: TEAL }
-                .with_margin(MARGIN)
+                // .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 50.0))),
-            Rectangle { color: TEAL }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(50.0, 50.0))),
+            // Rectangle { color: TEAL }
+            //     // .with_margin(MARGIN)
+            //     .with_size(Unit::px(vec2(50.0, 50.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_background_color(EERIE_BLACK)
         .with_margin(MARGIN);
 
-        List::new((row_1,))
-            .contain_margins(self.contain_margins)
-            .with_background_color(EERIE_BLACK_300)
-            .mount(scope);
+        row_1.mount(scope)
+        // List::new((row_1,))
+        //     .contain_margins(self.contain_margins)
+        //     .with_background_color(EERIE_BLACK_300)
+        //     .mount(scope);
     }
 }
 

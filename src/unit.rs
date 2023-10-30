@@ -63,3 +63,17 @@ where
         }
     }
 }
+
+impl<T> std::ops::Sub for Unit<T>
+where
+    T: ops::Sub<Output = T> + ops::Mul<Output = T> + Copy,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            px: self.px - rhs.px,
+            rel: self.rel - rhs.rel,
+        }
+    }
+}

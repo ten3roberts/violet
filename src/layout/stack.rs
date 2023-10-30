@@ -6,7 +6,7 @@ use crate::{
     layout::query_size,
 };
 
-use super::{update_subtree, Block, LayoutLimits, SizeQuery};
+use super::{update_subtree, Block, LayoutLimits, Sizing};
 
 // #[derive(Debug)]
 // struct StackCursor {
@@ -128,7 +128,7 @@ impl Stack {
         world: &World,
         children: &[Entity],
         content_area: Rect,
-    ) -> SizeQuery {
+    ) -> Sizing {
         // Reset to local
         let inner_rect = Rect {
             min: Vec2::ZERO,
@@ -156,7 +156,7 @@ impl Stack {
             tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
         }
 
-        SizeQuery {
+        Sizing {
             min: min_bounds.inner,
             preferred: preferred_bounds.inner,
             margin: min_margin.max(preferred_margin),

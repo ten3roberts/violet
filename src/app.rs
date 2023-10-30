@@ -107,7 +107,7 @@ impl App {
 
                 frame.delta_time = delta_time;
 
-                tracing::info!(?dt, fps = 1.0 / delta_time);
+                // tracing::info!(?dt, fps = 1.0 / delta_time);
 
                 ex.tick(&mut frame);
 
