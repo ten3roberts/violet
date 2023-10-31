@@ -442,13 +442,13 @@ impl Widget for MainApp {
         //     },
         // ));
 
-        scope.attach(
-            Positioned::new(
-                Sized::new(Rectangle { color: BRONZE }).with_size(Unit::px(vec2(400.0, 200.0))),
-            )
-            .with_offset(Unit::rel(Vec2::Y))
-            .with_anchor(Unit::rel(Vec2::Y)),
-        );
+        // scope.attach(
+        //     Positioned::new(
+        //         Sized::new(Rectangle { color: BRONZE }).with_size(Unit::px(vec2(400.0, 200.0))),
+        //     )
+        //     .with_offset(Unit::rel(Vec2::Y))
+        //     .with_anchor(Unit::rel(Vec2::Y)),
+        // );
 
         let list1 = List::new((
             Sized::new(Button {
@@ -629,17 +629,17 @@ struct LayoutTest {
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // let row_2 = List::new((
-        //     Rectangle { color: BRONZE }
-        //         .with_margin(MARGIN)
-        //         .with_size(Unit::px(vec2(100.0, 50.0))),
-        //     Rectangle { color: EMERALD }
-        //         .with_margin(MARGIN)
-        //         .with_size(Unit::px(vec2(20.0, 50.0))),
-        // ))
-        // .contain_margins(self.contain_margins)
-        // .with_background_color(EERIE_BLACK_300)
-        // .with_margin(MARGIN);
+        let row_2 = List::new((
+            Rectangle { color: BRONZE }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(100.0, 50.0))),
+            Rectangle { color: EMERALD }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(20.0, 50.0))),
+        ))
+        .contain_margins(self.contain_margins)
+        .with_background_color(EERIE_BLACK_300)
+        .with_margin(MARGIN);
 
         let row_1 = List::new((
             Rectangle { color: CHILI_RED }
@@ -647,23 +647,22 @@ impl Widget for LayoutTest {
                 .with_size(Unit::px(vec2(200.0, 50.0))),
             // row_2,
             // StackTest {},
-            // Text::new("Hello, World!"),
             Rectangle { color: TEAL }
-                // .with_margin(MARGIN)
+                .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 50.0))),
-            // Rectangle { color: TEAL }
-            //     // .with_margin(MARGIN)
-            //     .with_size(Unit::px(vec2(50.0, 50.0))),
+            Text::new("Hello, World!").with_margin(MARGIN),
+            Rectangle { color: TEAL }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(50.0, 50.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_background_color(EERIE_BLACK)
         .with_margin(MARGIN);
 
-        row_1.mount(scope)
-        // List::new((row_1,))
-        //     .contain_margins(self.contain_margins)
-        //     .with_background_color(EERIE_BLACK_300)
-        //     .mount(scope);
+        List::new((row_1,))
+            .contain_margins(self.contain_margins)
+            .with_background_color(EERIE_BLACK_300)
+            .mount(scope);
     }
 }
 

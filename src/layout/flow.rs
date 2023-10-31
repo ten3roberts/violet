@@ -97,7 +97,7 @@ impl MarginCursor {
 
         if self.contain_margins {
             self.main_cursor += self.pending_margin;
-            self.total_margin += self.pending_margin;
+            // self.total_margin += self.pending_margin;
         }
 
         self.pending_margin = 0.0;
@@ -194,17 +194,33 @@ impl Flow {
 
         let row = self.query_size(world, entity, content_area);
 
-        // Size remaining if everything got at least its preferred size
-        let total_preferred_size = row.preferred.size().dot(axis) - row.total_margin;
+        // If everything was squished as much as possible
+        let minimum_inner_size = row.min.size().dot(axis);
+        // If everything could take as much space as it wants
+        let preferred_inner_size = row.preferred.size().dot(axis);
 
-        let target_size = total_preferred_size.min(limits.max_size.dot(axis));
-        let max_size = limits.max_size.dot(axis) - row.total_margin;
+        // How much space there is left to distribute out
+        let distribute_size = preferred_inner_size - minimum_inner_size;
+
+        // Clipped maximum that we remap to
+        let target_inner_size = distribute_size
+            .min(limits.max_size.dot(axis) - minimum_inner_size)
+            .max(0.0);
+
+        // Size remaining if everything got at least its preferred size
+        let total_preferred_size = row.preferred.size().dot(axis) - row.min.size().dot(axis);
+
+        // let target_size = total_preferred_size.min(limits.max_size.dot(axis));
+        // let max_size = limits.max_size.dot(axis) - row.total_margin;
 
         tracing::info!(
             row.total_margin,
+            ?row.preferred,
             total_preferred_size,
-            target_size,
-            %limits.max_size,
+            // target_size,
+            // max_size,
+            ?limits,
+            blocks = row.blocks.len(),
             "query size"
         );
 
@@ -230,18 +246,18 @@ impl Flow {
             .into_iter()
             .map(|(entity, sizing)| {
                 // The size required to go from min to preferred size
-                let min_size = sizing.min.size().dot(axis);
-                let preferred_size = sizing.preferred.size().dot(axis);
+                let block_min_size = sizing.min.size().dot(axis);
+                let block_preferred_size = sizing.preferred.size().dot(axis);
 
-                let to_preferred = preferred_size - min_size;
-                let ratio = to_preferred / total_preferred_size;
+                let remaining = block_preferred_size - block_min_size;
+                let ratio = remaining / distribute_size;
 
                 sum += ratio;
 
-                let axis_sizing = (min_size + (max_size * ratio)) * axis;
-                tracing::info!(%axis_sizing, "sizing: {}", ratio);
+                let axis_sizing = (block_min_size + (target_inner_size * ratio)) * axis;
+                tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
-                let child_constraints = if let CrossAlign::Stretch = self.cross_align {
+                let child_limits = if let CrossAlign::Stretch = self.cross_align {
                     let margin = entity.get_copy(margin()).unwrap_or_default();
 
                     let size = inner_rect.size().min(limits.max_size) - margin.size();
@@ -262,7 +278,7 @@ impl Flow {
                     &entity,
                     // Supply our whole inner content area
                     content_area,
-                    child_constraints,
+                    child_limits,
                 );
 
                 cursor.put(&block);
@@ -343,6 +359,7 @@ impl Flow {
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
                 let query = query_size(world, &entity, content_area);
+                // tracing::info!("query: {:?}", query);
 
                 min_cursor.put(&Block::new(query.min, query.margin));
                 preferred_cursor.put(&Block::new(query.preferred, query.margin));
@@ -358,7 +375,7 @@ impl Flow {
             .direction
             .to_edges(preferred_cursor.main_margin, preferred_cursor.cross_margin);
 
-        assert_eq!(min_margin, preferred_margin);
+        // assert_eq!(min_margin, preferred_margin);
 
         let preferred = preferred_cursor.finish();
         let min = min_cursor.finish();

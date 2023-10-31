@@ -42,11 +42,12 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
         // potentially shrink it down.
 
         let row = layout.query_size(world, entity, content_area.inset(&padding));
+        let margin = (row.margin - padding).max(Edges::even(0.0)).max(margin);
 
         Sizing {
             min: row.min.pad(&padding),
             preferred: row.preferred.pad(&padding),
-            margin: row.margin.max(row.margin),
+            margin,
         }
     }
     // Stack
