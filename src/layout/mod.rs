@@ -21,6 +21,28 @@ pub struct Sizing {
     margin: Edges,
 }
 
+/// Constraints for a child widget passed down from the parent.
+///
+/// Allows for the parent to control the size of the children, such as stretching
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LayoutLimits {
+    pub min_size: Vec2,
+    pub max_size: Vec2,
+}
+
+/// A block is a rectangle and surrounding support such as margin
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Block {
+    pub(crate) rect: Rect,
+    pub(crate) margin: Edges,
+}
+
+impl Block {
+    pub(crate) fn new(rect: Rect, margin: Edges) -> Self {
+        Self { rect, margin }
+    }
+}
+
 pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizing {
     let margin = entity
         .get(components::margin())
@@ -54,10 +76,12 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
     else if let Ok(children) = entity.get(children()) {
         let query = Stack {}.query_size(world, &children, content_area.inset(&padding));
 
+        // rect: block.rect.pad(&padding),
+        let margin = (query.margin - padding).max(Edges::even(0.0)).max(margin);
         Sizing {
             min: query.min.pad(&padding),
             preferred: query.preferred.pad(&padding),
-            margin: query.margin.max(query.margin),
+            margin,
         }
     } else {
         let (min_size, preferred_size) = resolve_size(entity, content_area, None);
@@ -72,28 +96,6 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
             preferred: Rect::from_size_pos(preferred_size, preferred_offset),
             margin,
         }
-    }
-}
-
-/// Constraints for a child widget passed down from the parent.
-///
-/// Allows for the parent to control the size of the children, such as stretching
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct LayoutLimits {
-    pub min_size: Vec2,
-    pub max_size: Vec2,
-}
-
-/// A block is a rectangle and surrounding support such as margin
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct Block {
-    pub(crate) rect: Rect,
-    pub(crate) margin: Edges,
-}
-
-impl Block {
-    pub(crate) fn new(rect: Rect, margin: Edges) -> Self {
-        Self { rect, margin }
     }
 }
 
@@ -199,11 +201,9 @@ pub(crate) fn update_subtree(
         let (_, size) = resolve_size(entity, content_area, Some(limits));
 
         let pos = resolve_pos(entity, content_area, size);
+        let rect = Rect::from_size_pos(size, pos).clip(content_area);
 
-        Block {
-            rect: Rect::from_size_pos(size, pos),
-            margin,
-        }
+        Block { rect, margin }
     }
 }
 

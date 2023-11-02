@@ -296,4 +296,11 @@ impl Rect {
             max: self.max + pos,
         }
     }
+
+    pub(crate) fn clip(&self, mask: Rect) -> Rect {
+        let min = self.min.max(mask.min);
+        let max = self.max.min(mask.max);
+
+        Rect { min, max }
+    }
 }

@@ -207,19 +207,11 @@ impl Flow {
             .min(limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
 
-        // Size remaining if everything got at least its preferred size
-        let total_preferred_size = row.preferred.size().dot(axis) - row.min.size().dot(axis);
-
-        // let target_size = total_preferred_size.min(limits.max_size.dot(axis));
-        // let max_size = limits.max_size.dot(axis) - row.total_margin;
-
         tracing::info!(
             row.total_margin,
             ?row.preferred,
-            total_preferred_size,
-            // target_size,
-            // max_size,
-            ?limits,
+            distribute_size,
+            target_inner_size,
             blocks = row.blocks.len(),
             "query size"
         );
@@ -281,6 +273,16 @@ impl Flow {
                     child_limits,
                 );
 
+                if block.rect.size().x > child_limits.max_size.x
+                    || block.rect.size().y > child_limits.max_size.y
+                {
+                    tracing::warn!(
+                        "child {} exceeded max size: {:?} > {:?}",
+                        entity,
+                        block.rect.size(),
+                        child_limits.max_size
+                    );
+                }
                 cursor.put(&block);
 
                 (entity, block)

@@ -588,10 +588,10 @@ impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
         // scope.attach(Text::new("This is an overlaid text"));
 
-        scope.attach(
-            Positioned::new(Text::new("This is an overlaid text"))
-                .with_offset(Unit::px(vec2(50.0, 10.0))),
-        );
+        // scope.attach(
+        //     Positioned::new(Text::new("This is an overlaid text"))
+        //         .with_offset(Unit::px(vec2(50.0, 10.0))),
+        // );
 
         scope.attach(
             Positioned::new(Rectangle { color: BRONZE }.with_size(Unit::px(vec2(100.0, 17.0))))
@@ -601,12 +601,12 @@ impl Widget for StackTest {
         scope.attach(
             Positioned::new(Rectangle { color: VIOLET })
                 .with_offset(Unit::px(vec2(10.0, 0.0)))
-                .with_min_size(Unit::px(vec2(30.0, 10.0))),
+                .with_size(Unit::px(vec2(30.0, 10.0))),
         );
         scope.attach(
             Positioned::new(Rectangle { color: VIOLET })
                 .with_offset(Unit::px(vec2(50.0, 20.0)))
-                .with_min_size(Unit::px(vec2(10.0, 10.0))),
+                .with_size(Unit::px(vec2(10.0, 10.0))),
         );
         // scope.attach(
         //     Rectangle { color: CHILI_RED }
@@ -642,18 +642,18 @@ impl Widget for LayoutTest {
         .with_margin(MARGIN);
 
         let row_1 = List::new((
-            Rectangle { color: CHILI_RED }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(200.0, 50.0))),
+            // Rectangle { color: CHILI_RED }
+            //     .with_margin(MARGIN)
+            //     .with_size(Unit::px(vec2(200.0, 50.0))),
             // row_2,
-            // StackTest {},
-            Rectangle { color: TEAL }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 50.0))),
-            Text::new("Hello, World!").with_margin(MARGIN),
-            Rectangle { color: TEAL }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(50.0, 50.0))),
+            StackTest {},
+            // Rectangle { color: TEAL }
+            //     .with_margin(MARGIN)
+            //     .with_size(Unit::px(vec2(100.0, 50.0))),
+            // Text::new("Hello, World!").with_margin(MARGIN),
+            // Rectangle { color: TEAL }
+            //     .with_margin(MARGIN)
+            //     .with_size(Unit::px(vec2(50.0, 50.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_background_color(EERIE_BLACK)

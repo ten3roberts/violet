@@ -3,7 +3,7 @@ use glam::Vec2;
 
 use crate::{
     components::{self, Edges, Rect},
-    layout::query_size,
+    layout::{query_size, resolve_pos},
 };
 
 use super::{update_subtree, Block, LayoutLimits, Sizing};
@@ -86,6 +86,14 @@ impl Stack {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
+        let _span = tracing::info_span!("Stack::apply").entered();
+
+        tracing::info!(
+            ?content_area,
+            content_area_size=%content_area.size(),
+            ?limits
+        );
+
         // Reset to local
         let inner_rect = Rect {
             min: Vec2::ZERO,
@@ -96,6 +104,8 @@ impl Stack {
             .iter()
             .map(|&child| {
                 let entity = world.entity(child).expect("invalid child");
+
+                let pos = resolve_pos(&entity, content_area, size);
 
                 let limits = LayoutLimits {
                     min_size: Vec2::ZERO,
