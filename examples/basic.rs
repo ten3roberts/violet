@@ -280,12 +280,22 @@ impl Widget for Counter {
 }
 
 struct Text {
+    color: Option<Srgba>,
     text: String,
 }
 
 impl Text {
     fn new(text: impl Into<String>) -> Self {
-        Self { text: text.into() }
+        Self {
+            text: text.into(),
+            color: None,
+        }
+    }
+
+    /// Set the text color
+    pub fn with_color(mut self, color: Srgba) -> Self {
+        self.color = Some(color);
+        self
     }
 }
 
@@ -298,7 +308,8 @@ impl Widget for Text {
         scope
             .set(font_size(), 16.0)
             .set(font_from_file(), font)
-            .set(text(), self.text);
+            .set(text(), self.text)
+            .set_opt(color(), self.color);
     }
 }
 
@@ -409,140 +420,6 @@ impl Widget for MainApp {
             .set(padding(), Edges::even(10.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
-        // scope.attach(Counter);
-        // scope.attach(Rectangle {
-        //     color: palette::named::BLUEVIOLET.into_format().with_alpha(1.0),
-        // });
-
-        // scope.attach(
-        //     Positioned::new(
-        //         Sized::new(Rectangle {
-        //             color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
-        //         })
-        //         .with_size(Unit::px(vec2(100.0, 0.0)) + Unit::rel(vec2(0.0, 1.0))),
-        //     )
-        //     .with_offset(Unit::rel(vec2(1.0, 0.0)))
-        //     // TODO: parent anchor
-        //     .with_anchor(Unit::rel(vec2(1.0, 0.0))),
-        // );
-
-        // scope.spawn(FutureEffect::new(
-        //     sleep(Duration::from_secs(2)),
-        //     move |scope: &mut Scope, _| {
-        //         scope.attach(
-        //             Positioned::new(
-        //                 Sized::new(Image {
-        //                     path: "./assets/images/uv.png",
-        //                 })
-        //                 .with_size(Unit::px(vec2(400.0, 400.0))),
-        //             )
-        //             .with_offset(Unit::rel(Vec2::Y))
-        //             .with_anchor(Unit::rel(Vec2::Y)),
-        //         );
-        //     },
-        // ));
-
-        // scope.attach(
-        //     Positioned::new(
-        //         Sized::new(Rectangle { color: BRONZE }).with_size(Unit::px(vec2(400.0, 200.0))),
-        //     )
-        //     .with_offset(Unit::rel(Vec2::Y))
-        //     .with_anchor(Unit::rel(Vec2::Y)),
-        // );
-
-        let list1 = List::new((
-            Sized::new(Button {
-                normal_color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
-                pressed_color: Hsla::new(0.0, 0.5, 0.2, 1.0).into_color(),
-                on_click: Box::new(|_, _| {
-                    tracing::info!("Clicked!");
-                }),
-            })
-            .with_min_size(Unit::px(vec2(100.0, 100.0)))
-            .with_size(Unit::px(vec2(0.0, 100.0)) + Unit::rel(vec2(0.5, 0.0)))
-            .with_margin(MARGIN),
-            Counter {}.with_margin(MARGIN),
-            Sized::new(Rectangle {
-                color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-            })
-            .with_size(Unit::px(vec2(100.0, 50.0)))
-            .with_margin(MARGIN),
-            Sized::new(Rectangle {
-                color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
-            })
-            .with_size(Unit::px(vec2(0.0, 60.0)) + Unit::rel(vec2(0.2, 0.0)))
-            .with_margin(MARGIN),
-            Sized::new(Rectangle {
-                color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-            })
-            .with_min_size(Unit::px(vec2(50.0, 100.0)))
-            .with_size(Unit::px(vec2(50.0, 0.0)) + Unit::rel(vec2(0.0, 0.2)))
-            .with_margin(MARGIN),
-        ))
-        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
-
-        let list3 = List::new((
-            Sized::new(Button {
-                normal_color: Hsla::new(180.0, 0.5, 0.5, 1.0).into_color(),
-                pressed_color: Hsla::new(180.0, 0.5, 0.2, 1.0).into_color(),
-                on_click: Box::new(|_, _| {}),
-            })
-            .with_size(Unit::px(vec2(80.0, 20.0)))
-            .with_margin(Edges::even(2.0)),
-            Sized::new(Button {
-                normal_color: Hsla::new(270.0, 0.5, 0.5, 1.0).into_color(),
-                pressed_color: Hsla::new(270.0, 0.5, 0.2, 1.0).into_color(),
-                on_click: Box::new(|_, _| {}),
-            })
-            .with_size(Unit::px(vec2(100.0, 20.0)))
-            .with_margin(Edges::even(2.0)),
-            Sized::new(Button {
-                normal_color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-                pressed_color: Hsla::new(30.0, 0.5, 0.2, 1.0).into_color(),
-                on_click: Box::new(|_, _| {}),
-            })
-            .with_size(Unit::px(vec2(120.0, 10.0)))
-            .with_margin(Edges::even(2.0)),
-        ))
-        .with_direction(Direction::Vertical)
-        .with_cross_align(CrossAlign::End);
-
-        let list2 = List::new((
-            Ticker.with_margin(MARGIN),
-            // (Sized::new(Rectangle {
-            //     color: Hsla::new(30.0, 0.5, 0.5, 1.0).into_color(),
-            // })
-            // .with_size(Unit::px(vec2(100.0, 50.0)))),
-            List::new([list3])
-                .with_background_color(Hsla::new(190.0, 0.048, 0.2, 1.0).into_color())
-                .with_padding(MARGIN),
-            Text {
-                text: "Hello There!".into(),
-            }
-            .with_margin(MARGIN),
-            Text {
-                text: "General Kenobi".into(),
-            }
-            .with_margin(MARGIN),
-            Sized::new(Rectangle {
-                color: Hsla::new(60.0, 0.5, 0.5, 1.0).into_color(),
-            })
-            .with_min_size(Unit::px(vec2(20.0, 60.0)))
-            .with_size(Unit::px(vec2(200.0, 60.0)))
-            .with_margin(MARGIN),
-            Sized::new(Rectangle {
-                color: Hsla::new(90.0, 0.5, 0.5, 1.0).into_color(),
-            })
-            .with_size(Unit::px(vec2(50.0, 50.0)))
-            .with_margin(MARGIN),
-        ))
-        .with_cross_align(CrossAlign::Center)
-        .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
-
-        // let list3 = List::new((Sized::new(ShowWorld).with_size(Unit::px(vec2(200.0, 0.0))),))
-        //     .with_cross_align(CrossAlign::Stretch)
-        //     .with_background_color(Hsla::new(190.0, 0.048, 0.143, 1.0).into_color());
-
         scope.attach(LayoutTest {
             contain_margins: true,
         });
@@ -568,16 +445,6 @@ impl Widget for MainApp {
         //     .contain_margins(true)
         //     .with_direction(Direction::Vertical)
         //     .with_padding(Edges::even(0.0)),
-        //     // List::new((
-        //     //     // list3,
-        //     //     List::new((list1, list2))
-        //     //         .with_cross_align(CrossAlign::Stretch)
-        //     //         .with_direction(Direction::Vertical)
-        //     //         .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
-        //     // ))
-        //     // .with_cross_align(CrossAlign::Stretch)
-        //     // .with_direction(Direction::Horizontal)
-        //     // .with_background_color(Hsla::new(190.0, 0.048, 0.1, 1.0).into_color()),
         // );
     }
 }
@@ -586,20 +453,23 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        scope.attach(Text::new("This is an overlaid text"));
+        // scope.attach(Text::new("This is an overlaid text").with_color(EMERALD));
 
         // scope.attach(
         //     Positioned::new(Text::new("This is an overlaid text"))
         //         .with_offset(Unit::px(vec2(50.0, 10.0))),
         // );
 
-        scope.attach(
-            Positioned::new(Rectangle { color: BRONZE }.with_size(Unit::px(vec2(100.0, 17.0)))), // .with_offset(Unit::px(vec2(50.0, 10.0))),
-        );
+        // scope.attach(
+        //     Positioned::new(
+        //         Rectangle { color: PLATINUM }
+        //             .with_size(Unit::px(vec2(0.0, 20.0)) + Unit::rel(vec2(0.2, 0.0))),
+        //     ), // .with_offset(Unit::px(vec2(50.0, 10.0))),
+        // );
 
         scope.attach(
             Positioned::new(Rectangle { color: VIOLET })
-                .with_offset(Unit::px(vec2(0.0, 10.0)))
+                .with_offset(Unit::px(vec2(10.0, 0.0)))
                 .with_size(Unit::px(vec2(30.0, 10.0))),
         );
         scope.attach(
@@ -641,18 +511,18 @@ impl Widget for LayoutTest {
         .with_margin(MARGIN);
 
         let row_1 = List::new((
-            // Rectangle { color: CHILI_RED }
-            //     .with_margin(MARGIN)
-            //     .with_size(Unit::px(vec2(200.0, 50.0))),
-            // row_2,
+            Rectangle { color: CHILI_RED }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(200.0, 50.0))),
+            row_2,
             StackTest {},
-            // Rectangle { color: TEAL }
-            //     .with_margin(MARGIN)
-            //     .with_size(Unit::px(vec2(100.0, 50.0))),
+            Rectangle { color: TEAL }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(100.0, 50.0))),
             // Text::new("Hello, World!").with_margin(MARGIN),
-            // Rectangle { color: TEAL }
-            //     .with_margin(MARGIN)
-            //     .with_size(Unit::px(vec2(50.0, 50.0))),
+            Rectangle { color: TEAL }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(50.0, 50.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_background_color(EERIE_BLACK)

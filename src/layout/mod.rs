@@ -283,6 +283,7 @@ fn resolve_text_size(
         .iter()
         .map(|v| vec2(v.x + v.width as f32, v.y + v.height as f32))
         .fold(Vec2::ZERO, |acc, v| acc.max(v))
+        + 1.0
 }
 
 fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {

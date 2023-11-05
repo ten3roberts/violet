@@ -147,9 +147,6 @@ pub enum CrossAlign {
     Center,
     /// Align items to the end of the cross axis
     End,
-
-    /// Fill the cross axis
-    Stretch,
 }
 
 impl CrossAlign {
@@ -158,7 +155,6 @@ impl CrossAlign {
             CrossAlign::Start => 0.0,
             CrossAlign::Center => (total_size - size) / 2.0,
             CrossAlign::End => total_size - size,
-            CrossAlign::Stretch => 0.0,
         }
     }
 }
@@ -174,6 +170,7 @@ pub(crate) struct Row<'a> {
 #[derive(Default, Debug)]
 pub struct Flow {
     pub cross_align: CrossAlign,
+    pub stretch: bool,
     pub direction: Direction,
     pub contain_margins: bool,
 }
@@ -249,7 +246,7 @@ impl Flow {
                 let axis_sizing = (block_min_size + (target_inner_size * ratio)) * axis;
                 tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
-                let child_limits = if let CrossAlign::Stretch = self.cross_align {
+                let child_limits = if self.stretch {
                     let margin = entity.get_copy(margin()).unwrap_or_default();
 
                     let size = inner_rect.size().min(limits.max_size) - margin.size();
@@ -288,8 +285,6 @@ impl Flow {
                 (entity, block)
             })
             .collect_vec();
-
-        tracing::info!(sum, "sum");
 
         let line = cursor.finish();
 
@@ -369,9 +364,9 @@ impl Flow {
             })
             .collect_vec();
 
-        let min_margin = self
-            .direction
-            .to_edges(min_cursor.main_margin, min_cursor.cross_margin);
+        // let min_margin = self
+        //     .direction
+        //     .to_edges(min_cursor.main_margin, min_cursor.cross_margin);
 
         let preferred_margin = self
             .direction

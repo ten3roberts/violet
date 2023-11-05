@@ -120,7 +120,8 @@ impl Stack {
         }
 
         let margin = bounds.margin();
-        let mut rect = bounds.inner;
+        let mut rect = bounds.inner.clamp_size(limits.min_size, limits.max_size);
+
         rect.min += content_area.min;
         rect.max += content_area.min;
 
@@ -139,19 +140,17 @@ impl Stack {
             max: content_area.size(),
         };
 
-        let (min_bounds, preferred_bounds) = children
-            .iter()
-            .map(|&child| {
-                let entity = world.entity(child).expect("invalid child");
+        let mut min_bounds = StackableBounds::default();
+        let mut preferred_bounds = StackableBounds::default();
+        for &child in children.iter() {
+            let entity = world.entity(child).expect("invalid child");
 
-                let query = query_size(world, &entity, inner_rect);
-                (
-                    StackableBounds::new(query.min, query.margin),
-                    StackableBounds::new(query.preferred, query.margin),
-                )
-            })
-            .reduce(|a, b| (a.0.merge(&b.0), a.1.merge(&b.1)))
-            .unwrap_or_default();
+            let query = query_size(world, &entity, inner_rect);
+
+            min_bounds = min_bounds.merge(&StackableBounds::new(query.min, query.margin));
+            preferred_bounds =
+                preferred_bounds.merge(&StackableBounds::new(query.preferred, query.margin));
+        }
 
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
