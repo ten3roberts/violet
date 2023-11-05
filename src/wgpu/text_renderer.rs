@@ -256,6 +256,7 @@ pub struct TextMeshQuery {
     intrinsic_size: Component<Vec2>,
     text: Component<String>,
     font: Component<Handle<Font>>,
+    #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
 }
 

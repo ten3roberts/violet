@@ -153,7 +153,7 @@ pub enum CrossAlign {
 }
 
 impl CrossAlign {
-    fn align_offset(&self, total_size: f32, size: f32) -> f32 {
+    pub fn align_offset(&self, total_size: f32, size: f32) -> f32 {
         match self {
             CrossAlign::Start => 0.0,
             CrossAlign::Center => (total_size - size) / 2.0,

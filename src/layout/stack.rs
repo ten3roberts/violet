@@ -1,45 +1,13 @@
 use flax::{Entity, World};
-use glam::Vec2;
+use glam::{vec2, Vec2};
+use itertools::Itertools;
 
 use crate::{
     components::{self, Edges, Rect},
     layout::{query_size, resolve_pos},
 };
 
-use super::{update_subtree, Block, LayoutLimits, Sizing};
-
-// #[derive(Debug)]
-// struct StackCursor {
-//     inner: Rect,
-//     outer: Rect,
-// }
-
-// impl StackCursor {
-//     fn new(block: Block) -> Self {
-//         Self {
-//             inner: Rect::ZERO,
-//             outer: Rect::ZERO,
-//         }
-//     }
-
-//     fn put(&mut self, block: Block) {
-//         self.inner = self.inner.merge(block.rect);
-
-//         self.outer = self.outer.merge(block.rect.pad(&block.margin));
-//     }
-
-//     fn margin(&self) -> Edges {
-//         let min = self.outer.min - self.inner.min;
-//         let max = self.inner.max - self.outer.max;
-
-//         Edges {
-//             left: min.x,
-//             right: max.x,
-//             top: min.y,
-//             bottom: max.y,
-//         }
-//     }
-// }
+use super::{update_subtree, Block, CrossAlign, LayoutLimits, Sizing};
 
 #[derive(Default, Debug)]
 pub struct StackableBounds {
@@ -76,7 +44,19 @@ impl StackableBounds {
 }
 
 /// The stack layout
-pub struct Stack {}
+pub struct Stack {
+    pub horizontal_alignment: CrossAlign,
+    pub vertical_alignment: CrossAlign,
+}
+
+impl Default for Stack {
+    fn default() -> Self {
+        Self {
+            horizontal_alignment: CrossAlign::Center,
+            vertical_alignment: CrossAlign::End,
+        }
+    }
+}
 
 impl Stack {
     pub(crate) fn apply(
@@ -100,12 +80,14 @@ impl Stack {
             max: content_area.size(),
         };
 
-        let bounds = children
+        let mut bounds = StackableBounds::default();
+
+        let blocks = children
             .iter()
             .map(|&child| {
                 let entity = world.entity(child).expect("invalid child");
 
-                let pos = resolve_pos(&entity, content_area, size);
+                // let pos = resolve_pos(&entity, content_area, preferred_size);
 
                 let limits = LayoutLimits {
                     min_size: Vec2::ZERO,
@@ -114,16 +96,28 @@ impl Stack {
 
                 let block = update_subtree(world, &entity, inner_rect, limits);
 
-                entity.update_dedup(components::rect(), block.rect);
-                entity.update_dedup(components::local_position(), content_area.min);
-
-                StackableBounds {
+                bounds = bounds.merge(&StackableBounds {
                     inner: block.rect,
                     outer: block.rect.pad(&block.margin),
-                }
+                });
+
+                (entity, block)
             })
-            .reduce(|a, b| a.merge(&b))
-            .unwrap_or_default();
+            .collect_vec();
+
+        let size = bounds.inner.size();
+
+        for (entity, block) in blocks {
+            let block_size = block.rect.size();
+            let offset = content_area.min
+                + vec2(
+                    self.horizontal_alignment.align_offset(size.x, block_size.x),
+                    self.vertical_alignment.align_offset(size.y, block_size.y),
+                );
+
+            entity.update_dedup(components::rect(), block.rect);
+            entity.update_dedup(components::local_position(), offset);
+        }
 
         let margin = bounds.margin();
         let mut rect = bounds.inner;

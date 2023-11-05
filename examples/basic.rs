@@ -586,7 +586,7 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // scope.attach(Text::new("This is an overlaid text"));
+        scope.attach(Text::new("This is an overlaid text"));
 
         // scope.attach(
         //     Positioned::new(Text::new("This is an overlaid text"))
@@ -594,18 +594,17 @@ impl Widget for StackTest {
         // );
 
         scope.attach(
-            Positioned::new(Rectangle { color: BRONZE }.with_size(Unit::px(vec2(100.0, 17.0))))
-                .with_offset(Unit::px(vec2(50.0, 10.0))),
+            Positioned::new(Rectangle { color: BRONZE }.with_size(Unit::px(vec2(100.0, 17.0)))), // .with_offset(Unit::px(vec2(50.0, 10.0))),
         );
 
         scope.attach(
             Positioned::new(Rectangle { color: VIOLET })
-                .with_offset(Unit::px(vec2(10.0, 0.0)))
+                .with_offset(Unit::px(vec2(0.0, 10.0)))
                 .with_size(Unit::px(vec2(30.0, 10.0))),
         );
         scope.attach(
             Positioned::new(Rectangle { color: VIOLET })
-                .with_offset(Unit::px(vec2(50.0, 20.0)))
+                // .with_offset(Unit::px(vec2(50.0, 20.0)))
                 .with_size(Unit::px(vec2(10.0, 10.0))),
         );
         // scope.attach(

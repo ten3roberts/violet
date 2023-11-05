@@ -74,7 +74,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
-        let query = Stack {}.query_size(world, &children, content_area.inset(&padding));
+        let query = Stack::default().query_size(world, &children, content_area.inset(&padding));
 
         // rect: block.rect.pad(&padding),
         let margin = (query.margin - padding).max(Edges::even(0.0)).max(margin);
@@ -148,7 +148,7 @@ pub(crate) fn update_subtree(
     }
     // Stack
     else if let Ok(children) = entity.get(children()) {
-        let block = Stack {}.apply(
+        let block = Stack::default().apply(
             world,
             &children,
             content_area.inset(&padding),

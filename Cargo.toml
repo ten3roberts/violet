@@ -12,7 +12,7 @@ repository = "https://github.com/ten3roberts/violet"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-flax = { git = "https://github.com/ten3roberts/flax", version = "0.5.0", features = [
+flax = { git = "https://github.com/ten3roberts/flax", version = "0.6.0", features = [
     "derive",
 ] }
 
