@@ -246,18 +246,19 @@ impl Flow {
                 let axis_sizing = (block_min_size + (target_inner_size * ratio)) * axis;
                 tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
+                let margin = entity.get_copy(margin()).unwrap_or_default();
                 let child_limits = if self.stretch {
-                    let margin = entity.get_copy(margin()).unwrap_or_default();
-
-                    let size = inner_rect.size().min(limits.max_size) - margin.size();
+                    let cross_size = inner_rect.size().min(limits.max_size) - margin.size();
                     LayoutLimits {
-                        min_size: size * cross_axis,
-                        max_size: axis_sizing + size * cross_axis,
+                        min_size: cross_size * cross_axis,
+                        max_size: axis_sizing + cross_size * cross_axis,
                     }
                 } else {
+                    let cross_size = available_size - margin.size();
+
                     LayoutLimits {
                         min_size: Vec2::ZERO,
-                        max_size: axis_sizing + available_size * cross_axis,
+                        max_size: axis_sizing + cross_size * cross_axis,
                     }
                 };
 

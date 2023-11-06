@@ -162,39 +162,6 @@ pub(crate) fn update_subtree(
             rect: block.rect.pad(&padding),
             margin: (block.margin - padding).max(Edges::even(0.0)).max(margin),
         }
-        // for &child in &*children {
-        //     let entity = world.entity(child).unwrap();
-
-        //     // let local_rect = widget_outer_bounds(world, &entity, inner_rect.size());
-
-        //     assert_eq!(content_area.size(), limits.max);
-        //     let constraints = LayoutLimits {
-        //         min: Vec2::ZERO,
-        //         max: limits.max - padding.size(),
-        //     };
-
-        //     // We ask ourselves the question:
-        //     //
-        //     // Relative to ourselves, where can our children be placed without clipping.
-        //     //
-        //     // The answer is a origin bound rect of the same size as our content area, inset by the
-        //     // imposed padding.
-        //     let content_area = Rect {
-        //         min: Vec2::ZERO,
-        //         max: content_area.size(),
-        //     }
-        //     .inset(&padding);
-
-        //     assert_eq!(content_area.size(), constraints.max);
-
-        //     let res = update_subtree(world, &entigy, content_area, constraints);
-
-        //     entity.update_dedup(components::rect(), res.rect);
-        // }
-        // Block {
-        //     rect: total_bounds,
-        //     margin,
-        // }
     }
     // Text widgets height are influenced by their available width.
     else {
