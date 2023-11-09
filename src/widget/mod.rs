@@ -74,3 +74,5 @@ tuple_impl! { 0 => A, 1 => B, 2 => C }
 tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D }
 tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E }
 tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H }

@@ -1,7 +1,7 @@
 mod flow;
 mod stack;
 
-use flax::{EntityRef, World};
+use flax::{EntityRef, FetchExt, World};
 use fontdue::{layout::TextStyle, Font};
 use glam::{vec2, Vec2};
 
@@ -73,8 +73,11 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
         }
     }
     // Stack
-    else if let Ok(children) = entity.get(children()) {
-        let query = Stack::default().query_size(world, &children, content_area.inset(&padding));
+    else if let Some((children, stack)) = entity
+        .query(&(children(), components::stack().opt_or_default()))
+        .get()
+    {
+        let query = stack.query_size(world, children, content_area.inset(&padding));
 
         // rect: block.rect.pad(&padding),
         let margin = (query.margin - padding).max(Edges::even(0.0)).max(margin);
@@ -147,7 +150,10 @@ pub(crate) fn update_subtree(
         block
     }
     // Stack
-    else if let Ok(children) = entity.get(children()) {
+    else if let Some((children, stack)) = entity
+        .query(&(children(), components::stack().opt_or_default()))
+        .get()
+    {
         let block = Stack::default().apply(
             world,
             &children,

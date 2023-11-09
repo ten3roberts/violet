@@ -2,7 +2,11 @@ use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
 use palette::Srgba;
 
-use crate::{layout::Flow, shapes::FilledRect, unit::Unit};
+use crate::{
+    layout::{Flow, Stack},
+    shapes::FilledRect,
+    unit::Unit,
+};
 
 component! {
     pub is_widget: () => [ Debuggable ],
@@ -39,6 +43,7 @@ component! {
 
     /// Manages the layout of the children in a flowing list
     pub flow: Flow => [ Debuggable ],
+    pub stack: Stack => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
     pub padding: Edges => [ Debuggable ],

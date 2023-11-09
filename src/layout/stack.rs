@@ -44,6 +44,7 @@ impl StackableBounds {
 }
 
 /// The stack layout
+#[derive(Debug, Clone)]
 pub struct Stack {
     pub horizontal_alignment: CrossAlign,
     pub vertical_alignment: CrossAlign,

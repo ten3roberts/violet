@@ -4,7 +4,7 @@ use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
-use itertools::Position;
+use itertools::{Itertools, Position};
 use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::{
@@ -13,9 +13,9 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, flow, font_size, padding, size, text, Edges},
+    components::{self, color, filled_rect, flow, font_size, padding, size, stack, text, Edges},
     input::{on_focus, on_mouse_input},
-    layout::{CrossAlign, Direction, Flow},
+    layout::{self, CrossAlign, Direction, Flow},
     shapes::FilledRect,
     style::StyleExt,
     time::interval,
@@ -23,6 +23,7 @@ use violet::{
     wgpu::{components::font_from_file, font::FontFromFile},
     App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
+use wgpu::RenderBundleEncoderDescriptor;
 use winit::event::ElementState;
 
 struct MainApp;
@@ -282,6 +283,8 @@ impl Widget for Counter {
 struct Text {
     color: Option<Srgba>,
     text: String,
+    font: PathBuf,
+    font_size: f32,
 }
 
 impl Text {
@@ -289,7 +292,21 @@ impl Text {
         Self {
             text: text.into(),
             color: None,
+            font_size: 16.0,
+            font: "assets/fonts/Inter/static/Inter-Regular.ttf".into(),
         }
+    }
+
+    /// Set the font
+    pub fn with_font(mut self, font: impl Into<PathBuf>) -> Self {
+        self.font = font.into();
+        self
+    }
+
+    /// Set the font_size
+    pub fn with_font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
     }
 
     /// Set the text color
@@ -302,11 +319,11 @@ impl Text {
 impl Widget for Text {
     fn mount(self, scope: &mut Scope) {
         let font = FontFromFile {
-            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+            path: BytesFromFile(PathBuf::from(self.font)),
         };
 
         scope
-            .set(font_size(), 16.0)
+            .set(font_size(), self.font_size)
             .set(font_from_file(), font)
             .set(text(), self.text)
             .set_opt(color(), self.color);
@@ -376,6 +393,11 @@ impl<W: WidgetCollection> List<W> {
         self.layout.contain_margins = enable;
         self
     }
+
+    fn with_stretch(mut self, enable: bool) -> Self {
+        self.layout.stretch = enable;
+        self
+    }
 }
 
 impl<W: WidgetCollection> Widget for List<W> {
@@ -417,35 +439,75 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "MainApp".into())
-            .set(padding(), Edges::even(10.0))
+            // .set(padding(), Edges::even(10.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
-        scope.attach(LayoutTest {
-            contain_margins: true,
-        });
-        // scope.attach(
-        //     List::new((
-        //         LayoutTest {
-        //             contain_margins: false,
-        //         },
-        //         LayoutTest {
-        //             contain_margins: false,
-        //         },
-        //         LayoutTest {
-        //             contain_margins: true,
-        //         },
-        //         LayoutTest {
-        //             contain_margins: true,
-        //         },
-        //         LayoutTest {
-        //             contain_margins: false,
-        //         },
-        //         // Text::new("Hello, World!"),
-        //     ))
-        //     .contain_margins(true)
-        //     .with_direction(Direction::Vertical)
-        //     .with_padding(Edges::even(0.0)),
-        // );
+        // scope.attach(LayoutTest {
+        //     contain_margins: true,
+        // });
+        scope.attach(
+            List::new((
+                LayoutTest {
+                    contain_margins: true,
+                },
+                LayoutTest {
+                    contain_margins: true,
+                },
+                List::new(
+                    (1..=4)
+                        .map(|i| {
+                            Image {
+                                path: "./assets/images/statue.jpg",
+                            }
+                            .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+                            .with_margin(MARGIN)
+                        })
+                        .collect_vec(),
+                ),
+                Stack {
+                    items: (
+                        Text::new("Hello, World!")
+                            .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
+                            .with_font_size(32.0)
+                            .with_margin(MARGIN),
+                        Rectangle { color: EERIE_BLACK }
+                            .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
+                    ),
+                }, // LayoutTest {
+                   //     contain_margins: true,
+                   // },
+                   // LayoutTest {
+                   //     contain_margins: true,
+                   // },
+                   // LayoutTest {
+                   //     contain_margins: false,
+                   // },
+                   // Text::new("Hello, World!"),
+            ))
+            .contain_margins(true)
+            .with_direction(Direction::Vertical), // .with_padding(Edges::even(0.0)),
+        );
+    }
+}
+
+struct Stack<W> {
+    items: W,
+}
+
+impl<W> Widget for Stack<W>
+where
+    W: WidgetCollection,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.items.attach(scope);
+
+        scope.set(
+            stack(),
+            layout::Stack {
+                horizontal_alignment: CrossAlign::Center,
+                vertical_alignment: CrossAlign::Start,
+            },
+        );
     }
 }
 
@@ -453,7 +515,7 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // scope.attach(Text::new("This is an overlaid text").with_color(EMERALD));
+        scope.attach(Text::new("This is an overlaid text").with_color(EMERALD));
 
         // scope.attach(
         //     Positioned::new(Text::new("This is an overlaid text"))
@@ -467,16 +529,16 @@ impl Widget for StackTest {
         //     ), // .with_offset(Unit::px(vec2(50.0, 10.0))),
         // );
 
-        scope.attach(
-            Positioned::new(Rectangle { color: VIOLET })
-                .with_offset(Unit::px(vec2(10.0, 0.0)))
-                .with_size(Unit::px(vec2(30.0, 10.0))),
-        );
-        scope.attach(
-            Positioned::new(Rectangle { color: VIOLET })
-                // .with_offset(Unit::px(vec2(50.0, 20.0)))
-                .with_size(Unit::px(vec2(10.0, 10.0))),
-        );
+        // scope.attach(
+        //     Positioned::new(Rectangle { color: VIOLET })
+        //         .with_offset(Unit::px(vec2(10.0, 0.0)))
+        //         .with_size(Unit::px(vec2(30.0, 10.0))),
+        // );
+        // scope.attach(
+        //     Positioned::new(Rectangle { color: VIOLET })
+        //         // .with_offset(Unit::px(vec2(50.0, 20.0)))
+        //         .with_size(Unit::px(vec2(10.0, 10.0))),
+        // );
         // scope.attach(
         //     Rectangle { color: CHILI_RED }
         //         .with_min_size(Unit::px(vec2(50.0, 50.0)))
@@ -501,37 +563,49 @@ impl Widget for LayoutTest {
         let row_2 = List::new((
             Rectangle { color: BRONZE }
                 .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 50.0))),
+                .with_size(Unit::px(vec2(100.0, 20.0))),
             Rectangle { color: EMERALD }
                 .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(20.0, 50.0))),
+                .with_size(Unit::px(vec2(20.0, 20.0))),
         ))
+        .with_direction(Direction::Vertical)
         .contain_margins(self.contain_margins)
         .with_background_color(EERIE_BLACK_300)
         .with_margin(MARGIN);
 
         let row_1 = List::new((
-            Rectangle { color: CHILI_RED }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(200.0, 50.0))),
+            Button {
+                normal_color: CHILI_RED,
+                pressed_color: BRONZE,
+                on_click: Box::new(|_, _| {}),
+            }
+            .with_margin(MARGIN)
+            .with_size(Unit::px(vec2(200.0, 50.0))),
             row_2,
             StackTest {},
-            Rectangle { color: TEAL }
+            Button {
+                normal_color: CHILI_RED,
+                pressed_color: BRONZE,
+                on_click: Box::new(|_, _| {}),
+            }
+            .with_margin(MARGIN)
+            .with_size(Unit::px(vec2(200.0, 50.0))),
+            Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
+            Rectangle { color: EMERALD }
                 .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 50.0))),
-            // Text::new("Hello, World!").with_margin(MARGIN),
-            Rectangle { color: TEAL }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(50.0, 50.0))),
+                .with_size(Unit::px(vec2(5.0, 50.0))),
         ))
         .contain_margins(self.contain_margins)
+        .with_cross_align(CrossAlign::Center)
         .with_background_color(EERIE_BLACK)
         .with_margin(MARGIN);
 
-        List::new((row_1,))
-            .contain_margins(self.contain_margins)
-            .with_background_color(EERIE_BLACK_300)
-            .mount(scope);
+        row_1.mount(scope);
+
+        // List::new((row_1,))
+        //     .contain_margins(self.contain_margins)
+        //     .with_background_color(EERIE_BLACK_300)
+        //     .mount(scope);
     }
 }
 

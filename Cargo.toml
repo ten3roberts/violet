@@ -31,7 +31,7 @@ winit = "0.28"
 wgpu = { version = "0.17" }
 palette = { version = "0.7", features = ["serializing"] }
 dashmap = "5.4"
-image = { version = "0.24", default_features = false, features = ["png"] }
+image = { version = "0.24", default_features = false, features = ["png", "jpeg"] }
 color-hex = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 
