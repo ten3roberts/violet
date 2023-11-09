@@ -116,8 +116,8 @@ impl Stack {
                     self.vertical_alignment.align_offset(size.y, block_size.y),
                 );
 
-            entity.update_dedup(components::rect(), block.rect);
-            entity.update_dedup(components::local_position(), offset);
+            entity.update_dedup(components::rect(), block.rect.translate(offset));
+            // entity.update_dedup(components::local_position(), offset);
         }
 
         let margin = bounds.margin();

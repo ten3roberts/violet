@@ -33,7 +33,6 @@ impl MarginCursor {
             // be akin to having no back support for the widget to be placed against.
             pending_margin: if contain_margins { 0.0 } else { f32::MIN },
             start,
-
             main_cursor: start.dot(axis),
             cross_cursor: start.dot(cross_axis),
             line_height: 0.0,
@@ -46,13 +45,19 @@ impl MarginCursor {
         }
     }
 
-    fn put(&mut self, block: &Block) -> Vec2 {
+    fn put(&mut self, block: &Block) -> (Vec2, f32) {
         let (front_margin, back_margin) = block.margin.in_axis(self.axis);
 
+        if front_margin > 0.0 || back_margin > 0.0 {
+            // panic!("");
+            tracing::info!(?front_margin, back_margin);
+        }
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
             + self.pending_margin.min(0.0)
             + back_margin.min(0.0))
         .max(0.0);
+
+        tracing::info!(?advance);
 
         if self.main_cursor - back_margin < 0.0 {
             self.main_margin.0 = self.main_margin.0.max(back_margin - self.main_cursor);
@@ -61,21 +66,23 @@ impl MarginCursor {
         self.total_margin += advance;
         self.pending_margin = front_margin;
 
-        self.main_cursor += advance + block.rect.support(-self.axis);
+        self.main_cursor += advance; // + block.rect.support(-self.axis);
 
         // Cross axis margin calculation
         let (start_margin, end_margin) = block.margin.in_axis(self.cross_axis);
+
         let placement_pos;
+        let cross_size;
 
         if self.contain_margins {
             placement_pos =
                 self.main_cursor * self.axis + (self.cross_cursor + start_margin) * self.cross_axis;
 
-            self.line_height = self
-                .line_height
-                .max(block.rect.size().dot(self.cross_axis) + start_margin + end_margin);
+            cross_size = block.rect.size().dot(self.cross_axis) + start_margin + end_margin;
+            self.line_height = self.line_height.max(cross_size);
         } else {
             placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+            cross_size = block.rect.size().dot(self.cross_axis);
 
             self.cross_margin.0 = self.cross_margin.0.max(start_margin);
             self.cross_margin.1 = self.cross_margin.1.max(end_margin);
@@ -86,7 +93,7 @@ impl MarginCursor {
 
         self.main_cursor += extent;
 
-        placement_pos
+        (placement_pos, cross_size)
     }
 
     /// Finishes the current line and moves the cursor to the next
@@ -234,6 +241,7 @@ impl Flow {
             .blocks
             .into_iter()
             .map(|(entity, sizing)| {
+                let _span = tracing::info_span!("put", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
                 let block_preferred_size = sizing.preferred.size().dot(axis);
@@ -281,6 +289,7 @@ impl Flow {
                         child_limits.max_size
                     );
                 }
+
                 cursor.put(&block);
 
                 (entity, block)
@@ -302,12 +311,14 @@ impl Flow {
 
         for (entity, block) in blocks {
             // And move it all by the cursor position
-            let height = (block.rect.size() + block.margin.size()).dot(cross_axis);
+            // let height = (block.rect.size() + block.margin.size()).dot(cross_axis);
 
-            let pos = cursor.put(&block)
+            let (pos, cross_size) = cursor.put(&block);
+
+            let pos = pos
                 + self
                     .cross_align
-                    .align_offset(line_size.dot(cross_axis), height)
+                    .align_offset(line_size.dot(cross_axis), cross_size)
                     * cross_axis;
 
             entity.update_dedup(components::rect(), block.rect);

@@ -64,7 +64,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
         // potentially shrink it down.
 
         let row = layout.query_size(world, entity, content_area.inset(&padding));
-        let margin = (row.margin - padding).max(Edges::even(0.0)).max(margin);
+        let margin = (row.margin - padding).max(margin);
 
         Sizing {
             min: row.min.pad(&padding),
@@ -154,9 +154,9 @@ pub(crate) fn update_subtree(
         .query(&(children(), components::stack().opt_or_default()))
         .get()
     {
-        let block = Stack::default().apply(
+        let block = stack.apply(
             world,
-            &children,
+            children,
             content_area.inset(&padding),
             LayoutLimits {
                 min_size: limits.min_size,
@@ -166,7 +166,7 @@ pub(crate) fn update_subtree(
 
         Block {
             rect: block.rect.pad(&padding),
-            margin: (block.margin - padding).max(Edges::even(0.0)).max(margin),
+            margin: (block.margin - padding).max(margin),
         }
     }
     // Text widgets height are influenced by their available width.

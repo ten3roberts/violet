@@ -23,7 +23,6 @@ use violet::{
     wgpu::{components::font_from_file, font::FontFromFile},
     App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
-use wgpu::RenderBundleEncoderDescriptor;
 use winit::event::ElementState;
 
 struct MainApp;
@@ -36,7 +35,7 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(10.0);
+const MARGIN: Edges = Edges::even(0.0);
 
 const EERIE_BLACK: Srgba = srgba!("#222525");
 const EERIE_BLACK_300: Srgba = srgba!("#151616");
@@ -448,41 +447,32 @@ impl Widget for MainApp {
         scope.attach(
             List::new((
                 LayoutTest {
-                    contain_margins: true,
+                    contain_margins: false,
                 },
-                LayoutTest {
-                    contain_margins: true,
-                },
-                List::new(
-                    (1..=4)
-                        .map(|i| {
-                            Image {
-                                path: "./assets/images/statue.jpg",
-                            }
-                            .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
-                            .with_margin(MARGIN)
-                        })
-                        .collect_vec(),
-                ),
-                Stack {
-                    items: (
-                        Text::new("Hello, World!")
-                            .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
-                            .with_font_size(32.0)
-                            .with_margin(MARGIN),
-                        Rectangle { color: EERIE_BLACK }
-                            .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
-                    ),
-                }, // LayoutTest {
-                   //     contain_margins: true,
-                   // },
-                   // LayoutTest {
-                   //     contain_margins: true,
-                   // },
-                   // LayoutTest {
-                   //     contain_margins: false,
-                   // },
-                   // Text::new("Hello, World!"),
+                // LayoutTest {
+                //     contain_margins: false,
+                // },
+                // List::new(
+                //     (1..=4)
+                //         .map(|i| {
+                //             Image {
+                //                 path: "./assets/images/statue.jpg",
+                //             }
+                //             .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+                //             .with_margin(MARGIN)
+                //         })
+                //         .collect_vec(),
+                // ),
+                // Stack {
+                //     items: (
+                //         Text::new("Hello, World!")
+                //             .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
+                //             .with_font_size(32.0)
+                //             .with_margin(MARGIN),
+                //         Rectangle { color: EERIE_BLACK }
+                //             .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
+                //     ),
+                // },
             ))
             .contain_margins(true)
             .with_direction(Direction::Vertical), // .with_padding(Edges::even(0.0)),
@@ -548,7 +538,7 @@ impl Widget for StackTest {
         Rectangle {
             color: EERIE_BLACK_300,
         }
-        .with_margin(MARGIN)
+        .with_margin(Edges::even(10.0))
         .with_padding(Edges::even(5.0))
         .mount(scope);
     }
@@ -574,15 +564,15 @@ impl Widget for LayoutTest {
         .with_margin(MARGIN);
 
         let row_1 = List::new((
-            Button {
-                normal_color: CHILI_RED,
-                pressed_color: BRONZE,
-                on_click: Box::new(|_, _| {}),
-            }
-            .with_margin(MARGIN)
-            .with_size(Unit::px(vec2(200.0, 50.0))),
-            row_2,
-            StackTest {},
+            // Button {
+            //     normal_color: CHILI_RED,
+            //     pressed_color: BRONZE,
+            //     on_click: Box::new(|_, _| {}),
+            // }
+            // .with_margin(MARGIN)
+            // .with_size(Unit::px(vec2(200.0, 50.0))),
+            // row_2,
+            // StackTest {},
             Button {
                 normal_color: CHILI_RED,
                 pressed_color: BRONZE,
@@ -592,8 +582,8 @@ impl Widget for LayoutTest {
             .with_size(Unit::px(vec2(200.0, 50.0))),
             Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
             Rectangle { color: EMERALD }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(5.0, 50.0))),
+                .with_margin(Edges::new(0.0, 0.0, 20.0, 20.0))
+                .with_size(Unit::px(vec2(10.0, 80.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(CrossAlign::Center)
