@@ -4,7 +4,6 @@ use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
-use itertools::{Itertools, Position};
 use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::{
@@ -13,7 +12,7 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, flow, font_size, padding, size, stack, text, Edges},
+    components::{self, color, filled_rect, flow, font_size, size, stack, text, Edges},
     input::{on_focus, on_mouse_input},
     layout::{self, CrossAlign, Direction, Flow},
     shapes::FilledRect,
@@ -441,14 +440,14 @@ impl Widget for MainApp {
             // .set(padding(), Edges::even(10.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
-        // scope.attach(LayoutTest {
-        //     contain_margins: true,
-        // });
+        scope.attach(LayoutTest {
+            contain_margins: false,
+        });
         scope.attach(
             List::new((
-                LayoutTest {
-                    contain_margins: false,
-                },
+                // LayoutTest {
+                //     contain_margins: false,
+                // },
                 // LayoutTest {
                 //     contain_margins: false,
                 // },

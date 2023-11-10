@@ -48,16 +48,10 @@ impl MarginCursor {
     fn put(&mut self, block: &Block) -> (Vec2, f32) {
         let (front_margin, back_margin) = block.margin.in_axis(self.axis);
 
-        if front_margin > 0.0 || back_margin > 0.0 {
-            // panic!("");
-            tracing::info!(?front_margin, back_margin);
-        }
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
             + self.pending_margin.min(0.0)
             + back_margin.min(0.0))
         .max(0.0);
-
-        tracing::info!(?advance);
 
         if self.main_cursor - back_margin < 0.0 {
             self.main_margin.0 = self.main_margin.0.max(back_margin - self.main_cursor);
@@ -241,7 +235,6 @@ impl Flow {
             .blocks
             .into_iter()
             .map(|(entity, sizing)| {
-                let _span = tracing::info_span!("put", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
                 let block_preferred_size = sizing.preferred.size().dot(axis);
@@ -252,17 +245,22 @@ impl Flow {
                 sum += ratio;
 
                 let axis_sizing = (block_min_size + (target_inner_size * ratio)) * axis;
-                tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
+                // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
-                let margin = entity.get_copy(margin()).unwrap_or_default();
+                let child_margin = if self.contain_margins {
+                    entity.get_copy(margin()).unwrap_or_default()
+                } else {
+                    Edges::ZERO
+                };
                 let child_limits = if self.stretch {
-                    let cross_size = inner_rect.size().min(limits.max_size) - margin.size();
+                    let cross_size = inner_rect.size().min(limits.max_size) - child_margin.size();
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
                     }
                 } else {
-                    let cross_size = available_size - margin.size();
+                    tracing::info!(?available_size);
+                    let cross_size = available_size - child_margin.size();
 
                     LayoutLimits {
                         min_size: Vec2::ZERO,
@@ -310,6 +308,7 @@ impl Flow {
         let mut cursor = MarginCursor::new(start, axis, cross_axis, self.contain_margins);
 
         for (entity, block) in blocks {
+            let _span = tracing::info_span!("put", %entity).entered();
             // And move it all by the cursor position
             // let height = (block.rect.size() + block.margin.size()).dot(cross_axis);
 
@@ -321,6 +320,7 @@ impl Flow {
                     .align_offset(line_size.dot(cross_axis), cross_size)
                     * cross_axis;
 
+            tracing::info!(%pos, cross_size, ?block.rect);
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), pos);
         }

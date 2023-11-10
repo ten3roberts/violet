@@ -35,9 +35,6 @@ component! {
     /// that implies clipping.
     pub min_size: Unit<Vec2> => [ Debuggable ],
 
-    /// Heuristic text size of a text widget
-    pub intrinsic_size: Vec2 => [ Debuggable ],
-
     /// Sets the anchor point withing the bounds of the widget where position is applied
     pub anchor: Unit<Vec2> => [ Debuggable ],
 

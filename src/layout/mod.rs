@@ -6,7 +6,7 @@ use fontdue::{layout::TextStyle, Font};
 use glam::{vec2, Vec2};
 
 use crate::{
-    components::{self, children, flow, font_size, intrinsic_size, padding, text, Edges, Rect},
+    components::{self, children, flow, font_size, padding, text, Edges, Rect},
     unit::Unit,
     wgpu::components::font,
 };
@@ -187,29 +187,39 @@ fn resolve_size(
     limits: Option<LayoutLimits>,
 ) -> (Vec2, Vec2) {
     let parent_size = content_area.size();
-    let min_size = entity
-        .get(components::min_size())
-        .as_deref()
-        .unwrap_or(&Unit::ZERO)
-        .resolve(parent_size);
 
-    let mut size = if let Ok(size) = entity.get(components::size()) {
-        size.resolve(parent_size)
+    let (min_size, size) = if let Ok(size) = entity.get(components::size()) {
+        let min_size = entity
+            .get(components::min_size())
+            .as_deref()
+            .unwrap_or(&Unit::ZERO)
+            .resolve(parent_size);
+
+        let mut size = size.resolve(parent_size).max(min_size);
+        if let Some(limits) = limits {
+            size = size.clamp(limits.min_size, limits.max_size);
+        }
+        (min_size, size)
     } else if let Some((text, font, &font_size)) =
         entity.query(&(text(), font(), font_size())).get()
     {
-        resolve_text_size(text, font, font_size, limits)
+        let min_size = resolve_text_size(
+            text,
+            font,
+            font_size,
+            content_area,
+            Some(LayoutLimits {
+                min_size: Vec2::ZERO,
+                max_size: Vec2::new(font_size, font_size),
+            }),
+        );
+        let preferred = resolve_text_size(text, font, font_size, content_area, limits);
+
+        (min_size, preferred)
     } else {
         // tracing::info!(%entity, "using intrinsic_size");
-        entity
-            .get_copy(intrinsic_size())
-            .expect("intrinsic size required")
-    }
-    .max(min_size);
-
-    if let Some(limits) = limits {
-        size = size.clamp(limits.min_size, limits.max_size);
-    }
+        (Vec2::ZERO, Vec2::ZERO)
+    };
 
     (min_size, size)
 }
@@ -218,15 +228,22 @@ fn resolve_text_size(
     text: &str,
     font: &Font,
     font_size: f32,
+    content_area: Rect,
     limits: Option<LayoutLimits>,
 ) -> Vec2 {
-    let _span = tracing::debug_span!("resolve_text_size", ?font, font_size).entered();
+    let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
     let mut layout =
         fontdue::layout::Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
 
     let size = match limits {
-        Some(v) => (Some(v.max_size.x), Some(v.max_size.y)),
-        None => (None, None),
+        Some(v) => {
+            let size = v.max_size.min(content_area.size());
+            (Some(size.x.floor()), Some(size.y.floor()))
+        }
+        None => {
+            let size = content_area.size();
+            (Some(size.x.floor()), Some(size.y.floor()))
+        }
     };
 
     layout.reset(&fontdue::layout::LayoutSettings {
@@ -251,12 +268,16 @@ fn resolve_text_size(
         },
     );
 
-    layout
+    let size = layout
         .glyphs()
         .iter()
         .map(|v| vec2(v.x + v.width as f32, v.y + v.height as f32))
         .fold(Vec2::ZERO, |acc, v| acc.max(v))
-        + 1.0
+        + 2.0;
+
+    tracing::debug!(%size);
+
+    size
 }
 
 fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {

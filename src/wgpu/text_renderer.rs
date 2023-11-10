@@ -19,7 +19,7 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 
 use crate::{
     assets::{AssetCache, Handle},
-    components::{font_size, intrinsic_size, rect, screen_position, text, Rect},
+    components::{font_size, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
         graphics::{allocator::Allocation, BindGroupBuilder},
@@ -192,6 +192,14 @@ impl MeshGenerator {
 
         let glyph_count = layout.glyphs().len();
 
+        let size = layout
+            .glyphs()
+            .iter()
+            .map(|v| vec2(v.x + v.width as f32, v.y + v.height as f32))
+            .fold(Vec2::ZERO, |acc, v| acc.max(v));
+
+        tracing::info!(text, %size, "render text");
+
         let vertices = layout
             .glyphs()
             .iter()
@@ -253,7 +261,6 @@ pub struct TextMeshQuery {
     mesh: Opt<Mutable<Arc<MeshHandle>>>,
 
     rect: Component<Rect>,
-    intrinsic_size: Component<Vec2>,
     text: Component<String>,
     font: Component<Handle<Font>>,
     #[fetch(ignore)]
@@ -265,7 +272,6 @@ impl TextMeshQuery {
         Self {
             id: entity_ids(),
             mesh: mesh_handle().as_mut().opt(),
-            intrinsic_size: intrinsic_size(),
             rect: rect(),
             text: text(),
             font: font(),
@@ -357,12 +363,7 @@ impl TextRenderer {
             let rect = item.rect.align_to_grid();
 
             // Due to padding the text may not fit exactly
-            let (max_width, max_height) =
-                if rect.max.x >= item.intrinsic_size.x && rect.max.y >= item.intrinsic_size.y {
-                    (None, None)
-                } else {
-                    (Some(rect.size().x), Some(rect.size().y))
-                };
+            let (max_width, max_height) = (Some(rect.size().x + 10.0), Some(rect.size().y + 10.0));
 
             layout.reset(&fontdue::layout::LayoutSettings {
                 // x: rect.min.x.round(),

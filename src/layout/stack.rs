@@ -69,11 +69,11 @@ impl Stack {
     ) -> Block {
         let _span = tracing::info_span!("Stack::apply").entered();
 
-        tracing::info!(
-            ?content_area,
-            content_area_size=%content_area.size(),
-            ?limits
-        );
+        // tracing::info!(
+        //     ?content_area,
+        //     content_area_size=%content_area.size(),
+        //     ?limits
+        // );
 
         // Reset to local
         let inner_rect = Rect {

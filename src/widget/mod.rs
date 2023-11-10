@@ -59,15 +59,16 @@ macro_rules! tuple_impl {
         impl<$($ty),*> WidgetCollection for ($($ty,)*)
             where $($ty: Widget,)*
         {
-            fn attach(self, scope: &mut Scope<'_>) {
+            fn attach(self, _scope: &mut Scope<'_>) {
                 $(
-                    scope.attach(self.$idx);
+                    _scope.attach(self.$idx);
                 )*
             }
         }
     };
 }
 
+tuple_impl! {}
 tuple_impl! { 0 => A }
 tuple_impl! { 0 => A, 1 => B }
 tuple_impl! { 0 => A, 1 => B, 2 => C }
