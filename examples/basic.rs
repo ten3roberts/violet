@@ -592,12 +592,12 @@ impl Widget for LayoutTest {
         .with_background_color(EERIE_BLACK)
         .with_margin(MARGIN);
 
-        row_1.mount(scope);
+        // row_1.mount(scope);
 
-        // List::new((row_1,))
-        //     .contain_margins(self.contain_margins)
-        //     .with_background_color(EERIE_BLACK_300)
-        //     .mount(scope);
+        List::new((row_1,))
+            .contain_margins(self.contain_margins)
+            .with_background_color(EERIE_BLACK_300)
+            .mount(scope);
     }
 }
 

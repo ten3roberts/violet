@@ -97,13 +97,12 @@ impl MarginCursor {
     fn finish(&mut self) -> Rect {
         self.cross_cursor += self.line_height;
 
-        self.main_margin.1 = self.main_margin.1.max(self.pending_margin);
+        tracing::debug!(?self.main_margin);
 
         if self.contain_margins {
             self.main_cursor += self.pending_margin;
-            tracing::info!("Containing {}", self.pending_margin);
-            // self.total_margin += self.pending_margin;
         } else {
+            self.main_margin.1 = self.main_margin.1.max(self.pending_margin);
         }
 
         // self.pending_margin = 0.0;
