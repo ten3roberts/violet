@@ -4,6 +4,7 @@ use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
+use itertools::Itertools;
 use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::{
@@ -34,7 +35,7 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(0.0);
+const MARGIN: Edges = Edges::even(15.0);
 
 const EERIE_BLACK: Srgba = srgba!("#222525");
 const EERIE_BLACK_300: Srgba = srgba!("#151616");
@@ -144,11 +145,13 @@ impl Widget for Rectangle {
     }
 }
 
+type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
+
 pub struct Button {
     normal_color: Srgba,
     pressed_color: Srgba,
 
-    on_click: Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>,
+    on_click: ButtonCallback,
 }
 
 impl Widget for Button {
@@ -440,17 +443,17 @@ impl Widget for MainApp {
             // .set(padding(), Edges::even(10.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
-        scope.attach(LayoutTest {
-            contain_margins: false,
-        });
+        // scope.attach(LayoutTest {
+        //     contain_margins: true,
+        // });
         scope.attach(
             List::new((
-                // LayoutTest {
-                //     contain_margins: false,
-                // },
-                // LayoutTest {
-                //     contain_margins: false,
-                // },
+                LayoutTest {
+                    contain_margins: true,
+                },
+                LayoutTest {
+                    contain_margins: false,
+                },
                 // List::new(
                 //     (1..=4)
                 //         .map(|i| {
@@ -563,15 +566,6 @@ impl Widget for LayoutTest {
         .with_margin(MARGIN);
 
         let row_1 = List::new((
-            // Button {
-            //     normal_color: CHILI_RED,
-            //     pressed_color: BRONZE,
-            //     on_click: Box::new(|_, _| {}),
-            // }
-            // .with_margin(MARGIN)
-            // .with_size(Unit::px(vec2(200.0, 50.0))),
-            // row_2,
-            // StackTest {},
             Button {
                 normal_color: CHILI_RED,
                 pressed_color: BRONZE,
@@ -579,10 +573,19 @@ impl Widget for LayoutTest {
             }
             .with_margin(MARGIN)
             .with_size(Unit::px(vec2(200.0, 50.0))),
-            Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
-            Rectangle { color: EMERALD }
-                .with_margin(Edges::new(0.0, 0.0, 20.0, 20.0))
-                .with_size(Unit::px(vec2(10.0, 80.0))),
+            // row_2,
+            // // StackTest {},
+            // Button {
+            //     normal_color: CHILI_RED,
+            //     pressed_color: BRONZE,
+            //     on_click: Box::new(|_, _| {}),
+            // }
+            // .with_margin(MARGIN)
+            // .with_size(Unit::px(vec2(200.0, 50.0))),
+            // // Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
+            // Rectangle { color: EMERALD }
+            //     .with_margin(Edges::new(20.0, 20.0, 20.0, 20.0))
+            //     .with_size(Unit::px(vec2(10.0, 80.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(CrossAlign::Center)

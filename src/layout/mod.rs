@@ -176,6 +176,8 @@ pub(crate) fn update_subtree(
         let pos = resolve_pos(entity, content_area, size);
         let rect = Rect::from_size_pos(size, pos).clip(content_area);
 
+        entity.update_dedup(components::text_limits(), limits.max_size);
+
         Block { rect, margin }
     }
 }

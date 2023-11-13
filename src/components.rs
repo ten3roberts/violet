@@ -54,6 +54,11 @@ component! {
     pub text: String => [ ],
     pub font_size: f32 => [ Debuggable ],
 
+    /// To retain consistent text wrapping between size query and the snug fitted rect the bounds
+    /// of the size query are stored and used instead of the snug-fitted rect which will cause a
+    /// different wrapping, and therefore final size.
+    pub text_limits: Vec2 => [ Debuggable ],
+
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
 

@@ -19,7 +19,7 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 
 use crate::{
     assets::{AssetCache, Handle},
-    components::{font_size, rect, screen_position, text, Rect},
+    components::{font_size, rect, screen_position, text, text_limits, Rect},
     wgpu::{
         font::FontAtlas,
         graphics::{allocator::Allocation, BindGroupBuilder},
@@ -263,6 +263,7 @@ pub struct TextMeshQuery {
     rect: Component<Rect>,
     text: Component<String>,
     font: Component<Handle<Font>>,
+    text_limits: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
 }
@@ -275,6 +276,7 @@ impl TextMeshQuery {
             rect: rect(),
             text: text(),
             font: font(),
+            text_limits: text_limits(),
             font_size: font_size().opt_or(16.0),
         }
     }
@@ -360,10 +362,10 @@ impl TextRenderer {
             // tracing::info!(?item.id, ?item.rect, "text rect");
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
 
-            let rect = item.rect.align_to_grid();
+            let limits = item.text_limits;
 
             // Due to padding the text may not fit exactly
-            let (max_width, max_height) = (Some(rect.size().x + 10.0), Some(rect.size().y + 10.0));
+            let (max_width, max_height) = (Some(limits.x), Some(limits.y));
 
             layout.reset(&fontdue::layout::LayoutSettings {
                 // x: rect.min.x.round(),

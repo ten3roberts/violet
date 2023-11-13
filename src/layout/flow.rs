@@ -53,8 +53,11 @@ impl MarginCursor {
             + back_margin.min(0.0))
         .max(0.0);
 
-        if self.main_cursor - back_margin < 0.0 {
-            self.main_margin.0 = self.main_margin.0.max(back_margin - self.main_cursor);
+        if self.main_cursor - (back_margin - advance) < 0.0 {
+            self.main_margin.0 = self
+                .main_margin
+                .0
+                .max((back_margin - advance) - self.main_cursor);
         }
 
         self.total_margin += advance;
@@ -98,10 +101,12 @@ impl MarginCursor {
 
         if self.contain_margins {
             self.main_cursor += self.pending_margin;
+            tracing::info!("Containing {}", self.pending_margin);
             // self.total_margin += self.pending_margin;
+        } else {
         }
 
-        self.pending_margin = 0.0;
+        // self.pending_margin = 0.0;
 
         Rect::from_two_points(
             self.start,
@@ -308,19 +313,19 @@ impl Flow {
         let mut cursor = MarginCursor::new(start, axis, cross_axis, self.contain_margins);
 
         for (entity, block) in blocks {
-            let _span = tracing::info_span!("put", %entity).entered();
+            // let _span = tracing::info_span!("put", %entity).entered();
             // And move it all by the cursor position
             // let height = (block.rect.size() + block.margin.size()).dot(cross_axis);
 
             let (pos, cross_size) = cursor.put(&block);
 
-            let pos = pos
-                + self
-                    .cross_align
-                    .align_offset(line_size.dot(cross_axis), cross_size)
-                    * cross_axis;
+            // let pos = pos
+            //     + self
+            //         .cross_align
+            //         .align_offset(line_size.dot(cross_axis), cross_size)
+            //         * cross_axis;
 
-            tracing::info!(%pos, cross_size, ?block.rect);
+            // tracing::info!(%pos, cross_size, ?block.rect);
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), pos);
         }

@@ -6,10 +6,22 @@ use flax::{
 use glam::{Mat4, Vec2};
 
 use crate::{
-    components::{self, children, local_position, rect, screen_position, Rect},
+    components::{self, children, local_position, rect, screen_position, text, text_limits, Rect},
     layout::{update_subtree, LayoutLimits},
     wgpu::components::model_matrix,
 };
+
+pub fn hydrate_text() -> BoxedSystem {
+    System::builder()
+        .with_cmd_mut()
+        .with_query(Query::new(entity_ids()).with(text()))
+        .build(|cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
+            query.for_each(|id| {
+                cmd.set_missing(id, text_limits(), Vec2::ZERO);
+            })
+        })
+        .boxed()
+}
 
 pub fn templating_system(root: Entity) -> BoxedSystem {
     let query = Query::new(entity_ids())
