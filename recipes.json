@@ -13,15 +13,14 @@
             "--"
         ]
     },
-    "debug-basic": {
+    "debug basic": {
         "cmd": [
             "cargo",
             "build",
             "--package",
             "violet",
             "--example",
-            "basic",
-            "--"
+            "basic"
         ],
         "components": {
             "dap": {

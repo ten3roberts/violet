@@ -23,7 +23,6 @@ struct MarginCursor {
     main_margin: (f32, f32),
     cross_margin: (f32, f32),
     contain_margins: bool,
-    total_margin: f32,
 }
 
 impl MarginCursor {
@@ -41,7 +40,6 @@ impl MarginCursor {
             main_margin: (0.0, 0.0),
             cross_margin: (0.0, 0.0),
             contain_margins,
-            total_margin: 0.0,
         }
     }
 
@@ -60,7 +58,6 @@ impl MarginCursor {
                 .max((back_margin - advance) - self.main_cursor);
         }
 
-        self.total_margin += advance;
         self.pending_margin = front_margin;
 
         self.main_cursor += advance; // + block.rect.support(-self.axis);
@@ -105,7 +102,7 @@ impl MarginCursor {
             self.main_margin.1 = self.main_margin.1.max(self.pending_margin);
         }
 
-        // self.pending_margin = 0.0;
+        self.pending_margin = 0.0;
 
         Rect::from_two_points(
             self.start,
@@ -169,7 +166,6 @@ pub(crate) struct Row<'a> {
     pub(crate) preferred: Rect,
     pub(crate) margin: Edges,
     pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
-    pub(crate) total_margin: f32,
 }
 
 #[derive(Default, Debug)]
@@ -196,6 +192,9 @@ impl Flow {
 
         let row = self.query_size(world, entity, content_area);
 
+        tracing::info!(?row.margin, "row margins to be contained");
+        if self.contain_margins {}
+
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
         // If everything could take as much space as it wants
@@ -210,7 +209,6 @@ impl Flow {
             .max(0.0);
 
         tracing::info!(
-            row.total_margin,
             ?row.preferred,
             distribute_size,
             target_inner_size,
@@ -252,10 +250,13 @@ impl Flow {
                 // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
                 let child_margin = if self.contain_margins {
-                    entity.get_copy(margin()).unwrap_or_default()
+                    /// TODO recursively save the margin for transitive uncontained margins
+                    sizing.margin
+                    // entity.get_copy(margin()).unwrap_or_default()
                 } else {
                     Edges::ZERO
                 };
+
                 let child_limits = if self.stretch {
                     let cross_size = inner_rect.size().min(limits.max_size) - child_margin.size();
                     LayoutLimits {
@@ -318,11 +319,11 @@ impl Flow {
 
             let (pos, cross_size) = cursor.put(&block);
 
-            // let pos = pos
-            //     + self
-            //         .cross_align
-            //         .align_offset(line_size.dot(cross_axis), cross_size)
-            //         * cross_axis;
+            let pos = pos
+                + self
+                    .cross_align
+                    .align_offset(line_size.dot(cross_axis), cross_size)
+                    * cross_axis;
 
             // tracing::info!(%pos, cross_size, ?block.rect);
             entity.update_dedup(components::rect(), block.rect);
@@ -384,20 +385,19 @@ impl Flow {
         //     .direction
         //     .to_edges(min_cursor.main_margin, min_cursor.cross_margin);
 
+        let preferred = preferred_cursor.finish();
+        let min = min_cursor.finish();
+
         let preferred_margin = self
             .direction
             .to_edges(preferred_cursor.main_margin, preferred_cursor.cross_margin);
 
         // assert_eq!(min_margin, preferred_margin);
 
-        let preferred = preferred_cursor.finish();
-        let min = min_cursor.finish();
-
         Row {
             min,
             preferred,
             margin: preferred_margin,
-            total_margin: preferred_cursor.total_margin,
             blocks,
         }
     }

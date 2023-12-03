@@ -454,6 +454,9 @@ impl Widget for MainApp {
                 LayoutTest {
                     contain_margins: false,
                 },
+                // LayoutTest {
+                //     contain_margins: false,
+                // },
                 // List::new(
                 //     (1..=4)
                 //         .map(|i| {
@@ -552,18 +555,18 @@ struct LayoutTest {
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        let row_2 = List::new((
-            Rectangle { color: BRONZE }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 20.0))),
-            Rectangle { color: EMERALD }
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(20.0, 20.0))),
-        ))
-        .with_direction(Direction::Vertical)
-        .contain_margins(self.contain_margins)
-        .with_background_color(EERIE_BLACK_300)
-        .with_margin(MARGIN);
+        // let row_2 = List::new((
+        //     Rectangle { color: BRONZE }
+        //         .with_margin(MARGIN)
+        //         .with_size(Unit::px(vec2(100.0, 20.0))),
+        //     Rectangle { color: EMERALD }
+        //         .with_margin(MARGIN)
+        //         .with_size(Unit::px(vec2(20.0, 20.0))),
+        // ))
+        // .with_direction(Direction::Vertical)
+        // .contain_margins(self.contain_margins)
+        // .with_background_color(EERIE_BLACK_300)
+        // .with_margin(MARGIN);
 
         let row_1 = List::new((
             Button {
@@ -572,7 +575,7 @@ impl Widget for LayoutTest {
                 on_click: Box::new(|_, _| {}),
             }
             .with_margin(MARGIN)
-            .with_size(Unit::px(vec2(200.0, 50.0))),
+            .with_size(Unit::px(vec2(800.0, 50.0))),
             // row_2,
             // // StackTest {},
             // Button {
