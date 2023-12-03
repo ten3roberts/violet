@@ -3,7 +3,7 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
-    components::{self, children, margin, Edges, Rect},
+    components::{self, children, Edges, Rect},
     layout::query_size,
 };
 
@@ -193,7 +193,6 @@ impl Flow {
         let row = self.query_size(world, entity, content_area);
 
         tracing::info!(?row.margin, "row margins to be contained");
-        if self.contain_margins {}
 
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
@@ -250,9 +249,7 @@ impl Flow {
                 // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
                 let child_margin = if self.contain_margins {
-                    /// TODO recursively save the margin for transitive uncontained margins
                     sizing.margin
-                    // entity.get_copy(margin()).unwrap_or_default()
                 } else {
                     Edges::ZERO
                 };

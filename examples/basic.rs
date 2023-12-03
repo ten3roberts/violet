@@ -555,18 +555,18 @@ struct LayoutTest {
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // let row_2 = List::new((
-        //     Rectangle { color: BRONZE }
-        //         .with_margin(MARGIN)
-        //         .with_size(Unit::px(vec2(100.0, 20.0))),
-        //     Rectangle { color: EMERALD }
-        //         .with_margin(MARGIN)
-        //         .with_size(Unit::px(vec2(20.0, 20.0))),
-        // ))
-        // .with_direction(Direction::Vertical)
-        // .contain_margins(self.contain_margins)
-        // .with_background_color(EERIE_BLACK_300)
-        // .with_margin(MARGIN);
+        let row_2 = List::new((
+            Rectangle { color: BRONZE }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(100.0, 20.0))),
+            Rectangle { color: EMERALD }
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(20.0, 20.0))),
+        ))
+        .with_direction(Direction::Vertical)
+        .contain_margins(self.contain_margins)
+        .with_background_color(EERIE_BLACK_300)
+        .with_margin(MARGIN);
 
         let row_1 = List::new((
             Button {
@@ -576,19 +576,19 @@ impl Widget for LayoutTest {
             }
             .with_margin(MARGIN)
             .with_size(Unit::px(vec2(800.0, 50.0))),
-            // row_2,
-            // // StackTest {},
-            // Button {
-            //     normal_color: CHILI_RED,
-            //     pressed_color: BRONZE,
-            //     on_click: Box::new(|_, _| {}),
-            // }
-            // .with_margin(MARGIN)
-            // .with_size(Unit::px(vec2(200.0, 50.0))),
-            // // Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
-            // Rectangle { color: EMERALD }
-            //     .with_margin(Edges::new(20.0, 20.0, 20.0, 20.0))
-            //     .with_size(Unit::px(vec2(10.0, 80.0))),
+            row_2,
+            StackTest {},
+            Button {
+                normal_color: CHILI_RED,
+                pressed_color: BRONZE,
+                on_click: Box::new(|_, _| {}),
+            }
+            .with_margin(MARGIN)
+            .with_size(Unit::px(vec2(200.0, 50.0))),
+            Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
+            Rectangle { color: EMERALD }
+                .with_margin(Edges::new(20.0, 20.0, 20.0, 20.0))
+                .with_size(Unit::px(vec2(10.0, 80.0))),
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(CrossAlign::Center)
