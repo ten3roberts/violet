@@ -21,6 +21,7 @@ use violet::{
     time::interval,
     unit::Unit,
     wgpu::{components::font_from_file, font::FontFromFile},
+    widgets::{Button, Rectangle},
     App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
 };
 use winit::event::ElementState;
@@ -126,69 +127,6 @@ where
     }
 }
 
-struct Rectangle {
-    color: Srgba,
-}
-
-impl Widget for Rectangle {
-    fn mount(self, scope: &mut Scope) {
-        scope
-            .set(name(), "Rectangle".into())
-            .set(
-                filled_rect(),
-                FilledRect {
-                    color: self.color,
-                    fill_image: None,
-                },
-            )
-            .set(color(), self.color);
-    }
-}
-
-type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
-
-pub struct Button {
-    normal_color: Srgba,
-    pressed_color: Srgba,
-
-    on_click: ButtonCallback,
-}
-
-impl Widget for Button {
-    fn mount(mut self, scope: &mut Scope<'_>) {
-        scope
-            .set(
-                filled_rect(),
-                FilledRect {
-                    color: self.normal_color,
-                    fill_image: None,
-                },
-            )
-            .set(color(), self.normal_color)
-            .set(
-                on_focus(),
-                Box::new(move |_, entity, focus| {
-                    entity.update_dedup(
-                        color(),
-                        if focus {
-                            self.pressed_color
-                        } else {
-                            self.normal_color
-                        },
-                    );
-                }),
-            )
-            .set(
-                on_mouse_input(),
-                Box::new(move |frame, _, state, button| {
-                    if state == ElementState::Released {
-                        (self.on_click)(frame, button);
-                    }
-                }),
-            );
-    }
-}
-
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 struct ImageFromPath {
     path: PathBuf,
@@ -255,10 +193,8 @@ impl Widget for Counter {
 
         List::new((
             Sized::new(
-                Rectangle {
-                    color: Hsla::new(0.0, 0.5, 0.5, 1.0).into_color(),
-                }
-                .with_margin(Edges::even(50.0)),
+                Rectangle::new(Hsla::new(0.0, 0.5, 0.5, 1.0).into_color())
+                    .with_margin(Edges::even(50.0)),
             )
             .with_size(Unit::px(vec2(100.0, 100.0))),
             // SignalWidget::new(
@@ -267,13 +203,13 @@ impl Widget for Counter {
             //         .map(|count| Text::new(format!("Count: {}", count))),
             // )
             // .with_margin(MARGIN),
-            Sized::new(Button {
-                normal_color: Hsla::new(200.0, 0.5, 0.5, 1.0).into_color(),
-                pressed_color: Hsla::new(200.0, 0.5, 0.2, 1.0).into_color(),
-                on_click: Box::new(move |_, _| {
+            Sized::new(Button::new(
+                Hsla::new(200.0, 0.5, 0.5, 1.0).into_color(),
+                Hsla::new(200.0, 0.5, 0.2, 1.0).into_color(),
+                Box::new(move |_, _| {
                     *count.lock_mut() += 1;
                 }),
-            })
+            ))
             .with_min_size(Unit::px(vec2(100.0, 50.0)))
             .with_size(Unit::px(vec2(100.0, 50.0))),
         ))
@@ -440,7 +376,6 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "MainApp".into())
-            // .set(padding(), Edges::even(10.0))
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         // scope.attach(LayoutTest {
@@ -454,33 +389,32 @@ impl Widget for MainApp {
                 LayoutTest {
                     contain_margins: false,
                 },
-                // LayoutTest {
-                //     contain_margins: false,
-                // },
-                // List::new(
-                //     (1..=4)
-                //         .map(|i| {
-                //             Image {
-                //                 path: "./assets/images/statue.jpg",
-                //             }
-                //             .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
-                //             .with_margin(MARGIN)
-                //         })
-                //         .collect_vec(),
-                // ),
-                // Stack {
-                //     items: (
-                //         Text::new("Hello, World!")
-                //             .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
-                //             .with_font_size(32.0)
-                //             .with_margin(MARGIN),
-                //         Rectangle { color: EERIE_BLACK }
-                //             .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
-                //     ),
-                // },
+                List::new(
+                    (1..=4)
+                        .map(|i| {
+                            Image {
+                                path: "./assets/images/statue.jpg",
+                            }
+                            .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+                            .with_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+                            .with_margin(MARGIN)
+                        })
+                        .collect_vec(),
+                ),
+                Stack {
+                    items: (
+                        Text::new("Hello, World!")
+                            .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
+                            .with_font_size(32.0)
+                            .with_margin(MARGIN),
+                        Rectangle::new(EERIE_BLACK)
+                            .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
+                    ),
+                },
             ))
             .contain_margins(true)
-            .with_direction(Direction::Vertical), // .with_padding(Edges::even(0.0)),
+            .with_direction(Direction::Vertical)
+            .with_padding(Edges::even(5.0)),
         );
     }
 }
@@ -540,12 +474,10 @@ impl Widget for StackTest {
         //         .with_size(Unit::px(vec2(50.0, 50.0))),
         // );
 
-        Rectangle {
-            color: EERIE_BLACK_300,
-        }
-        .with_margin(Edges::even(10.0))
-        .with_padding(Edges::even(5.0))
-        .mount(scope);
+        Rectangle::new(EERIE_BLACK_300)
+            .with_margin(Edges::even(10.0))
+            .with_padding(Edges::even(5.0))
+            .mount(scope);
     }
 }
 
@@ -556,10 +488,10 @@ struct LayoutTest {
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
         let row_2 = List::new((
-            Rectangle { color: BRONZE }
+            Rectangle::new(BRONZE)
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 20.0))),
-            Rectangle { color: EMERALD }
+            Rectangle::new(EMERALD)
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(20.0, 20.0))),
         ))
@@ -569,25 +501,17 @@ impl Widget for LayoutTest {
         .with_margin(MARGIN);
 
         let row_1 = List::new((
-            Button {
-                normal_color: CHILI_RED,
-                pressed_color: BRONZE,
-                on_click: Box::new(|_, _| {}),
-            }
-            .with_margin(MARGIN)
-            .with_size(Unit::px(vec2(800.0, 50.0))),
+            Button::new(CHILI_RED, BRONZE, Box::new(|_, _| {}))
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(800.0, 50.0))),
             row_2,
             StackTest {},
-            Button {
-                normal_color: CHILI_RED,
-                pressed_color: BRONZE,
-                on_click: Box::new(|_, _| {}),
-            }
-            .with_margin(MARGIN)
-            .with_size(Unit::px(vec2(200.0, 50.0))),
+            Button::new(CHILI_RED, BRONZE, Box::new(|_, _| {}))
+                .with_margin(MARGIN)
+                .with_size(Unit::px(vec2(200.0, 50.0))),
             Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
-            Rectangle { color: EMERALD }
-                .with_margin(Edges::new(20.0, 20.0, 20.0, 20.0))
+            Rectangle::new(EMERALD)
+                .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(10.0, 80.0))),
         ))
         .contain_margins(self.contain_margins)
