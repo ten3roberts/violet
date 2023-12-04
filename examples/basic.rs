@@ -13,18 +13,16 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, flow, font_size, size, stack, text, Edges},
-    input::{on_focus, on_mouse_input},
-    layout::{self, CrossAlign, Direction, Flow},
+    components::{self, color, filled_rect, font_size, layout, size, text, Edges},
+    layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
     shapes::FilledRect,
     style::StyleExt,
     time::interval,
     unit::Unit,
     wgpu::{components::font_from_file, font::FontFromFile},
     widgets::{Button, Rectangle},
-    App, Frame, Scope, StreamEffect, Widget, WidgetCollection,
+    App, Scope, StreamEffect, Widget, WidgetCollection,
 };
-use winit::event::ElementState;
 
 struct MainApp;
 
@@ -295,7 +293,7 @@ impl Widget for ShowWorld {
 #[derive(Default)]
 struct List<W> {
     items: W,
-    layout: Flow,
+    layout: FlowLayout,
     background_color: Option<Srgba>,
 }
 
@@ -303,7 +301,7 @@ impl<W: WidgetCollection> List<W> {
     fn new(items: W) -> Self {
         Self {
             items,
-            layout: Flow::default(),
+            layout: FlowLayout::default(),
             background_color: None,
         }
     }
@@ -349,7 +347,7 @@ impl<W: WidgetCollection> Widget for List<W> {
                     fill_image: None,
                 }),
             )
-            .set(flow(), self.layout)
+            .set(layout(), Layout::Flow(self.layout))
             .set_opt(color(), self.background_color);
 
         self.items.attach(scope);
@@ -378,10 +376,7 @@ impl Widget for MainApp {
             .set(name(), "MainApp".into())
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
-        // scope.attach(LayoutTest {
-        //     contain_margins: true,
-        // });
-        scope.attach(
+        Stack::new(
             List::new((
                 LayoutTest {
                     contain_margins: true,
@@ -415,12 +410,58 @@ impl Widget for MainApp {
             .contain_margins(true)
             .with_direction(Direction::Vertical)
             .with_padding(Edges::even(5.0)),
-        );
+        )
+        .mount(scope);
+
+        // scope.attach(LayoutTest {
+        //     contain_margins: true,
+        // });
+        // scope.attach(
+        //     List::new((
+        //         LayoutTest {
+        //             contain_margins: true,
+        //         },
+        //         LayoutTest {
+        //             contain_margins: false,
+        //         },
+        //         List::new(
+        //             (1..=4)
+        //                 .map(|i| {
+        //                     Image {
+        //                         path: "./assets/images/statue.jpg",
+        //                     }
+        //                     .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+        //                     .with_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+        //                     .with_margin(MARGIN)
+        //                 })
+        //                 .collect_vec(),
+        //         ),
+        //         Stack {
+        //             items: (
+        //                 Text::new("Hello, World!")
+        //                     .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
+        //                     .with_font_size(32.0)
+        //                     .with_margin(MARGIN),
+        //                 Rectangle::new(EERIE_BLACK)
+        //                     .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
+        //             ),
+        //         },
+        //     ))
+        //     .contain_margins(true)
+        //     .with_direction(Direction::Vertical)
+        //     .with_padding(Edges::even(5.0)),
+        // );
     }
 }
 
 struct Stack<W> {
     items: W,
+}
+
+impl<W> Stack<W> {
+    fn new(items: W) -> Self {
+        Self { items }
+    }
 }
 
 impl<W> Widget for Stack<W>
@@ -431,11 +472,11 @@ where
         self.items.attach(scope);
 
         scope.set(
-            stack(),
-            layout::Stack {
+            layout(),
+            Layout::Stack(StackLayout {
                 horizontal_alignment: CrossAlign::Center,
                 vertical_alignment: CrossAlign::Start,
-            },
+            }),
         );
     }
 }
@@ -444,35 +485,8 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
+        scope.set(layout(), Layout::Stack(Default::default()));
         scope.attach(Text::new("This is an overlaid text").with_color(EMERALD));
-
-        // scope.attach(
-        //     Positioned::new(Text::new("This is an overlaid text"))
-        //         .with_offset(Unit::px(vec2(50.0, 10.0))),
-        // );
-
-        // scope.attach(
-        //     Positioned::new(
-        //         Rectangle { color: PLATINUM }
-        //             .with_size(Unit::px(vec2(0.0, 20.0)) + Unit::rel(vec2(0.2, 0.0))),
-        //     ), // .with_offset(Unit::px(vec2(50.0, 10.0))),
-        // );
-
-        // scope.attach(
-        //     Positioned::new(Rectangle { color: VIOLET })
-        //         .with_offset(Unit::px(vec2(10.0, 0.0)))
-        //         .with_size(Unit::px(vec2(30.0, 10.0))),
-        // );
-        // scope.attach(
-        //     Positioned::new(Rectangle { color: VIOLET })
-        //         // .with_offset(Unit::px(vec2(50.0, 20.0)))
-        //         .with_size(Unit::px(vec2(10.0, 10.0))),
-        // );
-        // scope.attach(
-        //     Rectangle { color: CHILI_RED }
-        //         .with_min_size(Unit::px(vec2(50.0, 50.0)))
-        //         .with_size(Unit::px(vec2(50.0, 50.0))),
-        // );
 
         Rectangle::new(EERIE_BLACK_300)
             .with_margin(Edges::even(10.0))

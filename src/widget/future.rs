@@ -1,7 +1,11 @@
 use futures::Stream;
 use futures_signals::signal::{Signal, SignalExt};
 
-use crate::{components::flow, layout::Flow, Scope, StreamEffect, Widget};
+use crate::{
+    components::layout,
+    layout::{FlowLayout, Layout},
+    Scope, StreamEffect, Widget,
+};
 
 pub struct SignalWidget<S> {
     signal: S,
@@ -22,7 +26,7 @@ where
         let mut child = None;
         let stream = self.signal.to_stream();
 
-        scope.set(flow(), Flow::default());
+        scope.set(layout(), Layout::Flow(FlowLayout::default()));
 
         scope.spawn(StreamEffect::new(
             stream,

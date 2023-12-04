@@ -1,4 +1,4 @@
-use flax::{EntityRef, World};
+use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
@@ -168,29 +168,39 @@ pub(crate) struct Row<'a> {
     pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
 }
 
-#[derive(Default, Debug)]
-pub struct Flow {
+impl<'a> Row<'a> {
+    pub(crate) fn sizing(&self) -> Sizing {
+        Sizing {
+            min: self.min,
+            preferred: self.preferred,
+            margin: self.margin,
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct FlowLayout {
     pub cross_align: CrossAlign,
     pub stretch: bool,
     pub direction: Direction,
     pub contain_margins: bool,
 }
 
-impl Flow {
+impl FlowLayout {
     /// Position and size the children of the given entity using all the provided available space
     ///
     /// Returns the inner rect
     pub(crate) fn apply(
         &self,
         world: &World,
-        entity: &EntityRef,
+        children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
         let _span = tracing::info_span!("Flow::apply", ?limits, flow=?self).entered();
         let (axis, cross_axis) = self.direction.axis();
 
-        let row = self.query_size(world, entity, content_area);
+        let row = self.query_size(world, children, content_area);
 
         tracing::info!(?row.margin, "row margins to be contained");
 
@@ -339,12 +349,9 @@ impl Flow {
     pub(crate) fn query_size<'a>(
         &self,
         world: &'a World,
-        entity: &EntityRef,
+        children: &[Entity],
         inner_rect: Rect,
     ) -> Row<'a> {
-        let children = entity.get(children()).ok();
-        let children = children.as_ref().map(|v| v.as_slice()).unwrap_or_default();
-
         // let available_size = inner_rect.size();
 
         // Start at the corner of the inner rect

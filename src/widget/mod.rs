@@ -38,6 +38,15 @@ pub trait WidgetCollection {
     fn attach(self, scope: &mut Scope);
 }
 
+impl<W> WidgetCollection for W
+where
+    W: Widget,
+{
+    fn attach(self, scope: &mut Scope) {
+        scope.attach(self);
+    }
+}
+
 impl<const C: usize, W: Widget> WidgetCollection for [W; C] {
     fn attach(self, scope: &mut Scope) {
         for widget in self {

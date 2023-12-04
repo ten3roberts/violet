@@ -1,18 +1,51 @@
 mod flow;
 mod stack;
 
-use flax::{EntityRef, FetchExt, World};
+use flax::{Entity, EntityRef, World};
 use fontdue::{layout::TextStyle, Font};
 use glam::{vec2, Vec2};
 
 use crate::{
-    components::{self, children, flow, font_size, padding, text, Edges, Rect},
+    components::{self, children, font_size, layout, padding, text, Edges, Rect},
     unit::Unit,
     wgpu::components::font,
 };
 
-pub use flow::{CrossAlign, Direction, Flow};
-pub use stack::Stack;
+pub use flow::{CrossAlign, Direction, FlowLayout};
+pub use stack::StackLayout;
+
+#[derive(Debug, Clone)]
+pub enum Layout {
+    Stack(StackLayout),
+    Flow(FlowLayout),
+}
+
+impl Layout {
+    pub fn apply(
+        &self,
+        world: &World,
+        children: &[Entity],
+        content_area: Rect,
+        limits: LayoutLimits,
+    ) -> Block {
+        match self {
+            Layout::Stack(v) => v.apply(world, children, content_area, limits),
+            Layout::Flow(v) => v.apply(world, children, content_area, limits),
+        }
+    }
+
+    pub fn query_size<'a>(
+        &self,
+        world: &'a World,
+        children: &[Entity],
+        inner_rect: Rect,
+    ) -> Sizing {
+        match self {
+            Layout::Stack(v) => v.query_size(world, children, inner_rect),
+            Layout::Flow(v) => v.query_size(world, children, inner_rect).sizing(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Sizing {
@@ -59,33 +92,44 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
         .unwrap_or_default();
 
     // Flow
-    if let Ok(layout) = entity.get(flow()) {
-        // For a given layout use the largest size that fits within the constraints and then
-        // potentially shrink it down.
-
-        let row = layout.query_size(world, entity, content_area.inset(&padding));
-        let margin = (row.margin - padding).max(margin);
+    if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
+        let sizing = layout.query_size(world, children, content_area.inset(&padding));
+        let margin = (sizing.margin - padding).max(margin);
 
         Sizing {
-            min: row.min.pad(&padding),
-            preferred: row.preferred.pad(&padding),
+            min: sizing.min.pad(&padding),
+            preferred: sizing.preferred.pad(&padding),
             margin,
         }
-    }
-    // Stack
-    else if let Some((children, stack)) = entity
-        .query(&(children(), components::stack().opt_or_default()))
-        .get()
-    {
-        let query = stack.query_size(world, children, content_area.inset(&padding));
+        // }
+        // else if let Ok(layout) = entity.get(flow()) {
+        //     // For a given layout use the largest size that fits within the constraints and then
+        //     // potentially shrink it down.
 
-        // rect: block.rect.pad(&padding),
-        let margin = (query.margin - padding).max(Edges::even(0.0)).max(margin);
-        Sizing {
-            min: query.min.pad(&padding),
-            preferred: query.preferred.pad(&padding),
-            margin,
-        }
+        //     let row = layout.query_size(world, entity, content_area.inset(&padding));
+        //     let margin = (row.margin - padding).max(margin);
+
+        //     Sizing {
+        //         min: row.min.pad(&padding),
+        //         preferred: row.preferred.pad(&padding),
+        //         margin,
+        //     }
+        // }
+        // Stack
+        // else if let Some((children, stack)) = entity
+        //     .query(&(children(), components::stack().opt_or_default()))
+        //     .get()
+        // {
+        //     let query = stack.query_size(world, children, content_area.inset(&padding));
+
+        //     // rect: block.rect.pad(&padding),
+        //     let margin = (query.margin - padding).max(Edges::even(0.0)).max(margin);
+        //     Sizing {
+        //         min: query.min.pad(&padding),
+        //         preferred: query.preferred.pad(&padding),
+        //         margin,
+        //     }
+        // }
     } else {
         let (min_size, preferred_size) = resolve_size(entity, content_area, None);
 
@@ -129,32 +173,11 @@ pub(crate) fn update_subtree(
         .unwrap_or_default();
 
     // Flow
-    if let Ok(flow) = entity.get(flow()) {
+    if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
-        let mut block = flow.apply(
-            world,
-            entity,
-            content_area.inset(&padding),
-            LayoutLimits {
-                min_size: limits.min_size,
-                max_size: limits.max_size - padding.size(),
-            },
-        );
-
-        block.rect = block.rect.pad(&padding).max_size(limits.min_size);
-
-        block.margin = (block.margin - padding).max(Edges::even(0.0)).max(margin);
-
-        block
-    }
-    // Stack
-    else if let Some((children, stack)) = entity
-        .query(&(children(), components::stack().opt_or_default()))
-        .get()
-    {
-        let block = stack.apply(
+        let mut block = layout.apply(
             world,
             children,
             content_area.inset(&padding),
@@ -164,10 +187,11 @@ pub(crate) fn update_subtree(
             },
         );
 
-        Block {
-            rect: block.rect.pad(&padding),
-            margin: (block.margin - padding).max(margin),
-        }
+        block.rect = block.rect.pad(&padding).max_size(limits.min_size);
+
+        block.margin = (block.margin - padding).max(margin);
+
+        block
     }
     // Text widgets height are influenced by their available width.
     else {

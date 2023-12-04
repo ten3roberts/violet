@@ -45,12 +45,12 @@ impl StackableBounds {
 
 /// The stack layout
 #[derive(Debug, Clone)]
-pub struct Stack {
+pub struct StackLayout {
     pub horizontal_alignment: CrossAlign,
     pub vertical_alignment: CrossAlign,
 }
 
-impl Default for Stack {
+impl Default for StackLayout {
     fn default() -> Self {
         Self {
             horizontal_alignment: CrossAlign::Center,
@@ -59,7 +59,7 @@ impl Default for Stack {
     }
 }
 
-impl Stack {
+impl StackLayout {
     pub(crate) fn apply(
         &self,
         world: &World,

@@ -3,7 +3,7 @@ use glam::{vec2, Vec2};
 use palette::Srgba;
 
 use crate::{
-    layout::{Flow, Stack},
+    layout::{FlowLayout, Layout, StackLayout},
     shapes::FilledRect,
     unit::Unit,
 };
@@ -38,9 +38,8 @@ component! {
     /// Sets the anchor point withing the bounds of the widget where position is applied
     pub anchor: Unit<Vec2> => [ Debuggable ],
 
-    /// Manages the layout of the children in a flowing list
-    pub flow: Flow => [ Debuggable ],
-    pub stack: Stack => [ Debuggable ],
+    /// Manages the layout of the children
+    pub layout: Layout => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
     pub padding: Edges => [ Debuggable ],
