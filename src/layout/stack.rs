@@ -156,9 +156,9 @@ impl StackLayout {
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
 
-        if min_margin != preferred_margin {
-            tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
-        }
+        // if min_margin != preferred_margin {
+        //     tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
+        // }
 
         Sizing {
             min: min_bounds.inner,

@@ -37,6 +37,7 @@ impl Widget for Rectangle {
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
 
+/// A button which invokes the callback when clicked
 pub struct Button {
     normal_color: Srgba,
     pressed_color: Srgba,

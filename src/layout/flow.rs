@@ -202,7 +202,7 @@ impl FlowLayout {
 
         let row = self.query_size(world, children, content_area);
 
-        tracing::info!(?row.margin, "row margins to be contained");
+        // tracing::info!(?row.margin, "row margins to be contained");
 
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
@@ -217,13 +217,13 @@ impl FlowLayout {
             .min(limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
 
-        tracing::info!(
-            ?row.preferred,
-            distribute_size,
-            target_inner_size,
-            blocks = row.blocks.len(),
-            "query size"
-        );
+        // tracing::info!(
+        //     ?row.preferred,
+        //     distribute_size,
+        //     target_inner_size,
+        //     blocks = row.blocks.len(),
+        //     "query size"
+        // );
 
         let available_size = limits.max_size;
 
@@ -271,7 +271,6 @@ impl FlowLayout {
                         max_size: axis_sizing + cross_size * cross_axis,
                     }
                 } else {
-                    tracing::info!(?available_size);
                     let cross_size = available_size - child_margin.size();
 
                     LayoutLimits {

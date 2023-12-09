@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::Infallible,
+    path::PathBuf,
+};
 
 use fontdue::Font;
 use glam::{uvec2, UVec2};
@@ -18,14 +22,15 @@ pub struct FontFromBytes {
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct FontFromFile {
-    pub path: BytesFromFile,
+    pub path: PathBuf,
 }
 
 impl AssetKey for FontFromFile {
     type Output = Font;
+    type Error = anyhow::Error;
 
-    fn load(&self, assets: &AssetCache) -> Self::Output {
-        let bytes = assets.load(&self.path);
+    fn load(self, assets: &AssetCache) -> anyhow::Result<Self::Output> {
+        let bytes = assets.try_load(&BytesFromFile(self.path))?;
 
         FontFromBytes { bytes }.load(assets)
     }
@@ -33,12 +38,12 @@ impl AssetKey for FontFromFile {
 
 impl AssetKey for FontFromBytes {
     type Output = Font;
+    type Error = anyhow::Error;
 
-    fn load(&self, _assets: &crate::assets::AssetCache) -> Self::Output {
+    fn load(self, _assets: &crate::assets::AssetCache) -> anyhow::Result<Self::Output> {
         let bytes = &*self.bytes;
         fontdue::Font::from_bytes(bytes.as_ref(), fontdue::FontSettings::default())
             .map_err(|v| anyhow::anyhow!("Error loading font: {v:?}"))
-            .unwrap()
     }
 }
 

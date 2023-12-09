@@ -29,7 +29,7 @@ use crate::{
 };
 
 use super::{
-    components::{draw_cmd, font, mesh_handle, model_matrix},
+    components::{draw_cmd, font_handle, mesh_handle, model_matrix},
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
@@ -275,7 +275,7 @@ impl TextMeshQuery {
             mesh: mesh_handle().as_mut().opt(),
             rect: rect(),
             text: text(),
-            font: font(),
+            font: font_handle(),
             text_limits: text_limits(),
             font_size: font_size().opt_or(16.0),
         }

@@ -14,7 +14,12 @@ use crate::{
     executor::Executor,
     input::InputState,
     systems::{hydrate_text, layout_system, templating_system, transform_system},
-    wgpu::{graphics::Gpu, systems::load_fonts_system, window_renderer::WindowRenderer},
+    wgpu::{
+        font_map::{FontMap, FsProvider},
+        graphics::Gpu,
+        systems::load_fonts_system,
+        window_renderer::WindowRenderer,
+    },
     Frame, Widget,
 };
 
@@ -81,11 +86,13 @@ impl App {
 
         let mut window_renderer = WindowRenderer::new(gpu, &mut frame, surface);
 
+        let font_map = FontMap::new(frame.assets.clone(), FsProvider::new("./assets/fonts"));
+
         let mut schedule = Schedule::new()
             .with_system(templating_system(root))
             .with_system(hydrate_text())
             .flush()
-            .with_system(load_fonts_system(frame.assets.clone()))
+            .with_system(load_fonts_system(font_map))
             .flush()
             .with_system(layout_system())
             .with_system(transform_system());

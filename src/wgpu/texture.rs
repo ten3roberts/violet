@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use image::{DynamicImage, ImageBuffer, Rgba};
 
 use crate::assets::{AssetCache, AssetKey, Handle};
@@ -13,9 +15,10 @@ pub struct TextureFromImage {
 
 impl AssetKey for TextureFromImage {
     type Output = Texture;
+    type Error = Infallible;
 
-    fn load(&self, _: &AssetCache) -> Self::Output {
-        Texture::from_image(&self.gpu, &self.image)
+    fn load(self, _: &AssetCache) -> Result<Self::Output, Infallible> {
+        Ok(Texture::from_image(&self.gpu, &self.image))
     }
 }
 
@@ -27,10 +30,14 @@ struct SolidTextureKey {
 
 impl AssetKey for SolidTextureKey {
     type Output = Texture;
+    type Error = Infallible;
 
-    fn load(&self, _: &AssetCache) -> Self::Output {
+    fn load(self, _: &AssetCache) -> Result<Self::Output, Infallible> {
         let contents = ImageBuffer::from_pixel(256, 256, self.color);
 
-        Texture::from_image(&self.gpu, &DynamicImage::ImageRgba8(contents))
+        Ok(Texture::from_image(
+            &self.gpu,
+            &DynamicImage::ImageRgba8(contents),
+        ))
     }
 }

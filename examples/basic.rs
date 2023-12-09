@@ -3,7 +3,7 @@ use flax::components::name;
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
-use image::DynamicImage;
+use image::{DynamicImage, ImageError};
 use itertools::Itertools;
 use palette::{Hsla, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
@@ -13,13 +13,15 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{fs::BytesFromFile, AssetKey},
-    components::{self, color, filled_rect, font_size, layout, size, text, Edges},
+    components::{
+        self, color, filled_rect, font_family, font_size, layout, size, text, Edges, FontFamily,
+    },
     layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
     shapes::FilledRect,
     style::StyleExt,
     time::interval,
     unit::Unit,
-    wgpu::{components::font_from_file, font::FontFromFile},
+    wgpu::font::FontFromFile,
     widgets::{Button, Rectangle},
     App, Scope, StreamEffect, Widget, WidgetCollection,
 };
@@ -132,11 +134,10 @@ struct ImageFromPath {
 
 impl AssetKey for ImageFromPath {
     type Output = DynamicImage;
+    type Error = ImageError;
 
-    fn load(&self, _: &violet::assets::AssetCache) -> Self::Output {
+    fn load(self, _: &violet::assets::AssetCache) -> Result<Self::Output, ImageError> {
         image::open(&self.path)
-            .context("Failed to load image")
-            .unwrap()
     }
 }
 
@@ -146,9 +147,12 @@ struct Image<P> {
 
 impl<P: Into<PathBuf>> Widget for Image<P> {
     fn mount(self, scope: &mut Scope) {
-        let image = scope.assets_mut().load(&ImageFromPath {
-            path: self.path.into(),
-        });
+        let image = scope
+            .assets_mut()
+            .try_load(&ImageFromPath {
+                path: self.path.into(),
+            })
+            .unwrap();
 
         scope.set(name(), "Image".into()).set(
             filled_rect(),
@@ -172,13 +176,13 @@ impl Widget for Ticker {
         ));
 
         let font = FontFromFile {
-            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
+            path: PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf"),
         };
 
         scope
             .set(name(), "Counter".into())
             .set(font_size(), 16.0)
-            .set(font_from_file(), font)
+            .set(font_family(), "Inter/static/Inter-Regular.ttf".into())
             .set(text(), "".into());
     }
 }
@@ -218,7 +222,7 @@ impl Widget for Counter {
 struct Text {
     color: Option<Srgba>,
     text: String,
-    font: PathBuf,
+    font: FontFamily,
     font_size: f32,
 }
 
@@ -228,12 +232,12 @@ impl Text {
             text: text.into(),
             color: None,
             font_size: 16.0,
-            font: "assets/fonts/Inter/static/Inter-Regular.ttf".into(),
+            font: "Inter/static/Inter-Regular.ttf".into(),
         }
     }
 
     /// Set the font
-    pub fn with_font(mut self, font: impl Into<PathBuf>) -> Self {
+    pub fn with_font(mut self, font: impl Into<FontFamily>) -> Self {
         self.font = font.into();
         self
     }
@@ -253,40 +257,11 @@ impl Text {
 
 impl Widget for Text {
     fn mount(self, scope: &mut Scope) {
-        let font = FontFromFile {
-            path: BytesFromFile(PathBuf::from(self.font)),
-        };
-
         scope
             .set(font_size(), self.font_size)
-            .set(font_from_file(), font)
+            .set(font_family(), self.font)
             .set(text(), self.text)
             .set_opt(color(), self.color);
-    }
-}
-
-struct ShowWorld;
-
-impl Widget for ShowWorld {
-    fn mount(self, scope: &mut Scope) {
-        scope.spawn(StreamEffect::new(
-            interval(Duration::from_millis(200)).enumerate(),
-            move |scope: &mut Scope, (_, _)| {
-                let frame = scope.frame();
-
-                scope.set(text(), format!("{:#?}", frame.world()));
-            },
-        ));
-
-        let font = FontFromFile {
-            path: BytesFromFile(PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf")),
-        };
-
-        scope
-            .set(name(), "Inter Font".into())
-            .set(font_size(), 10.0)
-            .set(font_from_file(), font)
-            .set(text(), "".into());
     }
 }
 
@@ -351,22 +326,6 @@ impl<W: WidgetCollection> Widget for List<W> {
             .set_opt(color(), self.background_color);
 
         self.items.attach(scope);
-    }
-}
-
-struct HelloWorld {}
-
-impl Widget for HelloWorld {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let font = FontFromFile {
-            path: BytesFromFile("assets/fonts/Inter/static/Inter-Bold.ttf".into()),
-        };
-
-        scope
-            .set(name(), "Inter Font".into())
-            .set(font_size(), 24.0)
-            .set(font_from_file(), font)
-            .set(text(), "Hello, World!".into());
     }
 }
 

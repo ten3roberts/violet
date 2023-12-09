@@ -8,7 +8,7 @@ use glam::{vec2, Vec2};
 use crate::{
     components::{self, children, font_size, layout, padding, text, Edges, Rect},
     unit::Unit,
-    wgpu::components::font,
+    wgpu::components::font_handle,
 };
 
 pub use flow::{CrossAlign, Direction, FlowLayout};
@@ -227,7 +227,7 @@ fn resolve_size(
         }
         (min_size, size)
     } else if let Some((text, font, &font_size)) =
-        entity.query(&(text(), font(), font_size())).get()
+        entity.query(&(text(), font_handle(), font_size())).get()
     {
         let min_size = resolve_text_size(
             text,

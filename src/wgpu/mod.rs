@@ -9,6 +9,7 @@ pub mod text_renderer;
 mod texture;
 pub mod window_renderer;
 mod renderer;
+pub mod font_map;
 
 pub use graphics::Gpu;
 pub use shape_renderer::ShapeRenderer;

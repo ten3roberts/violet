@@ -16,8 +16,9 @@ impl std::ops::Deref for BytesFromFile {
 
 impl AssetKey for BytesFromFile {
     type Output = Vec<u8>;
+    type Error = std::io::Error;
 
-    fn load(&self, _: &AssetCache) -> Self::Output {
-        std::fs::read(&self.0).unwrap()
+    fn load(self, _: &AssetCache) -> std::io::Result<Self::Output> {
+        std::fs::read(&self.0)
     }
 }

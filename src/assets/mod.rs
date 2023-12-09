@@ -1,7 +1,8 @@
 use std::{
-    any::{type_name, Any, TypeId},
+    any::{Any, TypeId},
     borrow::Borrow,
     collections::HashMap,
+    convert::Infallible,
     hash::Hash,
     sync::Arc,
 };
@@ -49,18 +50,18 @@ impl AssetCache {
         }
     }
 
-    #[tracing::instrument(level = "info", skip(key), fields(key = type_name::<K>()))]
-    pub fn load<K>(&self, key: &K) -> Handle<K::Output>
+    pub fn try_load<K>(&self, key: &K) -> Result<Handle<K::Output>, K::Error>
     where
         K: AssetKey + Clone,
     {
+        let _span = tracing::debug_span!("AssetCache::try_load", key=?key).entered();
         let key = key.borrow();
         if let Some(handle) = self.get(key) {
-            return handle;
+            return Ok(handle);
         }
 
         // Load the asset and insert it to get a handle
-        let value = key.load(self);
+        let value = key.clone().load(self)?;
 
         let handle = self.insert(value);
 
@@ -72,10 +73,21 @@ impl AssetCache {
             .unwrap()
             .insert(key.clone(), handle.downgrade());
 
-        handle
+        Ok(handle)
     }
 
-    #[tracing::instrument(level = "info", skip(key), fields(key = type_name::<K>()))]
+    pub fn load<K>(&self, key: &K) -> Handle<K::Output>
+    where
+        K: AssetKey<Error = Infallible> + Clone,
+    {
+        match self.try_load(key) {
+            Ok(v) => v,
+            Err(Infallible) => {
+                unreachable!()
+            }
+        }
+    }
+
     pub fn get<K: AssetKey>(&self, key: &K) -> Option<Handle<K::Output>> {
         // Keys of K
         let keys = self.inner.keys.get(&TypeId::of::<K>())?;
@@ -90,6 +102,8 @@ impl AssetCache {
     }
 
     pub fn insert<T: 'static + Send + Sync>(&self, value: T) -> Handle<T> {
+        let ty = std::any::type_name::<T>();
+        let _span = tracing::debug_span!("AssetCache::insert", ty).entered();
         self.inner
             .cells
             .entry(TypeId::of::<T>())
@@ -107,26 +121,30 @@ impl Default for AssetCache {
 }
 
 /// Describes an asset sufficiently to load it
-pub trait AssetKey: 'static + Send + Sync + Hash + Eq {
+pub trait AssetKey: 'static + Send + Sync + Hash + Eq + Clone + std::fmt::Debug {
     type Output: 'static + Send + Sync;
+    type Error: 'static + Send + Sync;
 
-    fn load(&self, assets: &AssetCache) -> Self::Output;
+    fn load(self, assets: &AssetCache) -> Result<Self::Output, Self::Error>;
 }
 
 #[cfg(test)]
 mod tests {
+    use std::convert::Infallible;
+
     use super::*;
 
     #[test]
     fn asset_cache() {
-        #[derive(Hash, Eq, PartialEq, Clone)]
+        #[derive(Hash, Eq, PartialEq, Clone, Debug)]
         struct Key(String);
 
         impl AssetKey for Key {
             type Output = String;
+            type Error = Infallible;
 
-            fn load(&self, _: &AssetCache) -> Self::Output {
-                self.0.clone()
+            fn load(self, _: &AssetCache) -> Result<Self::Output, Infallible> {
+                Ok(self.0.clone())
             }
         }
 

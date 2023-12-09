@@ -1,9 +1,14 @@
+use std::{
+    borrow::Cow,
+    fmt::{Debug, Display},
+};
+
 use flax::{component, Debuggable, Entity};
 use glam::{vec2, Vec2};
 use palette::Srgba;
 
 use crate::{
-    layout::{FlowLayout, Layout, StackLayout},
+    layout::{Layout, StackLayout},
     shapes::FilledRect,
     unit::Unit,
 };
@@ -63,6 +68,8 @@ component! {
 
     /// The widget will be rendered as a filled rectange coverings its bounds
     pub filled_rect: FilledRect => [ Debuggable ],
+
+    pub font_family: FontFamily => [ Debuggable ],
 }
 
 /// Spacing between a outer and inner bounds
@@ -308,5 +315,37 @@ impl Rect {
         let max = self.max.min(mask.max);
 
         Rect { min, max }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FontFamily(pub Cow<'static, str>);
+
+impl Display for FontFamily {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl std::ops::Deref for FontFamily {
+    type Target = Cow<'static, str>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl FontFamily {
+    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+        Self(name.into())
+    }
+}
+
+impl<T> From<T> for FontFamily
+where
+    T: Into<Cow<'static, str>>,
+{
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
