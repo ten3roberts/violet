@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use cosmic_text::Buffer;
 use flax::component;
 use fontdue::Font;
 

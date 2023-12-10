@@ -4,8 +4,9 @@ use std::{
     path::PathBuf,
 };
 
+use cosmic_text::{CacheKey, FontSystem, Placement, SwashCache, SwashImage};
 use fontdue::Font;
-use glam::{uvec2, UVec2};
+use glam::{uvec2, vec3, vec4, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
@@ -47,35 +48,70 @@ impl AssetKey for FontFromBytes {
     }
 }
 
+/// A glyphs location in the text atlas
+#[derive(Copy, Clone)]
 pub struct GlyphLocation {
     pub min: UVec2,
     pub max: UVec2,
 }
 
 pub struct FontAtlas {
+    /// The backing GPU texture of the rasterized fonts
     pub texture: Texture,
-    pub glyphs: BTreeMap<u16, GlyphLocation>,
-    pub chars: BTreeSet<char>,
+    pub glyphs: BTreeMap<CacheKey, (Placement, GlyphLocation)>,
 }
 
 impl FontAtlas {
+    pub fn empty(gpu: &Gpu) -> Self {
+        let texture = gpu.device.create_texture(&TextureDescriptor {
+            label: Some("FontAtlas"),
+            size: Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: wgpu::TextureFormat::R8Unorm,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        Self {
+            texture: Texture::from_texture(texture),
+            glyphs: Default::default(),
+        }
+    }
+
     pub fn new(
         _assets: &AssetCache,
         gpu: &Gpu,
-        font: &Font,
-        px: f32,
-        glyphs: impl IntoIterator<Item = char>,
+        font_system: &mut FontSystem,
+        swash_cache: &mut SwashCache,
+        glyphs: impl IntoIterator<Item = CacheKey>,
     ) -> anyhow::Result<Self> {
         let mut atlas = AtlasAllocator::new(size2(128, 128));
 
-        let chars = glyphs.into_iter().collect::<BTreeSet<_>>();
+        let glyphs = glyphs.into_iter().collect::<BTreeSet<_>>();
 
-        let glyphs = chars
+        // let images = glyphs
+        //     .iter()
+        //     .map(|&glyph| {
+        //         let image = swash_cache.get_image_uncached(font_system, glyph).unwrap();
+
+        //         (glyph, image)
+        //     })
+        //     .collect_vec();
+
+        let mut images = Vec::new();
+        let glyphs = glyphs
             .iter()
-            .map(|&c| {
-                let index = font.lookup_glyph_index(c);
+            .map(|&glyph| {
+                let image = swash_cache.get_image_uncached(font_system, glyph).unwrap();
+                // let index = font.lookup_glyph_index(c);
 
-                let metrics = font.metrics_indexed(index, px);
+                let metrics = image.placement;
                 let padding = 10;
 
                 let requested_size = size2(
@@ -89,16 +125,20 @@ impl FontAtlas {
                         atlas.grow(atlas.size() * 2)
                     }
                 };
+
                 let min = uvec2(
                     (v.rectangle.min.x + padding) as u32,
                     (v.rectangle.min.y + padding) as u32,
                 );
+
                 let max = uvec2(
                     (v.rectangle.max.x - padding) as u32,
                     (v.rectangle.max.y - padding) as u32,
                 );
 
-                (index, GlyphLocation { min, max })
+                let loc = GlyphLocation { min, max };
+                images.push((glyph, image, loc));
+                (glyph, (metrics, loc))
             })
             .collect::<BTreeMap<_, _>>();
 
@@ -107,16 +147,13 @@ impl FontAtlas {
         let mut image = ImageBuffer::from_pixel(size.x, size.y, Luma([0]));
 
         // Rasterize and blit without storing all the small bitmaps in memory at the same time
-        glyphs.iter().for_each(|(&glyph, loc)| {
-            let (metrics, pixels) = font.rasterize_indexed(glyph, px);
-
-            if metrics.width > 0 {
+        images.iter().for_each(|(glyph, src_image, loc)| {
+            if src_image.placement.width > 0 {
                 blit_to_image(
-                    &pixels,
+                    src_image,
                     &mut image,
                     loc.min.x as i32,
                     loc.min.y as i32,
-                    metrics.width as u32,
                     size.x,
                 );
             }
@@ -144,7 +181,6 @@ impl FontAtlas {
         Ok(Self {
             texture: Texture::from_texture(texture),
             glyphs,
-            chars,
         })
     }
 
@@ -153,14 +189,46 @@ impl FontAtlas {
     }
 
     pub(crate) fn contains_char(&self, glyph: char) -> bool {
-        self.chars.contains(&glyph)
+        todo!()
+        // self.chars.contains(&glyph)
     }
 }
 
-pub fn blit_to_image(src: &[u8], dst: &mut [u8], x: i32, y: i32, src_stride: u32, dst_stride: u32) {
-    for (row_index, row) in src.chunks_exact(src_stride as usize).enumerate() {
-        let dst_index = x as usize + (y as usize + row_index) * dst_stride as usize;
+pub fn blit_to_image(src: &SwashImage, dst: &mut [u8], x: i32, y: i32, dst_width: u32) {
+    match src.content {
+        cosmic_text::SwashContent::Mask => {
+            for (row_index, row) in src
+                .data
+                .chunks_exact(src.placement.width as usize)
+                .enumerate()
+            {
+                let dst_index = x as usize + (y as usize + row_index) * dst_width as usize;
 
-        dst[dst_index..(dst_index + src_stride as usize)].copy_from_slice(row);
+                dst[dst_index..(dst_index + src.placement.width as usize)].copy_from_slice(row);
+            }
+        }
+        cosmic_text::SwashContent::SubpixelMask => todo!(),
+        cosmic_text::SwashContent::Color => {
+            for (row_index, row) in src
+                .data
+                .chunks_exact(src.placement.width as usize * 4)
+                .enumerate()
+            {
+                let dst_index = x as usize + (y as usize + row_index) * dst_width as usize;
+
+                for (pixel_index, pixel) in row.chunks_exact(4).enumerate() {
+                    let dst_index = dst_index + pixel_index;
+
+                    let l = vec3(
+                        pixel[0] as f32 / 255.0,
+                        pixel[1] as f32 / 255.0,
+                        pixel[2] as f32 / 255.0,
+                    )
+                    .dot(vec3(0.2126, 0.7152, 0.0722));
+
+                    dst[dst_index] = ((l * pixel[3] as f32 / 255.0) * 255.0) as u8;
+                }
+            }
+        }
     }
 }

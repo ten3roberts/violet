@@ -8,7 +8,7 @@ use glam::{vec2, Vec2};
 use palette::Srgba;
 
 use crate::{
-    layout::{Layout, StackLayout},
+    layout::{Layout, ResolveSize, StackLayout},
     shapes::FilledRect,
     unit::Unit,
 };
@@ -70,6 +70,8 @@ component! {
     pub filled_rect: FilledRect => [ Debuggable ],
 
     pub font_family: FontFamily => [ Debuggable ],
+
+    pub(crate) resolve_size: Box<dyn ResolveSize>,
 }
 
 /// Spacing between a outer and inner bounds

@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
+use cosmic_text::FontSystem;
 use flax::{components::child_of, FetchExt, Query};
+use futures::lock::Mutex;
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
@@ -62,7 +64,12 @@ pub struct ShapeRenderer {
 }
 
 impl ShapeRenderer {
-    pub fn new(frame: &mut Frame, ctx: &mut RendererContext, color_format: TextureFormat) -> Self {
+    pub fn new(
+        frame: &mut Frame,
+        ctx: &mut RendererContext,
+        font_system: Arc<parking_lot::Mutex<FontSystem>>,
+        color_format: TextureFormat,
+    ) -> Self {
         let object_bind_group_layout =
             BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
                 .bind_storage_buffer(ShaderStages::VERTEX)
@@ -91,7 +98,13 @@ impl ShapeRenderer {
             bind_group,
             commands: Vec::new(),
             rect_renderer: RectRenderer::new(ctx, frame, color_format, &object_bind_group_layout),
-            text_renderer: TextRenderer::new(ctx, frame, color_format, &object_bind_group_layout),
+            text_renderer: TextRenderer::new(
+                ctx,
+                frame,
+                font_system,
+                color_format,
+                &object_bind_group_layout,
+            ),
         }
     }
 

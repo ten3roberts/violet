@@ -1,5 +1,9 @@
+use std::sync::Arc;
+
 use anyhow::Context;
+use cosmic_text::FontSystem;
 use glam::Mat4;
+use parking_lot::Mutex;
 use wgpu::{Operations, RenderPassDescriptor, SurfaceError};
 use winit::dpi::PhysicalSize;
 
@@ -20,10 +24,16 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
-    pub fn new(gpu: Gpu, frame: &mut Frame, surface: Surface) -> Self {
+    pub fn new(
+        gpu: Gpu,
+        frame: &mut Frame,
+        font_system: Arc<Mutex<FontSystem>>,
+        surface: Surface,
+    ) -> Self {
         let mut ctx = RendererContext::new(gpu);
 
-        let shape_renderer = ShapeRenderer::new(frame, &mut ctx, surface.surface_format());
+        let shape_renderer =
+            ShapeRenderer::new(frame, &mut ctx, font_system, surface.surface_format());
 
         Self {
             surface,

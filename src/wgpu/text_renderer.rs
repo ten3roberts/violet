@@ -1,8 +1,12 @@
 use std::{
-    collections::{btree_map, BTreeMap},
+    collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
 
+use cosmic_text::{
+    Attrs, BorrowedWithFontSystem, Buffer, CacheKey, FontSystem, Metrics, Placement, Shaping,
+    SwashCache,
+};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -13,8 +17,9 @@ use fontdue::{
     layout::{Layout, TextStyle},
     Font,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
+use glam::{ivec3, vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use itertools::Itertools;
+use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
@@ -30,6 +35,7 @@ use crate::{
 
 use super::{
     components::{draw_cmd, font_handle, mesh_handle, model_matrix},
+    font::GlyphLocation,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
@@ -58,71 +64,66 @@ impl ObjectQuery {
 }
 
 struct FontRasterizer {
-    rasterized: BTreeMap<(Handle<Font>, u32), RasterizedFont>,
+    rasterized: RasterizedFont,
     sampler: Handle<Sampler>,
     text_layout: BindGroupLayout,
 }
 
 impl FontRasterizer {
-    pub fn get(
-        &mut self,
-        ctx: &RendererContext,
+    fn new(
         assets: &AssetCache,
-        font: Handle<Font>,
-        px: f32,
-        text: &str,
-    ) -> &RasterizedFont {
-        match self.rasterized.entry((font, px as u32)) {
-            btree_map::Entry::Vacant(slot) => {
-                let font = &slot.key().0;
-                let atlas = FontAtlas::new(assets, &ctx.gpu, font, px, text.chars()).unwrap();
+        gpu: &Gpu,
+        sampler: Handle<Sampler>,
+        text_layout: BindGroupLayout,
+    ) -> Self {
+        let atlas = FontAtlas::empty(gpu);
 
-                let bind_group = assets.insert(
-                    BindGroupBuilder::new("TextRenderer::bind_group")
-                        .bind_sampler(&self.sampler)
-                        .bind_texture(&atlas.texture.view(&Default::default()))
-                        .build(&ctx.gpu, &self.text_layout),
-                );
+        let bind_group = assets.insert(
+            BindGroupBuilder::new("TextRenderer::bind_group")
+                .bind_sampler(&sampler)
+                .bind_texture(&atlas.texture.view(&Default::default()))
+                .build(&gpu, &text_layout),
+        );
 
-                &*slot.insert(RasterizedFont { atlas, bind_group })
-            }
-            btree_map::Entry::Occupied(mut slot) => {
-                let font = slot.key().0.clone();
-
-                let rasterized = slot.get_mut();
-
-                if !text.chars().all(|c| rasterized.atlas.contains_char(c)) {
-                    let missing = text
-                        .chars()
-                        .filter(|&c| !rasterized.atlas.contains_char(c))
-                        .sorted();
-
-                    tracing::info!(
-                        missing = ?missing.collect_vec(),
-                        "Atlas missing characters, re-rasterizing"
-                    );
-
-                    let mut chars = std::mem::take(&mut rasterized.atlas.chars);
-
-                    chars.extend(text.chars());
-
-                    let atlas = FontAtlas::new(assets, &ctx.gpu, &font, px, chars).unwrap();
-
-                    let bind_group = assets.insert(
-                        BindGroupBuilder::new("TextRenderer::bind_group")
-                            .bind_sampler(&self.sampler)
-                            .bind_texture(&atlas.texture.view(&Default::default()))
-                            .build(&ctx.gpu, &self.text_layout),
-                    );
-
-                    let rasterized = slot.into_mut();
-                    *rasterized = RasterizedFont { atlas, bind_group };
-                    rasterized
-                } else {
-                    slot.into_mut()
-                }
-            }
+        Self {
+            rasterized: RasterizedFont { atlas, bind_group },
+            sampler,
+            text_layout,
         }
+    }
+
+    pub fn add_glyphs(
+        &mut self,
+        assets: &AssetCache,
+        ctx: &mut RendererContext,
+        font_system: &mut FontSystem,
+        swash_cache: &mut SwashCache,
+        new_glyphs: &[CacheKey],
+    ) -> anyhow::Result<()> {
+        let glyphs = self
+            .rasterized
+            .atlas
+            .glyphs
+            .keys()
+            .chain(new_glyphs)
+            .copied();
+
+        let atlas = FontAtlas::new(assets, &ctx.gpu, font_system, swash_cache, glyphs)?;
+
+        let bind_group = assets.insert(
+            BindGroupBuilder::new("TextRenderer::bind_group")
+                .bind_sampler(&self.sampler)
+                .bind_texture(&atlas.texture.view(&Default::default()))
+                .build(&ctx.gpu, &self.text_layout),
+        );
+
+        self.rasterized = RasterizedFont { atlas, bind_group };
+
+        Ok(())
+    }
+
+    pub fn get_glyph(&self, glyph: CacheKey) -> Option<&(Placement, GlyphLocation)> {
+        self.rasterized.atlas.glyphs.get(&glyph)
     }
 }
 
@@ -167,11 +168,7 @@ impl MeshGenerator {
             }));
 
         Self {
-            rasterizer: FontRasterizer {
-                rasterized: BTreeMap::new(),
-                sampler,
-                text_layout,
-            },
+            rasterizer: FontRasterizer::new(&frame.assets, &ctx.gpu, sampler, text_layout),
             shader,
         }
     }
@@ -180,59 +177,72 @@ impl MeshGenerator {
         &mut self,
         ctx: &mut RendererContext,
         assets: &AssetCache,
-        font: &Handle<Font>,
         font_size: f32,
-        layout: Layout,
-        text: &str,
+        font_system: &mut FontSystem,
+        swash_cache: &mut SwashCache,
+        buffer: &mut Buffer,
+        // text: &str,
         mesh: &mut Arc<MeshHandle>,
-    ) -> (&RasterizedFont, u32) {
-        let rasterized = self
-            .rasterizer
-            .get(ctx, assets, font.clone(), font_size, text);
+    ) -> u32 {
+        // let rasterized = self
+        //     .rasterizer
+        //     .get(ctx, assets, font.clone(), font_size, text);
 
-        let glyph_count = layout.glyphs().len();
+        let mut vertices = Vec::new();
 
-        let size = layout
-            .glyphs()
-            .iter()
-            .map(|v| vec2(v.x + v.width as f32, v.y + v.height as f32))
-            .fold(Vec2::ZERO, |acc, v| acc.max(v));
+        // let color = cosmic_text::Color::rgb(0xFF, 0xFF, 0xFF);
 
-        tracing::info!(text, %size, "render text");
+        let mut missing = Vec::new();
+        loop {
+            for run in buffer.layout_runs() {
+                for glyph in run.glyphs.iter() {
+                    let physical_glyph = glyph.physical((0., 0.), 1.0);
+                    let Some((placement, loc)) =
+                        self.rasterizer.get_glyph(physical_glyph.cache_key)
+                    else {
+                        missing.push(physical_glyph.cache_key);
+                        continue;
+                    };
 
-        let vertices = layout
-            .glyphs()
-            .iter()
-            .flat_map(|glyph| {
-                let atlas_glyph = rasterized.atlas.glyphs.get(&glyph.key.glyph_index).unwrap();
+                    let atlas_size = self.rasterizer.rasterized.atlas.size();
+                    let atlas_size = vec2(atlas_size.width as f32, atlas_size.height as f32);
 
-                let glyph_width = glyph.width as f32;
-                let glyph_height = glyph.height as f32;
+                    let uv_min = loc.min.as_vec2() / atlas_size;
+                    let uv_max = loc.max.as_vec2() / atlas_size;
 
-                let atlas_size = rasterized.atlas.size();
-                let atlas_size = vec2(atlas_size.width as f32, atlas_size.height as f32);
+                    let x = placement.left as f32 + physical_glyph.x as f32;
+                    let y = run.line_y - placement.top as f32 + physical_glyph.y as f32;
 
-                let uv_min = atlas_glyph.min.as_vec2() / atlas_size;
-                let uv_max = atlas_glyph.max.as_vec2() / atlas_size;
+                    vertices.extend_from_slice(&[
+                        // Bottom left
+                        Vertex::new(
+                            vec3(x, y + placement.height as f32, 0.0),
+                            vec2(uv_min.x, uv_max.y),
+                        ),
+                        Vertex::new(
+                            vec3(x + placement.width as f32, y + placement.height as f32, 0.0),
+                            vec2(uv_max.x, uv_max.y),
+                        ),
+                        Vertex::new(
+                            vec3(x + placement.width as f32, y, 0.0),
+                            vec2(uv_max.x, uv_min.y),
+                        ),
+                        Vertex::new(vec3(x, y, 0.0), vec2(uv_min.x, uv_min.y)),
+                    ])
+                }
+            }
 
-                [
-                    // Bottom left
-                    Vertex::new(
-                        vec3(glyph.x, glyph.y + glyph_height, 0.0),
-                        vec2(uv_min.x, uv_max.y),
-                    ),
-                    Vertex::new(
-                        vec3(glyph.x + glyph_width, glyph.y + glyph_height, 0.0),
-                        vec2(uv_max.x, uv_max.y),
-                    ),
-                    Vertex::new(
-                        vec3(glyph.x + glyph_width, glyph.y, 0.0),
-                        vec2(uv_max.x, uv_min.y),
-                    ),
-                    Vertex::new(vec3(glyph.x, glyph.y, 0.0), vec2(uv_min.x, uv_min.y)),
-                ]
-            })
-            .collect_vec();
+            if missing.is_empty() {
+                break;
+            } else {
+                self.rasterizer
+                    .add_glyphs(assets, ctx, font_system, swash_cache, &missing)
+                    .unwrap();
+
+                missing.clear();
+            }
+        }
+        let glyph_count = vertices.len() / 4;
 
         let indices = (0..)
             .step_by(4)
@@ -247,7 +257,7 @@ impl MeshGenerator {
             *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
         }
 
-        (rasterized, indices.len() as u32)
+        indices.len() as u32
     }
 }
 
@@ -262,7 +272,6 @@ pub struct TextMeshQuery {
 
     rect: Component<Rect>,
     text: Component<String>,
-    font: Component<Handle<Font>>,
     text_limits: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
@@ -275,7 +284,6 @@ impl TextMeshQuery {
             mesh: mesh_handle().as_mut().opt(),
             rect: rect(),
             text: text(),
-            font: font_handle(),
             text_limits: text_limits(),
             font_size: font_size().opt_or(16.0),
         }
@@ -288,49 +296,10 @@ pub struct RasterizedFont {
     bind_group: Handle<BindGroup>,
 }
 
-pub struct RenderFont {
-    font: Handle<Font>,
-    sampler: Handle<Sampler>,
-    rasterized: BTreeMap<u32, RasterizedFont>,
-}
-
-impl RenderFont {
-    fn get(
-        &mut self,
-        gpu: &Gpu,
-        assets: &AssetCache,
-        px: u32,
-        text: &str,
-        text_layout: &BindGroupLayout,
-    ) -> &mut RasterizedFont {
-        let rasterize = || {
-            let atlas = FontAtlas::new(assets, gpu, &self.font, px as f32, text.chars()).unwrap();
-
-            let bind_group = assets.insert(
-                BindGroupBuilder::new("TextRenderer::bind_group")
-                    .bind_sampler(&self.sampler)
-                    .bind_texture(&atlas.texture.view(&Default::default()))
-                    .build(gpu, text_layout),
-            );
-
-            RasterizedFont { atlas, bind_group }
-        };
-
-        match self.rasterized.entry(px) {
-            btree_map::Entry::Vacant(slot) => slot.insert(rasterize()),
-            btree_map::Entry::Occupied(slot) => {
-                let rasterized = slot.into_mut();
-                if !text.chars().all(|c| rasterized.atlas.contains_char(c)) {
-                    *rasterized = rasterize();
-                }
-                rasterized
-            }
-        }
-    }
-}
-
 pub struct TextRenderer {
     mesh_generator: MeshGenerator,
+    font_system: Arc<Mutex<FontSystem>>,
+    swash_cache: SwashCache,
 
     object_query: Query<ObjectQuery, (All, With)>,
     mesh_query: Query<<TextMeshQuery as TransformFetch<Modified>>::Output, All>,
@@ -340,6 +309,7 @@ impl TextRenderer {
     pub fn new(
         ctx: &mut RendererContext,
         frame: &mut Frame,
+        font_system: Arc<Mutex<FontSystem>>,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
     ) -> Self {
@@ -348,11 +318,15 @@ impl TextRenderer {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
             mesh_query: Query::new(TextMeshQuery::new().modified()),
+            font_system,
+            swash_cache: SwashCache::new(),
         }
     }
 
     pub fn update_meshes(&mut self, ctx: &mut RendererContext, frame: &mut Frame) {
         let mut cmd = CommandBuffer::new();
+
+        let font_system = &mut *self.font_system.lock();
 
         (self.mesh_query.borrow(&frame.world)).for_each(|item| {
             // tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
@@ -360,36 +334,55 @@ impl TextRenderer {
             // Update intrinsic sizes
 
             // tracing::info!(?item.id, ?item.rect, "text rect");
+
+            let metrics = Metrics::new(*item.font_size, *item.font_size);
+
+            let mut buffer = Buffer::new(font_system, metrics);
+            {
+                let mut buffer = buffer.borrow_with(font_system);
+
+                let limits = item.text_limits;
+
+                buffer.set_text(item.text, Attrs::new(), Shaping::Advanced);
+                buffer.set_size(limits.x, limits.y);
+
+                buffer.shape_until_scroll();
+            }
+            // let mut vertices = Vec::new();
+            // buffer.draw(
+            //     &mut self.swash_cache,
+            //     cosmic_text::Color::rbg(0xFF, 0xFF, 0xFF),
+            //     |x, y, w, h, color| {},
+            // );
+
             let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
 
-            let limits = item.text_limits;
-
             // Due to padding the text may not fit exactly
-            let (max_width, max_height) = (Some(limits.x), Some(limits.y));
+            // let (max_width, max_height) = (Some(limits.x), Some(limits.y));
 
-            layout.reset(&fontdue::layout::LayoutSettings {
-                // x: rect.min.x.round(),
-                // y: rect.min.x.round(),
-                x: 0.0,
-                y: 0.0,
-                max_width,
-                max_height,
-                horizontal_align: fontdue::layout::HorizontalAlign::Left,
-                vertical_align: fontdue::layout::VerticalAlign::Top,
-                line_height: 1.0,
-                wrap_style: fontdue::layout::WrapStyle::Word,
-                wrap_hard_breaks: true,
-            });
+            // layout.reset(&fontdue::layout::LayoutSettings {
+            //     // x: rect.min.x.round(),
+            //     // y: rect.min.x.round(),
+            //     x: 0.0,
+            //     y: 0.0,
+            //     max_width,
+            //     max_height,
+            //     horizontal_align: fontdue::layout::HorizontalAlign::Left,
+            //     vertical_align: fontdue::layout::VerticalAlign::Top,
+            //     line_height: 1.0,
+            //     wrap_style: fontdue::layout::WrapStyle::Word,
+            //     wrap_hard_breaks: true,
+            // });
 
-            layout.append(
-                &[&**item.font],
-                &TextStyle {
-                    text: item.text,
-                    px: *item.font_size,
-                    font_index: 0,
-                    user_data: (),
-                },
-            );
+            // layout.append(
+            //     &[&**item.font],
+            //     &TextStyle {
+            //         text: item.text,
+            //         px: *item.font_size,
+            //         font_index: 0,
+            //         user_data: (),
+            //     },
+            // );
 
             let mut new_mesh = None;
 
@@ -398,13 +391,13 @@ impl TextRenderer {
                 None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
             };
 
-            let (rasterized, index_count) = self.mesh_generator.update_mesh(
+            let index_count = self.mesh_generator.update_mesh(
                 ctx,
                 &frame.assets,
-                item.font,
                 *item.font_size,
-                layout,
-                item.text,
+                font_system,
+                &mut self.swash_cache,
+                &mut buffer,
                 mesh,
             );
 
@@ -412,7 +405,7 @@ impl TextRenderer {
                 item.id,
                 draw_cmd(),
                 DrawCommand {
-                    bind_group: rasterized.bind_group.clone(),
+                    bind_group: self.mesh_generator.rasterizer.rasterized.bind_group.clone(),
                     shader: self.mesh_generator.shader.clone(),
                     index_count,
                     vertex_offset: 0,

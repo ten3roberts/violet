@@ -357,8 +357,8 @@ impl Widget for MainApp {
                 ),
                 Stack {
                     items: (
-                        Text::new("Hello, World!")
-                            .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
+                        Text::new("Hello,🗺 😱🦀🦀World!")
+                            .with_font("Inter/static/Inter-Bold.ttf")
                             .with_font_size(32.0)
                             .with_margin(MARGIN),
                         Rectangle::new(EERIE_BLACK)

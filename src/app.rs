@@ -1,7 +1,9 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
+use cosmic_text::FontSystem;
 use flax::{components::name, Schedule, World};
 use glam::{vec2, Vec2};
+use parking_lot::Mutex;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
@@ -14,12 +16,7 @@ use crate::{
     executor::Executor,
     input::InputState,
     systems::{hydrate_text, layout_system, templating_system, transform_system},
-    wgpu::{
-        font_map::{FontMap, FsProvider},
-        graphics::Gpu,
-        systems::load_fonts_system,
-        window_renderer::WindowRenderer,
-    },
+    wgpu::{graphics::Gpu, systems::set_text_size_resolver, window_renderer::WindowRenderer},
     Frame, Widget,
 };
 
@@ -84,15 +81,16 @@ impl App {
         // TODO: Make this a proper effect
         let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
 
-        let mut window_renderer = WindowRenderer::new(gpu, &mut frame, surface);
+        let font_system = Arc::new(Mutex::new(FontSystem::new()));
 
-        let font_map = FontMap::new(frame.assets.clone(), FsProvider::new("./assets/fonts"));
+        let mut window_renderer =
+            WindowRenderer::new(gpu, &mut frame, font_system.clone(), surface);
 
         let mut schedule = Schedule::new()
             .with_system(templating_system(root))
             .with_system(hydrate_text())
             .flush()
-            .with_system(load_fonts_system(font_map))
+            .with_system(set_text_size_resolver(font_system))
             .flush()
             .with_system(layout_system())
             .with_system(transform_system());
