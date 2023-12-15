@@ -1,4 +1,3 @@
-use anyhow::Context;
 use flax::components::name;
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
@@ -12,7 +11,7 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    assets::{fs::BytesFromFile, AssetKey},
+    assets::AssetKey,
     components::{
         self, color, filled_rect, font_family, font_size, layout, size, text, Edges, FontFamily,
     },
@@ -38,14 +37,14 @@ macro_rules! srgba {
 
 const MARGIN: Edges = Edges::even(15.0);
 
-const EERIE_BLACK: Srgba = srgba!("#222525");
-const EERIE_BLACK_300: Srgba = srgba!("#151616");
-const PLATINUM: Srgba = srgba!("#dddddf");
-const VIOLET: Srgba = srgba!("#8000ff");
-const TEAL: Srgba = srgba!("#247b7b");
-const EMERALD: Srgba = srgba!("#50c878");
-const BRONZE: Srgba = srgba!("#cd7f32");
-const CHILI_RED: Srgba = srgba!("#d34131");
+pub const EERIE_BLACK: Srgba = srgba!("#222525");
+pub const EERIE_BLACK_300: Srgba = srgba!("#151616");
+pub const PLATINUM: Srgba = srgba!("#dddddf");
+pub const VIOLET: Srgba = srgba!("#8000ff");
+pub const TEAL: Srgba = srgba!("#247b7b");
+pub const EMERALD: Srgba = srgba!("#50c878");
+pub const BRONZE: Srgba = srgba!("#cd7f32");
+pub const CHILI_RED: Srgba = srgba!("#d34131");
 
 struct Sized<W> {
     min_size: Unit<Vec2>,

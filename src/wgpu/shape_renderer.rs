@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use cosmic_text::FontSystem;
 use flax::{components::child_of, FetchExt, Query};
-use futures::lock::Mutex;
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
@@ -209,7 +208,7 @@ struct ObjectData {
     color: Vec4,
 }
 
-fn srgba_to_vec4(color: Srgba) -> Vec4 {
+pub fn srgba_to_vec4(color: Srgba) -> Vec4 {
     let (r, g, b, a) = color.into_linear().into_components();
 
     vec4(r, g, b, a)

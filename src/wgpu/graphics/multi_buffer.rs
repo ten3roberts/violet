@@ -139,6 +139,10 @@ where
         self.buffer.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     pub fn label(&self) -> &str {
         self.label.as_ref()
     }

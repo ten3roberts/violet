@@ -155,7 +155,6 @@ impl MeshBuffer {
         index_count: usize,
     ) {
         if handle.vb.size() >= vertex_count && handle.ib.size() >= index_count {
-            panic!("");
             return;
         }
 

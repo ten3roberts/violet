@@ -82,7 +82,7 @@ impl AssetCache {
     {
         match self.try_load(key) {
             Ok(v) => v,
-            Err(Infallible) => {
+            Err(_) => {
                 unreachable!()
             }
         }

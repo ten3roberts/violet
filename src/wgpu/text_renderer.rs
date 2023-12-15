@@ -1,23 +1,12 @@
-use std::{
-    collections::{btree_map, BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::sync::Arc;
 
-use cosmic_text::{
-    Attrs, BorrowedWithFontSystem, Buffer, CacheKey, FontSystem, Metrics, Placement, Shaping,
-    SwashCache,
-};
+use cosmic_text::{Attrs, Buffer, CacheKey, FontSystem, Metrics, Placement, Shaping, SwashCache};
 use flax::{
     entity_ids,
-    fetch::{Modified, TransformFetch},
     filter::{All, With},
     CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use fontdue::{
-    layout::{Layout, TextStyle},
-    Font,
-};
-use glam::{ivec3, vec2, vec3, Mat4, Quat, Vec2, Vec3};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use itertools::Itertools;
 use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
@@ -34,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    components::{draw_cmd, font_handle, mesh_handle, model_matrix},
+    components::{draw_cmd, mesh_handle, model_matrix},
     font::GlyphLocation,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
@@ -82,7 +71,7 @@ impl FontRasterizer {
             BindGroupBuilder::new("TextRenderer::bind_group")
                 .bind_sampler(&sampler)
                 .bind_texture(&atlas.texture.view(&Default::default()))
-                .build(&gpu, &text_layout),
+                .build(gpu, &text_layout),
         );
 
         Self {
@@ -177,7 +166,6 @@ impl MeshGenerator {
         &mut self,
         ctx: &mut RendererContext,
         assets: &AssetCache,
-        font_size: f32,
         font_system: &mut FontSystem,
         swash_cache: &mut SwashCache,
         buffer: &mut Buffer,
@@ -228,13 +216,15 @@ impl MeshGenerator {
                             vec2(uv_max.x, uv_min.y),
                         ),
                         Vertex::new(vec3(x, y, 0.0), vec2(uv_min.x, uv_min.y)),
-                    ])
+                    ]);
                 }
             }
 
             if missing.is_empty() {
                 break;
             } else {
+                tracing::debug!(?missing, "Adding missing glyphs");
+                vertices.clear();
                 self.rasterizer
                     .add_glyphs(assets, ctx, font_system, swash_cache, &missing)
                     .unwrap();
@@ -302,7 +292,7 @@ pub struct TextRenderer {
     swash_cache: SwashCache,
 
     object_query: Query<ObjectQuery, (All, With)>,
-    mesh_query: Query<<TextMeshQuery as TransformFetch<Modified>>::Output, All>,
+    mesh_query: Query<TextMeshQuery, All>,
 }
 
 impl TextRenderer {
@@ -317,7 +307,7 @@ impl TextRenderer {
         Self {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
-            mesh_query: Query::new(TextMeshQuery::new().modified()),
+            mesh_query: Query::new(TextMeshQuery::new()),
             font_system,
             swash_cache: SwashCache::new(),
         }
@@ -328,94 +318,97 @@ impl TextRenderer {
 
         let font_system = &mut *self.font_system.lock();
 
-        (self.mesh_query.borrow(&frame.world)).for_each(|item| {
-            // tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
+        (self.mesh_query.borrow(&frame.world))
+            .iter()
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .for_each(|item| {
+                let _span = tracing::info_span!( "update_mesh", %item.id).entered();
+                // tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
 
-            // Update intrinsic sizes
+                // Update intrinsic sizes
 
-            // tracing::info!(?item.id, ?item.rect, "text rect");
+                // tracing::info!(?item.id, ?item.rect, "text rect");
 
-            let metrics = Metrics::new(*item.font_size, *item.font_size);
+                let metrics = Metrics::new(*item.font_size, *item.font_size);
 
-            let mut buffer = Buffer::new(font_system, metrics);
-            {
-                let mut buffer = buffer.borrow_with(font_system);
+                let mut buffer = Buffer::new(font_system, metrics);
+                {
+                    let mut buffer = buffer.borrow_with(font_system);
 
-                let limits = item.text_limits;
+                    let limits = item.text_limits;
 
-                buffer.set_text(item.text, Attrs::new(), Shaping::Advanced);
-                buffer.set_size(limits.x, limits.y);
+                    buffer.set_text(item.text, Attrs::new(), Shaping::Advanced);
+                    buffer.set_size(limits.x, limits.y);
 
-                buffer.shape_until_scroll();
-            }
-            // let mut vertices = Vec::new();
-            // buffer.draw(
-            //     &mut self.swash_cache,
-            //     cosmic_text::Color::rbg(0xFF, 0xFF, 0xFF),
-            //     |x, y, w, h, color| {},
-            // );
+                    buffer.shape_until_scroll();
+                }
+                // let mut vertices = Vec::new();
+                // buffer.draw(
+                //     &mut self.swash_cache,
+                //     cosmic_text::Color::rbg(0xFF, 0xFF, 0xFF),
+                //     |x, y, w, h, color| {},
+                // );
 
-            let mut layout = Layout::<()>::new(fontdue::layout::CoordinateSystem::PositiveYDown);
+                // Due to padding the text may not fit exactly
+                // let (max_width, max_height) = (Some(limits.x), Some(limits.y));
 
-            // Due to padding the text may not fit exactly
-            // let (max_width, max_height) = (Some(limits.x), Some(limits.y));
+                // layout.reset(&fontdue::layout::LayoutSettings {
+                //     // x: rect.min.x.round(),
+                //     // y: rect.min.x.round(),
+                //     x: 0.0,
+                //     y: 0.0,
+                //     max_width,
+                //     max_height,
+                //     horizontal_align: fontdue::layout::HorizontalAlign::Left,
+                //     vertical_align: fontdue::layout::VerticalAlign::Top,
+                //     line_height: 1.0,
+                //     wrap_style: fontdue::layout::WrapStyle::Word,
+                //     wrap_hard_breaks: true,
+                // });
 
-            // layout.reset(&fontdue::layout::LayoutSettings {
-            //     // x: rect.min.x.round(),
-            //     // y: rect.min.x.round(),
-            //     x: 0.0,
-            //     y: 0.0,
-            //     max_width,
-            //     max_height,
-            //     horizontal_align: fontdue::layout::HorizontalAlign::Left,
-            //     vertical_align: fontdue::layout::VerticalAlign::Top,
-            //     line_height: 1.0,
-            //     wrap_style: fontdue::layout::WrapStyle::Word,
-            //     wrap_hard_breaks: true,
-            // });
+                // layout.append(
+                //     &[&**item.font],
+                //     &TextStyle {
+                //         text: item.text,
+                //         px: *item.font_size,
+                //         font_index: 0,
+                //         user_data: (),
+                //     },
+                // );
 
-            // layout.append(
-            //     &[&**item.font],
-            //     &TextStyle {
-            //         text: item.text,
-            //         px: *item.font_size,
-            //         font_index: 0,
-            //         user_data: (),
-            //     },
-            // );
+                let mut new_mesh = None;
 
-            let mut new_mesh = None;
+                let mesh = match item.mesh {
+                    Some(v) => v,
+                    None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
+                };
 
-            let mesh = match item.mesh {
-                Some(v) => v,
-                None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
-            };
+                let index_count = self.mesh_generator.update_mesh(
+                    ctx,
+                    &frame.assets,
+                    font_system,
+                    &mut self.swash_cache,
+                    &mut buffer,
+                    mesh,
+                );
 
-            let index_count = self.mesh_generator.update_mesh(
-                ctx,
-                &frame.assets,
-                *item.font_size,
-                font_system,
-                &mut self.swash_cache,
-                &mut buffer,
-                mesh,
-            );
+                cmd.set(
+                    item.id,
+                    draw_cmd(),
+                    DrawCommand {
+                        bind_group: self.mesh_generator.rasterizer.rasterized.bind_group.clone(),
+                        shader: self.mesh_generator.shader.clone(),
+                        index_count,
+                        vertex_offset: 0,
+                    },
+                );
 
-            cmd.set(
-                item.id,
-                draw_cmd(),
-                DrawCommand {
-                    bind_group: self.mesh_generator.rasterizer.rasterized.bind_group.clone(),
-                    shader: self.mesh_generator.shader.clone(),
-                    index_count,
-                    vertex_offset: 0,
-                },
-            );
-
-            if let Some(v) = new_mesh {
-                cmd.set(item.id, mesh_handle(), v);
-            }
-        });
+                if let Some(v) = new_mesh {
+                    cmd.set(item.id, mesh_handle(), v);
+                }
+            });
 
         cmd.apply(&mut frame.world).unwrap();
     }

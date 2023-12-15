@@ -1,17 +1,13 @@
 use flax::{
-    component,
-    components::child_of,
-    entity_ids,
-    fetch::{entity_refs, EntityRefs, Satisfied},
-    filter::All,
-    Component, Entity, EntityIds, EntityRef, Fetch, FetchExt, Query, Topo,
+    component, components::child_of, entity_ids, fetch::Satisfied, filter::All, Component, Entity,
+    EntityIds, EntityRef, Fetch, FetchExt, Query, Topo,
 };
 use glam::Vec2;
 use winit::event::{ElementState, KeyboardInput, MouseButton};
 
 use crate::{
     components::{rect, screen_position, Rect},
-    Frame, Scope,
+    Frame,
 };
 
 pub struct Input {}

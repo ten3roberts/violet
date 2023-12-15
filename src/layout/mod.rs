@@ -2,13 +2,11 @@ mod flow;
 mod stack;
 
 use flax::{Entity, EntityRef, World};
-use fontdue::{layout::TextStyle, Font};
-use glam::{vec2, Vec2};
+use glam::Vec2;
 
 use crate::{
-    components::{self, children, font_size, layout, padding, text, Edges, Rect},
+    components::{self, children, layout, padding, Edges, Rect},
     unit::Unit,
-    wgpu::components::font_handle,
 };
 
 pub use flow::{CrossAlign, Direction, FlowLayout};
@@ -21,7 +19,7 @@ pub enum Layout {
 }
 
 impl Layout {
-    pub fn apply(
+    pub(crate) fn apply(
         &self,
         world: &World,
         children: &[Entity],
@@ -34,9 +32,9 @@ impl Layout {
         }
     }
 
-    pub fn query_size<'a>(
+    pub(crate) fn query_size(
         &self,
-        world: &'a World,
+        world: &World,
         children: &[Entity],
         inner_rect: Rect,
     ) -> Sizing {
@@ -206,7 +204,7 @@ pub(crate) fn update_subtree(
     }
 }
 
-pub(crate) trait ResolveSize: Send + Sync {
+pub(crate) trait SizeResolver: Send + Sync {
     fn resolve(
         &mut self,
         entity: &EntityRef,

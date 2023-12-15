@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     components::{self, Edges, Rect},
-    layout::{query_size, resolve_pos},
+    layout::query_size,
 };
 
 use super::{update_subtree, Block, CrossAlign, LayoutLimits, Sizing};

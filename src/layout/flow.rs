@@ -3,7 +3,7 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
-    components::{self, children, Edges, Rect},
+    components::{self, Edges, Rect},
     layout::query_size,
 };
 

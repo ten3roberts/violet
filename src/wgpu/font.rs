@@ -1,12 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    convert::Infallible,
     path::PathBuf,
 };
 
 use cosmic_text::{CacheKey, FontSystem, Placement, SwashCache, SwashImage};
 use fontdue::Font;
-use glam::{uvec2, vec3, vec4, UVec2};
+use glam::{uvec2, vec3, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
@@ -112,7 +111,7 @@ impl FontAtlas {
                 // let index = font.lookup_glyph_index(c);
 
                 let metrics = image.placement;
-                let padding = 10;
+                let padding = 2;
 
                 let requested_size = size2(
                     metrics.width as i32 + padding * 2,
@@ -146,8 +145,7 @@ impl FontAtlas {
         let size = uvec2(size.width as _, size.height as _);
         let mut image = ImageBuffer::from_pixel(size.x, size.y, Luma([0]));
 
-        // Rasterize and blit without storing all the small bitmaps in memory at the same time
-        images.iter().for_each(|(glyph, src_image, loc)| {
+        images.iter().for_each(|(_, src_image, loc)| {
             if src_image.placement.width > 0 {
                 blit_to_image(
                     src_image,
@@ -186,11 +184,6 @@ impl FontAtlas {
 
     pub(crate) fn size(&self) -> Extent3d {
         self.texture.size()
-    }
-
-    pub(crate) fn contains_char(&self, glyph: char) -> bool {
-        todo!()
-        // self.chars.contains(&glyph)
     }
 }
 
