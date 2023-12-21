@@ -136,7 +136,7 @@ impl AssetKey for ImageFromPath {
     type Error = ImageError;
 
     fn load(self, _: &violet::assets::AssetCache) -> Result<Self::Output, ImageError> {
-        image::open(&self.path)
+        image::open(self.path)
     }
 }
 
@@ -356,7 +356,19 @@ impl Widget for MainApp {
                 ),
                 Stack {
                     items: (
-                        Text::new("Hello,🗺 😱🦀🦀World!")
+                        Text::new(
+                            "The quick brown fox 🦊 jumps over the lazy dog 🐕 fi fO t f-t ===",
+                        )
+                        .with_font("Inter/static/Inter-Bold.ttf")
+                        .with_font_size(32.0)
+                        .with_margin(MARGIN),
+                        Rectangle::new(EERIE_BLACK)
+                            .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
+                    ),
+                },
+                Stack {
+                    items: (
+                        Text::new(" -> <==========> ======= != <$> ~~>")
                             .with_font("Inter/static/Inter-Bold.ttf")
                             .with_font_size(32.0)
                             .with_margin(MARGIN),

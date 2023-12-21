@@ -250,7 +250,7 @@ fn resolve_size(
 
         //     (min_size, preferred)
         // }
-    } else if let Ok(mut resolver) = entity.get_mut(components::resolve_size()) {
+    } else if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
         resolver.resolve(entity, content_area, limits)
     } else {
         // tracing::info!(%entity, "using intrinsic_size");

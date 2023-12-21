@@ -71,7 +71,7 @@ component! {
 
     pub font_family: FontFamily => [ Debuggable ],
 
-    pub(crate) resolve_size: Box<dyn SizeResolver>,
+    pub(crate) size_resolver: Box<dyn SizeResolver>,
 }
 
 /// Spacing between a outer and inner bounds

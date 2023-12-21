@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping, Style};
 use flax::component;
 use fontdue::Font;
+use parking_lot::Mutex;
 
 use crate::{
     assets::Handle,
@@ -21,5 +23,38 @@ component! {
 
     pub(crate) mesh_handle: Arc<MeshHandle>,
 
-    pub model_matrix: glam::Mat4 => [ ],
+    pub model_matrix: glam::Mat4,
+
+    pub text_buffer_state: TextBufferState,
+}
+
+pub(crate) struct TextBufferState {
+    pub(crate) buffer: Buffer,
+}
+
+impl TextBufferState {
+    pub(crate) fn new(font_system: &mut FontSystem) -> Self {
+        Self {
+            buffer: Buffer::new(font_system, Metrics::new(14.0, 14.0)),
+        }
+    }
+
+    pub(crate) fn update(&mut self, font_system: &mut FontSystem, text: &str) {
+        self.buffer.set_text(
+            font_system,
+            text,
+            Attrs::new()
+                .family(cosmic_text::Family::Name("CaskaydiaCove Nerd Font"))
+                .style(Style::Italic),
+            Shaping::Advanced,
+        );
+    }
+
+    pub(crate) fn buffer(&self) -> &Buffer {
+        &self.buffer
+    }
+
+    pub(crate) fn buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffer
+    }
 }

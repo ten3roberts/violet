@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    components::{draw_cmd, mesh_handle, model_matrix},
+    components::{draw_cmd, mesh_handle, model_matrix, text_buffer_state, TextBufferState},
     font::GlyphLocation,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
@@ -149,10 +149,9 @@ impl MeshGenerator {
             .insert(ctx.gpu.device.create_sampler(&SamplerDescriptor {
                 label: Some("ShapeRenderer::sampler"),
                 anisotropy_clamp: 1,
-                mag_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-
+                mag_filter: wgpu::FilterMode::Nearest,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                min_filter: wgpu::FilterMode::Nearest,
                 ..Default::default()
             }));
 
@@ -251,14 +250,17 @@ impl MeshGenerator {
     }
 }
 
-#[derive(Fetch, Debug, Clone)]
+#[derive(Fetch)]
 #[fetch(transforms = [Modified])]
 /// Query text entities in the world and allocate them a slot in the mesh and atlas
-pub struct TextMeshQuery {
+pub(crate) struct TextMeshQuery {
     #[fetch(ignore)]
     id: EntityIds,
     #[fetch(ignore)]
     mesh: Opt<Mutable<Arc<MeshHandle>>>,
+
+    #[fetch(ignore)]
+    state: Mutable<TextBufferState>,
 
     rect: Component<Rect>,
     text: Component<String>,
@@ -276,6 +278,7 @@ impl TextMeshQuery {
             text: text(),
             text_limits: text_limits(),
             font_size: font_size().opt_or(16.0),
+            state: text_buffer_state().as_mut(),
         }
     }
 }
@@ -329,54 +332,15 @@ impl TextRenderer {
 
                 // Update intrinsic sizes
 
-                // tracing::info!(?item.id, ?item.rect, "text rect");
-
-                let metrics = Metrics::new(*item.font_size, *item.font_size);
-
-                let mut buffer = Buffer::new(font_system, metrics);
                 {
-                    let mut buffer = buffer.borrow_with(font_system);
+                    let mut buffer = item.state.buffer.borrow_with(font_system);
 
                     let limits = item.text_limits;
 
-                    buffer.set_text(item.text, Attrs::new(), Shaping::Advanced);
                     buffer.set_size(limits.x, limits.y);
 
                     buffer.shape_until_scroll();
                 }
-                // let mut vertices = Vec::new();
-                // buffer.draw(
-                //     &mut self.swash_cache,
-                //     cosmic_text::Color::rbg(0xFF, 0xFF, 0xFF),
-                //     |x, y, w, h, color| {},
-                // );
-
-                // Due to padding the text may not fit exactly
-                // let (max_width, max_height) = (Some(limits.x), Some(limits.y));
-
-                // layout.reset(&fontdue::layout::LayoutSettings {
-                //     // x: rect.min.x.round(),
-                //     // y: rect.min.x.round(),
-                //     x: 0.0,
-                //     y: 0.0,
-                //     max_width,
-                //     max_height,
-                //     horizontal_align: fontdue::layout::HorizontalAlign::Left,
-                //     vertical_align: fontdue::layout::VerticalAlign::Top,
-                //     line_height: 1.0,
-                //     wrap_style: fontdue::layout::WrapStyle::Word,
-                //     wrap_hard_breaks: true,
-                // });
-
-                // layout.append(
-                //     &[&**item.font],
-                //     &TextStyle {
-                //         text: item.text,
-                //         px: *item.font_size,
-                //         font_index: 0,
-                //         user_data: (),
-                //     },
-                // );
 
                 let mut new_mesh = None;
 
@@ -390,7 +354,7 @@ impl TextRenderer {
                     &frame.assets,
                     font_system,
                     &mut self.swash_cache,
-                    &mut buffer,
+                    &mut item.state.buffer,
                     mesh,
                 );
 

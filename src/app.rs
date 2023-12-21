@@ -16,7 +16,11 @@ use crate::{
     executor::Executor,
     input::InputState,
     systems::{hydrate_text, layout_system, templating_system, transform_system},
-    wgpu::{graphics::Gpu, systems::set_text_size_resolver, window_renderer::WindowRenderer},
+    wgpu::{
+        graphics::Gpu,
+        systems::{register_text_buffers, update_text_buffers},
+        window_renderer::WindowRenderer,
+    },
     Frame, Widget,
 };
 
@@ -90,8 +94,9 @@ impl App {
             .with_system(templating_system(root))
             .with_system(hydrate_text())
             .flush()
-            .with_system(set_text_size_resolver(font_system))
+            .with_system(register_text_buffers(font_system.clone()))
             .flush()
+            .with_system(update_text_buffers(font_system))
             .with_system(layout_system())
             .with_system(transform_system());
 
