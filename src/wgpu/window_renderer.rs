@@ -12,7 +12,7 @@ use crate::Frame;
 use super::{
     graphics::{Gpu, Surface},
     renderer::RendererContext,
-    ShapeRenderer,
+    WidgetRenderer,
 };
 
 /// Renders to a window surface
@@ -20,7 +20,7 @@ pub struct WindowRenderer {
     surface: Surface,
 
     ctx: RendererContext,
-    shape_renderer: ShapeRenderer,
+    shape_renderer: WidgetRenderer,
 }
 
 impl WindowRenderer {
@@ -33,7 +33,7 @@ impl WindowRenderer {
         let mut ctx = RendererContext::new(gpu);
 
         let shape_renderer =
-            ShapeRenderer::new(frame, &mut ctx, font_system, surface.surface_format());
+            WidgetRenderer::new(frame, &mut ctx, font_system, surface.surface_format());
 
         Self {
             surface,

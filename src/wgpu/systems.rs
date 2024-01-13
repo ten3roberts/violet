@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping};
+use cosmic_text::{Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -127,8 +127,14 @@ impl SizeResolver for TextSizeResolver {
         let query = (text_buffer_state().as_mut(), font_size(), text());
         if let Some((state, &font_size, text)) = entity.query(&query).get() {
             let font_system = &mut *self.font_system.lock();
-            let preferred =
-                Self::resolve_text_size(state, font_system, text, font_size, content_area, limits);
+            let preferred = Self::resolve_text_size(
+                state,
+                font_system,
+                text,
+                font_size,
+                content_area,
+                limits.map(|v| v.max_size),
+            );
 
             let min = Self::resolve_text_size(
                 state,
@@ -136,12 +142,13 @@ impl SizeResolver for TextSizeResolver {
                 text,
                 font_size,
                 content_area,
-                Some(LayoutLimits {
-                    min_size: Vec2::ZERO,
-                    max_size: Vec2::ZERO,
-                }),
+                Some(vec2(1.0, f32::MAX)),
             );
 
+            // assert!(min.x <= 1.0);
+            // assert!(min.y <= 1.0);
+
+            // tracing::debug!(%min, %preferred);
             return (min, preferred);
         }
 
@@ -156,9 +163,9 @@ impl TextSizeResolver {
         text: &str,
         font_size: f32,
         _content_area: Rect,
-        limits: Option<LayoutLimits>,
+        limits: Option<Vec2>,
     ) -> Vec2 {
-        let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
+        // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
         {
             let mut buffer = state.buffer.borrow_with(font_system);
@@ -167,7 +174,7 @@ impl TextSizeResolver {
             buffer.set_metrics(metrics);
 
             if let Some(limits) = limits {
-                buffer.set_size(limits.max_size.x, limits.max_size.y);
+                buffer.set_size(limits.x, limits.y);
             } else {
                 buffer.set_size(f32::MAX, f32::MAX);
             }
@@ -177,18 +184,36 @@ impl TextSizeResolver {
 
         let size = measure(&state.buffer);
 
-        tracing::debug!(%size);
+        // tracing::debug!(%size);
 
         size
     }
 }
 
+fn glyph_bounds(glyph: &LayoutGlyph) -> (f32, f32) {
+    (glyph.x, glyph.x + glyph.w)
+}
+
 fn measure(buffer: &Buffer) -> Vec2 {
-    let (width, total_lines) = buffer
-        .layout_runs()
-        .fold((0.0, 0), |(width, total_lines), run| {
-            (run.line_w.max(width), total_lines + 1)
-        });
+    let (width, total_lines) =
+        buffer
+            .layout_runs()
+            .fold((0.0f32, 0), |(width, total_lines), run| {
+                if let (Some(first), Some(last)) = (run.glyphs.first(), run.glyphs.last()) {
+                    let (l1, r1) = glyph_bounds(first);
+                    let (l2, r2) = glyph_bounds(last);
+
+                    let l = l1.min(l2);
+                    let r = r1.max(r2);
+
+                    assert!(l <= r);
+                    // tracing::debug!(l1, r1, l2, r2, "run");
+
+                    (width.max(r - l), total_lines + 1)
+                } else {
+                    (width, total_lines + 1)
+                }
+            });
 
     vec2(width, total_lines as f32 * buffer.metrics().line_height)
 }

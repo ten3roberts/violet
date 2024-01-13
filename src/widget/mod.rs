@@ -1,4 +1,4 @@
-use crate::Scope;
+use crate::{style::WithComponent, Scope};
 mod future;
 
 pub use future::{SignalWidget, StreamWidget};
@@ -32,6 +32,21 @@ where
         self.mount_boxed(scope)
     }
 }
+
+pub trait WidgetExt: Widget + Sized {
+    fn boxed<'a>(self) -> Box<dyn 'a + Widget>
+    where
+        Self: 'a + Sized,
+    {
+        Box::new(self)
+    }
+
+    fn with_name(self, name: impl Into<String>) -> WithComponent<Self, String> {
+        WithComponent::new(self, flax::components::name(), name.into())
+    }
+}
+
+impl<W> WidgetExt for W where W: Widget {}
 
 /// Represents a list of widgets
 pub trait WidgetCollection {

@@ -6,7 +6,7 @@ use flax::{
 use glam::{Mat4, Vec2};
 
 use crate::{
-    components::{self, children, local_position, rect, screen_position, text, text_limits, Rect},
+    components::{self, children, local_position, rect, screen_position, text, layout_bounds, Rect},
     layout::{update_subtree, LayoutLimits},
     wgpu::components::model_matrix,
 };
@@ -17,7 +17,7 @@ pub fn hydrate_text() -> BoxedSystem {
         .with_query(Query::new(entity_ids()).with(text()))
         .build(|cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
             query.for_each(|id| {
-                cmd.set_missing(id, text_limits(), Vec2::ZERO);
+                cmd.set_missing(id, layout_bounds(), Vec2::ZERO);
             })
         })
         .boxed()

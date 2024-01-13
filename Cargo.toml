@@ -25,6 +25,7 @@ parking_lot = "0.12"
 slotmap = "1.0"
 anyhow = "1.0"
 once_cell = "1.18"
+slab = "0.4"
 
 bytemuck = { version = "1.13", features = ["derive"] }
 winit = "0.28"

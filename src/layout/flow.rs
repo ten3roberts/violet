@@ -206,11 +206,21 @@ impl FlowLayout {
 
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
+
+        if minimum_inner_size > limits.max_size.dot(axis) {
+            tracing::error!(
+                "minimum inner size exceeded max size: {:?} > {:?}",
+                minimum_inner_size,
+                limits.max_size
+            );
+        }
+
         // If everything could take as much space as it wants
         let preferred_inner_size = row.preferred.size().dot(axis);
 
         // How much space there is left to distribute out
         let distribute_size = preferred_inner_size - minimum_inner_size;
+        // tracing::info!(?distribute_size);
 
         // Clipped maximum that we remap to
         let target_inner_size = distribute_size
@@ -251,11 +261,28 @@ impl FlowLayout {
                 let block_preferred_size = sizing.preferred.size().dot(axis);
 
                 let remaining = block_preferred_size - block_min_size;
-                let ratio = remaining / distribute_size;
+                let ratio = if distribute_size == 0.0 {
+                    0.0
+                } else {
+                    remaining / distribute_size
+                };
+
+                // assert!(remaining >= 0.0, "{remaining}");
+                // assert!(
+                //     (distribute_size == 0.0 && ratio.is_nan())
+                //         || (distribute_size > 0.0 && !ratio.is_nan()),
+                //     "{distribute_size} {ratio}"
+                // );
 
                 sum += ratio;
 
                 let axis_sizing = (block_min_size + (target_inner_size * ratio)) * axis;
+                // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
+
+                assert!(
+                    axis_sizing.dot(axis) >= block_min_size,
+                    "{axis_sizing} {block_min_size}"
+                );
                 // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
                 let child_margin = if self.contain_margins {
@@ -292,10 +319,12 @@ impl FlowLayout {
                     || block.rect.size().y > child_limits.max_size.y
                 {
                     tracing::warn!(
+                        block_min_size,
+                        block_preferred_size,
                         "child {} exceeded max size: {:?} > {:?}",
                         entity,
                         block.rect.size(),
-                        child_limits.max_size
+                        child_limits.max_size,
                     );
                 }
 

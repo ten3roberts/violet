@@ -3,13 +3,15 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use flax::{component, Debuggable, Entity};
+use flax::{component, Debuggable, Entity, Exclusive};
 use glam::{vec2, Vec2};
+use image::DynamicImage;
 use palette::Srgba;
 
 use crate::{
+    assets::Handle,
     layout::{Layout, SizeResolver},
-    shapes::FilledRect,
+    shapes::Shape,
     unit::Unit,
 };
 
@@ -61,13 +63,17 @@ component! {
     /// To retain consistent text wrapping between size query and the snug fitted rect the bounds
     /// of the size query are stored and used instead of the snug-fitted rect which will cause a
     /// different wrapping, and therefore final size.
-    pub text_limits: Vec2 => [ Debuggable ],
+    pub layout_bounds: Vec2 => [ Debuggable ],
 
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
 
     /// The widget will be rendered as a filled rectange coverings its bounds
-    pub filled_rect: FilledRect => [ Debuggable ],
+    pub image: Handle<DynamicImage> => [ Debuggable ],
+
+    pub draw_shape(variant): () => [ Debuggable, Exclusive ],
+    pub shape_rectangle,
+    pub shape_text,
 
     pub font_family: FontFamily => [ Debuggable ],
 

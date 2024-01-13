@@ -4,44 +4,65 @@ use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
     filter::{All, With},
-    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Query,
+    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
 use glam::{vec2, vec3, Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
+use palette::Srgba;
+use wgpu::{BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
     assets::{map::HandleMap, Handle},
-    components::{filled_rect, rect, screen_position, Rect},
-    shapes::FilledRect,
+    components::{color, draw_shape, image, rect, screen_position, shape_rectangle, Rect},
     Frame,
 };
 
 use super::{
-    components::{draw_cmd, mesh_handle, model_matrix},
+    components::{draw_cmd, mesh_handle, object_data},
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
-    shape_renderer::DrawCommand,
+    shape_renderer::{srgba_to_vec4, DrawCommand, ObjectData, RendererStore},
     Gpu,
 };
 
 #[derive(Fetch)]
-struct RectQuery {
+struct RectObjectQuery {
     rect: Component<Rect>,
     pos: Component<Vec2>,
-    model: Mutable<Mat4>,
+    color: OptOr<Component<Srgba>, Srgba>,
+    object_data: Mutable<ObjectData>,
 }
 
-impl RectQuery {
+impl RectObjectQuery {
     fn new() -> Self {
         Self {
             rect: rect(),
             pos: screen_position(),
-            model: model_matrix().as_mut(),
+            object_data: object_data().as_mut(),
+            color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
+        }
+    }
+}
+
+#[derive(Fetch)]
+#[fetch(transforms = [Modified])]
+struct RectDrawQuery {
+    #[fetch(ignore)]
+    id: EntityIds,
+    image: Opt<Component<Handle<DynamicImage>>>,
+    shape: Component<()>,
+}
+
+impl RectDrawQuery {
+    fn new() -> Self {
+        Self {
+            id: entity_ids(),
+            image: image().opt(),
+            shape: draw_shape(shape_rectangle()),
         }
     }
 }
@@ -52,18 +73,14 @@ pub struct RectRenderer {
     layout: BindGroupLayout,
     sampler: wgpu::Sampler,
 
-    rect_query: Query<(
-        EntityIds,
-        <Component<FilledRect> as TransformFetch<Modified>>::Output,
-    )>,
+    rect_query: Query<<RectDrawQuery as TransformFetch<Modified>>::Output>,
+    object_query: Query<RectObjectQuery, (All, With)>,
 
-    object_query: Query<RectQuery, (All, With)>,
-
-    bind_groups: HandleMap<DynamicImage, Handle<BindGroup>>,
+    bind_groups: HandleMap<DynamicImage, usize>,
 
     mesh: Arc<MeshHandle>,
 
-    shader: Handle<Shader>,
+    shader: usize,
 }
 
 impl RectRenderer {
@@ -72,6 +89,7 @@ impl RectRenderer {
         frame: &Frame,
         color_format: TextureFormat,
         object_bind_group_layout: &BindGroupLayout,
+        store: &mut RendererStore,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
@@ -106,7 +124,7 @@ impl RectRenderer {
 
         let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
 
-        let shader = frame.assets.insert(Shader::new(
+        let shader = store.push_shader(Shader::new(
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
@@ -121,21 +139,21 @@ impl RectRenderer {
             white_image,
             layout,
             sampler,
-            rect_query: Query::new((entity_ids(), filled_rect().modified())),
-            object_query: Query::new(RectQuery::new()).with(filled_rect()),
+            rect_query: Query::new(RectDrawQuery::new().modified()),
+            object_query: Query::new(RectObjectQuery::new()).with(draw_shape(shape_rectangle())),
             bind_groups: HandleMap::new(),
             mesh,
             shader,
         }
     }
 
-    pub fn build_commands(&mut self, gpu: &Gpu, frame: &mut Frame) {
+    pub fn build_commands(&mut self, gpu: &Gpu, frame: &mut Frame, store: &mut RendererStore) {
         let mut cmd = CommandBuffer::new();
         self.rect_query
             .borrow(&frame.world)
             .iter()
-            .for_each(|(id, rect)| {
-                let image = rect.fill_image.as_ref().unwrap_or(&self.white_image);
+            .for_each(|item| {
+                let image = item.image.unwrap_or(&self.white_image);
 
                 let bind_group = self.bind_groups.entry(&image.clone()).or_insert_with(|| {
                     let texture = Texture::from_image(gpu, image);
@@ -145,23 +163,28 @@ impl RectRenderer {
                         .bind_texture(&texture.view(&Default::default()))
                         .build(gpu, &self.layout);
 
-                    frame.assets.insert(bind_group)
+                    store.push_bind_group(bind_group)
                 });
 
-                cmd.set(id, mesh_handle(), self.mesh.clone()).set(
-                    id,
-                    draw_cmd(),
-                    DrawCommand {
-                        bind_group: bind_group.clone(),
-                        shader: self.shader.clone(),
-                        index_count: 6,
-                        vertex_offset: 0,
-                    },
-                );
+                cmd //
+                    .set(item.id, mesh_handle(), self.mesh.clone())
+                    .set(
+                        item.id,
+                        draw_cmd(),
+                        DrawCommand {
+                            bind_group: bind_group.clone(),
+                            shader: self.shader,
+                            mesh: self.mesh.clone(),
+                            index_count: 6,
+                            vertex_offset: 0,
+                        },
+                    );
             });
 
         cmd.apply(&mut frame.world).unwrap();
     }
+
+    pub fn register_objects(&mut self) {}
 
     pub fn update(&mut self, _: &Gpu, frame: &Frame) {
         self.object_query
@@ -170,11 +193,16 @@ impl RectRenderer {
             .for_each(|item| {
                 let rect = item.rect.translate(*item.pos).align_to_grid();
 
-                *item.model = Mat4::from_scale_rotation_translation(
+                let model_matrix = Mat4::from_scale_rotation_translation(
                     rect.size().extend(1.0),
                     Quat::IDENTITY,
                     rect.pos().extend(0.1),
                 );
+
+                *item.object_data = ObjectData {
+                    model_matrix,
+                    color: srgba_to_vec4(*item.color),
+                };
             })
     }
 }

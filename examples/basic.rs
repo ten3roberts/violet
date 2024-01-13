@@ -4,7 +4,7 @@ use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::{DynamicImage, ImageError};
 use itertools::Itertools;
-use palette::{Hsla, IntoColor, Srgba};
+use palette::{Hsla, Hsva, IntoColor, Srgba};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
@@ -13,14 +13,15 @@ use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::AssetKey,
     components::{
-        self, color, filled_rect, font_family, font_size, layout, size, text, Edges, FontFamily,
+        self, color, draw_shape, font_family, font_size, layout, shape_rectangle, size, text,
+        Edges, FontFamily,
     },
     layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
-    shapes::FilledRect,
     style::StyleExt,
     time::interval,
     unit::Unit,
     wgpu::font::FontFromFile,
+    widget::WidgetExt,
     widgets::{Button, Rectangle},
     App, Scope, StreamEffect, Widget, WidgetCollection,
 };
@@ -153,13 +154,10 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
             })
             .unwrap();
 
-        scope.set(name(), "Image".into()).set(
-            filled_rect(),
-            FilledRect {
-                color: Srgba::new(1.0, 1.0, 1.0, 1.0),
-                fill_image: Some(image),
-            },
-        );
+        scope
+            .set(name(), "Image".into())
+            .set(draw_shape(shape_rectangle()), ())
+            .set(components::image(), image);
     }
 }
 
@@ -311,16 +309,12 @@ impl<W: WidgetCollection> List<W> {
 
 impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
+        if let Some(background_color) = self.background_color {
+            scope
+                .set(draw_shape(shape_rectangle()), ())
+                .set(color(), background_color);
+        }
         scope
-            .set_opt(
-                filled_rect(),
-                self.background_color.map(|bg| FilledRect {
-                    // color: Hsla::new(180.0, 0.048, 0.243, 1.0).into_color(),
-                    // color: Hsla::new(190.0, 0.048, 0.143, 1.0).into_color(),
-                    color: bg,
-                    fill_image: None,
-                }),
-            )
             .set(layout(), Layout::Flow(self.layout))
             .set_opt(color(), self.background_color);
 
@@ -336,12 +330,25 @@ impl Widget for MainApp {
 
         Stack::new(
             List::new((
+                List::new(
+                    (0..4)
+                        .map(|i| {
+                            let size = vec2(50.0, 50.0);
+
+                            Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
+                                .with_min_size(Unit::px(size))
+                                .with_size(Unit::px(size * vec2(2.0, 1.0)))
+                        })
+                        .collect_vec(),
+                ),
                 LayoutTest {
                     contain_margins: true,
-                },
+                }
+                .with_name("LayoutText 3"),
                 LayoutTest {
                     contain_margins: false,
-                },
+                }
+                .with_name("LayoutText 2"),
                 List::new(
                     (1..=4)
                         .map(|i| {
@@ -353,29 +360,23 @@ impl Widget for MainApp {
                             .with_margin(MARGIN)
                         })
                         .collect_vec(),
-                ),
-                Stack {
-                    items: (
-                        Text::new(
-                            "The quick brown fox 🦊 jumps over the lazy dog 🐕 fi fO t f-t ===",
-                        )
+                )
+                .with_name("Images"),
+                Stack::new((Text::new(
+                    "The quick brown fox 🦊 jumps over the lazy dog 🐕 fi fO t f-t ===",
+                )
+                .with_font("Inter/static/Inter-Bold.ttf")
+                .with_font_size(32.0)
+                .with_margin(MARGIN),))
+                .with_background(EERIE_BLACK),
+                Stack::new((
+                    Text::new(" -> <==========> ======= != <$> ~~>")
                         .with_font("Inter/static/Inter-Bold.ttf")
                         .with_font_size(32.0)
                         .with_margin(MARGIN),
-                        Rectangle::new(EERIE_BLACK)
-                            .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
-                    ),
-                },
-                Stack {
-                    items: (
-                        Text::new(" -> <==========> ======= != <$> ~~>")
-                            .with_font("Inter/static/Inter-Bold.ttf")
-                            .with_font_size(32.0)
-                            .with_margin(MARGIN),
-                        Rectangle::new(EERIE_BLACK)
-                            .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
-                    ),
-                },
+                    Rectangle::new(EERIE_BLACK)
+                        .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
+                )),
             ))
             .contain_margins(true)
             .with_direction(Direction::Vertical)
@@ -426,11 +427,20 @@ impl Widget for MainApp {
 
 struct Stack<W> {
     items: W,
+    background: Option<Srgba>,
 }
 
 impl<W> Stack<W> {
     fn new(items: W) -> Self {
-        Self { items }
+        Self {
+            items,
+            background: None,
+        }
+    }
+
+    fn with_background(mut self, background: Srgba) -> Self {
+        self.background = Some(background);
+        self
     }
 }
 
@@ -440,6 +450,12 @@ where
 {
     fn mount(self, scope: &mut Scope<'_>) {
         self.items.attach(scope);
+
+        if let Some(background) = self.background {
+            scope
+                .set(draw_shape(shape_rectangle()), ())
+                .set(color(), background);
+        }
 
         scope.set(
             layout(),
@@ -455,6 +471,9 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
+        // Text::new("This is an overlaid text")
+        //     .with_color(EMERALD)
+        //     .mount(scope)
         scope.set(layout(), Layout::Stack(Default::default()));
         scope.attach(Text::new("This is an overlaid text").with_color(EMERALD));
 

@@ -170,10 +170,12 @@ pub(crate) fn update_subtree(
         .copied()
         .unwrap_or_default();
 
-    // Flow
+    // Layout
     if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
+
+        // let _span = tracing::info_span!("Layout", %entity).entered();
 
         let mut block = layout.apply(
             world,
@@ -198,7 +200,7 @@ pub(crate) fn update_subtree(
         let pos = resolve_pos(entity, content_area, size);
         let rect = Rect::from_size_pos(size, pos).clip(content_area);
 
-        entity.update_dedup(components::text_limits(), limits.max_size);
+        entity.update_dedup(components::layout_bounds(), size);
 
         Block { rect, margin }
     }

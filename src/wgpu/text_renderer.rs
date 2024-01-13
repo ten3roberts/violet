@@ -3,6 +3,7 @@ use std::sync::Arc;
 use cosmic_text::{Attrs, Buffer, CacheKey, FontSystem, Metrics, Placement, Shaping, SwashCache};
 use flax::{
     entity_ids,
+    fetch::{Modified, TransformFetch},
     filter::{All, With},
     CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
@@ -13,7 +14,7 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 
 use crate::{
     assets::{AssetCache, Handle},
-    components::{font_size, rect, screen_position, text, text_limits, Rect},
+    components::{font_size, layout_bounds, rect, screen_position, text, Rect},
     wgpu::{
         font::FontAtlas,
         graphics::{allocator::Allocation, BindGroupBuilder},
@@ -264,7 +265,7 @@ pub(crate) struct TextMeshQuery {
 
     rect: Component<Rect>,
     text: Component<String>,
-    text_limits: Component<Vec2>,
+    layout_bounds: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
 }
@@ -276,7 +277,7 @@ impl TextMeshQuery {
             mesh: mesh_handle().as_mut().opt(),
             rect: rect(),
             text: text(),
-            text_limits: text_limits(),
+            layout_bounds: layout_bounds(),
             font_size: font_size().opt_or(16.0),
             state: text_buffer_state().as_mut(),
         }
@@ -295,7 +296,7 @@ pub struct TextRenderer {
     swash_cache: SwashCache,
 
     object_query: Query<ObjectQuery, (All, With)>,
-    mesh_query: Query<TextMeshQuery, All>,
+    mesh_query: Query<<TextMeshQuery as TransformFetch<Modified>>::Output, All>,
 }
 
 impl TextRenderer {
@@ -310,7 +311,7 @@ impl TextRenderer {
         Self {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
-            mesh_query: Query::new(TextMeshQuery::new()),
+            mesh_query: Query::new(TextMeshQuery::new().modified()),
             font_system,
             swash_cache: SwashCache::new(),
         }
@@ -335,39 +336,38 @@ impl TextRenderer {
                 {
                     let mut buffer = item.state.buffer.borrow_with(font_system);
 
-                    let limits = item.text_limits;
-
-                    buffer.set_size(limits.x, limits.y);
+                    buffer.set_size(item.layout_bounds.x, item.layout_bounds.y);
 
                     buffer.shape_until_scroll();
                 }
 
                 let mut new_mesh = None;
 
-                let mesh = match item.mesh {
-                    Some(v) => v,
-                    None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
-                };
+                // let mesh = match item {
+                //     Some(v) => v,
+                //     None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
+                // };
 
-                let index_count = self.mesh_generator.update_mesh(
-                    ctx,
-                    &frame.assets,
-                    font_system,
-                    &mut self.swash_cache,
-                    &mut item.state.buffer,
-                    mesh,
-                );
+                // let index_count = self.mesh_generator.update_mesh(
+                //     ctx,
+                //     &frame.assets,
+                //     font_system,
+                //     &mut self.swash_cache,
+                //     &mut item.state.buffer,
+                //     mesh,
+                // );
 
-                cmd.set(
-                    item.id,
-                    draw_cmd(),
-                    DrawCommand {
-                        bind_group: self.mesh_generator.rasterizer.rasterized.bind_group.clone(),
-                        shader: self.mesh_generator.shader.clone(),
-                        index_count,
-                        vertex_offset: 0,
-                    },
-                );
+                // cmd.set(
+                //     item.id,
+                //     draw_cmd(),
+                //     DrawCommand {
+                //         bind_group: self.mesh_generator.rasterizer.rasterized.bind_group.clone(),
+                //         shader: self.mesh_generator.shader.clone(),
+                //         mesh: ,
+                //         index_count,
+                //         vertex_offset: 0,
+                //     },
+                // );
 
                 if let Some(v) = new_mesh {
                     cmd.set(item.id, mesh_handle(), v);

@@ -67,7 +67,7 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        let _span = tracing::info_span!("Stack::apply").entered();
+        // let _span = tracing::info_span!("Stack::apply").entered();
 
         // tracing::info!(
         //     ?content_area,

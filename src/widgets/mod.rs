@@ -3,9 +3,8 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{color, filled_rect},
+    components::{color, draw_shape, shape_rectangle},
     input::{on_focus, on_mouse_input},
-    shapes::FilledRect,
     Frame, Scope, Widget,
 };
 
@@ -24,13 +23,7 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "Rectangle".into())
-            .set(
-                filled_rect(),
-                FilledRect {
-                    color: self.color,
-                    fill_image: None,
-                },
-            )
+            .set(draw_shape(shape_rectangle()), ())
             .set(color(), self.color);
     }
 }
@@ -58,13 +51,7 @@ impl Button {
 impl Widget for Button {
     fn mount(mut self, scope: &mut Scope<'_>) {
         scope
-            .set(
-                filled_rect(),
-                FilledRect {
-                    color: self.normal_color,
-                    fill_image: None,
-                },
-            )
+            .set(draw_shape(shape_rectangle()), ())
             .set(color(), self.normal_color)
             .set(
                 on_focus(),

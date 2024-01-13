@@ -3,11 +3,13 @@ use std::sync::Arc;
 use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping, Style};
 use flax::component;
 use fontdue::Font;
-use parking_lot::Mutex;
 
 use crate::{
     assets::Handle,
-    wgpu::{graphics::texture::Texture, shape_renderer::DrawCommand},
+    wgpu::{
+        graphics::texture::Texture,
+        shape_renderer::{DrawCommand, ObjectData},
+    },
 };
 
 use super::mesh_buffer::MeshHandle;
@@ -20,6 +22,7 @@ component! {
 
     /// Renderer specific data for drawing a shape
     pub(crate) draw_cmd: DrawCommand,
+    pub(crate) object_data: ObjectData,
 
     pub(crate) mesh_handle: Arc<MeshHandle>,
 
