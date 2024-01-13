@@ -13,7 +13,7 @@ pub mod cell;
 pub mod fs;
 mod handle;
 pub mod map;
-pub use handle::Handle;
+pub use handle::Asset;
 
 use self::{cell::AssetCell, handle::WeakHandle};
 
@@ -50,7 +50,7 @@ impl AssetCache {
         }
     }
 
-    pub fn try_load<K>(&self, key: &K) -> Result<Handle<K::Output>, K::Error>
+    pub fn try_load<K>(&self, key: &K) -> Result<Asset<K::Output>, K::Error>
     where
         K: AssetKey + Clone,
     {
@@ -76,7 +76,7 @@ impl AssetCache {
         Ok(handle)
     }
 
-    pub fn load<K>(&self, key: &K) -> Handle<K::Output>
+    pub fn load<K>(&self, key: &K) -> Asset<K::Output>
     where
         K: AssetKey<Error = Infallible> + Clone,
     {
@@ -88,7 +88,7 @@ impl AssetCache {
         }
     }
 
-    pub fn get<K: AssetKey>(&self, key: &K) -> Option<Handle<K::Output>> {
+    pub fn get<K: AssetKey>(&self, key: &K) -> Option<Asset<K::Output>> {
         // Keys of K
         let keys = self.inner.keys.get(&TypeId::of::<K>())?;
 
@@ -101,7 +101,7 @@ impl AssetCache {
         Some(handle)
     }
 
-    pub fn insert<T: 'static + Send + Sync>(&self, value: T) -> Handle<T> {
+    pub fn insert<T: 'static + Send + Sync>(&self, value: T) -> Asset<T> {
         let ty = std::any::type_name::<T>();
         let _span = tracing::debug_span!("AssetCache::insert", ty).entered();
         self.inner

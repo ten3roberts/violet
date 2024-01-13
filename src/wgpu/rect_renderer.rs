@@ -9,16 +9,18 @@ use flax::{
 use glam::{vec2, vec3, Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
-use wgpu::{BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{map::HandleMap, Handle},
-    components::{color, draw_shape, image, rect, screen_position, shape_rectangle, Rect},
+    assets::{map::HandleMap, Asset},
+    components::{color, draw_shape, image, rect, screen_position, Rect},
+    shape::{self, shape_rectangle},
+    stored::{self, WeakHandle},
     Frame,
 };
 
 use super::{
-    components::{draw_cmd, mesh_handle, object_data},
+    components::{draw_cmd, object_data},
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
@@ -53,7 +55,7 @@ impl RectObjectQuery {
 struct RectDrawQuery {
     #[fetch(ignore)]
     id: EntityIds,
-    image: Opt<Component<Handle<DynamicImage>>>,
+    image: Opt<Component<Asset<DynamicImage>>>,
     shape: Component<()>,
 }
 
@@ -62,13 +64,13 @@ impl RectDrawQuery {
         Self {
             id: entity_ids(),
             image: image().opt(),
-            shape: draw_shape(shape_rectangle()),
+            shape: draw_shape(shape::shape_rectangle()),
         }
     }
 }
 
 pub struct RectRenderer {
-    white_image: Handle<DynamicImage>,
+    white_image: Asset<DynamicImage>,
 
     layout: BindGroupLayout,
     sampler: wgpu::Sampler,
@@ -76,11 +78,11 @@ pub struct RectRenderer {
     rect_query: Query<<RectDrawQuery as TransformFetch<Modified>>::Output>,
     object_query: Query<RectObjectQuery, (All, With)>,
 
-    bind_groups: HandleMap<DynamicImage, usize>,
+    bind_groups: HandleMap<DynamicImage, WeakHandle<BindGroup>>,
 
     mesh: Arc<MeshHandle>,
 
-    shader: usize,
+    shader: stored::Handle<Shader>,
 }
 
 impl RectRenderer {
@@ -124,7 +126,7 @@ impl RectRenderer {
 
         let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
 
-        let shader = store.push_shader(Shader::new(
+        let shader = store.shaders.insert(Shader::new(
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
@@ -155,36 +157,41 @@ impl RectRenderer {
             .for_each(|item| {
                 let image = item.image.unwrap_or(&self.white_image);
 
-                let bind_group = self.bind_groups.entry(&image.clone()).or_insert_with(|| {
-                    let texture = Texture::from_image(gpu, image);
+                let bind_group = self
+                    .bind_groups
+                    .get(image)
+                    .and_then(|v| v.upgrade(&store.bind_groups))
+                    .unwrap_or_else(|| {
+                        tracing::info!(image = ?image.id(), "create bind group for image");
+                        let texture = Texture::from_image(gpu, image);
 
-                    let bind_group = BindGroupBuilder::new("ShapeRenderer::textured_bind_group")
-                        .bind_sampler(&self.sampler)
-                        .bind_texture(&texture.view(&Default::default()))
-                        .build(gpu, &self.layout);
+                        let bind_group =
+                            BindGroupBuilder::new("ShapeRenderer::textured_bind_group")
+                                .bind_sampler(&self.sampler)
+                                .bind_texture(&texture.view(&Default::default()))
+                                .build(gpu, &self.layout);
 
-                    store.push_bind_group(bind_group)
-                });
+                        let bind_group = store.bind_groups.insert(bind_group);
+                        self.bind_groups
+                            .insert(image.clone(), bind_group.downgrade());
+                        bind_group
+                    });
 
-                cmd //
-                    .set(item.id, mesh_handle(), self.mesh.clone())
-                    .set(
-                        item.id,
-                        draw_cmd(),
-                        DrawCommand {
-                            bind_group: bind_group.clone(),
-                            shader: self.shader,
-                            mesh: self.mesh.clone(),
-                            index_count: 6,
-                            vertex_offset: 0,
-                        },
-                    );
+                cmd.set(
+                    item.id,
+                    draw_cmd(),
+                    DrawCommand {
+                        bind_group: bind_group.clone(),
+                        shader: self.shader.clone(),
+                        mesh: self.mesh.clone(),
+                        index_count: 6,
+                        vertex_offset: 0,
+                    },
+                );
             });
 
         cmd.apply(&mut frame.world).unwrap();
     }
-
-    pub fn register_objects(&mut self) {}
 
     pub fn update(&mut self, _: &Gpu, frame: &Frame) {
         self.object_query

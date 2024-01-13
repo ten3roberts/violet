@@ -208,11 +208,11 @@ impl FlowLayout {
         let minimum_inner_size = row.min.size().dot(axis);
 
         if minimum_inner_size > limits.max_size.dot(axis) {
-            tracing::error!(
-                "minimum inner size exceeded max size: {:?} > {:?}",
-                minimum_inner_size,
-                limits.max_size
-            );
+            // tracing::error!(
+            //     "minimum inner size exceeded max size: {:?} > {:?}",
+            //     minimum_inner_size,
+            //     limits.max_size
+            // );
         }
 
         // If everything could take as much space as it wants

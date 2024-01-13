@@ -1,4 +1,5 @@
 use flax::{Entity, World};
+use generational_box::Store;
 
 use crate::{
     assets::AssetCache,
@@ -8,7 +9,13 @@ use crate::{
     Scope, Widget,
 };
 
+/// Thread local runtime state of the application.
+///
+/// Contains the ECS world, asset system, and a thread local store
+///
+/// Is accessible during mutation events of the ECS world.
 pub struct Frame {
+    pub store: Store,
     pub world: World,
     pub spawner: Spawner<Self>,
     pub assets: AssetCache,
@@ -16,6 +23,16 @@ pub struct Frame {
 }
 
 impl Frame {
+    pub fn new(spawner: Spawner<Self>, assets: AssetCache, world: World) -> Self {
+        Self {
+            store: Store::default(),
+            world: World::new(),
+            spawner,
+            assets,
+            delta_time: 0.0,
+        }
+    }
+
     #[inline]
     pub fn world_mut(&mut self) -> &mut World {
         &mut self.world

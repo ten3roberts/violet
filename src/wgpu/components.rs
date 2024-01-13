@@ -5,7 +5,7 @@ use flax::component;
 use fontdue::Font;
 
 use crate::{
-    assets::Handle,
+    assets::Asset,
     wgpu::{
         graphics::texture::Texture,
         shape_renderer::{DrawCommand, ObjectData},
@@ -16,17 +16,18 @@ use super::mesh_buffer::MeshHandle;
 
 component! {
     /// The gpu texture to use for rendering
-    pub(crate) texture: Handle<Texture>,
+    pub(crate) texture: Asset<Texture>,
 
-    pub(crate) font_handle: Handle<Font>,
+    pub(crate) font_handle: Asset<Font>,
 
     /// Renderer specific data for drawing a shape
     pub(crate) draw_cmd: DrawCommand,
     pub(crate) object_data: ObjectData,
 
-    pub(crate) mesh_handle: Arc<MeshHandle>,
+    /// The mesh for a rendered shape
+    pub(crate) text_mesh: Arc<MeshHandle>,
 
-    pub model_matrix: glam::Mat4,
+    // pub model_matrix: glam::Mat4,
 
     pub text_buffer_state: TextBufferState,
 }

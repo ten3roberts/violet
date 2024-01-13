@@ -2,15 +2,15 @@ use std::convert::Infallible;
 
 use image::{DynamicImage, ImageBuffer, Rgba};
 
-use crate::assets::{AssetCache, AssetKey, Handle};
+use crate::assets::{AssetCache, AssetKey, Asset};
 
 use super::{graphics::texture::Texture, Gpu};
 
 /// Load a texture from in memory data
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct TextureFromImage {
-    gpu: Handle<Gpu>,
-    image: Handle<DynamicImage>,
+    gpu: Asset<Gpu>,
+    image: Asset<DynamicImage>,
 }
 
 impl AssetKey for TextureFromImage {
@@ -25,7 +25,7 @@ impl AssetKey for TextureFromImage {
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 struct SolidTextureKey {
     color: Rgba<u8>,
-    gpu: Handle<Gpu>,
+    gpu: Asset<Gpu>,
 }
 
 impl AssetKey for SolidTextureKey {

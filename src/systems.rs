@@ -3,12 +3,13 @@ use flax::{
     CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System,
     World,
 };
-use glam::{Mat4, Vec2};
+use glam::Vec2;
 
 use crate::{
-    components::{self, children, local_position, rect, screen_position, text, layout_bounds, Rect},
+    components::{
+        self, children, layout_bounds, local_position, rect, screen_position, text, Rect,
+    },
     layout::{update_subtree, LayoutLimits},
-    wgpu::components::model_matrix,
 };
 
 pub fn hydrate_text() -> BoxedSystem {
@@ -28,7 +29,6 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
         .filter(Or((
             screen_position().without(),
             local_position().without(),
-            model_matrix().without(),
             rect().without(),
         )))
         .filter(root.traverse(child_of));
@@ -42,7 +42,6 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
 
                 cmd.set_missing(id, screen_position(), Vec2::ZERO)
                     .set_missing(id, local_position(), Vec2::ZERO)
-                    .set_missing(id, model_matrix(), Mat4::IDENTITY)
                     .set_missing(id, rect(), Rect::default());
             }
         })

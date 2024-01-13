@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use slotmap::SlotMap;
 
-use super::{handle::WeakHandle, AssetId, Handle};
+use super::{handle::WeakHandle, AssetId, Asset};
 
 /// Contains the actual asset data
 ///
@@ -18,7 +18,7 @@ impl<V> AssetCell<V> {
         }
     }
 
-    pub fn insert(&mut self, value: V) -> Handle<V> {
+    pub fn insert(&mut self, value: V) -> Asset<V> {
         if self.values.len() as f32 >= self.values.capacity() as f32 * 0.7 {
             self.prune();
         }
@@ -30,7 +30,7 @@ impl<V> AssetCell<V> {
             id,
         });
 
-        Handle { value, id }
+        Asset { value, id }
     }
 
     pub fn prune(&mut self) {

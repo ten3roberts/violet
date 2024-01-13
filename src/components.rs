@@ -9,9 +9,8 @@ use image::DynamicImage;
 use palette::Srgba;
 
 use crate::{
-    assets::Handle,
+    assets::Asset,
     layout::{Layout, SizeResolver},
-    shapes::Shape,
     unit::Unit,
 };
 
@@ -69,11 +68,9 @@ component! {
     pub color: Srgba => [ Debuggable ],
 
     /// The widget will be rendered as a filled rectange coverings its bounds
-    pub image: Handle<DynamicImage> => [ Debuggable ],
+    pub image: Asset<DynamicImage> => [ Debuggable ],
 
     pub draw_shape(variant): () => [ Debuggable, Exclusive ],
-    pub shape_rectangle,
-    pub shape_text,
 
     pub font_family: FontFamily => [ Debuggable ],
 

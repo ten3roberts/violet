@@ -7,58 +7,50 @@ use flax::{
     components::child_of,
     entity_ids,
     fetch::{entity_refs, nth_relation, EntityRefs, NthRelation},
-    CommandBuffer, Component, EntityRef, Fetch, FetchExt, Opt, OptOr, Query, QueryBorrow, System,
+    CommandBuffer, Component, Fetch, Query, QueryBorrow,
 };
 use glam::{vec4, Mat4, Vec4};
-use image::DynamicImage;
 use itertools::Itertools;
 use palette::Srgba;
-use slab::Slab;
-use slotmap::{new_key_type, SlotMap};
+use parking_lot::Mutex;
 use wgpu::{BindGroup, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{map::HandleMap, Handle},
-    components::{color, draw_shape},
-    shapes::Shape,
+    components::draw_shape,
+    stored::{self, Store},
     Frame,
 };
 
 use super::{
-    components::{draw_cmd, mesh_handle, model_matrix, object_data},
+    components::{draw_cmd, object_data},
     graphics::{BindGroupBuilder, BindGroupLayoutBuilder, Mesh, Shader, TypedBuffer},
     mesh_buffer::MeshHandle,
     rect_renderer::RectRenderer,
     renderer::RendererContext,
-    text_renderer::TextRenderer,
+    text_renderer::{TextRenderer, TextSystem},
 };
-
-new_key_type! {
-    pub struct MeshKey;
-    pub struct BindGroupKey;
-}
 
 /// Specifies what to use when drawing a single entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DrawCommand {
-    pub(crate) shader: usize,
+    pub(crate) shader: stored::Handle<Shader>,
+    pub(crate) bind_group: stored::Handle<BindGroup>,
+
     pub(crate) mesh: Arc<MeshHandle>,
     /// TODO: generate inside renderer
-    pub(crate) bind_group: usize,
-
     pub(crate) index_count: u32,
     pub(crate) vertex_offset: i32,
 }
 
 /// Compatible draw commands are given an instance in the object buffer and merged together
 struct InstancedDrawCommand {
-    cmd: DrawCommand,
+    draw_cmd: DrawCommand,
     first_instance: u32,
     instance_count: u32,
 }
 
 pub(crate) struct InstancedDrawCommandRef<'a> {
-    cmd: &'a DrawCommand,
+    draw_cmd: &'a DrawCommand,
 
     pub(crate) first_instance: u32,
     pub(crate) instance_count: u32,
@@ -70,18 +62,8 @@ component! {
 
 #[derive(Debug, Default)]
 pub struct RendererStore {
-    pub bind_groups: Slab<BindGroup>,
-    pub shaders: Slab<Shader>,
-}
-
-impl RendererStore {
-    pub fn push_bind_group(&mut self, bind_group: BindGroup) -> usize {
-        self.bind_groups.insert(bind_group)
-    }
-
-    pub fn push_shader(&mut self, shader: Shader) -> usize {
-        self.shaders.insert(shader)
-    }
+    pub bind_groups: Store<BindGroup>,
+    pub shaders: Store<Shader>,
 }
 
 #[derive(Fetch)]
@@ -123,7 +105,7 @@ impl WidgetRenderer {
     pub fn new(
         frame: &mut Frame,
         ctx: &mut RendererContext,
-        font_system: Arc<parking_lot::Mutex<FontSystem>>,
+        text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
     ) -> Self {
         let object_bind_group_layout =
@@ -175,9 +157,10 @@ impl WidgetRenderer {
             text_renderer: TextRenderer::new(
                 ctx,
                 frame,
-                font_system,
+                text_system,
                 color_format,
                 &object_bind_group_layout,
+                &mut store,
             ),
             store,
             register_objects,
@@ -200,7 +183,8 @@ impl WidgetRenderer {
         self.rect_renderer
             .build_commands(&ctx.gpu, frame, &mut self.store);
 
-        self.text_renderer.update_meshes(ctx, frame);
+        self.text_renderer
+            .update_meshes(ctx, frame, &mut self.store);
         self.text_renderer.update(&ctx.gpu, frame);
 
         let mut query = Query::new(DrawQuery::new()).topo(child_of);
@@ -219,16 +203,16 @@ impl WidgetRenderer {
                 let draw_cmd = item.draw_cmd;
                 // tracing::info!(?mesh, "drawing");
                 InstancedDrawCommandRef {
-                    cmd: draw_cmd,
+                    draw_cmd,
                     first_instance: instance_index,
                     instance_count: 1,
                 }
             })
             .coalesce(|prev, current| {
-                if prev.cmd == current.cmd {
+                if prev.draw_cmd == current.draw_cmd {
                     assert!(prev.first_instance + prev.instance_count == current.first_instance);
                     Ok(InstancedDrawCommandRef {
-                        cmd: prev.cmd,
+                        draw_cmd: prev.draw_cmd,
                         first_instance: prev.first_instance,
                         instance_count: prev.instance_count + 1,
                     })
@@ -237,7 +221,7 @@ impl WidgetRenderer {
                 }
             })
             .map(|cmd| InstancedDrawCommand {
-                cmd: cmd.cmd.clone(),
+                draw_cmd: cmd.draw_cmd.clone(),
                 first_instance: cmd.first_instance,
                 instance_count: cmd.instance_count,
             });
@@ -247,11 +231,11 @@ impl WidgetRenderer {
 
         ctx.mesh_buffer.bind(render_pass);
 
-        self.commands.iter().for_each(|instanced_cmd| {
-            let cmd = &instanced_cmd.cmd;
-
-            let shader = &self.store.shaders[cmd.shader];
-            let bind_group = &self.store.bind_groups[cmd.bind_group];
+        self.commands.iter().for_each(|cmd| {
+            let shader = &cmd.draw_cmd.shader;
+            let bind_group = &cmd.draw_cmd.bind_group;
+            let shader = &self.store.shaders[shader];
+            let bind_group = &self.store.bind_groups[bind_group];
 
             render_pass.set_pipeline(shader.pipeline());
 
@@ -259,14 +243,13 @@ impl WidgetRenderer {
             render_pass.set_bind_group(1, &self.bind_group, &[]);
             render_pass.set_bind_group(2, bind_group, &[]);
 
-            let mesh = &instanced_cmd.cmd.mesh;
+            let mesh = &cmd.draw_cmd.mesh;
             let first_index = mesh.ib().offset() as u32;
 
             render_pass.draw_indexed(
-                first_index..(first_index + cmd.index_count),
-                cmd.vertex_offset + mesh.vb().offset() as i32,
-                instanced_cmd.first_instance
-                    ..(instanced_cmd.first_instance + instanced_cmd.instance_count),
+                first_index..(first_index + cmd.draw_cmd.index_count),
+                cmd.draw_cmd.vertex_offset + mesh.vb().offset() as i32,
+                cmd.first_instance..(cmd.first_instance + cmd.instance_count),
             )
         });
 

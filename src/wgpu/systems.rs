@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cosmic_text::{Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping};
+use cosmic_text::{Attrs, Buffer, LayoutGlyph, Metrics, Shaping};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -15,7 +15,10 @@ use crate::{
     layout::{LayoutLimits, SizeResolver},
 };
 
-use super::components::{text_buffer_state, TextBufferState};
+use super::{
+    components::{text_buffer_state, TextBufferState},
+    text_renderer::TextSystem,
+};
 
 // pub fn load_fonts_system(font_map: FontMap) -> BoxedSystem {
 //     System::builder()
@@ -60,7 +63,7 @@ impl TextBufferQuery {
     }
 }
 
-pub fn update_text_buffers(font_system: Arc<Mutex<FontSystem>>) -> BoxedSystem {
+pub fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
     System::builder()
         .with_query(Query::new(TextBufferQuery::new().modified()))
         .build(
@@ -68,37 +71,40 @@ pub fn update_text_buffers(font_system: Arc<Mutex<FontSystem>>) -> BoxedSystem {
                 <TextBufferQuery as TransformFetch<Modified>>::Output,
                 _,
             >| {
-                let font_system = &mut *font_system.lock();
+                let text_system = &mut *text_system.lock();
                 query.iter().for_each(|item| {
-                    item.state.update(font_system, item.text);
+                    item.state.update(&mut text_system.font_system, item.text);
                     let buffer = &mut item.state.buffer;
                     let metrics = Metrics::new(*item.font_size, *item.font_size);
-                    buffer.set_metrics(font_system, metrics);
+                    buffer.set_metrics(&mut text_system.font_system, metrics);
 
                     let size = item.rect.size();
 
-                    buffer.set_size(font_system, size.x, size.y);
-                    buffer.shape_until_scroll(font_system);
+                    buffer.set_size(&mut text_system.font_system, size.x, size.y);
+                    buffer.shape_until_scroll(&mut text_system.font_system);
                 });
             },
         )
         .boxed()
 }
 
-pub fn register_text_buffers(font_system: Arc<Mutex<FontSystem>>) -> BoxedSystem {
+pub fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
     System::builder()
         .with_cmd_mut()
         .with_query(Query::new((entity_ids(), text())).without(size_resolver()))
         .build(
             move |cmd: &mut CommandBuffer,
                   mut query: QueryBorrow<'_, (EntityIds, Component<String>), _>| {
-                let mut font_system_ref = font_system.lock();
+                let mut text_system_ref = text_system.lock();
                 for (id, _) in &mut query {
-                    let state = TextBufferState::new(&mut font_system_ref);
+                    let state = TextBufferState::new(&mut text_system_ref.font_system);
 
                     let resolver = TextSizeResolver {
-                        font_system: font_system.clone(),
-                        buffer: Buffer::new(&mut font_system_ref, Metrics::new(14.0, 14.0)),
+                        text_system: text_system.clone(),
+                        buffer: Buffer::new(
+                            &mut text_system_ref.font_system,
+                            Metrics::new(14.0, 14.0),
+                        ),
                     };
 
                     cmd.set(id, text_buffer_state(), state).set(
@@ -113,7 +119,7 @@ pub fn register_text_buffers(font_system: Arc<Mutex<FontSystem>>) -> BoxedSystem
 }
 
 pub struct TextSizeResolver {
-    font_system: Arc<Mutex<FontSystem>>,
+    text_system: Arc<Mutex<TextSystem>>,
     buffer: Buffer,
 }
 
@@ -126,10 +132,10 @@ impl SizeResolver for TextSizeResolver {
     ) -> (glam::Vec2, glam::Vec2) {
         let query = (text_buffer_state().as_mut(), font_size(), text());
         if let Some((state, &font_size, text)) = entity.query(&query).get() {
-            let font_system = &mut *self.font_system.lock();
+            let text_system = &mut *self.text_system.lock();
             let preferred = Self::resolve_text_size(
                 state,
-                font_system,
+                text_system,
                 text,
                 font_size,
                 content_area,
@@ -138,7 +144,7 @@ impl SizeResolver for TextSizeResolver {
 
             let min = Self::resolve_text_size(
                 state,
-                font_system,
+                text_system,
                 text,
                 font_size,
                 content_area,
@@ -159,7 +165,7 @@ impl SizeResolver for TextSizeResolver {
 impl TextSizeResolver {
     fn resolve_text_size(
         state: &mut TextBufferState,
-        font_system: &mut FontSystem,
+        text_system: &mut TextSystem,
         text: &str,
         font_size: f32,
         _content_area: Rect,
@@ -168,7 +174,7 @@ impl TextSizeResolver {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
         {
-            let mut buffer = state.buffer.borrow_with(font_system);
+            let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
 
             let metrics = Metrics::new(font_size, font_size);
             buffer.set_metrics(metrics);

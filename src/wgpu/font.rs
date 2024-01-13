@@ -3,21 +3,21 @@ use std::{
     path::PathBuf,
 };
 
-use cosmic_text::{CacheKey, FontSystem, Placement, SwashCache, SwashImage};
+use cosmic_text::{CacheKey, Placement, SwashImage};
 use fontdue::Font;
 use glam::{uvec2, vec3, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
-use crate::assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle};
+use crate::assets::{fs::BytesFromFile, Asset, AssetCache, AssetKey};
 
-use super::{graphics::texture::Texture, Gpu};
+use super::{graphics::texture::Texture, text_renderer::TextSystem, Gpu};
 
 /// Loads a font from memory
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct FontFromBytes {
-    pub bytes: Handle<Vec<u8>>,
+    pub bytes: Asset<Vec<u8>>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -86,8 +86,7 @@ impl FontAtlas {
     pub fn new(
         _assets: &AssetCache,
         gpu: &Gpu,
-        font_system: &mut FontSystem,
-        swash_cache: &mut SwashCache,
+        text_system: &mut TextSystem,
         glyphs: impl IntoIterator<Item = CacheKey>,
     ) -> anyhow::Result<Self> {
         let mut atlas = AtlasAllocator::new(size2(128, 128));
@@ -107,7 +106,10 @@ impl FontAtlas {
         let glyphs = glyphs
             .iter()
             .map(|&glyph| {
-                let image = swash_cache.get_image_uncached(font_system, glyph).unwrap();
+                let image = text_system
+                    .swash_cache
+                    .get_image_uncached(&mut text_system.font_system, glyph)
+                    .unwrap();
                 // let index = font.lookup_glyph_index(c);
 
                 let metrics = image.placement;

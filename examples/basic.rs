@@ -13,10 +13,10 @@ use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::AssetKey,
     components::{
-        self, color, draw_shape, font_family, font_size, layout, shape_rectangle, size, text,
-        Edges, FontFamily,
+        self, color, draw_shape, font_family, font_size, layout, size, text, Edges, FontFamily,
     },
     layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
+    shape,
     style::StyleExt,
     time::interval,
     unit::Unit,
@@ -156,7 +156,7 @@ impl<P: Into<PathBuf>> Widget for Image<P> {
 
         scope
             .set(name(), "Image".into())
-            .set(draw_shape(shape_rectangle()), ())
+            .set(draw_shape(shape::shape_rectangle()), ())
             .set(components::image(), image);
     }
 }
@@ -255,6 +255,7 @@ impl Text {
 impl Widget for Text {
     fn mount(self, scope: &mut Scope) {
         scope
+            .set(draw_shape(shape::shape_text()), ())
             .set(font_size(), self.font_size)
             .set(font_family(), self.font)
             .set(text(), self.text)
@@ -311,7 +312,7 @@ impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         if let Some(background_color) = self.background_color {
             scope
-                .set(draw_shape(shape_rectangle()), ())
+                .set(draw_shape(shape::shape_rectangle()), ())
                 .set(color(), background_color);
         }
         scope
@@ -453,7 +454,7 @@ where
 
         if let Some(background) = self.background {
             scope
-                .set(draw_shape(shape_rectangle()), ())
+                .set(draw_shape(shape::shape_rectangle()), ())
                 .set(color(), background);
         }
 
