@@ -1,12 +1,17 @@
 use flax::components::name;
+use image::DynamicImage;
 use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{color, draw_shape},
+    assets::{Asset, AssetKey},
+    components::{self, color, draw_shape, font_family, font_size, image, text, FontFamily},
     input::{on_focus, on_mouse_input},
     shape, Frame, Scope, Widget,
 };
+
+mod container;
+pub use container::{Container, List, Stack};
 
 /// A rectangular widget
 pub struct Rectangle {
@@ -22,9 +27,80 @@ impl Rectangle {
 impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
-            .set(name(), "Rectangle".into())
             .set(draw_shape(shape::shape_rectangle()), ())
             .set(color(), self.color);
+    }
+}
+
+pub struct Image<K> {
+    image: K,
+}
+
+impl<K> Image<K> {
+    pub fn new(image: K) -> Self {
+        Self { image }
+    }
+}
+
+impl<K: AssetKey<Output = DynamicImage>> Widget for Image<K> {
+    fn mount(self, scope: &mut Scope) {
+        let image = scope.assets_mut().try_load(&self.image).ok();
+        if let Some(image) = image {
+            scope
+                .set(draw_shape(shape::shape_rectangle()), ())
+                .set(components::image(), image);
+        } else {
+            Text::new("Image not found")
+                .with_color(Srgba::new(1.0, 0.0, 0.0, 1.0))
+                .mount(scope);
+        }
+    }
+}
+
+pub struct Text {
+    color: Option<Srgba>,
+    text: String,
+    font: FontFamily,
+    font_size: f32,
+}
+
+impl Text {
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            color: None,
+            font_size: 16.0,
+            font: "Inter/static/Inter-Regular.ttf".into(),
+        }
+    }
+
+    /// Set the font
+    pub fn with_font(mut self, font: impl Into<FontFamily>) -> Self {
+        self.font = font.into();
+        self
+    }
+
+    /// Set the font_size
+    pub fn with_font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
+    /// Set the text color
+    pub fn with_color(mut self, color: Srgba) -> Self {
+        self.color = Some(color);
+        self
+    }
+}
+
+impl Widget for Text {
+    fn mount(self, scope: &mut Scope) {
+        scope
+            .set(draw_shape(shape::shape_text()), ())
+            .set(font_size(), self.font_size)
+            .set(font_family(), self.font)
+            .set(text(), self.text)
+            .set_opt(color(), self.color);
     }
 }
 

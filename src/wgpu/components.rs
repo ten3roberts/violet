@@ -48,8 +48,8 @@ impl TextBufferState {
             font_system,
             text,
             Attrs::new()
-                .family(cosmic_text::Family::Name("CaskaydiaCove Nerd Font"))
-                .style(Style::Italic),
+                .family(cosmic_text::Family::Name("Inter"))
+                .style(Style::Normal),
             Shaping::Advanced,
         );
     }

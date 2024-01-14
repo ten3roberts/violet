@@ -48,6 +48,8 @@ component! {
     pub layout: Layout => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
+    ///
+    /// Only applicable for containers
     pub padding: Edges => [ Debuggable ],
     /// Spacing between the item outer bounds and another items outer bounds
     ///

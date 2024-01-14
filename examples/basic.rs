@@ -4,7 +4,7 @@ use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::{DynamicImage, ImageError};
 use itertools::Itertools;
-use palette::{Hsla, Hsva, IntoColor, Srgba};
+use palette::{named::WHITE, Hsla, Hsva, IntoColor, Srgba, WithAlpha};
 use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
@@ -15,15 +15,15 @@ use violet::{
     components::{
         self, color, draw_shape, font_family, font_size, layout, size, text, Edges, FontFamily,
     },
-    layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
+    layout::{CrossAlign, Direction, Layout},
     shape,
     style::StyleExt,
     time::interval,
     unit::Unit,
     wgpu::font::FontFromFile,
     widget::WidgetExt,
-    widgets::{Button, Rectangle},
-    App, Scope, StreamEffect, Widget, WidgetCollection,
+    widgets::{Button, Container, Image, List, Rectangle, Stack, Text},
+    App, Scope, StreamEffect, Widget,
 };
 
 struct MainApp;
@@ -143,26 +143,6 @@ impl AssetKey for ImageFromPath {
     }
 }
 
-struct Image<P> {
-    path: P,
-}
-
-impl<P: Into<PathBuf>> Widget for Image<P> {
-    fn mount(self, scope: &mut Scope) {
-        let image = scope
-            .assets_mut()
-            .try_load(&ImageFromPath {
-                path: self.path.into(),
-            })
-            .unwrap();
-
-        scope
-            .set(name(), "Image".into())
-            .set(draw_shape(shape::shape_rectangle()), ())
-            .set(components::image(), image);
-    }
-}
-
 struct Ticker;
 
 impl Widget for Ticker {
@@ -218,118 +198,18 @@ impl Widget for Counter {
     }
 }
 
-struct Text {
-    color: Option<Srgba>,
-    text: String,
-    font: FontFamily,
-    font_size: f32,
-}
-
-impl Text {
-    fn new(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            color: None,
-            font_size: 16.0,
-            font: "Inter/static/Inter-Regular.ttf".into(),
-        }
-    }
-
-    /// Set the font
-    pub fn with_font(mut self, font: impl Into<FontFamily>) -> Self {
-        self.font = font.into();
-        self
-    }
-
-    /// Set the font_size
-    pub fn with_font_size(mut self, font_size: f32) -> Self {
-        self.font_size = font_size;
-        self
-    }
-
-    /// Set the text color
-    pub fn with_color(mut self, color: Srgba) -> Self {
-        self.color = Some(color);
-        self
-    }
-}
-
-impl Widget for Text {
-    fn mount(self, scope: &mut Scope) {
-        scope
-            .set(draw_shape(shape::shape_text()), ())
-            .set(font_size(), self.font_size)
-            .set(font_family(), self.font)
-            .set(text(), self.text)
-            .set_opt(color(), self.color);
-    }
-}
-
-#[derive(Default)]
-struct List<W> {
-    items: W,
-    layout: FlowLayout,
-    background_color: Option<Srgba>,
-}
-
-impl<W: WidgetCollection> List<W> {
-    fn new(items: W) -> Self {
-        Self {
-            items,
-            layout: FlowLayout::default(),
-            background_color: None,
-        }
-    }
-
-    /// Set the List's direction
-    pub fn with_direction(mut self, direction: Direction) -> Self {
-        self.layout.direction = direction;
-        self
-    }
-
-    /// Set the List's cross axis alignment
-    pub fn with_cross_align(mut self, cross_align: CrossAlign) -> Self {
-        self.layout.cross_align = cross_align;
-        self
-    }
-
-    /// Set the List's background color
-    pub fn with_background_color(mut self, background_color: Srgba) -> Self {
-        self.background_color = Some(background_color);
-        self
-    }
-
-    pub fn contain_margins(mut self, enable: bool) -> Self {
-        self.layout.contain_margins = enable;
-        self
-    }
-
-    fn with_stretch(mut self, enable: bool) -> Self {
-        self.layout.stretch = enable;
-        self
-    }
-}
-
-impl<W: WidgetCollection> Widget for List<W> {
-    fn mount(self, scope: &mut Scope<'_>) {
-        if let Some(background_color) = self.background_color {
-            scope
-                .set(draw_shape(shape::shape_rectangle()), ())
-                .set(color(), background_color);
-        }
-        scope
-            .set(layout(), Layout::Flow(self.layout))
-            .set_opt(color(), self.background_color);
-
-        self.items.attach(scope);
-    }
-}
-
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(name(), "MainApp".into())
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
+
+        let image = scope
+            .assets_mut()
+            .try_load(&ImageFromPath {
+                path: "./assets/images/statue.jpg".into(),
+            })
+            .unwrap();
 
         Stack::new(
             List::new((
@@ -356,9 +236,9 @@ impl Widget for MainApp {
                     (1..=4)
                         .map(|i| {
                             let size = Vec2::splat(128.0 / i as f32);
-                            Image {
-                                path: "./assets/images/statue.jpg",
-                            }
+                            Image::new(ImageFromPath {
+                                path: "./assets/images/statue.jpg".into(),
+                            })
                             .with_min_size(Unit::px(size))
                             .with_size(Unit::px(size))
                             .with_margin(MARGIN)
@@ -372,7 +252,7 @@ impl Widget for MainApp {
                         .with_font_size(32.0)
                         .with_margin(MARGIN * 5.0),
                 ))
-                .with_background(EERIE_BLACK)
+                .with_background(Rectangle::new(EERIE_BLACK))
                 .with_padding(MARGIN)
                 .with_margin(MARGIN),
                 Stack::new((
@@ -389,97 +269,16 @@ impl Widget for MainApp {
                         .with_margin(MARGIN),
                     Rectangle::new(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),
                 ))
-                .with_background(EERIE_BLACK),
+                .with_background(Rectangle::new(EERIE_BLACK)),
             ))
-            .with_background_color(EERIE_BLACK_600)
+            .with_background(Rectangle::new(EERIE_BLACK_600))
             .contain_margins(true)
             .with_direction(Direction::Vertical)
             .with_cross_align(CrossAlign::Center),
         )
-        .with_name("outer stack")
         .with_padding(Edges::even(50.0))
+        .with_name("outer stack")
         .mount(scope);
-
-        // scope.attach(LayoutTest {
-        //     contain_margins: true,
-        // });
-        // scope.attach(
-        //     List::new((
-        //         LayoutTest {
-        //             contain_margins: true,
-        //         },
-        //         LayoutTest {
-        //             contain_margins: false,
-        //         },
-        //         List::new(
-        //             (1..=4)
-        //                 .map(|i| {
-        //                     Image {
-        //                         path: "./assets/images/statue.jpg",
-        //                     }
-        //                     .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
-        //                     .with_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
-        //                     .with_margin(MARGIN)
-        //                 })
-        //                 .collect_vec(),
-        //         ),
-        //         Stack {
-        //             items: (
-        //                 Text::new("Hello, World!")
-        //                     .with_font("assets/fonts/Inter/static/Inter-Bold.ttf")
-        //                     .with_font_size(32.0)
-        //                     .with_margin(MARGIN),
-        //                 Rectangle::new(EERIE_BLACK)
-        //                     .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
-        //             ),
-        //         },
-        //     ))
-        //     .contain_margins(true)
-        //     .with_direction(Direction::Vertical)
-        //     .with_padding(Edges::even(5.0)),
-        // );
-    }
-}
-
-struct Stack<W> {
-    items: W,
-    background: Option<Srgba>,
-}
-
-impl<W> Stack<W> {
-    fn new(items: W) -> Self {
-        Self {
-            items,
-            background: None,
-        }
-    }
-
-    fn with_background(mut self, background: Srgba) -> Self {
-        self.background = Some(background);
-        self
-    }
-}
-
-impl<W> Widget for Stack<W>
-where
-    W: WidgetCollection,
-{
-    fn mount(self, scope: &mut Scope<'_>) {
-        self.items.attach(scope);
-
-        if let Some(background) = self.background {
-            scope
-                .set(draw_shape(shape::shape_rectangle()), ())
-                .set(color(), background);
-        }
-
-        scope.set(
-            layout(),
-            Layout::Stack(StackLayout {
-                horizontal_alignment: CrossAlign::Center,
-                vertical_alignment: CrossAlign::Start,
-            }),
-        );
     }
 }
 
@@ -495,7 +294,6 @@ impl Widget for StackTest {
 
         Rectangle::new(EERIE_BLACK_300)
             .with_margin(Edges::even(10.0))
-            .with_padding(Edges::even(5.0))
             .mount(scope);
     }
 }
@@ -516,7 +314,7 @@ impl Widget for LayoutTest {
         ))
         .with_direction(Direction::Vertical)
         .contain_margins(self.contain_margins)
-        .with_background_color(EERIE_BLACK_300)
+        .with_background(Rectangle::new(EERIE_BLACK_300))
         .with_margin(MARGIN);
 
         let row_1 = List::new((
@@ -535,14 +333,14 @@ impl Widget for LayoutTest {
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(CrossAlign::Center)
-        .with_background_color(EERIE_BLACK)
+        .with_background(Rectangle::new(EERIE_BLACK))
         .with_margin(MARGIN);
 
         // row_1.mount(scope);
 
         List::new((row_1,))
             .contain_margins(self.contain_margins)
-            .with_background_color(EERIE_BLACK_300)
+            .with_background(Rectangle::new(EERIE_BLACK_300))
             .mount(scope);
     }
 }

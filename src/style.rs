@@ -12,15 +12,11 @@ pub trait StyleExt {
     where
         Self: Sized;
 
-    fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges>
+    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
         Self: Sized;
 
     fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
-    where
-        Self: Sized;
-
-    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
         Self: Sized;
 }
@@ -54,22 +50,14 @@ impl<W> StyleExt for W
 where
     W: Widget,
 {
-    #[inline]
     fn with_margin(self, margin: Edges) -> WithComponent<Self, Edges> {
         WithComponent::new(self, components::margin(), margin)
     }
 
-    #[inline]
-    fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges> {
-        WithComponent::new(self, components::padding(), padding)
-    }
-
-    #[inline]
     fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
         WithComponent::new(self, components::size(), size)
     }
 
-    #[inline]
     fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
         WithComponent::new(self, components::min_size(), min_size)
     }

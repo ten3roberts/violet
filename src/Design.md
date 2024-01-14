@@ -2,6 +2,14 @@
 
 ## Overview
 
+## Terminology
+
+- Widget - A single UI element, such as a button, text box, or image.
+- Entity - The internal representation of a widgets declarative state.
+- Component - A single piece of data which is attached to an entity.
+- Container - A widget which contain children widgets, usually associated to a layout
+- ECS - Entity Component System, used to represent the widget tree and some of the app's state
+
 ## Renderer
 
 The rendering of widgets is a deterministic and entirely stateless and declarative system.

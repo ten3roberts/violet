@@ -6,14 +6,14 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
     assets::{map::HandleMap, Asset},
-    components::{color, draw_shape, image, rect, screen_position, Rect},
+    components::{color, draw_shape, image, local_position, rect, screen_position, Rect},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
     Frame,
@@ -35,6 +35,7 @@ use super::{
 struct RectObjectQuery {
     rect: Component<Rect>,
     pos: Component<Vec2>,
+    local_pos: Component<Vec2>,
     color: OptOr<Component<Srgba>, Srgba>,
     object_data: Mutable<ObjectData>,
 }
@@ -46,6 +47,7 @@ impl RectObjectQuery {
             pos: screen_position(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
+            local_pos: local_position(),
         }
     }
 }
@@ -198,6 +200,7 @@ impl RectRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
+                tracing::debug!(?item.color, %item.pos);
                 let rect = item.rect.translate(*item.pos).align_to_grid();
 
                 let model_matrix = Mat4::from_scale_rotation_translation(
