@@ -38,7 +38,7 @@ impl<W> Stack<W> {
     }
 }
 
-impl<W> Container for Stack<W> {
+impl<W> ContainerExt for Stack<W> {
     fn with_background(mut self, background: Rectangle) -> Self {
         self.background = Some(background);
         self
@@ -105,7 +105,7 @@ impl<W: WidgetCollection> List<W> {
     }
 }
 
-impl<W: WidgetCollection> Container for List<W> {
+impl<W: WidgetCollection> ContainerExt for List<W> {
     fn with_background(mut self, background: Rectangle) -> Self {
         self.background = Some(background);
         self
@@ -125,7 +125,7 @@ impl<W: WidgetCollection> Widget for List<W> {
 }
 
 /// Additional functionality for available containers.
-pub trait Container {
+pub trait ContainerExt {
     fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges>
     where
         Self: Sized,

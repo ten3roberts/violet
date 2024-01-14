@@ -1,17 +1,13 @@
-use flax::components::name;
 use image::DynamicImage;
 use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    assets::{Asset, AssetKey},
-    components::{self, color, draw_shape, font_family, font_size, image, text, FontFamily},
+    assets::AssetKey,
+    components::{self, color, draw_shape, font_family, font_size, text, FontFamily},
     input::{on_focus, on_mouse_input},
     shape, Frame, Scope, Widget,
 };
-
-mod container;
-pub use container::{Container, List, Stack};
 
 /// A rectangular widget
 pub struct Rectangle {

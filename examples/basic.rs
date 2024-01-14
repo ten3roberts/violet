@@ -21,8 +21,7 @@ use violet::{
     time::interval,
     unit::Unit,
     wgpu::font::FontFromFile,
-    widget::WidgetExt,
-    widgets::{Button, Container, Image, List, Rectangle, Stack, Text},
+    widget::{Button, ContainerExt, Image, List, Rectangle, Stack, Text, WidgetExt},
     App, Scope, StreamEffect, Widget,
 };
 
@@ -203,13 +202,6 @@ impl Widget for MainApp {
         scope
             .set(name(), "MainApp".into())
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
-
-        let image = scope
-            .assets_mut()
-            .try_load(&ImageFromPath {
-                path: "./assets/images/statue.jpg".into(),
-            })
-            .unwrap();
 
         Stack::new(
             List::new((

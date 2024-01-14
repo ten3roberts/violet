@@ -1,6 +1,10 @@
 use crate::{style::WithComponent, Scope};
+mod basic;
+mod container;
 mod future;
 
+pub use basic::{Button, Image, Rectangle, Text};
+pub use container::{ContainerExt, List, Stack};
 pub use future::{SignalWidget, StreamWidget};
 
 /// Represents a widget in the UI tree which can mount itself into the frame.
