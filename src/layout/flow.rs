@@ -94,7 +94,7 @@ impl MarginCursor {
     fn finish(&mut self) -> Rect {
         self.cross_cursor += self.line_height;
 
-        tracing::debug!(?self.main_margin);
+        // tracing::debug!(?self.main_margin);
 
         if self.contain_margins {
             self.main_cursor += self.pending_margin;
@@ -197,7 +197,7 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        let _span = tracing::info_span!("Flow::apply", ?limits, flow=?self).entered();
+        // let _span = tracing::info_span!("Flow::apply", ?limits, flow=?self).entered();
         let (axis, cross_axis) = self.direction.axis();
 
         let row = self.query_size(world, children, content_area);

@@ -165,8 +165,8 @@ impl Edges {
     }
 
     pub(crate) fn in_axis(&self, axis: Vec2) -> (f32, f32) {
-        let pos = vec2(self.right, self.top).dot(axis);
-        let neg = vec2(-self.left, -self.bottom).dot(axis);
+        let pos = vec2(self.right, self.bottom).dot(axis);
+        let neg = vec2(-self.left, -self.top).dot(axis);
 
         let front_margin = pos.max(neg);
         let back_margin = -pos.min(neg);

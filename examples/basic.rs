@@ -40,6 +40,8 @@ const MARGIN: Edges = Edges::even(15.0);
 
 pub const EERIE_BLACK: Srgba = srgba!("#222525");
 pub const EERIE_BLACK_300: Srgba = srgba!("#151616");
+pub const EERIE_BLACK_400: Srgba = srgba!("#1b1e1e");
+pub const EERIE_BLACK_600: Srgba = srgba!("#4c5353");
 pub const PLATINUM: Srgba = srgba!("#dddddf");
 pub const VIOLET: Srgba = srgba!("#8000ff");
 pub const TEAL: Srgba = srgba!("#247b7b");
@@ -353,36 +355,49 @@ impl Widget for MainApp {
                 List::new(
                     (1..=4)
                         .map(|i| {
+                            let size = Vec2::splat(128.0 / i as f32);
                             Image {
                                 path: "./assets/images/statue.jpg",
                             }
-                            .with_min_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
-                            .with_size(Unit::px(vec2(256.0 / i as f32, 256.0 / i as f32)))
+                            .with_min_size(Unit::px(size))
+                            .with_size(Unit::px(size))
                             .with_margin(MARGIN)
                         })
                         .collect_vec(),
                 )
                 .with_name("Images"),
-                Stack::new((Text::new(
-                    "The quick brown fox 🦊 jumps over the lazy dog 🐕 fi fO t f-t ===",
-                )
-                .with_font("Inter/static/Inter-Bold.ttf")
-                .with_font_size(32.0)
-                .with_margin(MARGIN),))
-                .with_background(EERIE_BLACK),
                 Stack::new((
-                    Text::new(" -> <==========> ======= != <$> ~~>")
+                    Text::new("The quick brown fox 🦊 jumps over the lazy dog 🐕")
                         .with_font("Inter/static/Inter-Bold.ttf")
                         .with_font_size(32.0)
+                        .with_margin(MARGIN * 5.0),
+                ))
+                .with_background(EERIE_BLACK)
+                .with_padding(MARGIN)
+                .with_margin(MARGIN),
+                Stack::new((
+                    Rectangle::new(CHILI_RED)
+                        .with_min_size(Unit::px(vec2(100.0, 30.0)))
+                        .with_size(Unit::px(vec2(100.0, 30.0))),
+                    Rectangle::new(TEAL)
+                        .with_min_size(Unit::px(vec2(200.0, 10.0)))
+                        .with_size(Unit::px(vec2(100.0, 10.0)))
                         .with_margin(MARGIN),
-                    Rectangle::new(EERIE_BLACK)
-                        .with_size(Unit::rel(vec2(1.0, 0.0)) + Unit::px(vec2(0.0, 50.0))),
-                )),
+                    Text::new("This is some text")
+                        .with_font("Inter/static/Inter-Bold.ttf")
+                        .with_font_size(16.0)
+                        .with_margin(MARGIN),
+                    Rectangle::new(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),
+                ))
+                .with_background(EERIE_BLACK),
             ))
+            .with_background_color(EERIE_BLACK_600)
             .contain_margins(true)
             .with_direction(Direction::Vertical)
-            .with_padding(Edges::even(5.0)),
+            .with_cross_align(CrossAlign::Center),
         )
+        .with_name("outer stack")
+        .with_padding(Edges::even(50.0))
         .mount(scope);
 
         // scope.attach(LayoutTest {

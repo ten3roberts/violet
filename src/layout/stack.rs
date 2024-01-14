@@ -31,8 +31,8 @@ impl StackableBounds {
     }
 
     fn margin(&self) -> Edges {
-        let min = self.outer.min - self.inner.min;
-        let max = self.inner.max - self.outer.max;
+        let min = self.inner.min - self.outer.min;
+        let max = self.outer.max - self.inner.max;
 
         Edges {
             left: min.x,
@@ -67,8 +67,6 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        // let _span = tracing::info_span!("Stack::apply").entered();
-
         // tracing::info!(
         //     ?content_area,
         //     content_area_size=%content_area.size(),
@@ -81,7 +79,7 @@ impl StackLayout {
             max: content_area.size(),
         };
 
-        let mut bounds = StackableBounds::default();
+        let mut bounds = Rect::default();
 
         let blocks = children
             .iter()
@@ -97,16 +95,15 @@ impl StackLayout {
 
                 let block = update_subtree(world, &entity, inner_rect, limits);
 
-                bounds = bounds.merge(&StackableBounds {
-                    inner: block.rect,
-                    outer: block.rect.pad(&block.margin),
-                });
+                bounds = bounds.merge(block.rect);
 
                 (entity, block)
             })
             .collect_vec();
 
-        let size = bounds.inner.size();
+        let size = bounds.size();
+
+        let mut aligned_bounds = StackableBounds::default();
 
         for (entity, block) in blocks {
             let block_size = block.rect.size();
@@ -116,15 +113,25 @@ impl StackLayout {
                     self.vertical_alignment.align_offset(size.y, block_size.y),
                 );
 
-            entity.update_dedup(components::rect(), block.rect.translate(offset));
-            // entity.update_dedup(components::local_position(), offset);
+            tracing::debug!(?offset, %entity);
+
+            aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
+                block.rect.translate(offset),
+                block.margin,
+            ));
+
+            // entity.update_dedup(components::rect(), block.rect.translate(offset));
+            entity.update_dedup(components::rect(), block.rect);
+            entity.update_dedup(components::local_position(), offset);
         }
 
-        let margin = bounds.margin();
-        let mut rect = bounds.inner.clamp_size(limits.min_size, limits.max_size);
+        let mut rect = aligned_bounds.inner.max_size(limits.min_size);
+        let margin = aligned_bounds.margin();
 
         rect.min += content_area.min;
         rect.max += content_area.min;
+
+        tracing::info!(?margin);
 
         Block::new(rect, margin)
     }
@@ -159,6 +166,7 @@ impl StackLayout {
         // if min_margin != preferred_margin {
         //     tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
         // }
+        // tracing::info!(?min_margin, ?preferred_margin);
 
         Sizing {
             min: min_bounds.inner,

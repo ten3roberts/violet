@@ -77,6 +77,7 @@ pub fn layout_system() -> BoxedSystem {
         .boxed()
 }
 
+/// Updates the apparent screen position of entities based on the hierarchy
 pub fn transform_system() -> BoxedSystem {
     System::builder()
         .with_query(

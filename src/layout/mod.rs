@@ -156,6 +156,8 @@ pub(crate) fn update_subtree(
     limits: LayoutLimits,
 ) -> Block {
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
+    let _span = tracing::debug_span!("update_subtree", %entity).entered();
+
     let margin = entity
         .get(components::margin())
         .ok()
@@ -174,8 +176,6 @@ pub(crate) fn update_subtree(
     if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
-
-        // let _span = tracing::info_span!("Layout", %entity).entered();
 
         let mut block = layout.apply(
             world,
