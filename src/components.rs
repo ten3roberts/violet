@@ -11,6 +11,7 @@ use palette::Srgba;
 use crate::{
     assets::Asset,
     layout::{Layout, SizeResolver},
+    text::TextSegment,
     unit::Unit,
 };
 
@@ -58,7 +59,7 @@ component! {
     /// A margin is in essence a minimum allowed distance to another items bounds
     pub margin: Edges => [ Debuggable ],
 
-    pub text: String => [ ],
+    pub text: Vec<TextSegment> => [ ],
     pub font_size: f32 => [ Debuggable ],
 
     /// To retain consistent text wrapping between size query and the snug fitted rect the bounds
@@ -73,8 +74,6 @@ component! {
     pub image: Asset<DynamicImage> => [ Debuggable ],
 
     pub draw_shape(variant): () => [ Debuggable, Exclusive ],
-
-    pub font_family: FontFamily => [ Debuggable ],
 
     pub(crate) size_resolver: Box<dyn SizeResolver>,
 }
@@ -322,37 +321,5 @@ impl Rect {
         let max = self.max.min(mask.max);
 
         Rect { min, max }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FontFamily(pub Cow<'static, str>);
-
-impl Display for FontFamily {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0, f)
-    }
-}
-
-impl std::ops::Deref for FontFamily {
-    type Target = Cow<'static, str>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl FontFamily {
-    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
-        Self(name.into())
-    }
-}
-
-impl<T> From<T> for FontFamily
-where
-    T: Into<Cow<'static, str>>,
-{
-    fn from(value: T) -> Self {
-        Self::new(value)
     }
 }

@@ -7,7 +7,7 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
@@ -18,6 +18,7 @@ use crate::{
     components::{color, draw_shape, font_size, layout_bounds, rect, screen_position, text, Rect},
     shape::shape_text,
     stored::{self, Handle},
+    text::TextSegment,
     wgpu::{font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand},
     Frame,
 };
@@ -216,22 +217,31 @@ impl MeshGenerator {
 
                     let x = placement.left as f32 + physical_glyph.x as f32;
                     let y = run.line_y - placement.top as f32 + physical_glyph.y as f32;
+                    let color = glyph
+                        .color_opt
+                        .map(|v| {
+                            srgba_to_vec4(Srgba::new(v.r(), v.g(), v.b(), v.a()).into_format())
+                        })
+                        .unwrap_or(Vec4::ONE);
 
                     vertices.extend_from_slice(&[
                         // Bottom left
                         Vertex::new(
                             vec3(x, y + placement.height as f32, 0.0),
+                            color,
                             vec2(uv_min.x, uv_max.y),
                         ),
                         Vertex::new(
                             vec3(x + placement.width as f32, y + placement.height as f32, 0.0),
+                            color,
                             vec2(uv_max.x, uv_max.y),
                         ),
                         Vertex::new(
                             vec3(x + placement.width as f32, y, 0.0),
+                            color,
                             vec2(uv_max.x, uv_min.y),
                         ),
-                        Vertex::new(vec3(x, y, 0.0), vec2(uv_min.x, uv_min.y)),
+                        Vertex::new(vec3(x, y, 0.0), color, vec2(uv_min.x, uv_min.y)),
                     ]);
                 }
             }
@@ -280,7 +290,7 @@ pub(crate) struct TextMeshQuery {
     state: Mutable<TextBufferState>,
 
     rect: Component<Rect>,
-    text: Component<String>,
+    text: Component<Vec<TextSegment>>,
     layout_bounds: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,

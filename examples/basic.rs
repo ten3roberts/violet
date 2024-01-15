@@ -1,28 +1,23 @@
 use flax::components::name;
-use futures::StreamExt;
-use futures_signals::signal::Mutable;
+use futures::TryStreamExt;
 use glam::{vec2, Vec2};
 use image::{DynamicImage, ImageError};
 use itertools::Itertools;
-use palette::{named::WHITE, Hsla, Hsva, IntoColor, Srgba, WithAlpha};
-use std::{path::PathBuf, time::Duration};
+use palette::{Hsva, IntoColor, Srgba};
+use std::path::PathBuf;
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::AssetKey,
-    components::{
-        self, color, draw_shape, font_family, font_size, layout, size, text, Edges, FontFamily,
-    },
+    components::{self, layout, size, Edges},
     layout::{CrossAlign, Direction, Layout},
-    shape,
     style::StyleExt,
-    time::interval,
+    text::{FontFamily, Style, TextSegment, Weight},
     unit::Unit,
-    wgpu::font::FontFromFile,
     widget::{Button, ContainerExt, Image, List, Rectangle, Stack, Text, WidgetExt},
-    App, Scope, StreamEffect, Widget,
+    App, Scope, Widget,
 };
 
 struct MainApp;
@@ -142,61 +137,6 @@ impl AssetKey for ImageFromPath {
     }
 }
 
-struct Ticker;
-
-impl Widget for Ticker {
-    fn mount(self, scope: &mut Scope) {
-        scope.spawn(StreamEffect::new(
-            interval(Duration::from_millis(50)).enumerate(),
-            move |scope: &mut Scope, (i, _)| {
-                scope.set(text(), format!("Tick: {:#?}", i % 64));
-            },
-        ));
-
-        let font = FontFromFile {
-            path: PathBuf::from("assets/fonts/Inter/static/Inter-Regular.ttf"),
-        };
-
-        scope
-            .set(name(), "Counter".into())
-            .set(font_size(), 16.0)
-            .set(font_family(), "Inter/static/Inter-Regular.ttf".into())
-            .set(text(), "".into());
-    }
-}
-
-struct Counter {}
-
-impl Widget for Counter {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let count = Mutable::new(0);
-
-        List::new((
-            Sized::new(
-                Rectangle::new(Hsla::new(0.0, 0.5, 0.5, 1.0).into_color())
-                    .with_margin(Edges::even(50.0)),
-            )
-            .with_size(Unit::px(vec2(100.0, 100.0))),
-            // SignalWidget::new(
-            //     count
-            //         .signal()
-            //         .map(|count| Text::new(format!("Count: {}", count))),
-            // )
-            // .with_margin(MARGIN),
-            Sized::new(Button::new(
-                Hsla::new(200.0, 0.5, 0.5, 1.0).into_color(),
-                Hsla::new(200.0, 0.5, 0.2, 1.0).into_color(),
-                Box::new(move |_, _| {
-                    *count.lock_mut() += 1;
-                }),
-            ))
-            .with_min_size(Unit::px(vec2(100.0, 50.0)))
-            .with_size(Unit::px(vec2(100.0, 50.0))),
-        ))
-        .mount(scope);
-    }
-}
-
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
@@ -238,12 +178,43 @@ impl Widget for MainApp {
                         .collect_vec(),
                 )
                 .with_name("Images"),
-                Stack::new((
-                    Text::new("The quick brown fox 🦊 jumps over the lazy dog 🐕")
-                        .with_font("Inter/static/Inter-Bold.ttf")
-                        .with_font_size(32.0)
-                        .with_margin(MARGIN * 5.0),
-                ))
+                Stack::new(
+                    Text::rich([
+                        TextSegment::new("Violet").with_color(VIOLET),
+                        TextSegment::new(" now has support for "),
+                        TextSegment::new("rich ").with_style(Style::Italic),
+                        TextSegment::new("text. I wanted to "),
+                        TextSegment::new("emphasize").with_style(Style::Italic),
+                        TextSegment::new(" that, "),
+                        TextSegment::new("(and put something in bold)")
+                            .with_family("Inter")
+                            .with_weight(Weight::BOLD),
+                        TextSegment::new(", and").with_style(Style::Italic),
+                        TextSegment::new(" also show off the different font loadings: \n"),
+                        TextSegment::new("Monospace:")
+                            .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                            .with_color(TEAL),
+                        TextSegment::new("\n\nfn main() { \n    println!(")
+                            .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+                        TextSegment::new("\"Hello, world!\"")
+                            .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                            .with_color(BRONZE)
+                            .with_style(Style::Italic),
+                        TextSegment::new("); \n}")
+                            .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+                    ])
+                    .with_font_size(28.0)
+                    .with_margin(MARGIN),
+                )
+                .with_background(Rectangle::new(EERIE_BLACK))
+                .with_padding(MARGIN),
+                Stack::new((Text::rich([TextSegment::new(
+                    "The quick brown fox 🦊 jumps over the lazy dog 🐕",
+                )
+                .with_style(cosmic_text::Style::Italic)])
+                // .with_family("Inter")
+                .with_font_size(32.0)
+                .with_margin(MARGIN * 5.0),))
                 .with_background(Rectangle::new(EERIE_BLACK))
                 .with_padding(MARGIN)
                 .with_margin(MARGIN),
@@ -256,7 +227,6 @@ impl Widget for MainApp {
                         .with_size(Unit::px(vec2(100.0, 10.0)))
                         .with_margin(MARGIN),
                     Text::new("This is some text")
-                        .with_font("Inter/static/Inter-Bold.ttf")
                         .with_font_size(16.0)
                         .with_margin(MARGIN),
                     Rectangle::new(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),

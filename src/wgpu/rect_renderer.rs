@@ -6,7 +6,7 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
@@ -118,10 +118,10 @@ impl RectRenderer {
         });
 
         let vertices = [
-            Vertex::new(vec3(0.0, 0.0, 0.0), vec2(0.0, 0.0)),
-            Vertex::new(vec3(1.0, 0.0, 0.0), vec2(1.0, 0.0)),
-            Vertex::new(vec3(1.0, 1.0, 0.0), vec2(1.0, 1.0)),
-            Vertex::new(vec3(0.0, 1.0, 0.0), vec2(0.0, 1.0)),
+            Vertex::new(vec3(0.0, 0.0, 0.0), Vec4::ONE, vec2(0.0, 0.0)),
+            Vertex::new(vec3(1.0, 0.0, 0.0), Vec4::ONE, vec2(1.0, 0.0)),
+            Vertex::new(vec3(1.0, 1.0, 0.0), Vec4::ONE, vec2(1.0, 1.0)),
+            Vertex::new(vec3(0.0, 1.0, 0.0), Vec4::ONE, vec2(0.0, 1.0)),
         ];
 
         let indices = [0, 1, 2, 2, 3, 0];

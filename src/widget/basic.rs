@@ -4,9 +4,11 @@ use winit::event::ElementState;
 
 use crate::{
     assets::AssetKey,
-    components::{self, color, draw_shape, font_family, font_size, text, FontFamily},
+    components::{self, color, draw_shape, font_size, text},
     input::{on_focus, on_mouse_input},
-    shape, Frame, Scope, Widget,
+    shape,
+    text::TextSegment,
+    Frame, Scope, Widget,
 };
 
 /// A rectangular widget
@@ -55,25 +57,25 @@ impl<K: AssetKey<Output = DynamicImage>> Widget for Image<K> {
 
 pub struct Text {
     color: Option<Srgba>,
-    text: String,
-    font: FontFamily,
+    text: Vec<TextSegment>,
     font_size: f32,
 }
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: vec![TextSegment::new(text.into())],
             color: None,
             font_size: 16.0,
-            font: "Inter/static/Inter-Regular.ttf".into(),
         }
     }
 
-    /// Set the font
-    pub fn with_font(mut self, font: impl Into<FontFamily>) -> Self {
-        self.font = font.into();
-        self
+    pub fn rich(text: impl IntoIterator<Item = TextSegment>) -> Self {
+        Self {
+            text: text.into_iter().collect(),
+            color: None,
+            font_size: 16.0,
+        }
     }
 
     /// Set the font_size
@@ -94,7 +96,6 @@ impl Widget for Text {
         scope
             .set(draw_shape(shape::shape_text()), ())
             .set(font_size(), self.font_size)
-            .set(font_family(), self.font)
             .set(text(), self.text)
             .set_opt(color(), self.color);
     }

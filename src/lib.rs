@@ -11,6 +11,7 @@ pub mod shape;
 mod stored;
 pub mod style;
 pub mod systems;
+pub mod text;
 pub mod time;
 pub mod unit;
 pub mod wgpu;

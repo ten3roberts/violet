@@ -54,14 +54,14 @@ pub struct GlyphLocation {
     pub max: UVec2,
 }
 
-pub struct FontAtlas {
+pub(crate) struct FontAtlas {
     /// The backing GPU texture of the rasterized fonts
     pub texture: Texture,
     pub glyphs: BTreeMap<CacheKey, (Placement, GlyphLocation)>,
 }
 
 impl FontAtlas {
-    pub fn empty(gpu: &Gpu) -> Self {
+    pub(crate) fn empty(gpu: &Gpu) -> Self {
         let texture = gpu.device.create_texture(&TextureDescriptor {
             label: Some("FontAtlas"),
             size: Extent3d {
@@ -83,7 +83,7 @@ impl FontAtlas {
         }
     }
 
-    pub fn new(
+    pub(crate) fn new(
         _assets: &AssetCache,
         gpu: &Gpu,
         text_system: &mut TextSystem,
@@ -106,10 +106,27 @@ impl FontAtlas {
         let glyphs = glyphs
             .iter()
             .map(|&glyph| {
-                let image = text_system
+                let Some(image) = text_system
                     .swash_cache
                     .get_image_uncached(&mut text_system.font_system, glyph)
-                    .unwrap();
+                else {
+                    // tracing::error!(?glyph, "failed to load glyph");
+                    return (
+                        glyph,
+                        (
+                            Placement {
+                                left: 0,
+                                top: 0,
+                                width: 10,
+                                height: 10,
+                            },
+                            GlyphLocation {
+                                min: UVec2::ZERO,
+                                max: UVec2::ONE,
+                            },
+                        ),
+                    );
+                };
                 // let index = font.lookup_glyph_index(c);
 
                 let metrics = image.placement;

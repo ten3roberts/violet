@@ -1,7 +1,9 @@
-use glam::{vec2, vec3, Vec2, Vec3};
+use glam::{vec2, vec3, Vec2, Vec3, Vec4};
 use wgpu::{
     util::DeviceExt, vertex_attr_array, Buffer, RenderPass, VertexAttribute, VertexBufferLayout,
 };
+
+use crate::unit::Zero;
 
 use super::Gpu;
 
@@ -9,7 +11,10 @@ use super::Gpu;
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Debug, Clone)]
 pub struct Vertex {
     pos: Vec3,
+    _padding: f32,
+    color: Vec4,
     tex_coord: Vec2,
+    _padding2: Vec2,
 }
 
 pub trait VertexDesc {
@@ -17,13 +22,35 @@ pub trait VertexDesc {
 }
 
 impl Vertex {
-    pub const fn new(pos: Vec3, tex_coord: Vec2) -> Self {
-        Self { pos, tex_coord }
+    pub const fn new(pos: Vec3, color: Vec4, tex_coord: Vec2) -> Self {
+        Self {
+            pos,
+            color,
+            tex_coord,
+            _padding: 0.0,
+            _padding2: Vec2::ZERO,
+        }
     }
 }
 impl VertexDesc for Vertex {
     fn layout() -> VertexBufferLayout<'static> {
-        static ATTRIBUTES: &[VertexAttribute] = &vertex_attr_array![0 => Float32x3, 1 => Float32x2];
+        static ATTRIBUTES: &[VertexAttribute] = &[
+            VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 0,
+            },
+            VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 16,
+                shader_location: 1,
+            },
+            VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 32,
+                shader_location: 2,
+            },
+        ];
 
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
@@ -94,10 +121,10 @@ impl Mesh {
     /// Creates a new mesh with dimensions 1x1
     pub fn quad(gpu: &Gpu) -> Self {
         let vertices = [
-            Vertex::new(vec3(0.0, 0.0, 0.0), vec2(0.0, 0.0)),
-            Vertex::new(vec3(1.0, 0.0, 0.0), vec2(1.0, 0.0)),
-            Vertex::new(vec3(1.0, 1.0, 0.0), vec2(1.0, 1.0)),
-            Vertex::new(vec3(0.0, 1.0, 0.0), vec2(0.0, 1.0)),
+            Vertex::new(vec3(0.0, 0.0, 0.0), Vec4::ONE, vec2(0.0, 0.0)),
+            Vertex::new(vec3(1.0, 0.0, 0.0), Vec4::ONE, vec2(1.0, 0.0)),
+            Vertex::new(vec3(1.0, 1.0, 0.0), Vec4::ONE, vec2(1.0, 1.0)),
+            Vertex::new(vec3(0.0, 1.0, 0.0), Vec4::ONE, vec2(0.0, 1.0)),
         ];
 
         let indices = [0, 1, 2, 2, 3, 0];

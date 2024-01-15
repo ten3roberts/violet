@@ -7,12 +7,14 @@ use flax::{
     BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Query, QueryBorrow,
     System,
 };
+use futures::TryStreamExt;
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 
 use crate::{
     components::{font_size, rect, size_resolver, text, Rect},
     layout::{LayoutLimits, SizeResolver},
+    text::TextSegment,
 };
 
 use super::{
@@ -47,7 +49,7 @@ use super::{
 struct TextBufferQuery {
     #[fetch(ignore)]
     state: Mutable<TextBufferState>,
-    text: Component<String>,
+    text: Component<Vec<TextSegment>>,
     rect: Component<Rect>,
     font_size: Component<f32>,
 }
@@ -94,7 +96,7 @@ pub fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem
         .with_query(Query::new((entity_ids(), text())).without(size_resolver()))
         .build(
             move |cmd: &mut CommandBuffer,
-                  mut query: QueryBorrow<'_, (EntityIds, Component<String>), _>| {
+                  mut query: QueryBorrow<'_, (EntityIds, Component<Vec<TextSegment>>), _>| {
                 let mut text_system_ref = text_system.lock();
                 for (id, _) in &mut query {
                     let state = TextBufferState::new(&mut text_system_ref.font_system);
@@ -166,7 +168,7 @@ impl TextSizeResolver {
     fn resolve_text_size(
         state: &mut TextBufferState,
         text_system: &mut TextSystem,
-        text: &str,
+        text: &[TextSegment],
         font_size: f32,
         _content_area: Rect,
         limits: Option<Vec2>,
