@@ -1,24 +1,20 @@
-use std::path::PathBuf;
+use std::path::Path;
 
-use super::{AssetCache, AssetKey};
+use bytes::Bytes;
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-/// Loads bytes from a file
-pub struct BytesFromFile(pub PathBuf);
+use super::{AssetCache, AssetKey, Loadable};
 
-impl std::ops::Deref for BytesFromFile {
-    type Target = PathBuf;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AssetKey for BytesFromFile {
-    type Output = Vec<u8>;
+impl<K> Loadable<K> for Bytes
+where
+    K: AssetKey,
+    K: AsRef<Path>,
+{
     type Error = std::io::Error;
 
-    fn load(self, _: &AssetCache) -> std::io::Result<Self::Output> {
-        std::fs::read(&self.0)
+    fn load(key: K, assets: &AssetCache) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        Ok(std::fs::read(key.as_ref())?.into())
     }
 }

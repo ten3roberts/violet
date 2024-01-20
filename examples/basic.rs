@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use flax::components::name;
 use futures::TryStreamExt;
 use glam::{vec2, Vec2};
@@ -10,7 +11,7 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    assets::AssetKey,
+    assets::{Asset, AssetKey},
     components::{self, layout, size, Edges},
     layout::{CrossAlign, Direction, Layout},
     style::StyleExt,
@@ -123,19 +124,16 @@ where
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-struct ImageFromPath {
-    path: PathBuf,
-}
+// impl<K> Asset<DynamicImage> for K
+// where
+//     K: AssetKey<Bytes>,
+// {
+//     type Error = K::Error;
 
-impl AssetKey for ImageFromPath {
-    type Output = DynamicImage;
-    type Error = ImageError;
-
-    fn load(self, _: &violet::assets::AssetCache) -> Result<Self::Output, ImageError> {
-        image::open(self.path)
-    }
-}
+//     fn load(self, _: &violet::assets::AssetCache) -> Result<DynamicImage, ImageError> {
+//         image::load_from_memory(&self.0)
+//     }
+// }
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
@@ -168,12 +166,10 @@ impl Widget for MainApp {
                     (1..=4)
                         .map(|i| {
                             let size = Vec2::splat(128.0 / i as f32);
-                            Image::new(ImageFromPath {
-                                path: "./assets/images/statue.jpg".into(),
-                            })
-                            .with_min_size(Unit::px(size))
-                            .with_size(Unit::px(size))
-                            .with_margin(MARGIN)
+                            Image::new("./assets/images/statue.jpg")
+                                .with_min_size(Unit::px(size))
+                                .with_size(Unit::px(size))
+                                .with_margin(MARGIN)
                         })
                         .collect_vec(),
                 )

@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{Asset, AssetCache},
+    assets::AssetCache,
     components::{color, draw_shape, font_size, layout_bounds, rect, screen_position, text, Rect},
     shape::shape_text,
     stored::{self, Handle},
@@ -70,14 +70,14 @@ impl ObjectQuery {
 
 struct FontRasterizer {
     rasterized: RasterizedFont,
-    sampler: Asset<Sampler>,
+    sampler: Arc<Sampler>,
     text_layout: BindGroupLayout,
 }
 
 impl FontRasterizer {
     fn new(
         gpu: &Gpu,
-        sampler: Asset<Sampler>,
+        sampler: Arc<Sampler>,
         text_layout: BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
@@ -162,16 +162,14 @@ impl MeshGenerator {
             },
         ));
 
-        let sampler = frame
-            .assets
-            .insert(ctx.gpu.device.create_sampler(&SamplerDescriptor {
-                label: Some("ShapeRenderer::sampler"),
-                anisotropy_clamp: 1,
-                mag_filter: wgpu::FilterMode::Nearest,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            }));
+        let sampler = Arc::new(ctx.gpu.device.create_sampler(&SamplerDescriptor {
+            label: Some("ShapeRenderer::sampler"),
+            anisotropy_clamp: 1,
+            mag_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        }));
 
         Self {
             rasterizer: FontRasterizer::new(&ctx.gpu, sampler, text_layout, store),

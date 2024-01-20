@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use slotmap::SlotMap;
 
-use super::{handle::WeakHandle, AssetId, Asset};
+use super::{handle::WeakHandle, Asset, AssetId};
 
 /// Contains the actual asset data
 ///
-/// Allows acessing an asset by its id
+/// Allows accessing an asset by its id
 pub struct AssetCell<V> {
     values: SlotMap<AssetId, WeakHandle<V>>,
 }
@@ -39,11 +39,5 @@ impl<V> AssetCell<V> {
 
     pub(super) fn get(&self, id: AssetId) -> Option<&WeakHandle<V>> {
         self.values.get(id)
-    }
-}
-
-impl<V> Default for AssetCell<V> {
-    fn default() -> Self {
-        Self::new()
     }
 }

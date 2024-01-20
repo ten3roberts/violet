@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 
 use flax::{
     entity_ids,
@@ -6,13 +6,13 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec4};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{map::HandleMap, Asset},
+    assets::{map::HandleMap, Asset, AssetCache, AssetKey, Loadable},
     components::{color, draw_shape, image, local_position, rect, screen_position, Rect},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
@@ -30,6 +30,21 @@ use super::{
     shape_renderer::{srgba_to_vec4, DrawCommand, ObjectData, RendererStore},
     Gpu,
 };
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct ImageFromColor(pub [u8; 4]);
+
+impl Loadable<ImageFromColor> for DynamicImage {
+    type Error = Infallible;
+
+    fn load(key: ImageFromColor, _: &AssetCache) -> Result<DynamicImage, Infallible> {
+        Ok(DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            32,
+            32,
+            image::Rgba(key.0),
+        )))
+    }
+}
 
 #[derive(Fetch)]
 struct RectObjectQuery {
@@ -100,13 +115,7 @@ impl RectRenderer {
             .bind_texture(ShaderStages::FRAGMENT)
             .build(&ctx.gpu);
 
-        let white_image = frame
-            .assets
-            .insert(DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
-                256,
-                256,
-                image::Rgba([255, 255, 255, 255]),
-            )));
+        let white_image = frame.assets.load(&ImageFromColor([255, 255, 255, 255]));
 
         let sampler = ctx.gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),

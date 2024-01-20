@@ -10,42 +10,9 @@ use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
-use crate::assets::{fs::BytesFromFile, Asset, AssetCache, AssetKey};
+use crate::assets::{Asset, AssetCache, AssetKey};
 
 use super::{graphics::texture::Texture, text_renderer::TextSystem, Gpu};
-
-/// Loads a font from memory
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-pub struct FontFromBytes {
-    pub bytes: Asset<Vec<u8>>,
-}
-
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-pub struct FontFromFile {
-    pub path: PathBuf,
-}
-
-impl AssetKey for FontFromFile {
-    type Output = Font;
-    type Error = anyhow::Error;
-
-    fn load(self, assets: &AssetCache) -> anyhow::Result<Self::Output> {
-        let bytes = assets.try_load(&BytesFromFile(self.path))?;
-
-        FontFromBytes { bytes }.load(assets)
-    }
-}
-
-impl AssetKey for FontFromBytes {
-    type Output = Font;
-    type Error = anyhow::Error;
-
-    fn load(self, _assets: &crate::assets::AssetCache) -> anyhow::Result<Self::Output> {
-        let bytes = &*self.bytes;
-        fontdue::Font::from_bytes(bytes.as_ref(), fontdue::FontSettings::default())
-            .map_err(|v| anyhow::anyhow!("Error loading font: {v:?}"))
-    }
-}
 
 /// A glyphs location in the text atlas
 #[derive(Copy, Clone)]
