@@ -1,6 +1,6 @@
 use slotmap::{secondary, SecondaryMap};
 
-use super::{AssetId, Asset};
+use super::{Asset, AssetId};
 
 /// Associates handles with locally owned data
 pub struct HandleMap<K, V> {

@@ -203,14 +203,15 @@ impl Widget for MainApp {
                     .with_margin(MARGIN),
                 )
                 .with_background(Rectangle::new(EERIE_BLACK))
-                .with_padding(MARGIN),
+                .with_padding(MARGIN)
+                .with_margin(MARGIN),
                 Stack::new((Text::rich([TextSegment::new(
                     "The quick brown fox 🦊 jumps over the lazy dog 🐕",
                 )
                 .with_style(cosmic_text::Style::Italic)])
                 // .with_family("Inter")
                 .with_font_size(32.0)
-                .with_margin(MARGIN * 5.0),))
+                .with_margin(MARGIN),))
                 .with_background(Rectangle::new(EERIE_BLACK))
                 .with_padding(MARGIN)
                 .with_margin(MARGIN),
@@ -231,10 +232,9 @@ impl Widget for MainApp {
             ))
             .with_background(Rectangle::new(EERIE_BLACK_600))
             .contain_margins(true)
-            .with_direction(Direction::Vertical)
-            .with_cross_align(CrossAlign::Center),
+            .with_direction(Direction::Vertical),
+            // .with_cross_align(CrossAlign::Center),
         )
-        .with_padding(Edges::even(50.0))
         .with_name("outer stack")
         .mount(scope);
     }

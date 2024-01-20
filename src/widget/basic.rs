@@ -3,7 +3,7 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    assets::{AssetKey, Loadable},
+    assets::AssetKey,
     components::{self, color, draw_shape, font_size, text},
     input::{on_focus, on_mouse_input},
     shape,
@@ -42,8 +42,7 @@ impl<K> Image<K> {
 
 impl<K> Widget for Image<K>
 where
-    K: Clone + AssetKey,
-    DynamicImage: Loadable<K>,
+    K: AssetKey<DynamicImage>,
 {
     fn mount(self, scope: &mut Scope) {
         let image = scope.assets_mut().try_load(&self.image).ok();

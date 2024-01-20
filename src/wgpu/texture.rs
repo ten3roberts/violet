@@ -1,20 +1,21 @@
-use bytes::Bytes;
-use image::DynamicImage;
+use image::{DynamicImage, ImageError, ImageResult};
+use std::path::Path;
 
-use crate::assets::{AssetCache, AssetKey, Loadable};
+use crate::assets::{Asset, AssetCache, AssetKey};
 
-impl<K> Loadable<K> for DynamicImage
-where
-    K: AssetKey,
-    Bytes: Loadable<K>,
-    <Bytes as Loadable<K>>::Error: Into<anyhow::Error>,
-{
-    type Error = anyhow::Error;
+// impl Loadable<Path> for DynamicImage {
+//     type Error = ImageError;
 
-    fn load(key: K, _: &AssetCache) -> anyhow::Result<Self> {
-        Ok(image::load_from_memory(
-            &Bytes::load(key, &AssetCache::new()).map_err(|v| v.into())?,
-        )?)
+//     fn load(&self, _: &AssetCache) -> ImageResult<DynamicImage> {
+//         Ok(image::open(self)?)
+//     }
+// }
+
+impl AssetKey<DynamicImage> for Path {
+    type Error = ImageError;
+
+    fn load(&self, assets: &AssetCache) -> ImageResult<Asset<DynamicImage>> {
+        Ok(assets.insert(image::open(self)?))
     }
 }
 

@@ -1,20 +1,32 @@
-use std::path::Path;
+use std::{hash::Hash, path::Path};
 
-use bytes::Bytes;
+use super::{Asset, AssetCache, AssetKey};
 
-use super::{AssetCache, AssetKey, Loadable};
-
-impl<K> Loadable<K> for Bytes
+impl<V, P> AssetKey<V> for P
 where
-    K: AssetKey,
-    K: AsRef<Path>,
+    Path: AssetKey<V>,
+    P: 'static + Send + Sync + Eq + Hash + AsRef<Path> + Clone,
+    V: 'static + Send + Sync,
 {
-    type Error = std::io::Error;
+    type Error = <Path as AssetKey<V>>::Error;
 
-    fn load(key: K, assets: &AssetCache) -> Result<Self, Self::Error>
-    where
-        Self: Sized,
-    {
-        Ok(std::fs::read(key.as_ref())?.into())
+    fn load(&self, assets: &AssetCache) -> Result<Asset<V>, Self::Error> {
+        assets.try_load(self.as_ref())
     }
 }
+
+// i
+// impl<K> Loadable<K> for Bytes
+// where
+//     K: AssetKey,
+//     K: AsRef<Path>,
+// {
+//     type Error = std::io::Error;
+
+//     fn load(key: K, assets: &AssetCache) -> Result<Self, Self::Error>
+//     where
+//         Self: Sized,
+//     {
+//         Ok(std::fs::read(key.as_ref())?.into())
+//     }
+// }

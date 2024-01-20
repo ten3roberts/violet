@@ -12,7 +12,7 @@ use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{map::HandleMap, Asset, AssetCache, AssetKey, Loadable},
+    assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{color, draw_shape, image, local_position, rect, screen_position, Rect},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
@@ -34,17 +34,31 @@ use super::{
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ImageFromColor(pub [u8; 4]);
 
-impl Loadable<ImageFromColor> for DynamicImage {
+impl AssetKey<DynamicImage> for ImageFromColor {
     type Error = Infallible;
 
-    fn load(key: ImageFromColor, _: &AssetCache) -> Result<DynamicImage, Infallible> {
-        Ok(DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
-            32,
-            32,
-            image::Rgba(key.0),
-        )))
+    fn load(&self, assets: &AssetCache) -> Result<Asset<DynamicImage>, Infallible> {
+        Ok(
+            assets.insert(DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
+                32,
+                32,
+                image::Rgba(self.0),
+            ))),
+        )
     }
 }
+
+// impl Loadable<ImageFromColor> for DynamicImage {
+//     type Error = Infallible;
+
+//     fn load(key: &ImageFromColor, _: &AssetCache) -> Result<DynamicImage, Infallible> {
+//         Ok(DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+//             32,
+//             32,
+//             image::Rgba(key.0),
+//         )))
+//     }
+// }
 
 #[derive(Fetch)]
 struct RectObjectQuery {

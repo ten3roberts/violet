@@ -24,14 +24,18 @@ impl<T: ?Sized> Clone for WeakHandle<T> {
 
 impl<T: ?Sized> WeakHandle<T> {
     pub fn upgrade(&self) -> Option<Asset<T>> {
-        self.value.upgrade().map(|count| Asset {
-            value: count,
-            id: self.id,
-        })
+        self.value
+            .upgrade()
+            .map(|value| Asset { value, id: self.id })
     }
 
     pub fn strong_count(&self) -> usize {
         self.value.strong_count()
+    }
+
+    #[inline]
+    pub fn id(&self) -> AssetId {
+        self.id
     }
 }
 
@@ -44,10 +48,21 @@ impl<T: ?Sized> PartialEq for WeakHandle<T> {
 impl<T: ?Sized> Eq for WeakHandle<T> {}
 
 /// Keep-alive handle to an asset
+///
+/// Works like an `Arc` with a unique identifier to allow it to be compared and sorted regardless of `T`.
 #[derive(Debug)]
 pub struct Asset<T: ?Sized> {
     pub(crate) id: AssetId,
     pub(crate) value: Arc<T>,
+}
+
+impl<T> AsRef<T> for Asset<T>
+where
+    T: ?Sized,
+{
+    fn as_ref(&self) -> &T {
+        &self.value
+    }
 }
 
 impl<T: ?Sized> std::ops::Deref for Asset<T> {
@@ -73,6 +88,10 @@ impl<T: ?Sized> Asset<T> {
             value: Arc::downgrade(&self.value),
             id: self.id,
         }
+    }
+
+    pub fn as_arc(&self) -> &Arc<T> {
+        &self.value
     }
 
     #[inline]
