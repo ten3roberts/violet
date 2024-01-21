@@ -1,24 +1,26 @@
 use bytes::Bytes;
-use flax::components::name;
+use cosmic_text::FamilyOwned;
+use flax::{components::name, fetch::entity_refs, FetchExt, Query};
 use futures::TryStreamExt;
 use glam::{vec2, Vec2};
 use image::{DynamicImage, ImageError};
 use itertools::Itertools;
 use palette::{Hsva, IntoColor, Srgba};
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
 use violet::{
     assets::{Asset, AssetKey},
-    components::{self, layout, size, Edges},
+    components::{self, layout, rect, size, text, Edges},
     layout::{CrossAlign, Direction, Layout},
     style::StyleExt,
     text::{FontFamily, Style, TextSegment, Weight},
+    time::interval,
     unit::Unit,
     widget::{Button, ContainerExt, Image, List, Rectangle, Stack, Text, WidgetExt},
-    App, Scope, Widget,
+    App, Scope, StreamEffect, Widget,
 };
 
 struct MainApp;
@@ -141,102 +143,131 @@ impl Widget for MainApp {
             .set(name(), "MainApp".into())
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
-        Stack::new(
-            List::new((
-                List::new(
-                    (0..4)
-                        .map(|i| {
-                            let size = vec2(50.0, 50.0);
+        List::new((
+            // List::new(
+            //     (0..4)
+            //         .map(|i| {
+            //             let size = vec2(50.0, 50.0);
 
-                            Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
-                                .with_min_size(Unit::px(size))
-                                .with_size(Unit::px(size * vec2(2.0, 1.0)))
-                        })
-                        .collect_vec(),
-                ),
-                LayoutTest {
-                    contain_margins: true,
-                }
-                .with_name("LayoutText 3"),
-                LayoutTest {
-                    contain_margins: false,
-                }
-                .with_name("LayoutText 2"),
-                List::new(
-                    (1..=4)
-                        .map(|i| {
-                            let size = Vec2::splat(128.0 / i as f32);
-                            Image::new("./assets/images/statue.jpg")
-                                .with_min_size(Unit::px(size))
-                                .with_size(Unit::px(size))
-                                .with_margin(MARGIN)
-                        })
-                        .collect_vec(),
-                )
-                .with_name("Images"),
-                Stack::new(
-                    Text::rich([
-                        TextSegment::new("Violet").with_color(VIOLET),
-                        TextSegment::new(" now has support for "),
-                        TextSegment::new("rich ").with_style(Style::Italic),
-                        TextSegment::new("text. I wanted to "),
-                        TextSegment::new("emphasize").with_style(Style::Italic),
-                        TextSegment::new(" that, "),
-                        TextSegment::new("(and put something in bold)")
-                            .with_family("Inter")
-                            .with_weight(Weight::BOLD),
-                        TextSegment::new(", and").with_style(Style::Italic),
-                        TextSegment::new(" also show off the different font loadings: \n"),
-                        TextSegment::new("Monospace:")
-                            .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                            .with_color(TEAL),
-                        TextSegment::new("\n\nfn main() { \n    println!(")
-                            .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
-                        TextSegment::new("\"Hello, world!\"")
-                            .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                            .with_color(BRONZE)
-                            .with_style(Style::Italic),
-                        TextSegment::new("); \n}")
-                            .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
-                    ])
-                    .with_font_size(28.0)
-                    .with_margin(MARGIN),
-                )
-                .with_background(Rectangle::new(EERIE_BLACK))
-                .with_padding(MARGIN)
-                .with_margin(MARGIN),
-                Stack::new((Text::rich([TextSegment::new(
-                    "The quick brown fox 🦊 jumps over the lazy dog 🐕",
-                )
-                .with_style(cosmic_text::Style::Italic)])
-                // .with_family("Inter")
-                .with_font_size(32.0)
-                .with_margin(MARGIN),))
-                .with_background(Rectangle::new(EERIE_BLACK))
-                .with_padding(MARGIN)
-                .with_margin(MARGIN),
-                Stack::new((
-                    Rectangle::new(CHILI_RED)
-                        .with_min_size(Unit::px(vec2(100.0, 30.0)))
-                        .with_size(Unit::px(vec2(100.0, 30.0))),
-                    Rectangle::new(TEAL)
-                        .with_min_size(Unit::px(vec2(200.0, 10.0)))
-                        .with_size(Unit::px(vec2(100.0, 10.0)))
-                        .with_margin(MARGIN),
-                    Text::new("This is some text")
-                        .with_font_size(16.0)
-                        .with_margin(MARGIN),
-                    Rectangle::new(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),
-                ))
-                .with_background(Rectangle::new(EERIE_BLACK)),
-            ))
-            .with_background(Rectangle::new(EERIE_BLACK_600))
-            .contain_margins(true)
-            .with_direction(Direction::Vertical),
-            // .with_cross_align(CrossAlign::Center),
-        )
-        .with_name("outer stack")
+            //             Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
+            //                 .with_min_size(Unit::px(size))
+            //                 .with_size(Unit::px(size * vec2(2.0, 1.0)))
+            //         })
+            //         .collect_vec(),
+            // ),
+            // LayoutTest {
+            //     contain_margins: true,
+            // }
+            // .with_name("LayoutText 3"),
+            // LayoutTest {
+            //     contain_margins: false,
+            // }
+            // .with_name("LayoutText 2"),
+            // List::new(
+            //     (1..=4)
+            //         .map(|i| {
+            //             let size = Vec2::splat(128.0 / i as f32);
+            //             Image::new("./assets/images/statue.jpg")
+            //                 .with_min_size(Unit::px(size))
+            //                 .with_size(Unit::px(size))
+            //                 .with_margin(MARGIN)
+            //         })
+            //         .collect_vec(),
+            // )
+            // .with_name("Images"),
+            Stack::new(
+                Rectangle::new(EMERALD).with_size(Unit::px(vec2(100.0, 20.0))),
+                // Text::rich([
+                //     TextSegment::new("Violet").with_color(VIOLET),
+                //     TextSegment::new(" now has support for "),
+                //     TextSegment::new("rich ").with_style(Style::Italic),
+                //     TextSegment::new("text. I wanted to "),
+                //     TextSegment::new("emphasize").with_style(Style::Italic),
+                //     TextSegment::new(" that, "),
+                //     TextSegment::new("(and put something in bold)")
+                //         .with_family("Inter")
+                //         .with_weight(Weight::BOLD),
+                //     TextSegment::new(", and").with_style(Style::Italic),
+                //     TextSegment::new(" also show off the different font loadings: \n"),
+                //     TextSegment::new("Monospace:")
+                //         .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                //         .with_color(TEAL),
+                //     TextSegment::new("\n\nfn main() { \n    println!(")
+                //         .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+                //     TextSegment::new("\"Hello, world!\"")
+                //         .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                //         .with_color(BRONZE)
+                //         .with_style(Style::Italic),
+                //     TextSegment::new("); \n}")
+                //         .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+                // ])
+                // .with_font_size(28.0)
+                // .with_margin(MARGIN),
+            )
+            .with_background(Rectangle::new(EERIE_BLACK))
+            .with_padding(MARGIN)
+            .with_margin(MARGIN),
+            Stack::new((Text::rich([TextSegment::new(
+                "The quick brown fox 🦊 jumps over the lazy dog 🐕",
+            )
+            .with_style(cosmic_text::Style::Italic)])
+            // .with_family("Inter")
+            .with_font_size(32.0)
+            .with_margin(MARGIN),))
+            .with_background(Rectangle::new(EERIE_BLACK))
+            .with_padding(MARGIN)
+            .with_margin(MARGIN),
+            // Stack::new((
+            //     Rectangle::new(CHILI_RED)
+            //         .with_min_size(Unit::px(vec2(100.0, 30.0)))
+            //         .with_size(Unit::px(vec2(100.0, 30.0))),
+            //     Rectangle::new(TEAL)
+            //         .with_min_size(Unit::px(vec2(200.0, 10.0)))
+            //         .with_size(Unit::px(vec2(100.0, 10.0)))
+            //         .with_margin(MARGIN),
+            //     Text::new("This is some text")
+            //         .with_font_size(16.0)
+            //         .with_margin(MARGIN),
+            //     // Rectangle::n#ew(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),
+            // ))
+            // .with_background(Rectangle::new(EERIE_BLACK))
+            // .with_margin(MARGIN),
+            // Text::new("Foo"),
+            // DisplayWorld,
+            // Rectangle::new(CHILI_RED).with_size(Unit::px(vec2(100.0, 10.0))),
+        ))
+        .with_background(Rectangle::new(EERIE_BLACK_600))
+        .contain_margins(true)
+        .with_direction(Direction::Vertical)
         .mount(scope);
+    }
+}
+
+struct DisplayWorld;
+
+impl Widget for DisplayWorld {
+    fn mount(self, scope: &mut Scope<'_>) {
+        scope.spawn(StreamEffect::new(
+            interval(Duration::from_secs(1)),
+            |scope: &mut Scope<'_>, _| {
+                let world = &scope.frame().world;
+                let s = Query::new((components::color(), rect().opt()))
+                    .borrow(world)
+                    .iter()
+                    .map(|v| format!("{v:?}"))
+                    .join("\n");
+
+                scope.set(
+                    text(),
+                    vec![TextSegment::new(s).with_family(FontFamily::Monospace)],
+                );
+            },
+        ));
+
+        Text::new("")
+            .with_font_size(12.0)
+            .with_margin(MARGIN)
+            .mount(scope);
     }
 }
 

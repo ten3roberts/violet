@@ -65,7 +65,7 @@ impl TextBufferQuery {
     }
 }
 
-pub fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
+pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
     System::builder()
         .with_query(Query::new(TextBufferQuery::new().modified()))
         .build(
@@ -90,7 +90,7 @@ pub fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
         .boxed()
 }
 
-pub fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
+pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
     System::builder()
         .with_cmd_mut()
         .with_query(Query::new((entity_ids(), text())).without(size_resolver()))
@@ -131,6 +131,7 @@ impl SizeResolver for TextSizeResolver {
         entity: &flax::EntityRef,
         content_area: Rect,
         limits: Option<LayoutLimits>,
+        squeeze: Vec2,
     ) -> (glam::Vec2, glam::Vec2) {
         let query = (text_buffer_state().as_mut(), font_size(), text());
         if let Some((state, &font_size, text)) = entity.query(&query).get() {
@@ -150,13 +151,17 @@ impl SizeResolver for TextSizeResolver {
                 text,
                 font_size,
                 content_area,
-                Some(vec2(1.0, f32::MAX)),
+                if squeeze.x > squeeze.y {
+                    todo!()
+                } else {
+                    Some(vec2(content_area.size().x, f32::MAX))
+                },
             );
 
             // assert!(min.x <= 1.0);
             // assert!(min.y <= 1.0);
 
-            // tracing::debug!(%min, %preferred);
+            tracing::info!(%min, %preferred);
             return (min, preferred);
         }
 
@@ -170,7 +175,7 @@ impl TextSizeResolver {
         text_system: &mut TextSystem,
         text: &[TextSegment],
         font_size: f32,
-        _content_area: Rect,
+        content_area: Rect,
         limits: Option<Vec2>,
     ) -> Vec2 {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
@@ -180,21 +185,20 @@ impl TextSizeResolver {
 
             let metrics = Metrics::new(font_size, font_size);
             buffer.set_metrics(metrics);
+            buffer.set_wrap(cosmic_text::Wrap::Glyph);
 
             if let Some(limits) = limits {
-                buffer.set_size(limits.x, limits.y);
+                let size = limits.min(content_area.size());
+                buffer.set_size(size.x, size.y);
             } else {
-                buffer.set_size(f32::MAX, f32::MAX);
+                let size = content_area.size();
+                buffer.set_size(size.x, size.y);
             }
 
             // buffer.shape_until_scroll();
         }
 
-        let size = measure(&state.buffer);
-
-        // tracing::debug!(%size);
-
-        size
+        measure(&state.buffer)
     }
 }
 

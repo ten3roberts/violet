@@ -1,10 +1,11 @@
+use glam::vec2;
 use image::DynamicImage;
 use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
     assets::AssetKey,
-    components::{self, color, draw_shape, font_size, text},
+    components::{self, color, draw_shape, font_size, size, text},
     input::{on_focus, on_mouse_input},
     shape,
     text::TextSegment,

@@ -6,7 +6,7 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
@@ -106,7 +106,7 @@ pub struct RectRenderer {
     layout: BindGroupLayout,
     sampler: wgpu::Sampler,
 
-    rect_query: Query<<RectDrawQuery as TransformFetch<Modified>>::Output>,
+    rect_query: Query<RectDrawQuery>,
     object_query: Query<RectObjectQuery, (All, With)>,
 
     bind_groups: HandleMap<DynamicImage, WeakHandle<BindGroup>>,
@@ -166,7 +166,7 @@ impl RectRenderer {
             white_image,
             layout,
             sampler,
-            rect_query: Query::new(RectDrawQuery::new().modified()),
+            rect_query: Query::new(RectDrawQuery::new()),
             object_query: Query::new(RectObjectQuery::new()).with(draw_shape(shape_rectangle())),
             bind_groups: HandleMap::new(),
             mesh,
@@ -219,11 +219,12 @@ impl RectRenderer {
     }
 
     pub fn update(&mut self, _: &Gpu, frame: &Frame) {
+        let _span = tracing::debug_span!("RectRenderer::update").entered();
         self.object_query
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                tracing::debug!(?item.color, %item.pos);
+                tracing::debug!(color=%srgba_to_vec4(*item.color), %item.pos, ?item.rect);
                 let rect = item.rect.translate(*item.pos).align_to_grid();
 
                 let model_matrix = Mat4::from_scale_rotation_translation(

@@ -208,18 +208,18 @@ impl WidgetRenderer {
                     instance_count: 1,
                 }
             })
-            .coalesce(|prev, current| {
-                if prev.draw_cmd == current.draw_cmd {
-                    assert!(prev.first_instance + prev.instance_count == current.first_instance);
-                    Ok(InstancedDrawCommandRef {
-                        draw_cmd: prev.draw_cmd,
-                        first_instance: prev.first_instance,
-                        instance_count: prev.instance_count + 1,
-                    })
-                } else {
-                    Err((prev, current))
-                }
-            })
+            // .coalesce(|prev, current| {
+            //     if prev.draw_cmd == current.draw_cmd {
+            //         assert!(prev.first_instance + prev.instance_count == current.first_instance);
+            //         Ok(InstancedDrawCommandRef {
+            //             draw_cmd: prev.draw_cmd,
+            //             first_instance: prev.first_instance,
+            //             instance_count: prev.instance_count + 1,
+            //         })
+            //     } else {
+            //         Err((prev, current))
+            //     }
+            // })
             .map(|cmd| InstancedDrawCommand {
                 draw_cmd: cmd.draw_cmd.clone(),
                 first_instance: cmd.first_instance,

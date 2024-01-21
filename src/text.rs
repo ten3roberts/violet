@@ -56,6 +56,7 @@ where
 }
 
 /// A segment of rich text
+#[derive(Debug, Clone)]
 pub struct TextSegment {
     pub text: String,
     pub family: FontFamily,

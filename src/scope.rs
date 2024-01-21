@@ -120,7 +120,7 @@ impl<'a> Scope<'a> {
             let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
-            s.set(name(), type_name::<W>().into());
+            s.set(name(), tynm::type_name::<W>().into());
 
             widget.mount(&mut s);
             s.id

@@ -208,18 +208,25 @@ impl FlowLayout {
         let minimum_inner_size = row.min.size().dot(axis);
 
         if minimum_inner_size > limits.max_size.dot(axis) {
-            // tracing::error!(
-            //     "minimum inner size exceeded max size: {:?} > {:?}",
-            //     minimum_inner_size,
-            //     limits.max_size
-            // );
+            tracing::error!(
+                ?minimum_inner_size,
+                ?limits.max_size,
+                "minimum inner size exceeded max size",
+            );
         }
 
         // If everything could take as much space as it wants
         let preferred_inner_size = row.preferred.size().dot(axis);
 
+        if minimum_inner_size > preferred_inner_size {
+            tracing::error!(
+                ?minimum_inner_size,
+                ?preferred_inner_size,
+                "minimum inner size exceeded preferred size",
+            );
+        }
         // How much space there is left to distribute out
-        let distribute_size = preferred_inner_size - minimum_inner_size;
+        let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
         // tracing::info!(?distribute_size);
 
         // Clipped maximum that we remap to
@@ -404,12 +411,20 @@ impl FlowLayout {
                 let entity = world.entity(child).expect("Invalid child");
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let query = query_size(world, &entity, content_area);
-                // tracing::info!("query: {:?}", query);
 
-                min_cursor.put(&Block::new(query.min, query.margin));
-                preferred_cursor.put(&Block::new(query.preferred, query.margin));
-                (entity, query)
+                let child_margin = if self.contain_margins {
+                    query_size(world, &entity, content_area, axis).margin
+                } else {
+                    Edges::ZERO
+                };
+
+                let cross_size = inner_rect.size() - child_margin.size();
+                let sizing = query_size(world, &entity, content_area, axis);
+                tracing::debug!(?sizing, %entity);
+
+                min_cursor.put(&Block::new(sizing.min, sizing.margin));
+                preferred_cursor.put(&Block::new(sizing.preferred, sizing.margin));
+                (entity, sizing)
             })
             .collect_vec();
 

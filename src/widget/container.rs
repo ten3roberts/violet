@@ -21,7 +21,7 @@ impl<W> Stack<W> {
             items,
             background: None,
             horizontal_alignment: CrossAlign::Center,
-            vertical_alignment: CrossAlign::Start,
+            vertical_alignment: CrossAlign::Center,
         }
     }
 

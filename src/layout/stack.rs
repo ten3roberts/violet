@@ -9,10 +9,25 @@ use crate::{
 
 use super::{update_subtree, Block, CrossAlign, LayoutLimits, Sizing};
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct StackableBounds {
     inner: Rect,
     outer: Rect,
+}
+
+impl Default for StackableBounds {
+    fn default() -> Self {
+        Self {
+            inner: Rect {
+                min: Vec2::MAX,
+                max: Vec2::MIN,
+            },
+            outer: Rect {
+                min: Vec2::MAX,
+                max: Vec2::MIN,
+            },
+        }
+    }
 }
 
 impl StackableBounds {
@@ -79,7 +94,10 @@ impl StackLayout {
             max: content_area.size(),
         };
 
-        let mut bounds = Rect::default();
+        let mut bounds = Rect {
+            min: Vec2::MAX,
+            max: Vec2::MIN,
+        };
 
         let blocks = children
             .iter()
@@ -95,7 +113,7 @@ impl StackLayout {
 
                 let block = update_subtree(world, &entity, inner_rect, limits);
 
-                bounds = bounds.merge(block.rect);
+                bounds = bounds.merge(block.rect.translate(content_area.min));
 
                 (entity, block)
             })
@@ -125,13 +143,11 @@ impl StackLayout {
             entity.update_dedup(components::local_position(), offset);
         }
 
-        let mut rect = aligned_bounds.inner.max_size(limits.min_size);
+        let rect = aligned_bounds.inner; //.max_size(limits.min_size);
         let margin = aligned_bounds.margin();
 
-        rect.min += content_area.min;
-        rect.max += content_area.min;
-
-        tracing::info!(?margin);
+        // rect.min += content_area.min;
+        // rect.max += content_area.min;
 
         Block::new(rect, margin)
     }
@@ -141,6 +157,7 @@ impl StackLayout {
         world: &World,
         children: &[Entity],
         content_area: Rect,
+        squeeze: Vec2,
     ) -> Sizing {
         // Reset to local
         let inner_rect = Rect {
@@ -150,14 +167,21 @@ impl StackLayout {
 
         let mut min_bounds = StackableBounds::default();
         let mut preferred_bounds = StackableBounds::default();
+
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(world, &entity, inner_rect);
+            let query = query_size(world, &entity, inner_rect, squeeze);
 
-            min_bounds = min_bounds.merge(&StackableBounds::new(query.min, query.margin));
-            preferred_bounds =
-                preferred_bounds.merge(&StackableBounds::new(query.preferred, query.margin));
+            min_bounds = min_bounds.merge(&StackableBounds::new(
+                query.min.translate(content_area.min),
+                query.margin,
+            ));
+
+            preferred_bounds = preferred_bounds.merge(&StackableBounds::new(
+                query.preferred.translate(content_area.min),
+                query.margin,
+            ));
         }
 
         let min_margin = min_bounds.margin();

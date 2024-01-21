@@ -37,9 +37,10 @@ impl Layout {
         world: &World,
         children: &[Entity],
         inner_rect: Rect,
+        squeeze: Vec2,
     ) -> Sizing {
         match self {
-            Layout::Stack(v) => v.query_size(world, children, inner_rect),
+            Layout::Stack(v) => v.query_size(world, children, inner_rect, squeeze),
             Layout::Flow(v) => v.query_size(world, children, inner_rect).sizing(),
         }
     }
@@ -74,7 +75,7 @@ impl Block {
     }
 }
 
-pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizing {
+pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect, squeeze: Vec2) -> Sizing {
     let margin = entity
         .get(components::margin())
         .ok()
@@ -91,7 +92,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
 
     // Flow
     if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
-        let sizing = layout.query_size(world, children, content_area.inset(&padding));
+        let sizing = layout.query_size(world, children, content_area.inset(&padding), squeeze);
         let margin = (sizing.margin - padding).max(margin);
 
         Sizing {
@@ -129,7 +130,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
         //     }
         // }
     } else {
-        let (min_size, preferred_size) = resolve_size(entity, content_area, None);
+        let (min_size, preferred_size) = resolve_size(entity, content_area, None, squeeze);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
@@ -195,7 +196,7 @@ pub(crate) fn update_subtree(
     }
     // Text widgets height are influenced by their available width.
     else {
-        let (_, size) = resolve_size(entity, content_area, Some(limits));
+        let (_, size) = resolve_size(entity, content_area, Some(limits), Vec2::ZERO);
 
         let pos = resolve_pos(entity, content_area, size);
         let rect = Rect::from_size_pos(size, pos).clip(content_area);
@@ -212,6 +213,7 @@ pub(crate) trait SizeResolver: Send + Sync {
         entity: &EntityRef,
         content_area: Rect,
         limits: Option<LayoutLimits>,
+        squeeze: Vec2,
     ) -> (Vec2, Vec2);
 }
 
@@ -220,6 +222,7 @@ fn resolve_size(
     entity: &EntityRef,
     content_area: Rect,
     limits: Option<LayoutLimits>,
+    squeeze: Vec2,
 ) -> (Vec2, Vec2) {
     let parent_size = content_area.size();
 
@@ -253,7 +256,7 @@ fn resolve_size(
         //     (min_size, preferred)
         // }
     } else if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
-        resolver.resolve(entity, content_area, limits)
+        resolver.resolve(entity, content_area, limits, squeeze)
     } else {
         // tracing::info!(%entity, "using intrinsic_size");
         (Vec2::ZERO, Vec2::ZERO)
