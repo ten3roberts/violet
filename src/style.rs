@@ -12,16 +12,39 @@ use crate::{
 pub trait StyleExt {
     fn with_margin(self, margin: Edges) -> WithComponent<Self, Edges>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.with_component(components::margin(), margin)
+    }
 
     fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.with_component(components::min_size(), min_size)
+    }
 
     fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.with_component(components::size(), size)
+    }
+
+    #[inline]
+    fn with_component<T: ComponentValue>(
+        self,
+        component: Component<T>,
+        value: T,
+    ) -> WithComponent<Self, T>
+    where
+        Self: Sized,
+    {
+        WithComponent::new(self, component, value)
+    }
 }
+
+impl<W> StyleExt for W where W: Widget {}
 
 /// A widget extended with a single component
 pub struct WithComponent<W, T> {
@@ -59,22 +82,5 @@ impl<W: Widget, T: ComponentValue> Widget for WithComponent<W, T> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
         self.widget.mount(scope);
         scope.set(self.component, self.value);
-    }
-}
-
-impl<W> StyleExt for W
-where
-    W: Widget,
-{
-    fn with_margin(self, margin: Edges) -> WithComponent<Self, Edges> {
-        WithComponent::new(self, components::margin(), margin)
-    }
-
-    fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
-        WithComponent::new(self, components::size(), size)
-    }
-
-    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
-        WithComponent::new(self, components::min_size(), min_size)
     }
 }

@@ -1,16 +1,19 @@
 use glam::vec2;
 use image::DynamicImage;
 use palette::Srgba;
-use winit::event::ElementState;
+use winit::event::{ElementState, MouseButton};
 
 use crate::{
     assets::AssetKey,
     components::{self, color, draw_shape, font_size, size, text, text_wrap},
     input::{on_focus, on_mouse_input},
     shape,
+    style::StyleExt,
     text::{self, TextSegment, Wrap},
     Frame, Scope, Widget,
 };
+
+use super::{ContainerExt, Stack};
 
 /// A rectangular widget
 pub struct Rectangle {
@@ -117,29 +120,47 @@ impl Widget for Text {
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
 
 /// A button which invokes the callback when clicked
-pub struct Button {
-    normal_color: Srgba,
+pub struct Button<W = Text> {
+    background_color: Srgba,
     pressed_color: Srgba,
 
-    on_click: ButtonCallback,
+    on_press: ButtonCallback,
+    container: Stack<W>,
 }
 
-impl Button {
-    pub fn new(normal_color: Srgba, pressed_color: Srgba, on_click: ButtonCallback) -> Self {
+impl<W> Button<W> {
+    pub fn new(label: W) -> Self {
+        let pressed_color = Srgba::new(0.1, 0.1, 0.1, 1.0);
+        let background_color = Srgba::new(0.2, 0.2, 0.2, 1.0);
         Self {
-            normal_color,
             pressed_color,
-            on_click,
+            background_color,
+            on_press: Box::new(|_, _| {}),
+            container: Stack::new(label).with_background(Rectangle::new(background_color)),
         }
+    }
+
+    /// Handle the button press
+    pub fn on_press(
+        mut self,
+        on_press: impl 'static + Send + Sync + FnMut(&Frame, MouseButton),
+    ) -> Self {
+        self.on_press = Box::new(on_press);
+        self
     }
 }
 
-impl Widget for Button {
+impl<W> ContainerExt for Button<W> {
+    fn with_background(mut self, background: Rectangle) -> Self {
+        self.container = self.container.with_background(background);
+        self
+    }
+}
+
+impl<W: Widget> Widget for Button<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
-        scope
-            .set(draw_shape(shape::shape_rectangle()), ())
-            .set(color(), self.normal_color)
-            .set(
+        self.container
+            .with_component(
                 on_focus(),
                 Box::new(move |_, entity, focus| {
                     entity.update_dedup(
@@ -147,18 +168,19 @@ impl Widget for Button {
                         if focus {
                             self.pressed_color
                         } else {
-                            self.normal_color
+                            self.background_color
                         },
                     );
                 }),
             )
-            .set(
+            .with_component(
                 on_mouse_input(),
                 Box::new(move |frame, _, state, button| {
                     if state == ElementState::Released {
-                        (self.on_click)(frame, button);
+                        (self.on_press)(frame, button);
                     }
                 }),
-            );
+            )
+            .mount(scope);
     }
 }

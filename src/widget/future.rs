@@ -1,32 +1,26 @@
 use futures::Stream;
-use futures_signals::signal::{Signal, SignalExt};
+use futures_signals::signal::{self, SignalExt};
 
-use crate::{
-    components::layout,
-    layout::{FlowLayout, Layout},
-    Scope, StreamEffect, Widget,
-};
+use crate::{components::layout, layout::Layout, Scope, StreamEffect, Widget};
 
-pub struct SignalWidget<S> {
-    signal: S,
-}
+pub struct Signal<S>(pub S);
 
-impl<S> SignalWidget<S> {
+impl<S> Signal<S> {
     pub fn new(signal: S) -> Self {
-        Self { signal }
+        Self(signal)
     }
 }
 
-impl<S, W> Widget for SignalWidget<S>
+impl<S, W> Widget for Signal<S>
 where
-    S: 'static + Signal<Item = W>,
+    S: 'static + signal::Signal<Item = W>,
     W: Widget,
 {
     fn mount(self, scope: &mut crate::Scope<'_>) {
         let mut child = None;
-        let stream = self.signal.to_stream();
+        let stream = self.0.to_stream();
 
-        scope.set(layout(), Layout::Flow(FlowLayout::default()));
+        scope.set(layout(), Layout::Stack(Default::default()));
 
         scope.spawn(StreamEffect::new(
             stream,
@@ -41,9 +35,7 @@ where
     }
 }
 
-pub struct StreamWidget<S> {
-    stream: S,
-}
+pub struct StreamWidget<S>(pub S);
 
 impl<S, W> Widget for StreamWidget<S>
 where
@@ -53,8 +45,10 @@ where
     fn mount(self, scope: &mut crate::Scope<'_>) {
         let mut child = None;
 
+        scope.set(layout(), Layout::Stack(Default::default()));
+
         scope.spawn(StreamEffect::new(
-            self.stream,
+            self.0,
             move |scope: &mut Scope<'_>, v| {
                 if let Some(child) = child {
                     scope.detach(child);

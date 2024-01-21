@@ -18,6 +18,7 @@ struct IntersectQuery {
     rect: Component<Rect>,
     screen_pos: Component<Vec2>,
     sticky: Satisfied<Component<()>>,
+    cb: Component<OnMouseInput>,
 }
 
 impl IntersectQuery {
@@ -27,6 +28,7 @@ impl IntersectQuery {
             rect: rect(),
             screen_pos: screen_position(),
             sticky: focus_sticky().satisfied(),
+            cb: on_mouse_input(),
         }
     }
 }
@@ -140,9 +142,13 @@ impl InputState {
     }
 }
 
+pub type OnMouseInput = Box<dyn FnMut(&Frame, &EntityRef, ElementState, MouseButton) + Send + Sync>;
+pub type OnFocus = Box<dyn FnMut(&Frame, &EntityRef, bool) + Send + Sync>;
+pub type OnKeyboardInput = Box<dyn FnMut(&Frame, &EntityRef, KeyboardInput) + Send + Sync>;
+
 component! {
     pub focus_sticky: (),
-    pub on_focus: Box<dyn FnMut(&Frame, &EntityRef, bool) + Send + Sync>,
-    pub on_mouse_input: Box<dyn FnMut(&Frame, &EntityRef, ElementState,MouseButton) + Send + Sync>,
-    pub on_keyboard_input: Box<dyn FnMut(&Frame, &EntityRef, KeyboardInput) + Send + Sync>,
+    pub on_focus: OnFocus,
+    pub on_mouse_input: OnMouseInput,
+    pub on_keyboard_input: OnKeyboardInput,
 }

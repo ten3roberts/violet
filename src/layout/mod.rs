@@ -196,6 +196,16 @@ pub(crate) fn update_subtree(
     }
     // Text widgets height are influenced by their available width.
     else {
+        assert_eq!(
+            entity
+                .get(children())
+                .as_deref()
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]),
+            &[],
+            "Widgets with no layout may not have children"
+        );
+
         let (_, size) = resolve_size(entity, content_area, Some(limits), Vec2::ZERO);
 
         let pos = resolve_pos(entity, content_area, size);

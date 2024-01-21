@@ -161,7 +161,6 @@ impl SizeResolver for TextSizeResolver {
             // assert!(min.x <= 1.0);
             // assert!(min.y <= 1.0);
 
-            tracing::info!(%min, %preferred);
             return (min, preferred);
         }
 

@@ -1,4 +1,5 @@
 use flax::{components::name, FetchExt, Query};
+use futures_signals::signal::{Mutable, SignalExt};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::{Hsva, IntoColor, Srgba};
@@ -14,7 +15,9 @@ use violet::{
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
     time::interval,
     unit::Unit,
-    widget::{Button, ContainerExt, Image, List, Rectangle, Stack, Text, WidgetExt},
+    widget::{
+        Button, ContainerExt, Image, List, Rectangle, Signal, Stack, StreamWidget, Text, WidgetExt,
+    },
     App, Scope, StreamEffect, Widget,
 };
 
@@ -29,6 +32,7 @@ macro_rules! srgba {
 }
 
 const MARGIN: Edges = Edges::even(15.0);
+const MARGIN_SM: Edges = Edges::even(5.0);
 
 pub const EERIE_BLACK: Srgba = srgba!("#222525");
 pub const EERIE_BLACK_300: Srgba = srgba!("#151616");
@@ -302,19 +306,41 @@ impl Widget for LayoutTest {
         .with_background(Rectangle::new(EERIE_BLACK_300))
         .with_margin(MARGIN);
 
+        let click_count = Mutable::new(0);
+
         let row_1 = List::new((
-            Button::new(CHILI_RED, BRONZE, Box::new(|_, _| {}))
+            Button::new(Text::new("Click me!"))
+                .on_press({
+                    let click_count = click_count.clone();
+                    move |_, _| {
+                        *click_count.lock_mut() += 1;
+                    }
+                })
+                .with_padding(MARGIN_SM)
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(800.0, 50.0))),
             row_2,
             StackTest {},
-            Button::new(CHILI_RED, BRONZE, Box::new(|_, _| {}))
+            Button::new(Text::new("Nope, don't you dare").with_color(CHILI_RED))
+                .on_press({
+                    let click_count = click_count.clone();
+                    move |_, _| {
+                        *click_count.lock_mut() -= 1;
+                    }
+                })
+                .with_padding(MARGIN_SM)
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(200.0, 50.0))),
             Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
             Rectangle::new(EMERALD)
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(10.0, 80.0))),
+            Signal(
+                click_count
+                    .signal()
+                    .map(|v| Text::new(format!("Clicked {} times", v))),
+            )
+            .with_margin(MARGIN),
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(CrossAlign::Center)

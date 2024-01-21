@@ -207,24 +207,25 @@ impl FlowLayout {
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
 
-        if minimum_inner_size > limits.max_size.dot(axis) {
-            tracing::error!(
-                ?minimum_inner_size,
-                ?limits.max_size,
-                "minimum inner size exceeded max size",
-            );
-        }
+        // if minimum_inner_size > limits.max_size.dot(axis) {
+        //     tracing::error!(
+        //         ?minimum_inner_size,
+        //         ?limits.max_size,
+        //         "minimum inner size exceeded max size",
+        //     );
+        // }
 
         // If everything could take as much space as it wants
         let preferred_inner_size = row.preferred.size().dot(axis);
 
-        if minimum_inner_size > preferred_inner_size {
-            tracing::error!(
-                ?minimum_inner_size,
-                ?preferred_inner_size,
-                "minimum inner size exceeded preferred size",
-            );
-        }
+        // if minimum_inner_size > preferred_inner_size {
+        //     tracing::error!(
+        //         ?minimum_inner_size,
+        //         ?preferred_inner_size,
+        //         "minimum inner size exceeded preferred size",
+        //     );
+        // }
+
         // How much space there is left to distribute out
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
         // tracing::info!(?distribute_size);
