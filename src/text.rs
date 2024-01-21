@@ -1,4 +1,4 @@
-pub use cosmic_text::{Style, Weight};
+pub use cosmic_text::{Style, Weight, Wrap};
 use palette::Srgba;
 use std::{borrow::Cow, fmt::Display};
 

@@ -280,6 +280,8 @@ impl MeshGenerator {
 /// Query text entities in the world and allocate them a slot in the mesh and atlas
 pub(crate) struct TextMeshQuery {
     #[fetch(ignore)]
+    draw_shape: With,
+    #[fetch(ignore)]
     id: EntityIds,
     #[fetch(ignore)]
     text_mesh: Opt<Mutable<Arc<MeshHandle>>>,
@@ -297,6 +299,7 @@ pub(crate) struct TextMeshQuery {
 impl TextMeshQuery {
     fn new() -> Self {
         Self {
+            draw_shape: draw_shape(shape_text()).with(),
             id: entity_ids(),
             text_mesh: text_mesh().as_mut().opt(),
             rect: rect(),

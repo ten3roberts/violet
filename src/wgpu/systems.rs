@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
-use cosmic_text::{Attrs, Buffer, LayoutGlyph, Metrics, Shaping};
+use cosmic_text::{Attrs, Buffer, LayoutGlyph, Metrics, Shaping, Wrap};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
-    BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Query, QueryBorrow,
-    System,
+    BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
+    QueryBorrow, System,
 };
 use futures::TryStreamExt;
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 
 use crate::{
-    components::{font_size, rect, size_resolver, text, Rect},
+    components::{font_size, rect, size_resolver, text, text_wrap, Rect},
     layout::{LayoutLimits, SizeResolver},
     text::TextSegment,
 };
@@ -52,6 +52,7 @@ struct TextBufferQuery {
     text: Component<Vec<TextSegment>>,
     rect: Component<Rect>,
     font_size: Component<f32>,
+    wrap: OptOr<Component<Wrap>, Wrap>,
 }
 
 impl TextBufferQuery {
@@ -61,6 +62,7 @@ impl TextBufferQuery {
             text: text(),
             rect: rect(),
             font_size: font_size(),
+            wrap: text_wrap().opt_or(Wrap::Word),
         }
     }
 }
@@ -75,11 +77,16 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
             >| {
                 let text_system = &mut *text_system.lock();
                 query.iter().for_each(|item| {
-                    item.state.update(&mut text_system.font_system, item.text);
                     let buffer = &mut item.state.buffer;
                     let metrics = Metrics::new(*item.font_size, *item.font_size);
-                    buffer.set_metrics(&mut text_system.font_system, metrics);
 
+                    buffer.set_metrics(&mut text_system.font_system, metrics);
+                    buffer.set_wrap(&mut text_system.font_system, *item.wrap);
+
+                    item.state
+                        .update_text(&mut text_system.font_system, item.text);
+
+                    let buffer = &mut item.state.buffer;
                     let size = item.rect.size();
 
                     buffer.set_size(&mut text_system.font_system, size.x, size.y);
@@ -103,10 +110,6 @@ pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> Boxe
 
                     let resolver = TextSizeResolver {
                         text_system: text_system.clone(),
-                        buffer: Buffer::new(
-                            &mut text_system_ref.font_system,
-                            Metrics::new(14.0, 14.0),
-                        ),
                     };
 
                     cmd.set(id, text_buffer_state(), state).set(
@@ -122,7 +125,6 @@ pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> Boxe
 
 pub struct TextSizeResolver {
     text_system: Arc<Mutex<TextSystem>>,
-    buffer: Buffer,
 }
 
 impl SizeResolver for TextSizeResolver {
@@ -133,13 +135,12 @@ impl SizeResolver for TextSizeResolver {
         limits: Option<LayoutLimits>,
         squeeze: Vec2,
     ) -> (glam::Vec2, glam::Vec2) {
-        let query = (text_buffer_state().as_mut(), font_size(), text());
-        if let Some((state, &font_size, text)) = entity.query(&query).get() {
+        let query = (text_buffer_state().as_mut(), font_size());
+        if let Some((state, &font_size)) = entity.query(&query).get() {
             let text_system = &mut *self.text_system.lock();
             let preferred = Self::resolve_text_size(
                 state,
                 text_system,
-                text,
                 font_size,
                 content_area,
                 limits.map(|v| v.max_size),
@@ -148,11 +149,10 @@ impl SizeResolver for TextSizeResolver {
             let min = Self::resolve_text_size(
                 state,
                 text_system,
-                text,
                 font_size,
                 content_area,
                 if squeeze.x > squeeze.y {
-                    todo!()
+                    Some(vec2(1.0, content_area.size().y))
                 } else {
                     Some(vec2(content_area.size().x, f32::MAX))
                 },
@@ -173,7 +173,6 @@ impl TextSizeResolver {
     fn resolve_text_size(
         state: &mut TextBufferState,
         text_system: &mut TextSystem,
-        text: &[TextSegment],
         font_size: f32,
         content_area: Rect,
         limits: Option<Vec2>,
@@ -185,7 +184,6 @@ impl TextSizeResolver {
 
             let metrics = Metrics::new(font_size, font_size);
             buffer.set_metrics(metrics);
-            buffer.set_wrap(cosmic_text::Wrap::Glyph);
 
             if let Some(limits) = limits {
                 let size = limits.min(content_area.size());
