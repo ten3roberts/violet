@@ -233,11 +233,11 @@ fn resolve_size(
             .unwrap_or(&Unit::ZERO)
             .resolve(parent_size);
 
-        let mut size = size.resolve(parent_size).max(min_size);
+        let mut size = size.resolve(parent_size);
         if let Some(limits) = limits {
             size = size.clamp(limits.min_size, limits.max_size);
         }
-        (min_size, size)
+        (min_size, size.max(min_size))
         // else if let Some((text, font, &font_size)) =
         //     entity.query(&(text(), font_handle(), font_size())).get()
         // {

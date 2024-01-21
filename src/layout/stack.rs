@@ -69,7 +69,7 @@ impl Default for StackLayout {
     fn default() -> Self {
         Self {
             horizontal_alignment: CrossAlign::Center,
-            vertical_alignment: CrossAlign::End,
+            vertical_alignment: CrossAlign::Center,
         }
     }
 }

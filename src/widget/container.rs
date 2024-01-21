@@ -26,13 +26,13 @@ impl<W> Stack<W> {
     }
 
     /// Set the horizontal alignment
-    pub fn with_horizontal_alignment(&mut self, align: CrossAlign) -> &mut Self {
+    pub fn with_horizontal_alignment(mut self, align: CrossAlign) -> Self {
         self.horizontal_alignment = align;
         self
     }
 
     /// Set the vertical alignment
-    pub fn with_vertical_alignment(&mut self, align: CrossAlign) -> &mut Self {
+    pub fn with_vertical_alignment(mut self, align: CrossAlign) -> Self {
         self.vertical_alignment = align;
         self
     }
@@ -59,8 +59,8 @@ where
         scope.set(
             layout(),
             Layout::Stack(StackLayout {
-                horizontal_alignment: CrossAlign::Center,
-                vertical_alignment: CrossAlign::Start,
+                horizontal_alignment: self.horizontal_alignment,
+                vertical_alignment: self.vertical_alignment,
             }),
         );
     }

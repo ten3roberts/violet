@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    fmt::{Debug, Display},
-};
+use std::fmt::Debug;
 
 use flax::{component, Debuggable, Entity, Exclusive};
 use glam::{vec2, Vec2};
@@ -11,7 +8,7 @@ use palette::Srgba;
 use crate::{
     assets::Asset,
     layout::{Layout, SizeResolver},
-    text::TextSegment,
+    text::{TextSegment, Wrap},
     unit::Unit,
 };
 
@@ -60,6 +57,7 @@ component! {
     pub margin: Edges => [ Debuggable ],
 
     pub text: Vec<TextSegment> => [ ],
+    pub text_wrap: Wrap => [ Debuggable ],
     pub font_size: f32 => [ Debuggable ],
 
     /// To retain consistent text wrapping between size query and the snug fitted rect the bounds

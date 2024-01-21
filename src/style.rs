@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use flax::{component::ComponentValue, Component};
 use glam::Vec2;
 
@@ -26,6 +28,20 @@ pub struct WithComponent<W, T> {
     widget: W,
     component: Component<T>,
     value: T,
+}
+
+impl<W, T> Deref for WithComponent<W, T> {
+    type Target = W;
+
+    fn deref(&self) -> &Self::Target {
+        &self.widget
+    }
+}
+
+impl<W, T> DerefMut for WithComponent<W, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.widget
+    }
 }
 
 impl<W, T> WithComponent<W, T> {

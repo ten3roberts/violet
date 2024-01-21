@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, ffi::FromVecWithNulError, sync::Arc};
 
-use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping};
+use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping, Wrap};
 use flax::component;
 use palette::Srgba;
 
@@ -42,7 +42,7 @@ impl TextBufferState {
         }
     }
 
-    pub(crate) fn update(&mut self, font_system: &mut FontSystem, text: &[TextSegment]) {
+    pub(crate) fn update_text(&mut self, font_system: &mut FontSystem, text: &[TextSegment]) {
         self.buffer.set_rich_text(
             font_system,
             text.iter().map(|v| {

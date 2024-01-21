@@ -5,10 +5,10 @@ use winit::event::ElementState;
 
 use crate::{
     assets::AssetKey,
-    components::{self, color, draw_shape, font_size, size, text},
+    components::{self, color, draw_shape, font_size, size, text, text_wrap},
     input::{on_focus, on_mouse_input},
     shape,
-    text::TextSegment,
+    text::{self, TextSegment, Wrap},
     Frame, Scope, Widget,
 };
 
@@ -63,6 +63,7 @@ pub struct Text {
     color: Option<Srgba>,
     text: Vec<TextSegment>,
     font_size: f32,
+    wrap: Wrap,
 }
 
 impl Text {
@@ -71,6 +72,7 @@ impl Text {
             text: vec![TextSegment::new(text.into())],
             color: None,
             font_size: 16.0,
+            wrap: Wrap::Word,
         }
     }
 
@@ -79,6 +81,7 @@ impl Text {
             text: text.into_iter().collect(),
             color: None,
             font_size: 16.0,
+            wrap: Wrap::Word,
         }
     }
 
@@ -93,6 +96,11 @@ impl Text {
         self.color = Some(color);
         self
     }
+
+    pub fn with_wrap(mut self, wrap: Wrap) -> Self {
+        self.wrap = wrap;
+        self
+    }
 }
 
 impl Widget for Text {
@@ -100,6 +108,7 @@ impl Widget for Text {
         scope
             .set(draw_shape(shape::shape_text()), ())
             .set(font_size(), self.font_size)
+            .set(text_wrap(), self.wrap)
             .set(text(), self.text)
             .set_opt(color(), self.color);
     }
