@@ -3,12 +3,13 @@ use flax::{
     CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System,
     World,
 };
-use glam::{Mat4, Vec2};
+use glam::Vec2;
 
 use crate::{
-    components::{self, children, local_position, rect, screen_position, text, text_limits, Rect},
+    components::{
+        self, children, layout_bounds, local_position, rect, screen_position, text, Rect,
+    },
     layout::{update_subtree, LayoutLimits},
-    wgpu::components::model_matrix,
 };
 
 pub fn hydrate_text() -> BoxedSystem {
@@ -17,7 +18,7 @@ pub fn hydrate_text() -> BoxedSystem {
         .with_query(Query::new(entity_ids()).with(text()))
         .build(|cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
             query.for_each(|id| {
-                cmd.set_missing(id, text_limits(), Vec2::ZERO);
+                cmd.set_missing(id, layout_bounds(), Vec2::ZERO);
             })
         })
         .boxed()
@@ -28,7 +29,6 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
         .filter(Or((
             screen_position().without(),
             local_position().without(),
-            model_matrix().without(),
             rect().without(),
         )))
         .filter(root.traverse(child_of));
@@ -42,7 +42,6 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
 
                 cmd.set_missing(id, screen_position(), Vec2::ZERO)
                     .set_missing(id, local_position(), Vec2::ZERO)
-                    .set_missing(id, model_matrix(), Mat4::IDENTITY)
                     .set_missing(id, rect(), Rect::default());
             }
         })
@@ -78,6 +77,7 @@ pub fn layout_system() -> BoxedSystem {
         .boxed()
 }
 
+/// Updates the apparent screen position of entities based on the hierarchy
 pub fn transform_system() -> BoxedSystem {
     System::builder()
         .with_query(

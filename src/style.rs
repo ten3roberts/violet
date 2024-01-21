@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use flax::{component::ComponentValue, Component};
 use glam::Vec2;
 
@@ -12,15 +14,11 @@ pub trait StyleExt {
     where
         Self: Sized;
 
-    fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges>
+    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
         Self: Sized;
 
     fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
-    where
-        Self: Sized;
-
-    fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>>
     where
         Self: Sized;
 }
@@ -30,6 +28,20 @@ pub struct WithComponent<W, T> {
     widget: W,
     component: Component<T>,
     value: T,
+}
+
+impl<W, T> Deref for WithComponent<W, T> {
+    type Target = W;
+
+    fn deref(&self) -> &Self::Target {
+        &self.widget
+    }
+}
+
+impl<W, T> DerefMut for WithComponent<W, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.widget
+    }
 }
 
 impl<W, T> WithComponent<W, T> {
@@ -54,22 +66,14 @@ impl<W> StyleExt for W
 where
     W: Widget,
 {
-    #[inline]
     fn with_margin(self, margin: Edges) -> WithComponent<Self, Edges> {
         WithComponent::new(self, components::margin(), margin)
     }
 
-    #[inline]
-    fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges> {
-        WithComponent::new(self, components::padding(), padding)
-    }
-
-    #[inline]
     fn with_size(self, size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
         WithComponent::new(self, components::size(), size)
     }
 
-    #[inline]
     fn with_min_size(self, min_size: Unit<Vec2>) -> WithComponent<Self, Unit<Vec2>> {
         WithComponent::new(self, components::min_size(), min_size)
     }

@@ -37,9 +37,10 @@ impl Layout {
         world: &World,
         children: &[Entity],
         inner_rect: Rect,
+        squeeze: Vec2,
     ) -> Sizing {
         match self {
-            Layout::Stack(v) => v.query_size(world, children, inner_rect),
+            Layout::Stack(v) => v.query_size(world, children, inner_rect, squeeze),
             Layout::Flow(v) => v.query_size(world, children, inner_rect).sizing(),
         }
     }
@@ -74,7 +75,7 @@ impl Block {
     }
 }
 
-pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizing {
+pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect, squeeze: Vec2) -> Sizing {
     let margin = entity
         .get(components::margin())
         .ok()
@@ -91,7 +92,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
 
     // Flow
     if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
-        let sizing = layout.query_size(world, children, content_area.inset(&padding));
+        let sizing = layout.query_size(world, children, content_area.inset(&padding), squeeze);
         let margin = (sizing.margin - padding).max(margin);
 
         Sizing {
@@ -129,7 +130,7 @@ pub fn query_size(world: &World, entity: &EntityRef, content_area: Rect) -> Sizi
         //     }
         // }
     } else {
-        let (min_size, preferred_size) = resolve_size(entity, content_area, None);
+        let (min_size, preferred_size) = resolve_size(entity, content_area, None, squeeze);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
@@ -156,6 +157,8 @@ pub(crate) fn update_subtree(
     limits: LayoutLimits,
 ) -> Block {
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
+    let _span = tracing::debug_span!("update_subtree", %entity).entered();
+
     let margin = entity
         .get(components::margin())
         .ok()
@@ -170,7 +173,7 @@ pub(crate) fn update_subtree(
         .copied()
         .unwrap_or_default();
 
-    // Flow
+    // Layout
     if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
@@ -193,12 +196,12 @@ pub(crate) fn update_subtree(
     }
     // Text widgets height are influenced by their available width.
     else {
-        let (_, size) = resolve_size(entity, content_area, Some(limits));
+        let (_, size) = resolve_size(entity, content_area, Some(limits), Vec2::ZERO);
 
         let pos = resolve_pos(entity, content_area, size);
         let rect = Rect::from_size_pos(size, pos).clip(content_area);
 
-        entity.update_dedup(components::text_limits(), limits.max_size);
+        entity.update_dedup(components::layout_bounds(), size);
 
         Block { rect, margin }
     }
@@ -210,6 +213,7 @@ pub(crate) trait SizeResolver: Send + Sync {
         entity: &EntityRef,
         content_area: Rect,
         limits: Option<LayoutLimits>,
+        squeeze: Vec2,
     ) -> (Vec2, Vec2);
 }
 
@@ -218,6 +222,7 @@ fn resolve_size(
     entity: &EntityRef,
     content_area: Rect,
     limits: Option<LayoutLimits>,
+    squeeze: Vec2,
 ) -> (Vec2, Vec2) {
     let parent_size = content_area.size();
 
@@ -228,11 +233,11 @@ fn resolve_size(
             .unwrap_or(&Unit::ZERO)
             .resolve(parent_size);
 
-        let mut size = size.resolve(parent_size).max(min_size);
+        let mut size = size.resolve(parent_size);
         if let Some(limits) = limits {
             size = size.clamp(limits.min_size, limits.max_size);
         }
-        (min_size, size)
+        (min_size, size.max(min_size))
         // else if let Some((text, font, &font_size)) =
         //     entity.query(&(text(), font_handle(), font_size())).get()
         // {
@@ -251,7 +256,7 @@ fn resolve_size(
         //     (min_size, preferred)
         // }
     } else if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
-        resolver.resolve(entity, content_area, limits)
+        resolver.resolve(entity, content_area, limits, squeeze)
     } else {
         // tracing::info!(%entity, "using intrinsic_size");
         (Vec2::ZERO, Vec2::ZERO)

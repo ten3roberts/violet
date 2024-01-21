@@ -7,14 +7,15 @@ mod frame;
 pub mod input;
 pub mod layout;
 mod scope;
-pub mod shapes;
+pub mod shape;
+mod stored;
 pub mod style;
 pub mod systems;
+pub mod text;
 pub mod time;
 pub mod unit;
 pub mod wgpu;
 pub mod widget;
-pub mod widgets;
 
 pub use app::App;
 pub use effect::{FutureEffect, StreamEffect};

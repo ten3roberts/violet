@@ -1,15 +1,14 @@
-use std::{
-    borrow::Cow,
-    fmt::{Debug, Display},
-};
+use std::fmt::Debug;
 
-use flax::{component, Debuggable, Entity};
+use flax::{component, Debuggable, Entity, Exclusive};
 use glam::{vec2, Vec2};
+use image::DynamicImage;
 use palette::Srgba;
 
 use crate::{
+    assets::Asset,
     layout::{Layout, SizeResolver},
-    shapes::FilledRect,
+    text::{TextSegment, Wrap},
     unit::Unit,
 };
 
@@ -47,6 +46,8 @@ component! {
     pub layout: Layout => [ Debuggable ],
 
     /// Spacing between a outer and inner bounds
+    ///
+    /// Only applicable for containers
     pub padding: Edges => [ Debuggable ],
     /// Spacing between the item outer bounds and another items outer bounds
     ///
@@ -55,21 +56,22 @@ component! {
     /// A margin is in essence a minimum allowed distance to another items bounds
     pub margin: Edges => [ Debuggable ],
 
-    pub text: String => [ ],
+    pub text: Vec<TextSegment> => [ ],
+    pub text_wrap: Wrap => [ Debuggable ],
     pub font_size: f32 => [ Debuggable ],
 
     /// To retain consistent text wrapping between size query and the snug fitted rect the bounds
     /// of the size query are stored and used instead of the snug-fitted rect which will cause a
     /// different wrapping, and therefore final size.
-    pub text_limits: Vec2 => [ Debuggable ],
+    pub layout_bounds: Vec2 => [ Debuggable ],
 
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
 
     /// The widget will be rendered as a filled rectange coverings its bounds
-    pub filled_rect: FilledRect => [ Debuggable ],
+    pub image: Asset<DynamicImage> => [ Debuggable ],
 
-    pub font_family: FontFamily => [ Debuggable ],
+    pub draw_shape(variant): () => [ Debuggable, Exclusive ],
 
     pub(crate) size_resolver: Box<dyn SizeResolver>,
 }
@@ -162,8 +164,8 @@ impl Edges {
     }
 
     pub(crate) fn in_axis(&self, axis: Vec2) -> (f32, f32) {
-        let pos = vec2(self.right, self.top).dot(axis);
-        let neg = vec2(-self.left, -self.bottom).dot(axis);
+        let pos = vec2(self.right, self.bottom).dot(axis);
+        let neg = vec2(-self.left, -self.top).dot(axis);
 
         let front_margin = pos.max(neg);
         let back_margin = -pos.min(neg);
@@ -317,37 +319,5 @@ impl Rect {
         let max = self.max.min(mask.max);
 
         Rect { min, max }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FontFamily(pub Cow<'static, str>);
-
-impl Display for FontFamily {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0, f)
-    }
-}
-
-impl std::ops::Deref for FontFamily {
-    type Target = Cow<'static, str>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl FontFamily {
-    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
-        Self(name.into())
-    }
-}
-
-impl<T> From<T> for FontFamily
-where
-    T: Into<Cow<'static, str>>,
-{
-    fn from(value: T) -> Self {
-        Self::new(value)
     }
 }

@@ -3,49 +3,16 @@ use std::{
     path::PathBuf,
 };
 
-use cosmic_text::{CacheKey, FontSystem, Placement, SwashCache, SwashImage};
+use cosmic_text::{CacheKey, Placement, SwashImage};
 use fontdue::Font;
 use glam::{uvec2, vec3, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
-use crate::assets::{fs::BytesFromFile, AssetCache, AssetKey, Handle};
+use crate::assets::{Asset, AssetCache, AssetKey};
 
-use super::{graphics::texture::Texture, Gpu};
-
-/// Loads a font from memory
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-pub struct FontFromBytes {
-    pub bytes: Handle<Vec<u8>>,
-}
-
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
-pub struct FontFromFile {
-    pub path: PathBuf,
-}
-
-impl AssetKey for FontFromFile {
-    type Output = Font;
-    type Error = anyhow::Error;
-
-    fn load(self, assets: &AssetCache) -> anyhow::Result<Self::Output> {
-        let bytes = assets.try_load(&BytesFromFile(self.path))?;
-
-        FontFromBytes { bytes }.load(assets)
-    }
-}
-
-impl AssetKey for FontFromBytes {
-    type Output = Font;
-    type Error = anyhow::Error;
-
-    fn load(self, _assets: &crate::assets::AssetCache) -> anyhow::Result<Self::Output> {
-        let bytes = &*self.bytes;
-        fontdue::Font::from_bytes(bytes.as_ref(), fontdue::FontSettings::default())
-            .map_err(|v| anyhow::anyhow!("Error loading font: {v:?}"))
-    }
-}
+use super::{graphics::texture::Texture, text_renderer::TextSystem, Gpu};
 
 /// A glyphs location in the text atlas
 #[derive(Copy, Clone)]
@@ -54,14 +21,14 @@ pub struct GlyphLocation {
     pub max: UVec2,
 }
 
-pub struct FontAtlas {
+pub(crate) struct FontAtlas {
     /// The backing GPU texture of the rasterized fonts
     pub texture: Texture,
     pub glyphs: BTreeMap<CacheKey, (Placement, GlyphLocation)>,
 }
 
 impl FontAtlas {
-    pub fn empty(gpu: &Gpu) -> Self {
+    pub(crate) fn empty(gpu: &Gpu) -> Self {
         let texture = gpu.device.create_texture(&TextureDescriptor {
             label: Some("FontAtlas"),
             size: Extent3d {
@@ -83,11 +50,10 @@ impl FontAtlas {
         }
     }
 
-    pub fn new(
+    pub(crate) fn new(
         _assets: &AssetCache,
         gpu: &Gpu,
-        font_system: &mut FontSystem,
-        swash_cache: &mut SwashCache,
+        text_system: &mut TextSystem,
         glyphs: impl IntoIterator<Item = CacheKey>,
     ) -> anyhow::Result<Self> {
         let mut atlas = AtlasAllocator::new(size2(128, 128));
@@ -107,7 +73,27 @@ impl FontAtlas {
         let glyphs = glyphs
             .iter()
             .map(|&glyph| {
-                let image = swash_cache.get_image_uncached(font_system, glyph).unwrap();
+                let Some(image) = text_system
+                    .swash_cache
+                    .get_image_uncached(&mut text_system.font_system, glyph)
+                else {
+                    // tracing::error!(?glyph, "failed to load glyph");
+                    return (
+                        glyph,
+                        (
+                            Placement {
+                                left: 0,
+                                top: 0,
+                                width: 10,
+                                height: 10,
+                            },
+                            GlyphLocation {
+                                min: UVec2::ZERO,
+                                max: UVec2::ONE,
+                            },
+                        ),
+                    );
+                };
                 // let index = font.lookup_glyph_index(c);
 
                 let metrics = image.placement;

@@ -1,6 +1,10 @@
-use crate::Scope;
+use crate::{style::WithComponent, Scope};
+mod basic;
+mod container;
 mod future;
 
+pub use basic::{Button, Image, Rectangle, Text};
+pub use container::{ContainerExt, List, Stack};
 pub use future::{SignalWidget, StreamWidget};
 
 /// Represents a widget in the UI tree which can mount itself into the frame.
@@ -32,6 +36,21 @@ where
         self.mount_boxed(scope)
     }
 }
+
+pub trait WidgetExt: Widget + Sized {
+    fn boxed<'a>(self) -> Box<dyn 'a + Widget>
+    where
+        Self: 'a + Sized,
+    {
+        Box::new(self)
+    }
+
+    fn with_name(self, name: impl Into<String>) -> WithComponent<Self, String> {
+        WithComponent::new(self, flax::components::name(), name.into())
+    }
+}
+
+impl<W> WidgetExt for W where W: Widget {}
 
 /// Represents a list of widgets
 pub trait WidgetCollection {

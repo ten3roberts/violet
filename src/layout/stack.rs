@@ -9,10 +9,25 @@ use crate::{
 
 use super::{update_subtree, Block, CrossAlign, LayoutLimits, Sizing};
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct StackableBounds {
     inner: Rect,
     outer: Rect,
+}
+
+impl Default for StackableBounds {
+    fn default() -> Self {
+        Self {
+            inner: Rect {
+                min: Vec2::MAX,
+                max: Vec2::MIN,
+            },
+            outer: Rect {
+                min: Vec2::MAX,
+                max: Vec2::MIN,
+            },
+        }
+    }
 }
 
 impl StackableBounds {
@@ -31,8 +46,8 @@ impl StackableBounds {
     }
 
     fn margin(&self) -> Edges {
-        let min = self.outer.min - self.inner.min;
-        let max = self.inner.max - self.outer.max;
+        let min = self.inner.min - self.outer.min;
+        let max = self.outer.max - self.inner.max;
 
         Edges {
             left: min.x,
@@ -54,7 +69,7 @@ impl Default for StackLayout {
     fn default() -> Self {
         Self {
             horizontal_alignment: CrossAlign::Center,
-            vertical_alignment: CrossAlign::End,
+            vertical_alignment: CrossAlign::Center,
         }
     }
 }
@@ -67,8 +82,6 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        let _span = tracing::info_span!("Stack::apply").entered();
-
         // tracing::info!(
         //     ?content_area,
         //     content_area_size=%content_area.size(),
@@ -81,7 +94,10 @@ impl StackLayout {
             max: content_area.size(),
         };
 
-        let mut bounds = StackableBounds::default();
+        let mut bounds = Rect {
+            min: Vec2::MAX,
+            max: Vec2::MIN,
+        };
 
         let blocks = children
             .iter()
@@ -97,16 +113,15 @@ impl StackLayout {
 
                 let block = update_subtree(world, &entity, inner_rect, limits);
 
-                bounds = bounds.merge(&StackableBounds {
-                    inner: block.rect,
-                    outer: block.rect.pad(&block.margin),
-                });
+                bounds = bounds.merge(block.rect.translate(content_area.min));
 
                 (entity, block)
             })
             .collect_vec();
 
-        let size = bounds.inner.size();
+        let size = bounds.size();
+
+        let mut aligned_bounds = StackableBounds::default();
 
         for (entity, block) in blocks {
             let block_size = block.rect.size();
@@ -116,15 +131,23 @@ impl StackLayout {
                     self.vertical_alignment.align_offset(size.y, block_size.y),
                 );
 
-            entity.update_dedup(components::rect(), block.rect.translate(offset));
-            // entity.update_dedup(components::local_position(), offset);
+            tracing::debug!(?offset, %entity);
+
+            aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
+                block.rect.translate(offset),
+                block.margin,
+            ));
+
+            // entity.update_dedup(components::rect(), block.rect.translate(offset));
+            entity.update_dedup(components::rect(), block.rect);
+            entity.update_dedup(components::local_position(), offset);
         }
 
-        let margin = bounds.margin();
-        let mut rect = bounds.inner.clamp_size(limits.min_size, limits.max_size);
+        let rect = aligned_bounds.inner; //.max_size(limits.min_size);
+        let margin = aligned_bounds.margin();
 
-        rect.min += content_area.min;
-        rect.max += content_area.min;
+        // rect.min += content_area.min;
+        // rect.max += content_area.min;
 
         Block::new(rect, margin)
     }
@@ -134,6 +157,7 @@ impl StackLayout {
         world: &World,
         children: &[Entity],
         content_area: Rect,
+        squeeze: Vec2,
     ) -> Sizing {
         // Reset to local
         let inner_rect = Rect {
@@ -143,14 +167,21 @@ impl StackLayout {
 
         let mut min_bounds = StackableBounds::default();
         let mut preferred_bounds = StackableBounds::default();
+
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(world, &entity, inner_rect);
+            let query = query_size(world, &entity, inner_rect, squeeze);
 
-            min_bounds = min_bounds.merge(&StackableBounds::new(query.min, query.margin));
-            preferred_bounds =
-                preferred_bounds.merge(&StackableBounds::new(query.preferred, query.margin));
+            min_bounds = min_bounds.merge(&StackableBounds::new(
+                query.min.translate(content_area.min),
+                query.margin,
+            ));
+
+            preferred_bounds = preferred_bounds.merge(&StackableBounds::new(
+                query.preferred.translate(content_area.min),
+                query.margin,
+            ));
         }
 
         let min_margin = min_bounds.margin();
@@ -159,6 +190,7 @@ impl StackLayout {
         // if min_margin != preferred_margin {
         //     tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
         // }
+        // tracing::info!(?min_margin, ?preferred_margin);
 
         Sizing {
             min: min_bounds.inner,

@@ -1,81 +1,98 @@
 use std::sync::Arc;
 
-use cosmic_text::{Attrs, Buffer, CacheKey, FontSystem, Metrics, Placement, Shaping, SwashCache};
+use cosmic_text::{Buffer, CacheKey, FontSystem, Placement, SwashCache};
 use flax::{
     entity_ids,
+    fetch::{Modified, TransformFetch},
     filter::{All, With},
-    CommandBuffer, Component, Debuggable, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
+    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use itertools::Itertools;
+use palette::Srgba;
 use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
-    assets::{AssetCache, Handle},
-    components::{font_size, rect, screen_position, text, text_limits, Rect},
-    wgpu::{
-        font::FontAtlas,
-        graphics::{allocator::Allocation, BindGroupBuilder},
-        shape_renderer::DrawCommand,
-    },
+    assets::AssetCache,
+    components::{color, draw_shape, font_size, layout_bounds, rect, screen_position, text, Rect},
+    shape::shape_text,
+    stored::{self, Handle},
+    text::TextSegment,
+    wgpu::{font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand},
     Frame,
 };
 
 use super::{
-    components::{draw_cmd, mesh_handle, model_matrix, text_buffer_state, TextBufferState},
+    components::{draw_cmd, object_data, text_buffer_state, text_mesh, TextBufferState},
     font::GlyphLocation,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
+    shape_renderer::{srgba_to_vec4, ObjectData, RendererStore},
     Gpu,
 };
 
-flax::component! {
-    text_mesh: Allocation => [ Debuggable ],
+pub(crate) struct TextSystem {
+    pub(crate) font_system: FontSystem,
+    pub(crate) swash_cache: SwashCache,
+}
+
+impl TextSystem {
+    pub fn new() -> Self {
+        Self {
+            font_system: FontSystem::new(),
+            swash_cache: SwashCache::new(),
+        }
+    }
 }
 
 #[derive(Fetch)]
 struct ObjectQuery {
+    draw_shape: With,
     rect: Component<Rect>,
     pos: Component<Vec2>,
-    model_matrix: Mutable<Mat4>,
+    object_data: Mutable<ObjectData>,
+    color: OptOr<Component<Srgba>, Srgba>,
 }
 
 impl ObjectQuery {
     pub fn new() -> Self {
         Self {
+            draw_shape: draw_shape(shape_text()).with(),
             rect: rect(),
             pos: screen_position(),
-            model_matrix: model_matrix().as_mut(),
+            object_data: object_data().as_mut(),
+            color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
         }
     }
 }
 
 struct FontRasterizer {
     rasterized: RasterizedFont,
-    sampler: Handle<Sampler>,
+    sampler: Arc<Sampler>,
     text_layout: BindGroupLayout,
 }
 
 impl FontRasterizer {
     fn new(
-        assets: &AssetCache,
         gpu: &Gpu,
-        sampler: Handle<Sampler>,
+        sampler: Arc<Sampler>,
         text_layout: BindGroupLayout,
+        store: &mut RendererStore,
     ) -> Self {
         let atlas = FontAtlas::empty(gpu);
 
-        let bind_group = assets.insert(
-            BindGroupBuilder::new("TextRenderer::bind_group")
-                .bind_sampler(&sampler)
-                .bind_texture(&atlas.texture.view(&Default::default()))
-                .build(gpu, &text_layout),
-        );
+        let bind_group = BindGroupBuilder::new("TextRenderer::bind_group")
+            .bind_sampler(&sampler)
+            .bind_texture(&atlas.texture.view(&Default::default()))
+            .build(gpu, &text_layout);
 
         Self {
-            rasterized: RasterizedFont { atlas, bind_group },
+            rasterized: RasterizedFont {
+                atlas,
+                bind_group: store.bind_groups.insert(bind_group),
+            },
             sampler,
             text_layout,
         }
@@ -85,9 +102,9 @@ impl FontRasterizer {
         &mut self,
         assets: &AssetCache,
         ctx: &mut RendererContext,
-        font_system: &mut FontSystem,
-        swash_cache: &mut SwashCache,
+        text_system: &mut TextSystem,
         new_glyphs: &[CacheKey],
+        store: &mut RendererStore,
     ) -> anyhow::Result<()> {
         let glyphs = self
             .rasterized
@@ -97,9 +114,9 @@ impl FontRasterizer {
             .chain(new_glyphs)
             .copied();
 
-        let atlas = FontAtlas::new(assets, &ctx.gpu, font_system, swash_cache, glyphs)?;
+        let atlas = FontAtlas::new(assets, &ctx.gpu, text_system, glyphs)?;
 
-        let bind_group = assets.insert(
+        let bind_group = store.bind_groups.insert(
             BindGroupBuilder::new("TextRenderer::bind_group")
                 .bind_sampler(&self.sampler)
                 .bind_texture(&atlas.texture.view(&Default::default()))
@@ -127,13 +144,14 @@ impl MeshGenerator {
         frame: &mut Frame,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
+        store: &mut RendererStore,
     ) -> Self {
         let text_layout = BindGroupLayoutBuilder::new("TextRenderer::text_layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
             .build(&ctx.gpu);
 
-        let shader = frame.assets.insert(Shader::new(
+        let shader = store.shaders.insert(Shader::new(
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
@@ -144,19 +162,17 @@ impl MeshGenerator {
             },
         ));
 
-        let sampler = frame
-            .assets
-            .insert(ctx.gpu.device.create_sampler(&SamplerDescriptor {
-                label: Some("ShapeRenderer::sampler"),
-                anisotropy_clamp: 1,
-                mag_filter: wgpu::FilterMode::Nearest,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            }));
+        let sampler = Arc::new(ctx.gpu.device.create_sampler(&SamplerDescriptor {
+            label: Some("ShapeRenderer::sampler"),
+            anisotropy_clamp: 1,
+            mag_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        }));
 
         Self {
-            rasterizer: FontRasterizer::new(&frame.assets, &ctx.gpu, sampler, text_layout),
+            rasterizer: FontRasterizer::new(&ctx.gpu, sampler, text_layout, store),
             shader,
         }
     }
@@ -165,11 +181,11 @@ impl MeshGenerator {
         &mut self,
         ctx: &mut RendererContext,
         assets: &AssetCache,
-        font_system: &mut FontSystem,
-        swash_cache: &mut SwashCache,
+        text_system: &mut TextSystem,
         buffer: &mut Buffer,
         // text: &str,
         mesh: &mut Arc<MeshHandle>,
+        store: &mut RendererStore,
     ) -> u32 {
         // let rasterized = self
         //     .rasterizer
@@ -199,22 +215,31 @@ impl MeshGenerator {
 
                     let x = placement.left as f32 + physical_glyph.x as f32;
                     let y = run.line_y - placement.top as f32 + physical_glyph.y as f32;
+                    let color = glyph
+                        .color_opt
+                        .map(|v| {
+                            srgba_to_vec4(Srgba::new(v.r(), v.g(), v.b(), v.a()).into_format())
+                        })
+                        .unwrap_or(Vec4::ONE);
 
                     vertices.extend_from_slice(&[
                         // Bottom left
                         Vertex::new(
                             vec3(x, y + placement.height as f32, 0.0),
+                            color,
                             vec2(uv_min.x, uv_max.y),
                         ),
                         Vertex::new(
                             vec3(x + placement.width as f32, y + placement.height as f32, 0.0),
+                            color,
                             vec2(uv_max.x, uv_max.y),
                         ),
                         Vertex::new(
                             vec3(x + placement.width as f32, y, 0.0),
+                            color,
                             vec2(uv_max.x, uv_min.y),
                         ),
-                        Vertex::new(vec3(x, y, 0.0), vec2(uv_min.x, uv_min.y)),
+                        Vertex::new(vec3(x, y, 0.0), color, vec2(uv_min.x, uv_min.y)),
                     ]);
                 }
             }
@@ -225,7 +250,7 @@ impl MeshGenerator {
                 tracing::debug!(?missing, "Adding missing glyphs");
                 vertices.clear();
                 self.rasterizer
-                    .add_glyphs(assets, ctx, font_system, swash_cache, &missing)
+                    .add_glyphs(assets, ctx, text_system, &missing, store)
                     .unwrap();
 
                 missing.clear();
@@ -255,16 +280,18 @@ impl MeshGenerator {
 /// Query text entities in the world and allocate them a slot in the mesh and atlas
 pub(crate) struct TextMeshQuery {
     #[fetch(ignore)]
+    draw_shape: With,
+    #[fetch(ignore)]
     id: EntityIds,
     #[fetch(ignore)]
-    mesh: Opt<Mutable<Arc<MeshHandle>>>,
+    text_mesh: Opt<Mutable<Arc<MeshHandle>>>,
 
     #[fetch(ignore)]
     state: Mutable<TextBufferState>,
 
     rect: Component<Rect>,
-    text: Component<String>,
-    text_limits: Component<Vec2>,
+    text: Component<Vec<TextSegment>>,
+    layout_bounds: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
 }
@@ -272,11 +299,12 @@ pub(crate) struct TextMeshQuery {
 impl TextMeshQuery {
     fn new() -> Self {
         Self {
+            draw_shape: draw_shape(shape_text()).with(),
             id: entity_ids(),
-            mesh: mesh_handle().as_mut().opt(),
+            text_mesh: text_mesh().as_mut().opt(),
             rect: rect(),
             text: text(),
-            text_limits: text_limits(),
+            layout_bounds: layout_bounds(),
             font_size: font_size().opt_or(16.0),
             state: text_buffer_state().as_mut(),
         }
@@ -286,40 +314,44 @@ impl TextMeshQuery {
 pub struct RasterizedFont {
     /// Stored to retrieve *where* the character is located
     atlas: FontAtlas,
-    bind_group: Handle<BindGroup>,
+    bind_group: stored::Handle<BindGroup>,
 }
 
 pub struct TextRenderer {
     mesh_generator: MeshGenerator,
-    font_system: Arc<Mutex<FontSystem>>,
-    swash_cache: SwashCache,
+    text_system: Arc<Mutex<TextSystem>>,
 
     object_query: Query<ObjectQuery, (All, With)>,
-    mesh_query: Query<TextMeshQuery, All>,
+    mesh_query: Query<<TextMeshQuery as TransformFetch<Modified>>::Output, All>,
 }
 
 impl TextRenderer {
     pub fn new(
         ctx: &mut RendererContext,
         frame: &mut Frame,
-        font_system: Arc<Mutex<FontSystem>>,
+        text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
+        store: &mut RendererStore,
     ) -> Self {
-        let mesh_generator = MeshGenerator::new(ctx, frame, color_format, object_layout);
+        let mesh_generator = MeshGenerator::new(ctx, frame, color_format, object_layout, store);
         Self {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
-            mesh_query: Query::new(TextMeshQuery::new()),
-            font_system,
-            swash_cache: SwashCache::new(),
+            mesh_query: Query::new(TextMeshQuery::new().modified()),
+            text_system,
         }
     }
 
-    pub fn update_meshes(&mut self, ctx: &mut RendererContext, frame: &mut Frame) {
+    pub fn update_meshes(
+        &mut self,
+        ctx: &mut RendererContext,
+        frame: &mut Frame,
+        store: &mut RendererStore,
+    ) {
         let mut cmd = CommandBuffer::new();
 
-        let font_system = &mut *self.font_system.lock();
+        let text_system = &mut *self.text_system.lock();
 
         (self.mesh_query.borrow(&frame.world))
             .iter()
@@ -333,18 +365,16 @@ impl TextRenderer {
                 // Update intrinsic sizes
 
                 {
-                    let mut buffer = item.state.buffer.borrow_with(font_system);
+                    let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);
 
-                    let limits = item.text_limits;
-
-                    buffer.set_size(limits.x, limits.y);
+                    buffer.set_size(item.layout_bounds.x + 1.0, item.layout_bounds.y);
 
                     buffer.shape_until_scroll();
                 }
 
                 let mut new_mesh = None;
 
-                let mesh = match item.mesh {
+                let text_mesh = match item.text_mesh {
                     Some(v) => v,
                     None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
                 };
@@ -352,10 +382,10 @@ impl TextRenderer {
                 let index_count = self.mesh_generator.update_mesh(
                     ctx,
                     &frame.assets,
-                    font_system,
-                    &mut self.swash_cache,
+                    text_system,
                     &mut item.state.buffer,
-                    mesh,
+                    text_mesh,
+                    store,
                 );
 
                 cmd.set(
@@ -364,13 +394,14 @@ impl TextRenderer {
                     DrawCommand {
                         bind_group: self.mesh_generator.rasterizer.rasterized.bind_group.clone(),
                         shader: self.mesh_generator.shader.clone(),
+                        mesh: text_mesh.clone(),
                         index_count,
                         vertex_offset: 0,
                     },
                 );
 
-                if let Some(v) = new_mesh {
-                    cmd.set(item.id, mesh_handle(), v);
+                if let Some(text_mesh) = new_mesh {
+                    cmd.set(item.id, crate::wgpu::components::text_mesh(), text_mesh);
                 }
             });
 
@@ -383,11 +414,16 @@ impl TextRenderer {
             .iter()
             .for_each(|item| {
                 let rect = item.rect.translate(*item.pos).align_to_grid();
-                *item.model_matrix = Mat4::from_scale_rotation_translation(
+                let model_matrix = Mat4::from_scale_rotation_translation(
                     Vec3::ONE,
                     Quat::IDENTITY,
                     rect.pos().extend(0.1),
                 );
+
+                *item.object_data = ObjectData {
+                    model_matrix,
+                    color: srgba_to_vec4(*item.color),
+                };
             })
     }
 }

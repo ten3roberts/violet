@@ -19,6 +19,7 @@ use crate::{
     wgpu::{
         graphics::Gpu,
         systems::{register_text_buffers, update_text_buffers},
+        text_renderer::TextSystem,
         window_renderer::WindowRenderer,
     },
     Frame, Widget,
@@ -59,14 +60,7 @@ impl App {
 
         let spawner = ex.spawner();
 
-        let world = World::new();
-
-        let mut frame = Frame {
-            world,
-            spawner,
-            assets: AssetCache::new(),
-            delta_time: 0.0,
-        };
+        let mut frame = Frame::new(spawner, AssetCache::new(), World::new());
 
         let event_loop = EventLoopBuilder::new().build();
 
@@ -85,18 +79,18 @@ impl App {
         // TODO: Make this a proper effect
         let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
 
-        let font_system = Arc::new(Mutex::new(FontSystem::new()));
+        let text_system = Arc::new(Mutex::new(TextSystem::new()));
 
         let mut window_renderer =
-            WindowRenderer::new(gpu, &mut frame, font_system.clone(), surface);
+            WindowRenderer::new(gpu, &mut frame, text_system.clone(), surface);
 
         let mut schedule = Schedule::new()
             .with_system(templating_system(root))
             .with_system(hydrate_text())
             .flush()
-            .with_system(register_text_buffers(font_system.clone()))
+            .with_system(register_text_buffers(text_system.clone()))
             .flush()
-            .with_system(update_text_buffers(font_system))
+            .with_system(update_text_buffers(text_system))
             .with_system(layout_system())
             .with_system(transform_system());
 
