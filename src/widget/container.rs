@@ -5,11 +5,9 @@ use crate::{
     Scope, Widget, WidgetCollection,
 };
 
-use super::Rectangle;
-
 pub struct Stack<W> {
     items: W,
-    background: Option<Rectangle>,
+    background: Option<Box<dyn Widget>>,
 
     horizontal_alignment: CrossAlign,
     vertical_alignment: CrossAlign,
@@ -39,8 +37,8 @@ impl<W> Stack<W> {
 }
 
 impl<W> ContainerExt for Stack<W> {
-    fn with_background(mut self, background: Rectangle) -> Self {
-        self.background = Some(background);
+    fn with_background<B: 'static + Widget>(mut self, background: B) -> Self {
+        self.background = Some(Box::new(background));
         self
     }
 }
@@ -70,7 +68,7 @@ where
 pub struct List<W> {
     items: W,
     layout: FlowLayout,
-    background: Option<Rectangle>,
+    background: Option<Box<dyn Widget>>,
 }
 
 impl<W: WidgetCollection> List<W> {
@@ -106,8 +104,8 @@ impl<W: WidgetCollection> List<W> {
 }
 
 impl<W: WidgetCollection> ContainerExt for List<W> {
-    fn with_background(mut self, background: Rectangle) -> Self {
-        self.background = Some(background);
+    fn with_background<B: 'static + Widget>(mut self, background: B) -> Self {
+        self.background = Some(Box::new(background));
         self
     }
 }
@@ -134,5 +132,5 @@ pub trait ContainerExt {
     }
 
     /// Adds a background to the widget.
-    fn with_background(self, background: Rectangle) -> Self;
+    fn with_background<W: 'static + Widget>(self, background: W) -> Self;
 }

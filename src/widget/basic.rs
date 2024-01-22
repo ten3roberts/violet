@@ -52,6 +52,7 @@ where
         let image = scope.assets_mut().try_load(&self.image).ok();
         if let Some(image) = image {
             scope
+                .set(color(), Srgba::new(1.0, 1.0, 1.0, 1.0))
                 .set(draw_shape(shape::shape_rectangle()), ())
                 .set(components::image(), image);
         } else {
@@ -140,6 +141,18 @@ impl<W> Button<W> {
         }
     }
 
+    /// Set the background color
+    pub fn with_background_color(mut self, background_color: Srgba) -> Self {
+        self.background_color = background_color;
+        self
+    }
+
+    /// Set the pressed color
+    pub fn with_pressed_color(mut self, pressed_color: Srgba) -> Self {
+        self.pressed_color = pressed_color;
+        self
+    }
+
     /// Handle the button press
     pub fn on_press(
         mut self,
@@ -151,7 +164,7 @@ impl<W> Button<W> {
 }
 
 impl<W> ContainerExt for Button<W> {
-    fn with_background(mut self, background: Rectangle) -> Self {
+    fn with_background<B: 'static + Widget>(mut self, background: B) -> Self {
         self.container = self.container.with_background(background);
         self
     }

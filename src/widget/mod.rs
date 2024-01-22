@@ -37,6 +37,14 @@ where
     }
 }
 
+impl<T: Widget> Widget for Option<T> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        if let Some(widget) = self {
+            widget.mount(scope);
+        }
+    }
+}
+
 pub trait WidgetExt: Widget + Sized {
     fn boxed<'a>(self) -> Box<dyn 'a + Widget>
     where

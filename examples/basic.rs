@@ -156,10 +156,12 @@ impl Widget for MainApp {
             ),
             LayoutTest {
                 contain_margins: true,
+                depth: 2,
             }
             .with_name("LayoutText 3"),
             LayoutTest {
                 contain_margins: false,
+                depth: 2,
             }
             .with_name("LayoutText 2"),
             List::new(
@@ -289,6 +291,7 @@ impl Widget for StackTest {
 
 struct LayoutTest {
     contain_margins: bool,
+    depth: usize,
 }
 
 impl Widget for LayoutTest {
@@ -309,16 +312,40 @@ impl Widget for LayoutTest {
         let click_count = Mutable::new(0);
 
         let row_1 = List::new((
-            Button::new(Text::new("Click me!"))
-                .on_press({
-                    let click_count = click_count.clone();
-                    move |_, _| {
-                        *click_count.lock_mut() += 1;
-                    }
-                })
-                .with_padding(MARGIN_SM)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(800.0, 50.0))),
+            Button::new(List::new((
+                Stack::new(
+                    Text::rich([
+                        TextSegment::new("This is "),
+                        TextSegment::new("sparta")
+                            .with_style(Style::Italic)
+                            .with_color(BRONZE),
+                    ])
+                    .with_font_size(32.0)
+                    .with_wrap(Wrap::None),
+                )
+                .with_background(Rectangle::new(EERIE_BLACK))
+                .with_padding(MARGIN_SM),
+                if self.depth > 0 {
+                    Some(Self {
+                        contain_margins: true,
+                        depth: self.depth - 1,
+                    })
+                } else {
+                    None
+                },
+            )))
+            .on_press({
+                let click_count = click_count.clone();
+                move |_, _| {
+                    *click_count.lock_mut() += 1;
+                }
+            })
+            .with_background(Image::new("./assets/images/statue.jpg"))
+            .with_background_color(Srgba::new(1.0, 1.0, 1.0, 1.0))
+            .with_pressed_color(EERIE_BLACK)
+            .with_padding(MARGIN)
+            .with_margin(MARGIN)
+            .with_size(Unit::px(vec2(800.0, 50.0))),
             row_2,
             StackTest {},
             Button::new(Text::new("Nope, don't you dare").with_color(CHILI_RED))
