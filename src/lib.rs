@@ -1,6 +1,7 @@
 mod app;
 pub mod assets;
 pub mod components;
+pub mod constraints;
 pub mod effect;
 pub mod executor;
 mod frame;

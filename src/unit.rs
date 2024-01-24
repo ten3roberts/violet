@@ -2,6 +2,7 @@ use std::ops;
 
 use glam::Vec2;
 
+/// Represents a unit of measurement
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Unit<T> {
     px: T,

@@ -1,13 +1,14 @@
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
+use more_asserts::assert_le;
 
 use crate::{
     components::{self, Edges, Rect},
     layout::query_size,
 };
 
-use super::{update_subtree, Block, LayoutLimits, Sizing};
+use super::{update_subtree, Block, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -90,6 +91,23 @@ impl MarginCursor {
         (placement_pos, cross_size)
     }
 
+    fn rect(&self) -> Rect {
+        let cross_cursor = self.cross_cursor + self.line_height;
+
+        // tracing::debug!(?self.main_margin);
+
+        let main_cursor = if self.contain_margins {
+            self.main_cursor + self.pending_margin
+        } else {
+            self.main_cursor
+        };
+
+        Rect::from_two_points(
+            self.start,
+            main_cursor * self.axis + cross_cursor * self.cross_axis,
+        )
+    }
+
     /// Finishes the current line and moves the cursor to the next
     fn finish(&mut self) -> Rect {
         self.cross_cursor += self.line_height;
@@ -108,35 +126,6 @@ impl MarginCursor {
             self.start,
             self.main_cursor * self.axis + self.cross_cursor * self.cross_axis,
         )
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub enum Direction {
-    #[default]
-    Horizontal,
-    Vertical,
-    HorizontalReverse,
-    VerticalReverse,
-}
-
-impl Direction {
-    fn axis(&self) -> (Vec2, Vec2) {
-        match self {
-            Direction::Horizontal => (Vec2::X, Vec2::Y),
-            Direction::Vertical => (Vec2::Y, Vec2::X),
-            Direction::HorizontalReverse => (-Vec2::X, Vec2::Y),
-            Direction::VerticalReverse => (-Vec2::Y, Vec2::X),
-        }
-    }
-
-    fn to_edges(self, main: (f32, f32), cross: (f32, f32)) -> Edges {
-        match self {
-            Direction::Horizontal => Edges::new(main.0, main.1, cross.0, cross.1),
-            Direction::Vertical => Edges::new(cross.0, cross.1, main.0, main.1),
-            Direction::HorizontalReverse => Edges::new(main.1, main.0, cross.0, cross.1),
-            Direction::VerticalReverse => Edges::new(cross.1, cross.0, main.0, main.1),
-        }
     }
 }
 
@@ -183,7 +172,9 @@ pub struct FlowLayout {
     pub cross_align: CrossAlign,
     pub stretch: bool,
     pub direction: Direction,
+    pub reverse: bool,
     pub contain_margins: bool,
+    pub proportional_growth: bool,
 }
 
 impl FlowLayout {
@@ -197,12 +188,26 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        // let _span = tracing::info_span!("Flow::apply", ?limits, flow=?self).entered();
-        let (axis, cross_axis) = self.direction.axis();
+        let _span = tracing::debug_span!("Flow::apply", ?limits, flow=?self).entered();
+        let (axis, cross_axis) = self.direction.axis(self.reverse);
 
-        let row = self.query_size(world, children, content_area);
+        // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
+        // the direction of this axis.
+        let row = self.query_row(world, children, content_area, limits, self.direction);
 
         // tracing::info!(?row.margin, "row margins to be contained");
+        self.distribute_children(world, &row, content_area, limits, false)
+    }
+
+    fn distribute_children(
+        &self,
+        world: &World,
+        row: &Row<'_>,
+        content_area: Rect,
+        limits: LayoutLimits,
+        min: bool,
+    ) -> Block {
+        let (axis, cross_axis) = self.direction.axis(self.reverse);
 
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
@@ -260,14 +265,26 @@ impl FlowLayout {
 
         let mut sum = 0.0;
 
+        // Distribute the size to the widgets and apply their layout
         let blocks = row
             .blocks
-            .into_iter()
+            .iter()
             .map(|(entity, sizing)| {
+                let _span = tracing::debug_span!("block", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
                 let block_preferred_size = sizing.preferred.size().dot(axis);
 
+                if block_min_size > block_preferred_size {
+                    tracing::error!(
+                        ?block_min_size,
+                        block_preferred_size,
+                        "min is larger than preferred",
+                    );
+                }
+
+                assert!(block_min_size.is_finite());
+                assert!(block_preferred_size.is_finite());
                 let remaining = block_preferred_size - block_min_size;
                 let ratio = if distribute_size == 0.0 {
                     0.0
@@ -275,16 +292,20 @@ impl FlowLayout {
                     remaining / distribute_size
                 };
 
-                // assert!(remaining >= 0.0, "{remaining}");
-                // assert!(
-                //     (distribute_size == 0.0 && ratio.is_nan())
-                //         || (distribute_size > 0.0 && !ratio.is_nan()),
-                //     "{distribute_size} {ratio}"
-                // );
+                let given_size = block_min_size + target_inner_size * ratio;
+                tracing::debug!(
+                    remaining,
+                    distribute_size,
+                    ratio,
+                    given_size,
+                    target_inner_size,
+                    block_min_size,
+                    "block"
+                );
 
                 sum += ratio;
 
-                let axis_sizing = (block_min_size + (target_inner_size * ratio)) * axis;
+                let axis_sizing = given_size * axis;
                 // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
 
                 assert!(
@@ -299,6 +320,10 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
+                // Calculate hard sizing constraints ensure the children are laid out
+                // accordingly.
+                //
+                // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
                     let cross_size = inner_rect.size().min(limits.max_size) - child_margin.size();
                     LayoutLimits {
@@ -315,18 +340,24 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = update_subtree(
+                let mut block = update_subtree(
                     world,
-                    &entity,
+                    entity,
                     // Supply our whole inner content area
                     content_area,
                     child_limits,
                 );
 
+                tracing::debug!(?block, "updated subtree");
+
+                block.rect = block
+                    .rect
+                    .clamp_size(child_limits.min_size, child_limits.max_size);
+
                 if block.rect.size().x > child_limits.max_size.x
                     || block.rect.size().y > child_limits.max_size.y
                 {
-                    tracing::warn!(
+                    tracing::error!(
                         block_min_size,
                         block_preferred_size,
                         "child {} exceeded max size: {:?} > {:?}",
@@ -346,11 +377,12 @@ impl FlowLayout {
 
         let line_size = line.size();
 
-        let start = match self.direction {
-            Direction::Horizontal => inner_rect.min,
-            Direction::Vertical => inner_rect.min,
-            Direction::HorizontalReverse => vec2(inner_rect.max.x, inner_rect.min.y),
-            Direction::VerticalReverse => vec2(inner_rect.min.x, inner_rect.max.y),
+        // Apply alignment offsets
+        let start = match (self.direction, self.reverse) {
+            (Direction::Horizontal, false) => inner_rect.min,
+            (Direction::Vertical, false) => inner_rect.min,
+            (Direction::Horizontal, true) => vec2(inner_rect.max.x, inner_rect.min.y),
+            (Direction::Vertical, true) => vec2(inner_rect.min.x, inner_rect.max.y),
         };
 
         let mut cursor = MarginCursor::new(start, axis, cross_axis, self.contain_margins);
@@ -368,7 +400,6 @@ impl FlowLayout {
                     .align_offset(line_size.dot(cross_axis), cross_size)
                     * cross_axis;
 
-            // tracing::info!(%pos, cross_size, ?block.rect);
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), pos);
         }
@@ -377,16 +408,210 @@ impl FlowLayout {
 
         let margin = self
             .direction
-            .to_edges(cursor.main_margin, cursor.cross_margin);
+            .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
         Block::new(rect, margin)
     }
 
-    pub(crate) fn query_size<'a>(
+    fn distribute_query(
+        &self,
+        world: &World,
+        row: &Row<'_>,
+        content_area: Rect,
+        limits: LayoutLimits,
+        squeeze: Direction,
+    ) -> Sizing {
+        let (axis, cross_axis) = self.direction.axis(self.reverse);
+
+        // If everything was squished as much as possible
+        let minimum_inner_size = row.min.size().dot(axis);
+
+        // if minimum_inner_size > limits.max_size.dot(axis) {
+        //     tracing::error!(
+        //         ?minimum_inner_size,
+        //         ?limits.max_size,
+        //         "minimum inner size exceeded max size",
+        //     );
+        // }
+
+        // If everything could take as much space as it wants
+        let preferred_inner_size = row.preferred.size().dot(axis);
+
+        // if minimum_inner_size > preferred_inner_size {
+        //     tracing::error!(
+        //         ?minimum_inner_size,
+        //         ?preferred_inner_size,
+        //         "minimum inner size exceeded preferred size",
+        //     );
+        // }
+
+        // How much space there is left to distribute out
+        let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
+        // tracing::info!(?distribute_size);
+
+        // Clipped maximum that we remap to
+        let target_inner_size = distribute_size
+            .min(limits.max_size.dot(axis) - minimum_inner_size)
+            .max(0.0);
+
+        tracing::info!(
+            min=?row.min.size(),
+            preferre2=?row.preferred.size(),
+            distribute_size,
+            target_inner_size,
+            "distribute"
+        );
+
+        let available_size = limits.max_size;
+
+        // Start at the corner of the inner rect
+        //
+        // The inner rect is position relative to the layouts parent
+        let inner_rect = content_area;
+
+        let mut min_cursor =
+            MarginCursor::new(inner_rect.min, axis, cross_axis, self.contain_margins);
+        let mut cursor = MarginCursor::new(inner_rect.min, axis, cross_axis, self.contain_margins);
+
+        // Reset to local
+        let content_area = Rect {
+            min: Vec2::ZERO,
+            max: inner_rect.size(),
+        };
+
+        let mut sum = 0.0;
+
+        // Distribute the size to the widgets and apply their layout
+        let blocks = row
+            .blocks
+            .iter()
+            .map(|(entity, sizing)| {
+                let _span = tracing::debug_span!("block", %entity).entered();
+                // The size required to go from min to preferred size
+                let block_min_size = sizing.min.size().dot(axis);
+                let block_preferred_size = sizing.preferred.size().dot(axis);
+
+                if block_min_size > block_preferred_size {
+                    tracing::error!(
+                        ?block_min_size,
+                        block_preferred_size,
+                        "min is larger than preferred",
+                    );
+                }
+
+                assert!(block_min_size.is_finite());
+                assert!(block_preferred_size.is_finite());
+
+                let remaining = block_preferred_size - block_min_size;
+                let ratio = if distribute_size == 0.0 {
+                    0.0
+                } else {
+                    remaining / distribute_size
+                };
+
+                let given_size = block_min_size + target_inner_size * ratio;
+                // tracing::debug!(
+                //     remaining,
+                //     distribute_size,
+                //     ratio,
+                //     given_size,
+                //     target_inner_size,
+                //     block_min_size,
+                //     "block"
+                // );
+
+                sum += ratio;
+
+                let axis_sizing = given_size * axis;
+                // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
+
+                assert!(
+                    axis_sizing.dot(axis) >= block_min_size,
+                    "{axis_sizing} {block_min_size}"
+                );
+                // // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
+
+                let child_margin = if self.contain_margins {
+                    sizing.margin
+                } else {
+                    Edges::ZERO
+                };
+
+                // Calculate hard sizing constraints ensure the children are laid out
+                // accordingly.
+                //
+                // The child may return a size *less* than the specified limit
+                let child_limits = if self.stretch {
+                    let cross_size = inner_rect.size().min(limits.max_size) - child_margin.size();
+                    LayoutLimits {
+                        min_size: cross_size * cross_axis,
+                        max_size: axis_sizing + cross_size * cross_axis,
+                    }
+                } else {
+                    let cross_size = available_size - child_margin.size();
+
+                    LayoutLimits {
+                        min_size: Vec2::ZERO,
+                        max_size: axis_sizing + cross_size * cross_axis,
+                    }
+                };
+
+                // let local_rect = widget_outer_bounds(world, &child, size);
+                let block = query_size(world, entity, content_area, child_limits, squeeze);
+
+                tracing::debug!(min=%block.min.size(), preferred=%block.preferred.size(), ?child_limits, "query");
+
+                if block.preferred.size().x > child_limits.max_size.x
+                    || block.preferred.size().y > child_limits.max_size.y
+                {
+                    tracing::error!(
+                        block_min_size,
+                        block_preferred_size,
+                        "Widget exceeded max size: {:?} > {:?}",
+                        block.preferred.size(),
+                        child_limits.max_size,
+                    );
+                }
+
+                min_cursor.put(&Block::new(block.min, block.margin));
+                cursor.put(&Block::new(block.preferred, block.margin));
+
+                tracing::debug!(min_cursor=%min_cursor.rect().size(), cursor=%cursor.rect().size(), "cursor");
+
+                (entity, block)
+            })
+            .collect_vec();
+
+        let min_rect = min_cursor.finish();
+        let rect = cursor.finish();
+
+        let margin = self
+            .direction
+            .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
+
+        if (rect.size().x > limits.max_size.x || rect.size().y > limits.max_size.y) && !self.stretch
+        {
+            tracing::error!(
+                %axis,
+                "Preferred size exceeded max size, preferred: {:?} max: {:?}",
+                rect.size(),
+                limits.max_size
+            );
+        }
+        Sizing {
+            min: min_rect,
+            preferred: rect,
+            margin,
+        }
+    }
+
+    pub(crate) fn query_row<'a>(
         &self,
         world: &'a World,
         children: &[Entity],
-        inner_rect: Rect,
+        content_area: Rect,
+        limits: LayoutLimits,
+        squeeze: Direction,
     ) -> Row<'a> {
         // let available_size = inner_rect.size();
 
@@ -394,7 +619,7 @@ impl FlowLayout {
         //
         // The inner rect is position relative to the layouts parent
 
-        let (axis, cross_axis) = self.direction.axis();
+        let (axis, cross_axis) = self.direction.axis(self.reverse);
 
         let mut min_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
         let mut preferred_cursor =
@@ -403,7 +628,7 @@ impl FlowLayout {
         // Reset to local
         let content_area = Rect {
             min: Vec2::ZERO,
-            max: inner_rect.size(),
+            max: content_area.size(),
         };
 
         let blocks = children
@@ -411,17 +636,13 @@ impl FlowLayout {
             .map(|&child| {
                 let entity = world.entity(child).expect("Invalid child");
 
-                // let local_rect = widget_outer_bounds(world, &child, size);
-
                 let child_margin = if self.contain_margins {
-                    query_size(world, &entity, content_area, axis).margin
+                    query_size(world, &entity, content_area, limits, squeeze).margin
                 } else {
                     Edges::ZERO
                 };
 
-                let cross_size = inner_rect.size() - child_margin.size();
-                let sizing = query_size(world, &entity, content_area, axis);
-                tracing::debug!(?sizing, %entity);
+                let sizing = query_size(world, &entity, content_area, limits, squeeze);
 
                 min_cursor.put(&Block::new(sizing.min, sizing.margin));
                 preferred_cursor.put(&Block::new(sizing.preferred, sizing.margin));
@@ -435,10 +656,24 @@ impl FlowLayout {
 
         let preferred = preferred_cursor.finish();
         let min = min_cursor.finish();
+        // assert!(
+        //     preferred.size().x <= content_area.size().x
+        //         && preferred.size().x <= content_area.size().y,
+        //     "preferred size exceeded content area, preferred: {:?} content: {:?}",
+        //     preferred.size(),
+        //     content_area.size()
+        // );
 
-        let preferred_margin = self
-            .direction
-            .to_edges(preferred_cursor.main_margin, preferred_cursor.cross_margin);
+        let preferred_margin = self.direction.to_edges(
+            preferred_cursor.main_margin,
+            preferred_cursor.cross_margin,
+            self.reverse,
+        );
+
+        // assert_le!(preferred.size().x, limits.max_size.x);
+        // assert_le!(preferred.size().y, limits.max_size.y);
+        // assert_le!(min.size().x, limits.max_size.x);
+        // assert_le!(min.size().y, limits.max_size.y);
 
         // assert_eq!(min_margin, preferred_margin);
 
@@ -448,5 +683,23 @@ impl FlowLayout {
             margin: preferred_margin,
             blocks,
         }
+    }
+
+    pub(crate) fn query_size<'a>(
+        &self,
+        world: &'a World,
+        children: &[Entity],
+        content_area: Rect,
+        limits: LayoutLimits,
+        squeeze: Direction,
+    ) -> Sizing {
+        let _span =
+            tracing::debug_span!("Flow::query_size", ?limits, flow=?self, ?squeeze).entered();
+        let row = self.query_row(world, children, content_area, limits, self.direction);
+
+        let block = self.distribute_query(world, &row, content_area, limits, squeeze);
+        tracing::info!(?self.direction, ?block, "query");
+
+        block
     }
 }

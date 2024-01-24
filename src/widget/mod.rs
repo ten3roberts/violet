@@ -3,7 +3,7 @@ mod basic;
 mod container;
 mod future;
 
-pub use basic::{Button, Image, Rectangle, Text};
+pub use basic::{Button, Image, Positioned, Rectangle, Text};
 pub use container::{ContainerExt, List, Stack};
 pub use future::{Signal, StreamWidget};
 

@@ -1,4 +1,4 @@
-use glam::vec2;
+use glam::{vec2, Vec2};
 use image::DynamicImage;
 use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
@@ -10,6 +10,7 @@ use crate::{
     shape,
     style::StyleExt,
     text::{self, TextSegment, Wrap},
+    unit::Unit,
     Frame, Scope, Widget,
 };
 
@@ -195,5 +196,46 @@ impl<W: Widget> Widget for Button<W> {
                 }),
             )
             .mount(scope);
+    }
+}
+
+/// Manually position a widget
+pub struct Positioned<W> {
+    offset: Unit<Vec2>,
+    anchor: Unit<Vec2>,
+    widget: W,
+}
+
+impl<W> Positioned<W> {
+    pub fn new(widget: W) -> Self {
+        Self {
+            offset: Unit::ZERO,
+            anchor: Unit::ZERO,
+            widget,
+        }
+    }
+
+    /// Sets the anchor point of the widget
+    pub fn with_anchor(mut self, anchor: Unit<Vec2>) -> Self {
+        self.anchor = anchor;
+        self
+    }
+
+    /// Offsets the widget relative to its original position
+    pub fn with_offset(mut self, offset: Unit<Vec2>) -> Self {
+        self.offset = offset;
+        self
+    }
+}
+
+impl<W> Widget for Positioned<W>
+where
+    W: Widget,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.widget.mount(scope);
+
+        scope.set(components::anchor(), self.anchor);
+        scope.set(components::offset(), self.offset);
     }
 }

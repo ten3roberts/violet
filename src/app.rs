@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Instant};
 use cosmic_text::FontSystem;
 use flax::{components::name, Schedule, World};
 use glam::{vec2, Vec2};
+use image::buffer::EnumeratePixels;
 use parking_lot::Mutex;
 use winit::{
     event::{Event, WindowEvent},
@@ -65,6 +66,7 @@ impl App {
         let event_loop = EventLoopBuilder::new().build();
 
         let window = WindowBuilder::new().build(&event_loop)?;
+
         let window_size = window.inner_size();
         let window_size = vec2(window_size.width as f32, window_size.height as f32);
 
@@ -86,6 +88,7 @@ impl App {
 
         let mut schedule = Schedule::new()
             .with_system(templating_system(root))
+            .flush()
             .with_system(hydrate_text())
             .flush()
             .with_system(register_text_buffers(text_system.clone()))
@@ -128,6 +131,9 @@ impl App {
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::MouseInput { state, button, .. } => {
                     input_state.on_mouse_input(&mut frame, state, button);
+                }
+                WindowEvent::ReceivedCharacter(c) => {
+                    input_state.on_char_input(&mut frame, c);
                 }
                 WindowEvent::KeyboardInput {
                     input,

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use cosmic_text::{Attrs, Buffer, LayoutGlyph, Metrics, Shaping, Wrap};
+use crate::layout::Direction;
+use cosmic_text::{Buffer, LayoutGlyph, Metrics, Wrap};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
     BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
     QueryBorrow, System,
 };
-use futures::TryStreamExt;
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 
@@ -21,28 +21,6 @@ use super::{
     components::{text_buffer_state, TextBufferState},
     text_renderer::TextSystem,
 };
-
-// pub fn load_fonts_system(font_map: FontMap) -> BoxedSystem {
-//     System::builder()
-//         .with_cmd_mut()
-//         .with_query(Query::new((entity_ids(), font_family().modified())))
-//         .build(
-//             move |cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
-//                 for (id, font) in &mut query {
-//                     let font = match font_map.get(font) {
-//                         Ok(v) => v,
-//                         Err(err) => {
-//                             tracing::error!("Error loading font: {:?}", err);
-//                             continue;
-//                         }
-//                     };
-
-//                     cmd.set(id, components::font_handle(), font);
-//                 }
-//             },
-//         )
-//         .boxed()
-// }
 
 #[derive(Fetch)]
 #[fetch(transforms = [Modified])]
@@ -83,6 +61,8 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                     buffer.set_metrics(&mut text_system.font_system, metrics);
                     buffer.set_wrap(&mut text_system.font_system, *item.wrap);
 
+                    let metrics = Metrics::new(*item.font_size, *item.font_size);
+                    buffer.set_metrics(&mut text_system.font_system, metrics);
                     item.state
                         .update_text(&mut text_system.font_system, item.text);
 
@@ -90,6 +70,7 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                     let size = item.rect.size();
 
                     buffer.set_size(&mut text_system.font_system, size.x, size.y);
+
                     buffer.shape_until_scroll(&mut text_system.font_system);
                 });
             },
@@ -128,43 +109,54 @@ pub struct TextSizeResolver {
 }
 
 impl SizeResolver for TextSizeResolver {
-    fn resolve(
+    fn query(
         &mut self,
         entity: &flax::EntityRef,
         content_area: Rect,
-        limits: Option<LayoutLimits>,
-        squeeze: Vec2,
+        _limits: LayoutLimits,
+        squeeze: Direction,
     ) -> (glam::Vec2, glam::Vec2) {
+        let _span =
+            tracing::info_span!("TextSizeResolver::query", ?squeeze, ?content_area).entered();
+
         let query = (text_buffer_state().as_mut(), font_size());
-        if let Some((state, &font_size)) = entity.query(&query).get() {
-            let text_system = &mut *self.text_system.lock();
-            let preferred = Self::resolve_text_size(
-                state,
-                text_system,
-                font_size,
-                content_area,
-                limits.map(|v| v.max_size),
-            );
 
-            let min = Self::resolve_text_size(
-                state,
-                text_system,
-                font_size,
-                content_area,
-                if squeeze.x > squeeze.y {
-                    Some(vec2(1.0, content_area.size().y))
-                } else {
-                    Some(vec2(content_area.size().x, f32::MAX))
-                },
-            );
+        let mut query = entity.query(&query);
+        let (state, &font_size) = query.get().unwrap();
 
-            // assert!(min.x <= 1.0);
-            // assert!(min.y <= 1.0);
+        let text_system = &mut *self.text_system.lock();
+        let preferred = Self::resolve_text_size(state, text_system, font_size, Vec2::MAX);
 
-            return (min, preferred);
-        }
+        let min = Self::resolve_text_size(
+            state,
+            text_system,
+            font_size,
+            match squeeze {
+                Direction::Horizontal => vec2(1.0, content_area.size().y),
+                Direction::Vertical => vec2(content_area.size().x, f32::MAX),
+            },
+        );
 
-        todo!()
+        (min, preferred)
+    }
+
+    fn apply(
+        &mut self,
+        entity: &flax::EntityRef,
+        content_area: Rect,
+        limits: LayoutLimits,
+    ) -> Vec2 {
+        let _span = tracing::info_span!("TextSizeResolver::apply", ?content_area).entered();
+
+        let query = (text_buffer_state().as_mut(), font_size());
+
+        let mut query = entity.query(&query);
+        let (state, &font_size) = query.get().unwrap();
+
+        let text_system = &mut *self.text_system.lock();
+        let preferred = Self::resolve_text_size(state, text_system, font_size, Vec2::MAX);
+
+        preferred
     }
 }
 
@@ -173,27 +165,17 @@ impl TextSizeResolver {
         state: &mut TextBufferState,
         text_system: &mut TextSystem,
         font_size: f32,
-        content_area: Rect,
-        limits: Option<Vec2>,
+        size: Vec2,
     ) -> Vec2 {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
-        {
-            let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
+        let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
 
-            let metrics = Metrics::new(font_size, font_size);
-            buffer.set_metrics(metrics);
+        let metrics = Metrics::new(font_size, font_size);
+        buffer.set_metrics(metrics);
+        buffer.set_size(size.x, size.y);
 
-            if let Some(limits) = limits {
-                let size = limits.min(content_area.size());
-                buffer.set_size(size.x, size.y);
-            } else {
-                let size = content_area.size();
-                buffer.set_size(size.x, size.y);
-            }
-
-            // buffer.shape_until_scroll();
-        }
+        buffer.shape_until_scroll();
 
         measure(&state.buffer)
     }

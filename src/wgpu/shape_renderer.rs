@@ -173,8 +173,6 @@ impl WidgetRenderer {
         frame: &mut Frame,
         render_pass: &mut RenderPass<'a>,
     ) -> anyhow::Result<()> {
-        self.object_buffer.write(&ctx.gpu.queue, 0, &self.objects);
-
         self.quad.bind(render_pass);
 
         self.register_objects.run(&mut frame.world)?;
@@ -228,6 +226,7 @@ impl WidgetRenderer {
 
         self.commands.clear();
         self.commands.extend(commands);
+        self.object_buffer.write(&ctx.gpu.queue, 0, &self.objects);
 
         ctx.mesh_buffer.bind(render_pass);
 

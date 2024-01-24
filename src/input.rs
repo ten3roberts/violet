@@ -18,7 +18,7 @@ struct IntersectQuery {
     rect: Component<Rect>,
     screen_pos: Component<Vec2>,
     sticky: Satisfied<Component<()>>,
-    cb: Component<OnMouseInput>,
+    focusable: Component<()>,
 }
 
 impl IntersectQuery {
@@ -28,7 +28,7 @@ impl IntersectQuery {
             rect: rect(),
             screen_pos: screen_position(),
             sticky: focus_sticky().satisfied(),
-            cb: on_mouse_input(),
+            focusable: focusable(),
         }
     }
 }
@@ -103,10 +103,20 @@ impl InputState {
     pub fn on_keyboard_input(&mut self, frame: &mut Frame, input: KeyboardInput) {
         if let Some(cur) = &self.focused {
             tracing::info!(?cur, "sending keyboard input event");
-            // TODO
             let entity = frame.world.entity(cur.id).unwrap();
 
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
+                on_input(frame, &entity, input);
+            }
+        }
+    }
+
+    pub fn on_char_input(&mut self, frame: &mut Frame, input: char) {
+        if let Some(cur) = &self.focused {
+            tracing::info!(?input, "input char");
+            let entity = frame.world.entity(cur.id).unwrap();
+
+            if let Ok(mut on_input) = entity.get_mut(on_char_typed()) {
                 on_input(frame, &entity, input);
             }
         }
@@ -145,10 +155,13 @@ impl InputState {
 pub type OnMouseInput = Box<dyn FnMut(&Frame, &EntityRef, ElementState, MouseButton) + Send + Sync>;
 pub type OnFocus = Box<dyn FnMut(&Frame, &EntityRef, bool) + Send + Sync>;
 pub type OnKeyboardInput = Box<dyn FnMut(&Frame, &EntityRef, KeyboardInput) + Send + Sync>;
+pub type OnCharTyped = Box<dyn FnMut(&Frame, &EntityRef, char) + Send + Sync>;
 
 component! {
     pub focus_sticky: (),
+    pub focusable: (),
     pub on_focus: OnFocus,
     pub on_mouse_input: OnMouseInput,
     pub on_keyboard_input: OnKeyboardInput,
+    pub on_char_typed: OnCharTyped,
 }

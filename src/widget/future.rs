@@ -26,10 +26,12 @@ where
             stream,
             move |scope: &mut Scope<'_>, v| {
                 if let Some(child) = child {
+                    tracing::info!(?child, "detaching child");
                     scope.detach(child);
                 }
 
                 child = Some(scope.attach(v));
+                tracing::info!(?child, "attached child");
             },
         ));
     }

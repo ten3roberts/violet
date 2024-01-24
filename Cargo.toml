@@ -45,6 +45,7 @@ fontdue = "0.7"
 cosmic-text = "0.10"
 guillotiere = "0.6"
 bytes = "1.5"
+more-asserts = "0.3"
 
 [dev-dependencies]
 serde_json = "1.0"

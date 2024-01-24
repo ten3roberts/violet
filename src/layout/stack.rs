@@ -1,13 +1,14 @@
 use flax::{Entity, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
+use tracing::span;
 
 use crate::{
     components::{self, Edges, Rect},
     layout::query_size,
 };
 
-use super::{update_subtree, Block, CrossAlign, LayoutLimits, Sizing};
+use super::{update_subtree, Block, CrossAlign, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -82,6 +83,7 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
+        let _span = tracing::info_span!("StackLayout::apply").entered();
         // tracing::info!(
         //     ?content_area,
         //     content_area_size=%content_area.size(),
@@ -98,6 +100,8 @@ impl StackLayout {
             min: Vec2::MAX,
             max: Vec2::MIN,
         };
+
+        tracing::info!(?children);
 
         let blocks = children
             .iter()
@@ -120,6 +124,8 @@ impl StackLayout {
             .collect_vec();
 
         let size = bounds.size();
+
+        tracing::info!(?size);
 
         let mut aligned_bounds = StackableBounds::default();
 
@@ -157,7 +163,8 @@ impl StackLayout {
         world: &World,
         children: &[Entity],
         content_area: Rect,
-        squeeze: Vec2,
+        limits: LayoutLimits,
+        squeeze: Direction,
     ) -> Sizing {
         // Reset to local
         let inner_rect = Rect {
@@ -171,7 +178,7 @@ impl StackLayout {
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(world, &entity, inner_rect, squeeze);
+            let query = query_size(world, &entity, inner_rect, limits, squeeze);
 
             min_bounds = min_bounds.merge(&StackableBounds::new(
                 query.min.translate(content_area.min),

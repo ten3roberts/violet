@@ -73,7 +73,7 @@ component! {
 
     pub draw_shape(variant): () => [ Debuggable, Exclusive ],
 
-    pub(crate) size_resolver: Box<dyn SizeResolver>,
+    pub size_resolver: Box<dyn SizeResolver>,
 }
 
 /// Spacing between a outer and inner bounds

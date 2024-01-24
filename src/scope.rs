@@ -9,9 +9,12 @@ use flax::{
     components::{child_of, name},
     Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
 };
+use futures::Future;
 use pin_project::pin_project;
 
-use crate::{assets::AssetCache, components::children, effect::Effect, Frame, Widget};
+use crate::{
+    assets::AssetCache, components::children, effect::Effect, Frame, FutureEffect, Widget,
+};
 
 /// The scope within a [`Widget`][crate::Widget] is mounted or modified
 pub struct Scope<'a> {
@@ -153,6 +156,10 @@ impl<'a> Scope<'a> {
             id: self.id,
             effect,
         });
+    }
+
+    pub fn spawn_async(&mut self, fut: impl 'static + Future) {
+        self.spawn(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
     }
 
     /// Spawns an effect which is *not* scoped to the widget

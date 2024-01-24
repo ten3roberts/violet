@@ -101,6 +101,11 @@ impl<W: WidgetCollection> List<W> {
         self.layout.stretch = enable;
         self
     }
+
+    pub fn with_proportional_growth(mut self, proportional_growth: bool) -> Self {
+        self.layout.proportional_growth = proportional_growth;
+        self
+    }
 }
 
 impl<W: WidgetCollection> ContainerExt for List<W> {

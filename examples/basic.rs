@@ -45,86 +45,6 @@ pub const EMERALD: Srgba = srgba!("#50c878");
 pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
 
-struct Sized<W> {
-    min_size: Unit<Vec2>,
-    size: Unit<Vec2>,
-    widget: W,
-}
-
-impl<W> Sized<W> {
-    pub fn new(widget: W) -> Self {
-        Self {
-            min_size: Unit::ZERO,
-            size: Unit::ZERO,
-            widget,
-        }
-    }
-
-    /// Sets the preferred size of a widget
-    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
-        self.size = size;
-        self
-    }
-
-    /// Sets the minimum size of a widget
-    pub fn with_min_size(mut self, size: Unit<Vec2>) -> Self {
-        self.min_size = size;
-        self
-    }
-}
-
-impl<W> Widget for Sized<W>
-where
-    W: Widget,
-{
-    fn mount(self, scope: &mut Scope<'_>) {
-        self.widget.mount(scope);
-
-        scope.set(components::size(), self.size);
-        scope.set(components::min_size(), self.min_size);
-    }
-}
-
-struct Positioned<W> {
-    offset: Unit<Vec2>,
-    anchor: Unit<Vec2>,
-    widget: W,
-}
-
-impl<W> Positioned<W> {
-    pub fn new(widget: W) -> Self {
-        Self {
-            offset: Unit::ZERO,
-            anchor: Unit::ZERO,
-            widget,
-        }
-    }
-
-    /// Sets the anchor point of the widget
-    pub fn with_anchor(mut self, anchor: Unit<Vec2>) -> Self {
-        self.anchor = anchor;
-        self
-    }
-
-    /// Offsets the widget relative to its original position
-    pub fn with_offset(mut self, offset: Unit<Vec2>) -> Self {
-        self.offset = offset;
-        self
-    }
-}
-
-impl<W> Widget for Positioned<W>
-where
-    W: Widget,
-{
-    fn mount(self, scope: &mut Scope<'_>) {
-        self.widget.mount(scope);
-
-        scope.set(components::anchor(), self.anchor);
-        scope.set(components::offset(), self.offset);
-    }
-}
-
 // impl<K> Asset<DynamicImage> for K
 // where
 //     K: AssetKey<Bytes>,
@@ -143,25 +63,18 @@ impl Widget for MainApp {
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         List::new((
-            List::new(
-                (0..4)
-                    .map(|i| {
-                        let size = vec2(50.0, 50.0);
-
-                        Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
-                            .with_min_size(Unit::px(size))
-                            .with_size(Unit::px(size * vec2(2.0, 1.0)))
-                    })
-                    .collect_vec(),
-            ),
+            LayoutFlexTest {
+                proportional_growth: false,
+            },
+            LayoutFlexTest {
+                proportional_growth: true,
+            },
             LayoutTest {
                 contain_margins: true,
-                depth: 2,
             }
             .with_name("LayoutText 3"),
             LayoutTest {
                 contain_margins: false,
-                depth: 2,
             }
             .with_name("LayoutText 2"),
             List::new(
@@ -289,9 +202,30 @@ impl Widget for StackTest {
     }
 }
 
+struct LayoutFlexTest {
+    proportional_growth: bool,
+}
+impl Widget for LayoutFlexTest {
+    fn mount(self, scope: &mut Scope<'_>) {
+        List::new(
+            (0..8)
+                .map(|i| {
+                    let size = vec2(100.0, 20.0);
+
+                    Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
+                        .with_min_size(Unit::px(size))
+                        .with_size(Unit::px(size * vec2(i as f32, 1.0)))
+                        .with_margin(MARGIN)
+                })
+                .collect_vec(),
+        )
+        .with_proportional_growth(self.proportional_growth)
+        .mount(scope)
+    }
+}
+
 struct LayoutTest {
     contain_margins: bool,
-    depth: usize,
 }
 
 impl Widget for LayoutTest {
@@ -312,28 +246,18 @@ impl Widget for LayoutTest {
         let click_count = Mutable::new(0);
 
         let row_1 = List::new((
-            Button::new(List::new((
-                Stack::new(
-                    Text::rich([
-                        TextSegment::new("This is "),
-                        TextSegment::new("sparta")
-                            .with_style(Style::Italic)
-                            .with_color(BRONZE),
-                    ])
-                    .with_font_size(32.0)
-                    .with_wrap(Wrap::None),
-                )
-                .with_background(Rectangle::new(EERIE_BLACK))
-                .with_padding(MARGIN_SM),
-                if self.depth > 0 {
-                    Some(Self {
-                        contain_margins: true,
-                        depth: self.depth - 1,
-                    })
-                } else {
-                    None
-                },
-            )))
+            Button::new(List::new((Stack::new(
+                Text::rich([
+                    TextSegment::new("This is "),
+                    TextSegment::new("sparta")
+                        .with_style(Style::Italic)
+                        .with_color(BRONZE),
+                ])
+                .with_font_size(32.0)
+                .with_wrap(Wrap::None),
+            )
+            .with_background(Rectangle::new(EERIE_BLACK))
+            .with_padding(MARGIN_SM),)))
             .on_press({
                 let click_count = click_count.clone();
                 move |_, _| {

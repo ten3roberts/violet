@@ -1,0 +1,54 @@
+ INFO sending keyboard input event, cur=FocusedEntity { id: 4v1, sticky: true }
+ INFO detaching child, child=8v1
+ INFO attached child, child=Some(8v2)
+┐StackLayout::apply 
+├─  0ms  INFO children=[7v1]
+├─┐StackLayout::apply 
+│ ├─  0ms  INFO children=[8v2]
+│ ├─  0ms  INFO size=Vec2(69.12, 16.0)
+├─┘
+├─  0ms  INFO size=Vec2(69.12, 16.0)
+┘
+┐update_mesh item.id=8v2
+├─  0ms  INFO Created texture Valid((5, 1, Vulkan)) with TextureDescriptor { label: Some("FontAtlas"), size: Extent3d 
+├─  1ms  INFO Allocating new mesh for text, glyph_count=8
+┘
+┐update_mesh item.id=5v1
+├─  0ms  INFO Allocating new mesh for text, glyph_count=8
+├─  0ms  INFO Created buffer Valid((1, 3, Vulkan)) with BufferDescriptor { label: Some("MeshBuffer::vertex_buffer"), s
+├─  0ms  INFO Created buffer Valid((2, 3, Vulkan)) with BufferDescriptor { label: Some("MeshBuffer::index_buffer"), si
+┘
+ INFO sending keyboard input event, cur=FocusedEntity { id: 4v1, sticky: true }
+┐StackLayout::apply 
+├─  0ms  INFO children=[7v1]
+├─┐StackLayout::apply 
+│ ├─  0ms  INFO children=[8v2]
+│ ├─  0ms  INFO size=Vec2(69.12, 16.0)
+├─┘
+├─  0ms  INFO size=Vec2(69.12, 16.0)
+┘
+ INFO sending keyboard input event, cur=FocusedEntity { id: 4v1, sticky: true }
+ INFO detaching child, child=8v2
+ INFO attached child, child=Some(8v3)
+┐StackLayout::apply 
+├─  0ms  INFO children=[7v1]
+├─┐StackLayout::apply 
+│ ├─  0ms  INFO children=[8v3]
+│ ├─  0ms  INFO size=Vec2(78.096, 16.0)
+├─┘
+├─  0ms  INFO size=Vec2(78.096, 16.0)
+┘
+┐update_mesh item.id=8v3
+├─  0ms  INFO Created texture Valid((6, 1, Vulkan)) with TextureDescriptor { label: Some("FontAtlas"), size: Extent3d 
+{ width: 128, height: 128, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1, dimension: D2, format: R8U
+norm, usage: TextureUsages(COPY_DST | TEXTURE_BINDING), view_formats: [] }
+├─  0ms  INFO Allocating new mesh for text, glyph_count=9
+┘
+┐update_mesh item.id=5v1
+├─  0ms  INFO Allocating new mesh for text, glyph_count=9
+├─  0ms  INFO Created buffer Valid((6, 3, Vulkan)) with BufferDescriptor { label: Some("MeshBuffer::vertex_buffer"), s
+ize: 24576, usage: BufferUsages(COPY_SRC | COPY_DST | VERTEX), mapped_at_creation: false }
+┘
+ INFO sending keyboard input event, cur=FocusedEntity { id: 4v1, sticky: true }
+ INFO sending keyboard input event, cur=FocusedEntity { id: 4v1, sticky: true }
+

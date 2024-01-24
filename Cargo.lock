@@ -1154,6 +1154,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "more-asserts"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
+
+[[package]]
 name = "naga"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2279,6 +2285,7 @@ dependencies = [
  "guillotiere",
  "image",
  "itertools",
+ "more-asserts",
  "once_cell",
  "palette",
  "parking_lot",

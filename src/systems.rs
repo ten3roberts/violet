@@ -18,7 +18,7 @@ pub fn hydrate_text() -> BoxedSystem {
         .with_query(Query::new(entity_ids()).with(text()))
         .build(|cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
             query.for_each(|id| {
-                cmd.set_missing(id, layout_bounds(), Vec2::ZERO);
+                cmd.set_missing(id, layout_bounds(), Vec2::ONE * 100.0);
             })
         })
         .boxed()
