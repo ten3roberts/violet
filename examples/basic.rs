@@ -163,7 +163,7 @@ struct DisplayWorld;
 
 impl Widget for DisplayWorld {
     fn mount(self, scope: &mut Scope<'_>) {
-        scope.spawn(StreamEffect::new(
+        scope.spawn_effect(StreamEffect::new(
             interval(Duration::from_secs(1)),
             |scope: &mut Scope<'_>, _| {
                 let world = &scope.frame().world;

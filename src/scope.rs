@@ -151,15 +151,15 @@ impl<'a> Scope<'a> {
     }
 
     /// Spawns an effect scoped to the lifetime of this entity and scope
-    pub fn spawn(&mut self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
+    pub fn spawn_effect(&mut self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
         self.frame.spawn(ScopedEffect {
             id: self.id,
             effect,
         });
     }
 
-    pub fn spawn_async(&mut self, fut: impl 'static + Future) {
-        self.spawn(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
+    pub fn spawn(&mut self, fut: impl 'static + Future) {
+        self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
     }
 
     /// Spawns an effect which is *not* scoped to the widget

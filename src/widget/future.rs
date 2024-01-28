@@ -20,18 +20,14 @@ where
         let mut child = None;
         let stream = self.0.to_stream();
 
-        scope.set(layout(), Layout::Stack(Default::default()));
-
-        scope.spawn(StreamEffect::new(
+        scope.spawn_effect(StreamEffect::new(
             stream,
             move |scope: &mut Scope<'_>, v| {
                 if let Some(child) = child {
-                    tracing::info!(?child, "detaching child");
                     scope.detach(child);
                 }
 
                 child = Some(scope.attach(v));
-                tracing::info!(?child, "attached child");
             },
         ));
     }
@@ -47,9 +43,7 @@ where
     fn mount(self, scope: &mut crate::Scope<'_>) {
         let mut child = None;
 
-        scope.set(layout(), Layout::Stack(Default::default()));
-
-        scope.spawn(StreamEffect::new(
+        scope.spawn_effect(StreamEffect::new(
             self.0,
             move |scope: &mut Scope<'_>, v| {
                 if let Some(child) = child {

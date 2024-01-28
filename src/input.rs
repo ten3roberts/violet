@@ -3,7 +3,7 @@ use flax::{
     EntityIds, EntityRef, Fetch, FetchExt, Query, Topo,
 };
 use glam::Vec2;
-use winit::event::{ElementState, KeyboardInput, MouseButton};
+use winit::event::{ElementState, KeyboardInput, ModifiersState, MouseButton};
 
 use crate::{
     components::{rect, screen_position, Rect},
@@ -43,6 +43,7 @@ pub struct InputState {
     focused: Option<FocusedEntity>,
     pos: Vec2,
     intersect_query: Query<IntersectQuery, All, Topo>,
+    modifiers: ModifiersState,
 }
 
 impl InputState {
@@ -51,6 +52,7 @@ impl InputState {
             focused: None,
             pos,
             intersect_query: Query::new(IntersectQuery::new()).topo(child_of),
+            modifiers: Default::default(),
         }
     }
 
@@ -95,9 +97,13 @@ impl InputState {
 
             tracing::info!(%entity, "sending input event");
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
-                on_input(frame, &entity, state, input);
+                on_input(frame, &entity, state, &self.modifiers, input);
             }
         }
+    }
+
+    pub fn on_modifiers_change(&mut self, modifiers: ModifiersState) {
+        self.modifiers = modifiers;
     }
 
     pub fn on_keyboard_input(&mut self, frame: &mut Frame, input: KeyboardInput) {
@@ -106,7 +112,7 @@ impl InputState {
             let entity = frame.world.entity(cur.id).unwrap();
 
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
-                on_input(frame, &entity, input);
+                on_input(frame, &entity, &self.modifiers, input);
             }
         }
     }
@@ -152,9 +158,11 @@ impl InputState {
     }
 }
 
-pub type OnMouseInput = Box<dyn FnMut(&Frame, &EntityRef, ElementState, MouseButton) + Send + Sync>;
+pub type OnMouseInput =
+    Box<dyn FnMut(&Frame, &EntityRef, ElementState, &ModifiersState, MouseButton) + Send + Sync>;
 pub type OnFocus = Box<dyn FnMut(&Frame, &EntityRef, bool) + Send + Sync>;
-pub type OnKeyboardInput = Box<dyn FnMut(&Frame, &EntityRef, KeyboardInput) + Send + Sync>;
+pub type OnKeyboardInput =
+    Box<dyn FnMut(&Frame, &EntityRef, &ModifiersState, KeyboardInput) + Send + Sync>;
 pub type OnCharTyped = Box<dyn FnMut(&Frame, &EntityRef, char) + Send + Sync>;
 
 component! {

@@ -189,7 +189,7 @@ impl<W: Widget> Widget for Button<W> {
             )
             .with_component(
                 on_mouse_input(),
-                Box::new(move |frame, _, state, button| {
+                Box::new(move |frame, _, state, _mods, button| {
                     if state == ElementState::Released {
                         (self.on_press)(frame, button);
                     }

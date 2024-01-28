@@ -454,7 +454,7 @@ impl FlowLayout {
             .min(limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
 
-        tracing::info!(
+        tracing::debug!(
             min=?row.min.size(),
             preferre2=?row.preferred.size(),
             distribute_size,
@@ -698,7 +698,7 @@ impl FlowLayout {
         let row = self.query_row(world, children, content_area, limits, self.direction);
 
         let block = self.distribute_query(world, &row, content_area, limits, squeeze);
-        tracing::info!(?self.direction, ?block, "query");
+        tracing::debug!(?self.direction, ?block, "query");
 
         block
     }

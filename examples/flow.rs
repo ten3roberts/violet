@@ -12,14 +12,15 @@ use violet::{
     components::{size_resolver, text, Edges},
     constraints::FixedAreaConstraint,
     input::{focus_sticky, focusable, on_char_typed, on_keyboard_input},
-    layout::Direction,
+    layout::{CrossAlign, Direction},
     style::StyleExt,
-    text::TextSegment,
+    text::{FontFamily, TextSegment},
     time::interval,
     unit::Unit,
     widget::{ContainerExt, List, Rectangle, Signal, Stack, Text, WidgetExt},
     App, Widget,
 };
+use winit::event::{ElementState, VirtualKeyCode};
 
 macro_rules! srgba {
     ($color:literal) => {{
@@ -69,38 +70,15 @@ struct MainApp;
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut violet::Scope<'_>) {
-        List::new((List::new((
-            List::new((
-                Rectangle::new(EMERALD).with_size(Unit::px(vec2(100.0, 100.0))),
-                FixedArea::new(EMERALD, 100.0).with_name("a"),
-                FixedArea::new(TEAL, 200.0).with_name("b"),
-            )),
-            FixedArea::new(CHILI_RED, 200.0).with_name("c"),
+        let content = Mutable::new(String::new());
+        List::new((
+            List::new((Text::new("Input: "), TextInput::new(content))),
+            ItemList,
         ))
-        .with_direction(Direction::Vertical),))
-        .with_padding(Edges::even(50.0))
+        .with_direction(Direction::Vertical)
+        .with_cross_align(CrossAlign::Center)
+        .with_padding(MARGIN)
         .mount(scope)
-
-        // List::new((
-        //     List::new((
-        //         Rectangle::new(PLATINUM)
-        //             .with_min_size(Unit::px(vec2(100.0, 50.0)))
-        //             .with_margin(MARGIN),
-        //         List::new((
-        //             FixedArea::new(EMERALD, 10000.0),
-        //             FixedArea::new(CHILI_RED, 20000.0),
-        //         ))
-        //         .with_direction(Direction::Vertical),
-        //     ))
-        //     .with_stretch(true),
-        //     Rectangle::new(TEAL)
-        //         .with_min_size(Unit::px(vec2(300.0, 50.0)))
-        //         .with_margin(MARGIN),
-        //     // ItemList,
-        // ))
-        // .with_direction(Direction::Vertical)
-        // .with_padding(Edges::even(50.0))
-        // .mount(scope)
     }
 }
 
@@ -134,12 +112,18 @@ struct ItemList;
 
 impl Widget for ItemList {
     fn mount(self, scope: &mut violet::Scope<'_>) {
+        let count = 10;
         List::new(
-            (0..10)
+            (0..count)
                 .map(|i| {
                     let size = 100.0 + i as f32 * 10.0;
                     // Rectangle::new(Hsva::new(i as f32 * 10.0, 1.0, 1.0, 1.0).into_color())
-                    pill(Text::new(format!("{size}px")).with_size(Unit::px(vec2(size, 20.0))))
+                    Stack::new(Text::new(format!("{size}px")).with_size(Unit::px(vec2(size, 20.0))))
+                        .with_background(Rectangle::new(
+                            Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
+                        ))
+                        .with_padding(MARGIN_SM)
+                        .with_margin(MARGIN_SM)
                 })
                 .collect::<Vec<_>>(),
         )
@@ -161,59 +145,55 @@ impl Widget for TextInput {
     fn mount(self, scope: &mut violet::Scope<'_>) {
         scope.set(focusable(), ()).set(focus_sticky(), ());
 
-        self.content.lock_mut().push_str("Lorem ipsum dolor sit amet, qui minim labore adipisicing minim sint cillum sint consectetur cupidatat.");
-        let dup = scope.attach(
-            Text::new("This is another piece of text that is a bit shorter.").with_margin(MARGIN),
+        let content = self.content.clone();
+        scope.set(
+            on_char_typed(),
+            Box::new(move |_, _, char| {
+                if char.is_control() {
+                    return;
+                }
+
+                content.lock_mut().push(char);
+            }),
         );
 
-        // let content = self.content.clone();
-        // scope.set(
-        //     on_char_typed(),
-        //     Box::new(move |frame, _, char| {
-        //         content.lock_mut().push(char);
-        //         frame.world.entity(dup).unwrap().update(text(), |v| {
-        //             *v = vec![TextSegment::new(content.lock_mut().to_string())]
-        //         });
-        //     }),
-        // );
+        let content = self.content.clone();
+        scope.set(
+            on_keyboard_input(),
+            Box::new(move |_, _, mods, input| {
+                let Some(virtual_keycode) = input.virtual_keycode else {
+                    return;
+                };
 
-        // let content = self.content.clone();
-        // scope.set(
-        //     on_keyboard_input(),
-        //     Box::new(move |frame, _, input| {
-        //         match input.virtual_keycode {
-        //             Some(winit::event::VirtualKeyCode::Back) => {
-        //                 content.lock_mut().pop();
-        //             }
-        //             Some(winit::event::VirtualKeyCode::Return) => {
-        //                 content.lock_mut().push('\n');
-        //             }
-        //             _ => {}
-        //         }
+                if input.state == ElementState::Pressed {
+                    match virtual_keycode {
+                        VirtualKeyCode::Back if mods.ctrl() => {
+                            let mut content = content.lock_mut();
+                            if let Some(last_word) =
+                                content.split_inclusive([' ', '\n']).next_back()
+                            {
+                                let n = last_word.chars().count();
+                                for _ in 0..n {
+                                    content.pop();
+                                }
+                            }
+                        }
+                        VirtualKeyCode::Back => {
+                            content.lock_mut().pop();
+                        }
+                        VirtualKeyCode::Return => {
+                            content.lock_mut().push('\n');
+                        }
+                        _ => {}
+                    }
+                }
+            }),
+        );
 
-        //         frame.world.entity(dup).unwrap().update(text(), |v| {
-        //             *v = vec![TextSegment::new(content.lock_mut().to_string())]
-        //         });
-        //     }),
-        // );
-
-        // let content = self.content.clone();
-        // scope.spawn_async(
-        //     interval(Duration::from_millis(50))
-        //         .zip(stream::iter("Lorem ipsum dolor sit amet, officia excepteur ex fugiat reprehenderit enim labore culpa sint ad nisi Lorem pariatur mollit ex esse exercitation amet. Nisi anim cupidatat excepteur officia. Reprehenderit nostrud nostrud ipsum Lorem est aliquip amet voluptate voluptate dolor minim nulla est proident. Nostrud officia pariatur ut officia. Sit irure elit esse ea nulla sunt ex occaecat reprehenderit commodo officia dolor Lorem duis laboris cupidatat officia voluptate. Culpa proident adipisicing id nulla nisi laboris ex in Lorem sunt duis officia eiusmod. Aliqua reprehenderit commodo ex non excepteur duis sunt velit enim. Voluptate laboris sint cupidatat ullamco ut ea consectetur et est culpa et culpa duis.".chars()))
-        //         .for_each(move |(_, c)| {
-        //             tracing::info!(?c, "sending char");
-        //             content.lock_mut().push(c);
-        //             async {}
-        //         }),
-        // );
-
-        List::new(pill(Signal(
-            self.content
-                .signal_cloned()
-                .map(|v| Text::new(v).with_wrap(Wrap::Word)),
-        )))
-        .with_direction(Direction::Vertical)
+        pill(Signal(self.content.signal_cloned().map(|v| {
+            Text::rich([TextSegment::new(v).with_family(FontFamily::named("Inter"))])
+                .with_font_size(18.0)
+        })))
         .mount(scope)
     }
 }

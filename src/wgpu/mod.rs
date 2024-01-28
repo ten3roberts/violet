@@ -9,6 +9,7 @@ pub mod systems;
 pub mod text_renderer;
 mod texture;
 pub mod window_renderer;
+mod text;
 
 pub use graphics::Gpu;
 pub use shape_renderer::WidgetRenderer;

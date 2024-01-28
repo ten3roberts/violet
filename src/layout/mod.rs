@@ -124,22 +124,19 @@ pub fn query_size(
     limits: LayoutLimits,
     squeeze: Direction,
 ) -> Sizing {
-    let margin = entity
-        .get(components::margin())
-        .ok()
-        .as_deref()
-        .copied()
-        .unwrap_or_default();
+    let query = (
+        components::margin().opt_or_default(),
+        padding().opt_or_default(),
+        children().opt(),
+        layout().opt(),
+    );
+    let mut query = entity.query(&query);
+    let (&margin, &padding, children, layout) = query.get().unwrap();
 
-    let padding = entity
-        .get(padding())
-        .ok()
-        .as_deref()
-        .copied()
-        .unwrap_or_default();
+    let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
     // Flow
-    if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
+    if let Some(layout) = layout {
         let sizing = layout.query_size(
             world,
             children,
@@ -157,35 +154,9 @@ pub fn query_size(
             preferred: sizing.preferred.pad(&padding),
             margin,
         }
-        // }
-        // else if let Ok(layout) = entity.get(flow()) {
-        //     // For a given layout use the largest size that fits within the constraints and then
-        //     // potentially shrink it down.
-
-        //     let row = layout.query_size(world, entity, content_area.inset(&padding));
-        //     let margin = (row.margin - padding).max(margin);
-
-        //     Sizing {
-        //         min: row.min.pad(&padding),
-        //         preferred: row.preferred.pad(&padding),
-        //         margin,
-        //     }
-        // }
-        // Stack
-        // else if let Some((children, stack)) = entity
-        //     .query(&(children(), components::stack().opt_or_default()))
-        //     .get()
-        // {
-        //     let query = stack.query_size(world, children, content_area.inset(&padding));
-
-        //     // rect: block.rect.pad(&padding),
-        //     let margin = (query.margin - padding).max(Edges::even(0.0)).max(margin);
-        //     Sizing {
-        //         min: query.min.pad(&padding),
-        //         preferred: query.preferred.pad(&padding),
-        //         margin,
-        //     }
-        // }
+    } else if let [child] = children {
+        let entity = world.entity(*child).unwrap();
+        query_size(world, &entity, content_area, limits, squeeze)
     } else {
         let (min_size, preferred_size) = query_contraints(entity, content_area, limits, squeeze);
 
@@ -216,22 +187,18 @@ pub(crate) fn update_subtree(
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
     let _span = tracing::debug_span!("update_subtree", %entity).entered();
 
-    let margin = entity
-        .get(components::margin())
-        .ok()
-        .as_deref()
-        .copied()
-        .unwrap_or_default();
+    let query = (
+        components::margin().opt_or_default(),
+        padding().opt_or_default(),
+        children().opt(),
+        layout().opt(),
+    );
+    let mut query = entity.query(&query);
+    let (&margin, &padding, children, layout) = query.get().unwrap();
 
-    let padding = entity
-        .get(padding())
-        .ok()
-        .as_deref()
-        .copied()
-        .unwrap_or_default();
+    let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    // Layout
-    if let Some((children, layout)) = entity.query(&(children(), layout())).get() {
+    if let Some(layout) = layout {
         // For a given layout use the largest size that fits within the constraints and then
         // potentially shrink it down.
 
@@ -253,19 +220,11 @@ pub(crate) fn update_subtree(
         block.margin = (block.margin - padding).max(margin);
 
         block
-    }
-    // Text widgets height are influenced by their available width.
-    else {
-        assert_eq!(
-            entity
-                .get(children())
-                .as_deref()
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]),
-            &[],
-            "Widgets with no layout may not have children"
-        );
-
+    } else if let [child] = children {
+        let entity = world.entity(*child).unwrap();
+        update_subtree(world, &entity, content_area, limits)
+    } else {
+        assert_eq!(children, [], "Entity has children but no layout");
         let size = apply_contraints(entity, content_area, limits);
 
         if size.x > limits.max_size.x || size.y > limits.max_size.y {

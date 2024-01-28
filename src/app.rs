@@ -135,6 +135,9 @@ impl App {
                 WindowEvent::ReceivedCharacter(c) => {
                     input_state.on_char_input(&mut frame, c);
                 }
+                WindowEvent::ModifiersChanged(modifiers) => {
+                    input_state.on_modifiers_change(modifiers);
+                }
                 WindowEvent::KeyboardInput {
                     input,
                     is_synthetic,

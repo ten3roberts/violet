@@ -101,8 +101,6 @@ impl StackLayout {
             max: Vec2::MIN,
         };
 
-        tracing::info!(?children);
-
         let blocks = children
             .iter()
             .map(|&child| {
@@ -124,8 +122,6 @@ impl StackLayout {
             .collect_vec();
 
         let size = bounds.size();
-
-        tracing::info!(?size);
 
         let mut aligned_bounds = StackableBounds::default();
 
