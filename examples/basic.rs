@@ -9,7 +9,7 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{self, layout, rect, size, text, Edges},
+    components::{self, aspect_ratio, layout, rect, size, text, Edges},
     layout::{CrossAlign, Direction},
     style::StyleExt,
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
@@ -45,17 +45,6 @@ pub const EMERALD: Srgba = srgba!("#50c878");
 pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
 
-// impl<K> Asset<DynamicImage> for K
-// where
-//     K: AssetKey<Bytes>,
-// {
-//     type Error = K::Error;
-
-//     fn load(self, _: &violet::assets::AssetCache) -> Result<DynamicImage, ImageError> {
-//         image::load_from_memory(&self.0)
-//     }
-// }
-
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
@@ -82,9 +71,10 @@ impl Widget for MainApp {
                     .map(|i| {
                         let size = Vec2::splat(128.0 / i as f32);
                         Image::new("./assets/images/statue.jpg")
-                            .with_min_size(Unit::px(size))
+                            .with_min_size(Unit::px(vec2(16.0, 16.0)))
                             .with_size(Unit::px(size))
                             .with_margin(MARGIN)
+                            .with_aspect_ratio(1.0)
                     })
                     .collect_vec(),
             )

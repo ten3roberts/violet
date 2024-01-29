@@ -31,6 +31,13 @@ pub trait StyleExt {
         self.with_component(components::size(), size)
     }
 
+    fn with_aspect_ratio(self, aspect_ratio: f32) -> WithComponent<Self, f32>
+    where
+        Self: Sized,
+    {
+        self.with_component(components::aspect_ratio(), aspect_ratio)
+    }
+
     #[inline]
     fn with_component<T: ComponentValue>(
         self,

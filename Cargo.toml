@@ -41,7 +41,6 @@ serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"
 pin-project = "1.1"
 
-fontdue = "0.7"
 cosmic-text = "0.10"
 guillotiere = "0.6"
 bytes = "1.5"

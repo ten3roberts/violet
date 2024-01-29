@@ -2,10 +2,10 @@ mod flow;
 mod stack;
 
 use flax::{Entity, EntityRef, FetchExt, World};
-use glam::Vec2;
+use glam::{vec2, Vec2};
 
 use crate::{
-    components::{self, children, layout, padding, Edges, Rect},
+    components::{self, aspect_ratio, children, layout, padding, Edges, Rect},
     unit::Unit,
 };
 
@@ -35,20 +35,6 @@ impl Direction {
             (Direction::Vertical, false) => Edges::new(cross.0, cross.1, main.0, main.1),
             (Direction::Horizontal, true) => Edges::new(main.1, main.0, cross.0, cross.1),
             (Direction::Vertical, true) => Edges::new(cross.1, cross.0, main.0, main.1),
-        }
-    }
-
-    fn rotate(self) -> Self {
-        match self {
-            Direction::Horizontal => Direction::Vertical,
-            Direction::Vertical => Direction::Horizontal,
-        }
-    }
-
-    pub(crate) fn to_axis(&self) -> Vec2 {
-        match self {
-            Direction::Horizontal => Vec2::X,
-            Direction::Vertical => Vec2::Y,
         }
     }
 }
@@ -117,7 +103,7 @@ impl Block {
     }
 }
 
-pub fn query_size(
+pub(crate) fn query_size(
     world: &World,
     entity: &EntityRef,
     content_area: Rect,
@@ -158,7 +144,7 @@ pub fn query_size(
         let entity = world.entity(*child).unwrap();
         query_size(world, &entity, content_area, limits, squeeze)
     } else {
-        let (min_size, preferred_size) = query_contraints(entity, content_area, limits, squeeze);
+        let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
@@ -225,7 +211,7 @@ pub(crate) fn update_subtree(
         update_subtree(world, &entity, content_area, limits)
     } else {
         assert_eq!(children, [], "Entity has children but no layout");
-        let size = apply_contraints(entity, content_area, limits);
+        let size = apply_constraints(entity, content_area, limits);
 
         if size.x > limits.max_size.x || size.y > limits.max_size.y {
             tracing::error!(
@@ -243,7 +229,7 @@ pub(crate) fn update_subtree(
     }
 }
 
-pub trait SizeResolver: Send + Sync {
+pub(crate) trait SizeResolver: Send + Sync {
     fn query(
         &mut self,
         entity: &EntityRef,
@@ -254,53 +240,85 @@ pub trait SizeResolver: Send + Sync {
     fn apply(&mut self, entity: &EntityRef, content_area: Rect, limits: LayoutLimits) -> Vec2;
 }
 
-fn query_contraints(
+fn resolve_base_size(
+    entity: &EntityRef,
+    content_area: Rect,
+    limits: LayoutLimits,
+) -> (Vec2, Vec2, Constraints) {
+    let query = (
+        components::min_size().opt_or_default(),
+        components::size().opt_or_default(),
+        aspect_ratio().opt(),
+    );
+    let mut query = entity.query(&query);
+    let (min_size, size, aspect_ratio) = query.get().unwrap();
+
+    let min_size = min_size.resolve(content_area.size());
+    let size = size
+        .resolve(content_area.size())
+        .clamp(limits.min_size, limits.max_size)
+        .max(min_size);
+
+    (
+        min_size,
+        size,
+        Constraints {
+            aspect_ratio: aspect_ratio.copied(),
+        },
+    )
+}
+
+#[derive(Debug)]
+struct Constraints {
+    aspect_ratio: Option<f32>,
+}
+
+impl Constraints {
+    fn resolve(&self, mut size: Vec2) -> Vec2 {
+        if let Some(aspect_ratio) = self.aspect_ratio {
+            if size.x > size.y {
+                size = vec2(size.y * aspect_ratio, size.y);
+            } else {
+                size = vec2(size.x, size.x / aspect_ratio);
+            }
+        }
+
+        size
+    }
+}
+
+fn query_constraints(
     entity: &EntityRef,
     content_area: Rect,
     limits: LayoutLimits,
     squeeze: Direction,
 ) -> (Vec2, Vec2) {
-    let query = (
-        components::min_size().opt_or_default(),
-        components::size().opt_or_default(),
-        components::size_resolver().as_mut().opt(),
-    );
-    let mut query = entity.query(&query);
-    let (min_size, size, resolver) = query.get().unwrap();
-
-    let mut min_size = min_size.resolve(content_area.size());
-    let mut size = size.resolve(content_area.size()).max(min_size);
-
-    if let Some(resolver) = resolver {
+    let (mut min_size, mut size, constraints) = resolve_base_size(entity, content_area, limits);
+    if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
         let (resolved_min, resolved_size) = resolver.query(entity, content_area, limits, squeeze);
 
         min_size = resolved_min.max(min_size);
         size = resolved_size.max(size);
     }
 
-    (min_size, size.min(limits.max_size))
+    tracing::info!(%entity, ?constraints);
+
+    (
+        constraints.resolve(min_size),
+        constraints.resolve(size.min(limits.max_size)),
+    )
 }
 
-fn apply_contraints(entity: &EntityRef, content_area: Rect, limits: LayoutLimits) -> Vec2 {
-    let query = (
-        components::min_size().opt_or_default(),
-        components::size().opt_or_default(),
-        components::size_resolver().as_mut().opt(),
-    );
-    let mut query = entity.query(&query);
-    let (min_size, size, resolver) = query.get().unwrap();
-
-    let mut size = size
-        .resolve(content_area.size())
-        .max(min_size.resolve(content_area.size()));
-
-    if let Some(resolver) = resolver {
+fn apply_constraints(entity: &EntityRef, content_area: Rect, limits: LayoutLimits) -> Vec2 {
+    let (_, mut size, constraints) = resolve_base_size(entity, content_area, limits);
+    if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
         let resolved_size = resolver.apply(entity, content_area, limits);
 
         size = resolved_size.max(size);
     }
 
-    size.min(limits.max_size)
+    tracing::info!(%entity, ?constraints);
+    constraints.resolve(size.min(limits.max_size))
 }
 
 fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {

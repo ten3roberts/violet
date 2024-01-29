@@ -9,7 +9,7 @@ use palette::{Hsla, Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{size_resolver, text, Edges},
+    components::{aspect_ratio, size_resolver, text, Edges},
     constraints::FixedAreaConstraint,
     input::{focus_sticky, focusable, on_char_typed, on_keyboard_input},
     layout::{CrossAlign, Direction},
@@ -73,6 +73,9 @@ impl Widget for MainApp {
         let content = Mutable::new(String::new());
         List::new((
             List::new((Text::new("Input: "), TextInput::new(content))),
+            Rectangle::new(TEAL)
+                .with_size(Unit::px(vec2(100.0, 100.0)))
+                .with_component(aspect_ratio(), 1.0),
             ItemList,
         ))
         .with_direction(Direction::Vertical)
@@ -95,16 +98,16 @@ impl FixedArea {
 
 impl Widget for FixedArea {
     fn mount(self, scope: &mut violet::Scope<'_>) {
-        Rectangle::new(self.color)
-            .with_component(
-                size_resolver(),
-                Box::new(FixedAreaConstraint {
-                    area: self.area,
-                    unit_size: 10.0,
-                }),
-            )
-            .with_margin(MARGIN)
-            .mount(scope)
+        // Rectangle::new(self.color)
+        //     .with_component(
+        //         size_resolver(),
+        // Box::new(FixedAreaConstraint {
+        //     area: self.area,
+        //     unit_size: 10.0,
+        // }),
+        // )
+        // .with_margin(MARGIN)
+        // .mount(scope)
     }
 }
 

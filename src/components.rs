@@ -42,6 +42,9 @@ component! {
     /// Sets the anchor point withing the bounds of the widget where position is applied
     pub anchor: Unit<Vec2> => [ Debuggable ],
 
+    /// Constrain the aspect ratio of a widget
+    pub aspect_ratio: f32 => [ Debuggable ],
+
     /// Manages the layout of the children
     pub layout: Layout => [ Debuggable ],
 

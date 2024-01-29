@@ -4,7 +4,6 @@ use std::{
 };
 
 use cosmic_text::{CacheKey, Placement, SwashImage};
-use fontdue::Font;
 use glam::{uvec2, vec3, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
