@@ -18,8 +18,8 @@ impl<W> Stack<W> {
         Self {
             items,
             background: None,
-            horizontal_alignment: CrossAlign::Center,
-            vertical_alignment: CrossAlign::Center,
+            horizontal_alignment: CrossAlign::default(),
+            vertical_alignment: CrossAlign::default(),
         }
     }
 

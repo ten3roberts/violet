@@ -56,11 +56,7 @@ impl InputState {
         }
     }
 
-    pub fn on_cursor_move(&mut self, pos: Vec2) {
-        self.pos = pos;
-    }
-
-    pub fn on_mouse_input(&mut self, frame: &mut Frame, state: ElementState, input: MouseButton) {
+    pub fn on_mouse_input(&mut self, frame: &mut Frame, state: ElementState, button: MouseButton) {
         let cursor_pos = self.pos;
 
         let intersect = self
@@ -70,7 +66,7 @@ impl InputState {
             .filter_map(|item| {
                 let local_pos = cursor_pos - *item.screen_pos;
                 if item.rect.contains_point(local_pos) {
-                    Some(item.id)
+                    Some((item.id, (*item.screen_pos + item.rect.min)))
                 } else {
                     None
                 }
@@ -79,7 +75,7 @@ impl InputState {
 
         match (state, &self.focused, intersect) {
             // Focus changed
-            (ElementState::Pressed, _, new) => self.set_focused(frame, new),
+            (ElementState::Pressed, _, new) => self.set_focused(frame, new.map(|v| v.0)),
             // Released after focusing a widget
             (ElementState::Released, Some(cur), _) => {
                 if !cur.sticky {
@@ -92,12 +88,47 @@ impl InputState {
 
         // Send the event to the intersected entity
 
-        if let Some(id) = intersect {
+        if let Some((id, origin)) = intersect {
             let entity = frame.world().entity(id).unwrap();
 
             tracing::info!(%entity, "sending input event");
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
-                on_input(frame, &entity, state, &self.modifiers, input);
+                on_input(
+                    frame,
+                    &entity,
+                    &self.modifiers,
+                    MouseInput {
+                        state,
+                        cursor: CursorMove {
+                            absolute_pos: self.pos,
+                            local_pos: self.pos - origin,
+                        },
+                        button,
+                    },
+                );
+            }
+        }
+    }
+
+    pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) {
+        self.pos = pos;
+
+        if let Some(cur) = &self.focused {
+            let entity = frame.world.entity(cur.id).unwrap();
+
+            let screen_pos = entity.get_copy(screen_position()).unwrap_or_default();
+            let rect = entity.get_copy(rect()).unwrap_or_default();
+            let origin = screen_pos + rect.min;
+            if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
+                on_input(
+                    frame,
+                    &entity,
+                    &self.modifiers,
+                    CursorMove {
+                        absolute_pos: pos,
+                        local_pos: pos - origin,
+                    },
+                );
             }
         }
     }
@@ -123,7 +154,7 @@ impl InputState {
             let entity = frame.world.entity(cur.id).unwrap();
 
             if let Ok(mut on_input) = entity.get_mut(on_char_typed()) {
-                on_input(frame, &entity, input);
+                on_input(frame, &entity, &self.modifiers, input);
             }
         }
     }
@@ -158,18 +189,32 @@ impl InputState {
     }
 }
 
-pub type OnMouseInput =
-    Box<dyn FnMut(&Frame, &EntityRef, ElementState, &ModifiersState, MouseButton) + Send + Sync>;
+#[derive(Debug, Clone, Copy)]
+pub struct MouseInput {
+    pub state: ElementState,
+    pub cursor: CursorMove,
+    pub button: MouseButton,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CursorMove {
+    /// Mouse cursor relative to the screen
+    pub absolute_pos: Vec2,
+    /// Mouse cursor relative to the bounds of the widget
+    pub local_pos: Vec2,
+}
+
 pub type OnFocus = Box<dyn FnMut(&Frame, &EntityRef, bool) + Send + Sync>;
-pub type OnKeyboardInput =
-    Box<dyn FnMut(&Frame, &EntityRef, &ModifiersState, KeyboardInput) + Send + Sync>;
-pub type OnCharTyped = Box<dyn FnMut(&Frame, &EntityRef, char) + Send + Sync>;
+
+pub type InputEventHandler<T> =
+    Box<dyn FnMut(&Frame, &EntityRef, &ModifiersState, T) + Send + Sync>;
 
 component! {
     pub focus_sticky: (),
     pub focusable: (),
     pub on_focus: OnFocus,
-    pub on_mouse_input: OnMouseInput,
-    pub on_keyboard_input: OnKeyboardInput,
-    pub on_char_typed: OnCharTyped,
+    pub on_cursor_move: InputEventHandler<CursorMove>,
+    pub on_mouse_input: InputEventHandler<MouseInput>,
+    pub on_keyboard_input: InputEventHandler<KeyboardInput>,
+    pub on_char_typed: InputEventHandler<char>,
 }

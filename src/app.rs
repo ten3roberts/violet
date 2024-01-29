@@ -138,14 +138,11 @@ impl App {
                 WindowEvent::ModifiersChanged(modifiers) => {
                     input_state.on_modifiers_change(modifiers);
                 }
-                WindowEvent::KeyboardInput {
-                    input,
-                    is_synthetic,
-                    ..
-                } => input_state.on_keyboard_input(&mut frame, input),
-                WindowEvent::CursorMoved { position, .. } => {
-                    input_state.on_cursor_move(vec2(position.x as f32, position.y as f32))
+                WindowEvent::KeyboardInput { input, .. } => {
+                    input_state.on_keyboard_input(&mut frame, input)
                 }
+                WindowEvent::CursorMoved { position, .. } => input_state
+                    .on_cursor_move(&mut frame, vec2(position.x as f32, position.y as f32)),
                 WindowEvent::Resized(size) => {
                     frame
                         .world_mut()

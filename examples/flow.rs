@@ -1,23 +1,18 @@
-use std::{thread::Scope, time::Duration};
-
-use cosmic_text::Wrap;
-use futures::{stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
-use glam::vec2;
-use itertools::Itertools;
-use palette::{Hsla, Hsva, IntoColor, Srgba};
+use glam::{vec2, Vec2};
+use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{aspect_ratio, size_resolver, text, Edges},
-    constraints::FixedAreaConstraint,
-    input::{focus_sticky, focusable, on_char_typed, on_keyboard_input},
+    components::{aspect_ratio, offset, rect, screen_position, Edges},
+    input::{
+        focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
+    },
     layout::{CrossAlign, Direction},
     style::StyleExt,
     text::{FontFamily, TextSegment},
-    time::interval,
     unit::Unit,
-    widget::{ContainerExt, List, Rectangle, Signal, Stack, Text, WidgetExt},
+    widget::{ContainerExt, List, Rectangle, Signal, Stack, Text},
     App, Widget,
 };
 use winit::event::{ElementState, VirtualKeyCode};
@@ -73,13 +68,19 @@ impl Widget for MainApp {
         let content = Mutable::new(String::new());
         List::new((
             List::new((Text::new("Input: "), TextInput::new(content))),
-            Rectangle::new(TEAL)
-                .with_size(Unit::px(vec2(100.0, 100.0)))
-                .with_component(aspect_ratio(), 1.0),
+            Stack::new((
+                Movable::new(
+                    Rectangle::new(EMERALD)
+                        .with_size(Unit::px(vec2(15.0, 15.0)))
+                        .with_component(aspect_ratio(), 1.0),
+                ),
+                Rectangle::new(TEAL).with_size(Unit::px(vec2(10.0, 300.0))),
+                Rectangle::new(TEAL).with_size(Unit::px(vec2(300.0, 10.0))),
+            )),
             ItemList,
         ))
         .with_direction(Direction::Vertical)
-        .with_cross_align(CrossAlign::Center)
+        // .with_cross_align(CrossAlign::Center)
         .with_padding(MARGIN)
         .mount(scope)
     }
@@ -134,6 +135,54 @@ impl Widget for ItemList {
     }
 }
 
+struct Movable<W> {
+    content: W,
+}
+
+impl<W> Movable<W> {
+    fn new(content: W) -> Self {
+        Self { content }
+    }
+}
+
+impl<W: Widget> Widget for Movable<W> {
+    fn mount(self, scope: &mut violet::Scope<'_>) {
+        let start_offset = Mutable::new(Vec2::ZERO);
+
+        Stack::new(self.content)
+            .with_background(Rectangle::new(EERIE_BLACK))
+            .with_padding(Edges::even(10.0))
+            .with_component(focusable(), ())
+            .with_component(offset(), Unit::default())
+            .with_component(
+                on_mouse_input(),
+                Box::new({
+                    let start_offset = start_offset.clone();
+                    move |_, _, _, input| {
+                        if input.state == ElementState::Pressed {
+                            let cursor_pos = input.cursor.local_pos;
+                            *start_offset.lock_mut() = cursor_pos;
+                        }
+                    }
+                }),
+            )
+            .with_component(
+                on_cursor_move(),
+                Box::new({
+                    move |_, entity, _, input| {
+                        let rect = entity.get_copy(rect()).unwrap();
+
+                        let cursor_pos = input.local_pos + rect.min;
+
+                        let new_offset = cursor_pos - start_offset.get();
+                        entity.update_dedup(offset(), Unit::px(new_offset));
+                    }
+                }),
+            )
+            .mount(scope)
+    }
+}
+
 struct TextInput {
     content: Mutable<String>,
 }
@@ -151,7 +200,7 @@ impl Widget for TextInput {
         let content = self.content.clone();
         scope.set(
             on_char_typed(),
-            Box::new(move |_, _, char| {
+            Box::new(move |_, _, _, char| {
                 if char.is_control() {
                     return;
                 }

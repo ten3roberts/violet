@@ -1,4 +1,4 @@
-use std::ops;
+use std::ops::{self, Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use glam::Vec2;
 
@@ -32,7 +32,7 @@ impl<T: Zero> Unit<T> {
 
 impl<T> Unit<T>
 where
-    T: ops::Add<Output = T> + ops::Mul<Output = T> + Copy,
+    T: Add<Output = T> + Mul<Output = T> + Copy,
 {
     pub fn resolve(&self, parent: T) -> T {
         self.px + self.rel * parent
@@ -53,7 +53,7 @@ impl Zero for Vec2 {
 
 impl<T> std::ops::Add for Unit<T>
 where
-    T: ops::Add<Output = T> + ops::Mul<Output = T> + Copy,
+    T: Add<Output = T> + Mul<Output = T> + Copy,
 {
     type Output = Self;
 
@@ -67,7 +67,7 @@ where
 
 impl<T> std::ops::Sub for Unit<T>
 where
-    T: ops::Sub<Output = T> + ops::Mul<Output = T> + Copy,
+    T: Sub<Output = T> + Mul<Output = T> + Copy,
 {
     type Output = Self;
 
@@ -76,5 +76,43 @@ where
             px: self.px - rhs.px,
             rel: self.rel - rhs.rel,
         }
+    }
+}
+
+impl<T> AddAssign for Unit<T>
+where
+    T: AddAssign + Mul<Output = T> + Copy,
+{
+    fn add_assign(&mut self, rhs: Self) {
+        self.px += rhs.px;
+        self.rel += rhs.rel;
+    }
+}
+
+impl<T> SubAssign for Unit<T>
+where
+    T: SubAssign + Mul<Output = T> + Copy,
+{
+    fn sub_assign(&mut self, rhs: Self) {
+        self.px -= rhs.px;
+        self.rel -= rhs.rel;
+    }
+}
+
+impl Mul<f32> for Unit<Vec2> {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            px: self.px * rhs,
+            rel: self.rel * rhs,
+        }
+    }
+}
+
+impl MulAssign<f32> for Unit<Vec2> {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.px *= rhs;
+        self.rel *= rhs;
     }
 }
