@@ -63,14 +63,15 @@ impl Layout {
     pub(crate) fn query_size(
         &self,
         world: &World,
+        entity: &EntityRef,
         children: &[Entity],
         inner_rect: Rect,
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
         match self {
-            Layout::Stack(v) => v.query_size(world, children, inner_rect, limits, squeeze),
-            Layout::Flow(v) => v.query_size(world, children, inner_rect, limits, squeeze),
+            Layout::Stack(v) => v.query_size(world, entity, children, inner_rect, limits, squeeze),
+            Layout::Flow(v) => v.query_size(world, entity, children, inner_rect, limits, squeeze),
         }
     }
 }
@@ -122,12 +123,11 @@ pub(crate) fn query_size(
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
-
     // Flow
     if let Some(layout) = layout {
-        let sizing = layout.query_size(
+        layout.query_size(
             world,
+            entity,
             children,
             content_area.inset(&padding),
             LayoutLimits {
@@ -135,28 +135,16 @@ pub(crate) fn query_size(
                 max_size: limits.max_size - padding.size(),
             },
             squeeze,
-        );
-        let margin = (sizing.margin - padding).max(margin);
-
-        let min_size = sizing.min.pad(&padding);
-        let preferred_size = sizing.preferred.pad(&padding);
-
-        let min_offset = resolve_pos(entity, content_area, min_size.size());
-        let preferred_offset = resolve_pos(entity, content_area, preferred_size.size());
-
-        Sizing {
-            min: min_size.translate(min_offset),
-            preferred: preferred_size.translate(preferred_offset),
-            margin,
-        }
+        )
     } else if let [child] = children {
         let entity = world.entity(*child).unwrap();
         query_size(world, &entity, content_area, limits, squeeze)
     } else {
+        let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
         // Leaf
 
-        let min_offset = resolve_pos(entity, content_area, min_size);
-        let preferred_offset = resolve_pos(entity, content_area, preferred_size);
+        let min_offset = resolve_pos(entity, content_area.size(), min_size);
+        let preferred_offset = resolve_pos(entity, content_area.size(), preferred_size);
 
         Sizing {
             min: Rect::from_size_pos(min_size, min_offset),
@@ -230,7 +218,7 @@ pub(crate) fn update_subtree(
             );
         }
 
-        let offset = resolve_pos(entity, content_area, size);
+        let offset = resolve_pos(entity, content_area.size(), size);
         let rect = Rect::from_size_pos(size, offset);
 
         entity.update_dedup(components::layout_bounds(), size);
@@ -328,12 +316,12 @@ fn apply_constraints(entity: &EntityRef, content_area: Rect, limits: LayoutLimit
     constraints.resolve(size.min(limits.max_size))
 }
 
-fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {
+fn resolve_pos(entity: &EntityRef, parent_size: Vec2, self_size: Vec2) -> Vec2 {
     let query = (offset().opt_or_default(), anchor().opt_or_default());
     let mut query = entity.query(&query);
     let (offset, anchor) = query.get().unwrap();
 
-    let offset = offset.resolve(content_area.size());
+    let offset = offset.resolve(parent_size);
 
-    content_area.pos() + offset - anchor.resolve(self_size)
+    offset - anchor.resolve(self_size)
 }
