@@ -3,14 +3,11 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
-    components::{self, margin, padding, Edges, Rect},
+    components::{self, Edges, Rect},
     layout::query_size,
 };
 
-use super::{
-    query_constraints, resolve_pos, update_subtree, Block, CrossAlign, Direction, LayoutLimits,
-    Sizing,
-};
+use super::{resolve_pos, update_subtree, Block, CrossAlign, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -86,9 +83,6 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        let padding = entity.get_copy(padding()).unwrap_or_default();
-        let margin = entity.get_copy(margin()).unwrap_or_default();
-
         let _span = tracing::info_span!("StackLayout::apply").entered();
         // tracing::info!(
         //     ?content_area,
@@ -97,7 +91,10 @@ impl StackLayout {
         // );
 
         // Reset to local
-        let inner_rect = content_area.inset(&padding);
+        let inner_rect = Rect {
+            min: Vec2::ZERO,
+            max: content_area.size(),
+        };
 
         let mut bounds = Rect {
             min: Vec2::MAX,
@@ -116,8 +113,7 @@ impl StackLayout {
                     max_size: limits.max_size,
                 };
 
-                let block =
-                    update_subtree(world, &entity, Rect::from_size(inner_rect.size()), limits);
+                let block = update_subtree(world, &entity, inner_rect, limits);
 
                 bounds = bounds.merge(block.rect.translate(content_area.min));
 
@@ -151,31 +147,28 @@ impl StackLayout {
             entity.update_dedup(components::local_position(), offset);
         }
 
-        let rect = aligned_bounds.inner.max_size(limits.min_size).pad(&padding);
-        let offset = resolve_pos(entity, content_area.size(), rect.size());
-
-        let margin = (aligned_bounds.margin() - padding).max(margin);
+        let rect = aligned_bounds.inner.max_size(limits.min_size);
+        let margin = aligned_bounds.margin();
 
         // rect.min += content_area.min;
         // rect.max += content_area.min;
 
-        Block::new(rect.translate(offset), margin)
+        Block::new(rect, margin)
     }
 
     pub(crate) fn query_size(
         &self,
         world: &World,
-        entity: &EntityRef,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
-        let padding = entity.get_copy(padding()).unwrap_or_default();
-        let margin = entity.get_copy(margin()).unwrap_or_default();
-
         // Reset to local
-        let inner_rect = content_area.inset(&padding);
+        let inner_rect = Rect {
+            min: Vec2::ZERO,
+            max: content_area.size(),
+        };
 
         let mut min_bounds = StackableBounds::default();
         let mut preferred_bounds = StackableBounds::default();
@@ -183,13 +176,7 @@ impl StackLayout {
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(
-                world,
-                &entity,
-                Rect::from_size(inner_rect.size()),
-                limits,
-                squeeze,
-            );
+            let query = query_size(world, &entity, inner_rect, limits, squeeze);
 
             min_bounds = min_bounds.merge(&StackableBounds::new(
                 query.min.translate(content_area.min),
@@ -205,19 +192,15 @@ impl StackLayout {
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
 
-        let min = min_bounds.inner.pad(&padding);
-        let preferred = preferred_bounds.inner.pad(&padding);
+        // if min_margin != preferred_margin {
+        //     tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
+        // }
+        // tracing::info!(?min_margin, ?preferred_margin);
 
-        let min_offset = resolve_pos(entity, content_area.size(), min.size());
-        let preferred_offset = resolve_pos(entity, content_area.size(), preferred.size());
-
-        // let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
-
-        tracing::info!(%entity, ?min_offset, ?preferred_offset);
         Sizing {
-            min,
-            preferred,
-            margin: (min_margin.max(preferred_margin) - padding).max(margin),
+            min: min_bounds.inner,
+            preferred: preferred_bounds.inner,
+            margin: min_margin.max(preferred_margin),
         }
     }
 }
