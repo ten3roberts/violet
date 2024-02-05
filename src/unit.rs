@@ -30,6 +30,22 @@ impl<T: Zero> Unit<T> {
     }
 }
 
+impl Unit<Vec2> {
+    pub fn px_vec2(x: f32, y: f32) -> Self {
+        Self {
+            px: Vec2::new(x, y),
+            rel: Vec2::ZERO,
+        }
+    }
+
+    pub fn rel_vec2(x: f32, y: f32) -> Self {
+        Self {
+            px: Vec2::ZERO,
+            rel: Vec2::new(x, y),
+        }
+    }
+}
+
 impl<T> Unit<T>
 where
     T: Add<Output = T> + Mul<Output = T> + Copy,

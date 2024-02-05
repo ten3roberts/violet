@@ -92,6 +92,10 @@ impl InputState {
             let entity = frame.world().entity(id).unwrap();
 
             tracing::info!(%entity, "sending input event");
+            let cursor = CursorMove {
+                absolute_pos: self.pos,
+                local_pos: self.pos - origin,
+            };
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
                 on_input(
                     frame,
@@ -99,13 +103,14 @@ impl InputState {
                     &self.modifiers,
                     MouseInput {
                         state,
-                        cursor: CursorMove {
-                            absolute_pos: self.pos,
-                            local_pos: self.pos - origin,
-                        },
+                        cursor,
                         button,
                     },
                 );
+            }
+
+            if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
+                on_input(frame, &entity, &self.modifiers, cursor);
             }
         }
     }

@@ -9,11 +9,12 @@ use flax::{
     components::{child_of, name},
     Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
 };
-use futures::Future;
+use futures::{Future, Stream};
 use pin_project::pin_project;
 
 use crate::{
-    assets::AssetCache, components::children, effect::Effect, Frame, FutureEffect, Widget,
+    assets::AssetCache, components::children, effect::Effect, Frame, FutureEffect, StreamEffect,
+    Widget,
 };
 
 /// The scope within a [`Widget`][crate::Widget] is mounted or modified
@@ -160,6 +161,10 @@ impl<'a> Scope<'a> {
 
     pub fn spawn(&mut self, fut: impl 'static + Future) {
         self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
+    }
+
+    pub fn spawn_stream(&mut self, stream: impl 'static + Stream) {
+        self.spawn_effect(StreamEffect::new(stream, |_: &mut Scope<'_>, _| {}))
     }
 
     /// Spawns an effect which is *not* scoped to the widget

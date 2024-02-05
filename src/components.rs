@@ -208,6 +208,13 @@ impl Rect {
         max: Vec2::ZERO,
     };
 
+    pub fn from_size(size: Vec2) -> Self {
+        Self {
+            min: Vec2::ZERO,
+            max: size,
+        }
+    }
+
     #[must_use]
     pub fn merge(self, other: Self) -> Self {
         Self {

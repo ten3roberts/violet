@@ -136,10 +136,11 @@ pub(crate) fn query_size(
             },
             squeeze,
         );
+
         let margin = (sizing.margin - padding).max(margin);
 
-        let min_size = sizing.min.pad(&padding);
-        let preferred_size = sizing.preferred.pad(&padding);
+        let min_size = sizing.min.pad(&padding).max_size(min_size);
+        let preferred_size = sizing.preferred.pad(&padding).max_size(preferred_size);
 
         let min_offset = resolve_pos(entity, content_area, min_size.size());
         let preferred_offset = resolve_pos(entity, content_area, preferred_size.size());

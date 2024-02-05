@@ -1,4 +1,5 @@
-use futures_signals::signal::{Mutable, SignalExt};
+use flax::Entity;
+use futures_signals::signal::{Mutable, MutableSignal, SignalExt};
 use glam::{vec2, Vec2};
 use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
@@ -13,7 +14,7 @@ use violet::{
     text::{FontFamily, TextSegment},
     unit::Unit,
     widget::{ContainerExt, List, Rectangle, Signal, Stack, Text},
-    App, Frame, Widget,
+    App, Frame, Scope, StreamEffect, Widget,
 };
 use winit::event::{ElementState, VirtualKeyCode};
 
@@ -64,7 +65,7 @@ pub fn main() -> anyhow::Result<()> {
 struct MainApp;
 
 impl Widget for MainApp {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         let content = Mutable::new(String::new());
         let value = Mutable::new(0.5);
 
@@ -115,7 +116,7 @@ impl FixedArea {
 }
 
 impl Widget for FixedArea {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         // Rectangle::new(self.color)
         //     .with_component(
         //         size_resolver(),
@@ -132,7 +133,7 @@ impl Widget for FixedArea {
 struct ItemList;
 
 impl Widget for ItemList {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         let count = 10;
         List::new(
             (0..count)
@@ -175,7 +176,7 @@ impl<W> Movable<W> {
 }
 
 impl<W: Widget> Widget for Movable<W> {
-    fn mount(mut self, scope: &mut violet::Scope<'_>) {
+    fn mount(mut self, scope: &mut Scope<'_>) {
         let start_offset = Mutable::new(Vec2::ZERO);
 
         Stack::new(self.content)
@@ -234,7 +235,7 @@ impl<W> Slider<W> {
 }
 
 impl<W: Widget> Widget for Slider<W> {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         Stack::new(SliderTrack {
             value: self.value,
             min: self.min,
@@ -253,33 +254,72 @@ struct SliderTrack<W> {
     handle: W,
 }
 
+struct SliderHandle {
+    value: MutableSignal<f32>,
+    min: f32,
+    max: f32,
+    rect_id: Entity,
+}
+
+impl Widget for SliderHandle {
+    fn mount(self, scope: &mut Scope<'_>) {
+        scope.spawn_effect(StreamEffect::new(
+            self.value.to_stream(),
+            move |scope: &mut Scope<'_>, v| {
+                let parent_rect = scope
+                    .frame()
+                    .world
+                    .get(self.rect_id, rect())
+                    .map(|v| *v)
+                    .unwrap_or_default();
+
+                let pos = v * parent_rect.size().x * (self.max - self.min) + self.min;
+
+                scope
+                    .entity()
+                    .update_dedup(offset(), Unit::px_vec2(pos, 0.0));
+            },
+        ));
+
+        Rectangle::new(EMERALD)
+            .with_size(Unit::px_vec2(5.0, 20.0))
+            .with_component(anchor(), Unit::rel_vec2(0.5, 0.0))
+            .with_component(offset(), Default::default())
+            .mount(scope)
+    }
+}
+
 impl<W: Widget> Widget for SliderTrack<W> {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
-        let id = scope.attach(Rectangle::new(EERIE_BLACK).with_size(Unit::px(vec2(200.0, 10.0))));
-
-        let on_move = move |frame: &Frame, v: Vec2| {
-            let parent_rect = frame.world.get(id, rect()).unwrap();
-
-            let pos = v.clamp(parent_rect.min * Vec2::X, parent_rect.max * Vec2::X);
-
-            let value = (pos.x - parent_rect.min.x) / parent_rect.size().x * (self.max - self.min)
-                + self.min;
-
-            self.value.set(value);
-
-            pos
-        };
-
-        scope.attach(
-            Movable::new(self.handle)
-                .on_move(on_move)
-                .with_component(anchor(), Unit::rel(vec2(0.5, 0.0))),
+    fn mount(self, scope: &mut Scope<'_>) {
+        let track = scope.attach(
+            Rectangle::new(EERIE_BLACK_400)
+                .with_size(Unit::px_vec2(200.0, 5.0))
+                .with_component(offset(), Default::default()),
         );
 
-        Stack::new(())
-            .with_vertical_alignment(CrossAlign::Center)
-            .with_size(Unit::rel(vec2(0.0, 0.0)) + Unit::px(vec2(100.0, 0.0)))
-            .mount(scope)
+        Stack::new(SliderHandle {
+            value: self.value.signal(),
+            min: self.min,
+            max: self.max,
+            rect_id: track,
+        })
+        .with_vertical_alignment(CrossAlign::Center)
+        .with_component(focusable(), ())
+        .with_component(
+            on_cursor_move(),
+            Box::new(move |_, entity, _, input| {
+                let rect = entity.get_copy(rect()).unwrap();
+
+                let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0)
+                    * (self.max - self.min)
+                    + self.min;
+
+                tracing::info!("value: {}", value);
+                self.value.set(value);
+            }),
+        )
+        // .with_component(offset(), Unit::px_vec2(50.0, 0.0))
+        .mount(scope)
     }
 }
 
@@ -294,7 +334,7 @@ impl TextInput {
 }
 
 impl Widget for TextInput {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         scope.set(focusable(), ()).set(focus_sticky(), ());
 
         let content = self.content.clone();
