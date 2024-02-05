@@ -1,14 +1,13 @@
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use more_asserts::assert_le;
 
 use crate::{
     components::{self, Edges, Rect},
     layout::query_size,
 };
 
-use super::{update_subtree, Block, Direction, LayoutLimits, Sizing};
+use super::{resolve_pos, update_subtree, Block, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -184,6 +183,7 @@ impl FlowLayout {
     pub(crate) fn apply(
         &self,
         world: &World,
+        entity: &EntityRef,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
@@ -196,12 +196,13 @@ impl FlowLayout {
         let row = self.query_row(world, children, content_area, limits, self.direction);
 
         // tracing::info!(?row.margin, "row margins to be contained");
-        self.distribute_children(world, &row, content_area, limits, false)
+        self.distribute_children(world, entity, &row, content_area, limits, false)
     }
 
     fn distribute_children(
         &self,
         world: &World,
+        entity: &EntityRef,
         row: &Row<'_>,
         content_area: Rect,
         limits: LayoutLimits,
@@ -250,19 +251,10 @@ impl FlowLayout {
 
         let available_size = limits.max_size;
 
-        // Start at the corner of the inner rect
-        //
-        // The inner rect is position relative to the layouts parent
-        let inner_rect = content_area;
-
-        let mut cursor = MarginCursor::new(inner_rect.min, axis, cross_axis, self.contain_margins);
+        let mut cursor =
+            MarginCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
 
         // Reset to local
-        let content_area = Rect {
-            min: Vec2::ZERO,
-            max: inner_rect.size(),
-        };
-
         let mut sum = 0.0;
 
         // Distribute the size to the widgets and apply their layout
@@ -325,7 +317,7 @@ impl FlowLayout {
                 //
                 // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
-                    let cross_size = inner_rect.size().min(limits.max_size) - child_margin.size();
+                    let cross_size = content_area.size().min(limits.max_size) - child_margin.size();
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
@@ -344,7 +336,10 @@ impl FlowLayout {
                     world,
                     entity,
                     // Supply our whole inner content area
-                    content_area,
+                    Rect {
+                        min: Vec2::ZERO,
+                        max: content_area.size(),
+                    },
                     child_limits,
                 );
 
@@ -375,16 +370,20 @@ impl FlowLayout {
 
         let line = cursor.finish();
 
-        let line_size = line.size();
+        let line_size = line.size().max(limits.min_size);
 
         // Apply alignment offsets
         let start = match (self.direction, self.reverse) {
-            (Direction::Horizontal, false) => inner_rect.min,
-            (Direction::Vertical, false) => inner_rect.min,
-            (Direction::Horizontal, true) => vec2(inner_rect.max.x, inner_rect.min.y),
-            (Direction::Vertical, true) => vec2(inner_rect.min.x, inner_rect.max.y),
+            (Direction::Horizontal, false) => content_area.min,
+            (Direction::Vertical, false) => content_area.min,
+            (Direction::Horizontal, true) => vec2(content_area.max.x, content_area.min.y),
+            (Direction::Vertical, true) => vec2(content_area.min.x, content_area.max.y),
         };
 
+        let offset = resolve_pos(entity, content_area, line_size);
+        let start = start + offset;
+
+        // Do layout one last time for alignment
         let mut cursor = MarginCursor::new(start, axis, cross_axis, self.contain_margins);
 
         for (entity, block) in blocks {
@@ -404,7 +403,7 @@ impl FlowLayout {
             entity.update_dedup(components::local_position(), pos);
         }
 
-        let rect = cursor.finish();
+        let rect = cursor.finish().clamp_size(limits.min_size, limits.max_size);
 
         let margin = self
             .direction

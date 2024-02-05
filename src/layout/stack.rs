@@ -1,14 +1,13 @@
-use flax::{Entity, World};
+use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use tracing::span;
 
 use crate::{
     components::{self, Edges, Rect},
     layout::query_size,
 };
 
-use super::{update_subtree, Block, CrossAlign, Direction, LayoutLimits, Sizing};
+use super::{resolve_pos, update_subtree, Block, CrossAlign, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -79,6 +78,7 @@ impl StackLayout {
     pub(crate) fn apply(
         &self,
         world: &World,
+        entity: &EntityRef,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
@@ -121,13 +121,15 @@ impl StackLayout {
             })
             .collect_vec();
 
-        let size = bounds.size();
+        let size = bounds.size().max(limits.min_size);
 
         let mut aligned_bounds = StackableBounds::default();
 
+        let offset = resolve_pos(entity, content_area, size);
         for (entity, block) in blocks {
             let block_size = block.rect.size();
             let offset = content_area.min
+                + offset
                 + vec2(
                     self.horizontal_alignment.align_offset(size.x, block_size.x),
                     self.vertical_alignment.align_offset(size.y, block_size.y),
@@ -145,7 +147,7 @@ impl StackLayout {
             entity.update_dedup(components::local_position(), offset);
         }
 
-        let rect = aligned_bounds.inner; //.max_size(limits.min_size);
+        let rect = aligned_bounds.inner.max_size(limits.min_size);
         let margin = aligned_bounds.margin();
 
         // rect.min += content_area.min;

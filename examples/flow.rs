@@ -4,7 +4,7 @@ use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{aspect_ratio, offset, rect, screen_position, Edges},
+    components::{anchor, aspect_ratio, offset, rect, screen_position, Edges},
     input::{
         focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
     },
@@ -13,7 +13,7 @@ use violet::{
     text::{FontFamily, TextSegment},
     unit::Unit,
     widget::{ContainerExt, List, Rectangle, Signal, Stack, Text},
-    App, Widget,
+    App, Frame, Widget,
 };
 use winit::event::{ElementState, VirtualKeyCode};
 
@@ -66,6 +66,8 @@ struct MainApp;
 impl Widget for MainApp {
     fn mount(self, scope: &mut violet::Scope<'_>) {
         let content = Mutable::new(String::new());
+        let value = Mutable::new(0.5);
+
         List::new((
             List::new((Text::new("Input: "), TextInput::new(content))),
             Stack::new((
@@ -73,11 +75,26 @@ impl Widget for MainApp {
                     Rectangle::new(EMERALD)
                         .with_size(Unit::px(vec2(15.0, 15.0)))
                         .with_component(aspect_ratio(), 1.0),
-                ),
+                )
+                .on_move(|_, v| v.clamp(vec2(0.0, 0.0), vec2(300.0, 0.0))),
                 Rectangle::new(TEAL).with_size(Unit::px(vec2(10.0, 300.0))),
                 Rectangle::new(TEAL).with_size(Unit::px(vec2(300.0, 10.0))),
             )),
             ItemList,
+            List::new((
+                Slider::new(
+                    value.clone(),
+                    0.0,
+                    1.0,
+                    Rectangle::new(EMERALD * Srgba::new(1.0, 1.0, 1.0, 0.2))
+                        .with_size(Unit::px(vec2(20.0, 20.0))),
+                ),
+                Signal(
+                    value
+                        .signal_cloned()
+                        .map(|v| Text::new(format!("{:.2}", v))),
+                ),
+            )),
         ))
         .with_direction(Direction::Vertical)
         // .with_cross_align(CrossAlign::Center)
@@ -135,23 +152,33 @@ impl Widget for ItemList {
     }
 }
 
-struct Movable<W> {
+pub struct Movable<W> {
     content: W,
+    on_move: Box<dyn Send + Sync + FnMut(&Frame, Vec2) -> Vec2>,
 }
 
 impl<W> Movable<W> {
-    fn new(content: W) -> Self {
-        Self { content }
+    pub fn new(content: W) -> Self {
+        Self {
+            content,
+            on_move: Box::new(|_, v| v),
+        }
+    }
+
+    pub fn on_move(
+        mut self,
+        on_move: impl 'static + Send + Sync + FnMut(&Frame, Vec2) -> Vec2,
+    ) -> Self {
+        self.on_move = Box::new(on_move);
+        self
     }
 }
 
 impl<W: Widget> Widget for Movable<W> {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(mut self, scope: &mut violet::Scope<'_>) {
         let start_offset = Mutable::new(Vec2::ZERO);
 
         Stack::new(self.content)
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_padding(Edges::even(10.0))
             .with_component(focusable(), ())
             .with_component(offset(), Unit::default())
             .with_component(
@@ -169,16 +196,89 @@ impl<W: Widget> Widget for Movable<W> {
             .with_component(
                 on_cursor_move(),
                 Box::new({
-                    move |_, entity, _, input| {
+                    move |frame, entity, _, input| {
                         let rect = entity.get_copy(rect()).unwrap();
+                        let anchor = entity
+                            .get_copy(anchor())
+                            .unwrap_or_default()
+                            .resolve(rect.size());
 
                         let cursor_pos = input.local_pos + rect.min;
 
-                        let new_offset = cursor_pos - start_offset.get();
+                        let new_offset = cursor_pos - start_offset.get() + anchor;
+                        let new_offset = (self.on_move)(frame, new_offset);
                         entity.update_dedup(offset(), Unit::px(new_offset));
                     }
                 }),
             )
+            .mount(scope)
+    }
+}
+
+pub struct Slider<W> {
+    value: Mutable<f32>,
+    min: f32,
+    max: f32,
+    handle: W,
+}
+
+impl<W> Slider<W> {
+    pub fn new(value: Mutable<f32>, min: f32, max: f32, handle: W) -> Self {
+        Self {
+            value,
+            min,
+            max,
+            handle,
+        }
+    }
+}
+
+impl<W: Widget> Widget for Slider<W> {
+    fn mount(self, scope: &mut violet::Scope<'_>) {
+        Stack::new(SliderTrack {
+            value: self.value,
+            min: self.min,
+            max: self.max,
+            handle: self.handle,
+        })
+        .mount(scope)
+    }
+}
+
+struct SliderTrack<W> {
+    value: Mutable<f32>,
+
+    min: f32,
+    max: f32,
+    handle: W,
+}
+
+impl<W: Widget> Widget for SliderTrack<W> {
+    fn mount(self, scope: &mut violet::Scope<'_>) {
+        let id = scope.attach(Rectangle::new(EERIE_BLACK).with_size(Unit::px(vec2(200.0, 10.0))));
+
+        let on_move = move |frame: &Frame, v: Vec2| {
+            let parent_rect = frame.world.get(id, rect()).unwrap();
+
+            let pos = v.clamp(parent_rect.min * Vec2::X, parent_rect.max * Vec2::X);
+
+            let value = (pos.x - parent_rect.min.x) / parent_rect.size().x * (self.max - self.min)
+                + self.min;
+
+            self.value.set(value);
+
+            pos
+        };
+
+        scope.attach(
+            Movable::new(self.handle)
+                .on_move(on_move)
+                .with_component(anchor(), Unit::rel(vec2(0.5, 0.0))),
+        );
+
+        Stack::new(())
+            .with_vertical_alignment(CrossAlign::Center)
+            .with_size(Unit::rel(vec2(0.0, 0.0)) + Unit::px(vec2(100.0, 0.0)))
             .mount(scope)
     }
 }
