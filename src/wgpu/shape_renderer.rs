@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use bytemuck::Zeroable;
 use cosmic_text::FontSystem;
@@ -7,7 +7,8 @@ use flax::{
     components::child_of,
     entity_ids,
     fetch::{entity_refs, nth_relation, EntityRefs, NthRelation},
-    CommandBuffer, Component, Fetch, Query, QueryBorrow,
+    query::GraphQuery,
+    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, World,
 };
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
@@ -16,7 +17,7 @@ use parking_lot::Mutex;
 use wgpu::{BindGroup, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
-    components::draw_shape,
+    components::{children, draw_shape},
     stored::{self, Store},
     Frame,
 };
@@ -185,44 +186,54 @@ impl WidgetRenderer {
             .update_meshes(ctx, frame, &mut self.store);
         self.text_renderer.update(&ctx.gpu, frame);
 
-        let mut query = Query::new(DrawQuery::new()).topo(child_of);
-
-        let mut query = query.borrow(&frame.world);
+        let query = DrawQuery::new();
 
         self.objects.clear();
 
-        let commands = query
+        let roots = Query::new(entity_ids())
+            .without_relation(child_of)
+            .borrow(&frame.world)
             .iter()
-            .map(|item| {
-                let instance_index = self.objects.len() as u32;
+            .map(|id| frame.world.entity(id).unwrap())
+            .collect();
 
-                self.objects.push(*item.object_data);
+        let commands = RendererIter {
+            world: &frame.world,
+            queue: roots,
+        }
+        .filter_map(|entity| {
+            let mut query = entity.query(&query);
+            let item = query.get()?;
 
-                let draw_cmd = item.draw_cmd;
-                // tracing::info!(?mesh, "drawing");
-                InstancedDrawCommandRef {
-                    draw_cmd,
-                    first_instance: instance_index,
-                    instance_count: 1,
-                }
+            let instance_index = self.objects.len() as u32;
+
+            self.objects.push(*item.object_data);
+
+            let draw_cmd = item.draw_cmd;
+            // tracing::info!(?mesh, "drawing");
+            Some(InstancedDrawCommand {
+                draw_cmd: draw_cmd.clone(),
+                first_instance: instance_index,
+                instance_count: 1,
             })
-            .coalesce(|prev, current| {
-                if prev.draw_cmd == current.draw_cmd {
-                    assert!(prev.first_instance + prev.instance_count == current.first_instance);
-                    Ok(InstancedDrawCommandRef {
-                        draw_cmd: prev.draw_cmd,
-                        first_instance: prev.first_instance,
-                        instance_count: prev.instance_count + 1,
-                    })
-                } else {
-                    Err((prev, current))
-                }
-            })
-            .map(|cmd| InstancedDrawCommand {
-                draw_cmd: cmd.draw_cmd.clone(),
-                first_instance: cmd.first_instance,
-                instance_count: cmd.instance_count,
-            });
+        })
+        .coalesce(|prev, current| {
+            if prev.draw_cmd == current.draw_cmd {
+                assert!(prev.first_instance + prev.instance_count == current.first_instance);
+                Ok(InstancedDrawCommand {
+                    draw_cmd: prev.draw_cmd,
+                    first_instance: prev.first_instance,
+                    instance_count: prev.instance_count + 1,
+                })
+            } else {
+                Err((prev, current))
+            }
+        })
+        .map(|cmd| InstancedDrawCommand {
+            draw_cmd: cmd.draw_cmd.clone(),
+            first_instance: cmd.first_instance,
+            instance_count: cmd.instance_count,
+        });
 
         self.commands.clear();
         self.commands.extend(commands);
@@ -268,4 +279,23 @@ pub fn srgba_to_vec4(color: Srgba) -> Vec4 {
     let (r, g, b, a) = color.into_linear().into_components();
 
     vec4(r, g, b, a)
+}
+
+struct RendererIter<'a> {
+    world: &'a World,
+    queue: VecDeque<EntityRef<'a>>,
+}
+
+impl<'a> Iterator for RendererIter<'a> {
+    type Item = EntityRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entity = self.queue.pop_front()?;
+        if let Ok(children) = entity.get(children()) {
+            self.queue
+                .extend(children.iter().map(|&id| self.world.entity(id).unwrap()));
+        }
+
+        Some(entity)
+    }
 }
