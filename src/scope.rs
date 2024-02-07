@@ -180,8 +180,12 @@ impl<'a> Scope<'a> {
         &mut self.frame.assets
     }
 
-    pub fn frame(&self) -> &&'a mut Frame {
-        &self.frame
+    pub fn frame(&self) -> &Frame {
+        self.frame
+    }
+
+    pub fn frame_mut(&mut self) -> &mut Frame {
+        self.frame
     }
 }
 

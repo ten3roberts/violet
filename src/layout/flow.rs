@@ -189,7 +189,6 @@ impl FlowLayout {
         limits: LayoutLimits,
     ) -> Block {
         let _span = tracing::debug_span!("Flow::apply", ?limits, flow=?self).entered();
-        let (axis, cross_axis) = self.direction.axis(self.reverse);
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
         // the direction of this axis.
@@ -332,22 +331,13 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let mut block = update_subtree(
-                    world,
-                    entity,
-                    // Supply our whole inner content area
-                    Rect {
-                        min: Vec2::ZERO,
-                        max: content_area.size(),
-                    },
-                    child_limits,
-                );
+                let block = update_subtree(world, entity, content_area.size(), child_limits);
 
                 tracing::debug!(?block, "updated subtree");
 
-                block.rect = block
-                    .rect
-                    .clamp_size(child_limits.min_size, child_limits.max_size);
+                // block.rect = block
+                //     .rect
+                //     .clamp_size(child_limits.min_size, child_limits.max_size);
 
                 if block.rect.size().x > child_limits.max_size.x
                     || block.rect.size().y > child_limits.max_size.y
@@ -380,7 +370,7 @@ impl FlowLayout {
             (Direction::Vertical, true) => vec2(content_area.min.x, content_area.max.y),
         };
 
-        let offset = resolve_pos(entity, content_area, line_size);
+        let offset = resolve_pos(entity, content_area.size(), line_size);
         let start = start + offset;
 
         // Do layout one last time for alignment
@@ -463,20 +453,10 @@ impl FlowLayout {
 
         let available_size = limits.max_size;
 
-        // Start at the corner of the inner rect
-        //
-        // The inner rect is position relative to the layouts parent
-        let inner_rect = content_area;
-
         let mut min_cursor =
-            MarginCursor::new(inner_rect.min, axis, cross_axis, self.contain_margins);
-        let mut cursor = MarginCursor::new(inner_rect.min, axis, cross_axis, self.contain_margins);
-
-        // Reset to local
-        let content_area = Rect {
-            min: Vec2::ZERO,
-            max: inner_rect.size(),
-        };
+            MarginCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
+        let mut cursor =
+            MarginCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
 
         let mut sum = 0.0;
 
@@ -541,7 +521,7 @@ impl FlowLayout {
                 //
                 // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
-                    let cross_size = inner_rect.size().min(limits.max_size) - child_margin.size();
+                    let cross_size = content_area.size().min(limits.max_size) - child_margin.size();
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
@@ -556,7 +536,7 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = query_size(world, entity, content_area, child_limits, squeeze);
+                let block = query_size(world, entity, content_area.size(), child_limits, squeeze);
 
                 tracing::debug!(min=%block.min.size(), preferred=%block.preferred.size(), ?child_limits, "query");
 
@@ -564,6 +544,7 @@ impl FlowLayout {
                     || block.preferred.size().y > child_limits.max_size.y
                 {
                     tracing::error!(
+                        %entity,
                         block_min_size,
                         block_preferred_size,
                         "Widget exceeded max size: {:?} > {:?}",
@@ -624,24 +605,18 @@ impl FlowLayout {
         let mut preferred_cursor =
             MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
 
-        // Reset to local
-        let content_area = Rect {
-            min: Vec2::ZERO,
-            max: content_area.size(),
-        };
-
         let blocks = children
             .iter()
             .map(|&child| {
                 let entity = world.entity(child).expect("Invalid child");
 
                 let child_margin = if self.contain_margins {
-                    query_size(world, &entity, content_area, limits, squeeze).margin
+                    query_size(world, &entity, content_area.size(), limits, squeeze).margin
                 } else {
                     Edges::ZERO
                 };
 
-                let sizing = query_size(world, &entity, content_area, limits, squeeze);
+                let sizing = query_size(world, &entity, content_area.size(), limits, squeeze);
 
                 min_cursor.put(&Block::new(sizing.min, sizing.margin));
                 preferred_cursor.put(&Block::new(sizing.preferred, sizing.margin));

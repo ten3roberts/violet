@@ -63,7 +63,7 @@ pub fn layout_system() -> BoxedSystem {
                         let res = update_subtree(
                             world,
                             &entity,
-                            *canvas_rect,
+                            canvas_rect.size(),
                             LayoutLimits {
                                 min_size: Vec2::ZERO,
                                 max_size: canvas_rect.size(),

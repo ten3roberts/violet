@@ -1,13 +1,24 @@
-use flax::Entity;
-use futures_signals::signal::{Mutable, MutableSignal, SignalExt};
-use glam::{vec2, Vec2};
+use std::usize;
+
+use flax::{
+    events::{EventKind, EventSubscriber},
+    Entity, EntityRef,
+};
+use futures_signals::{
+    map_ref,
+    signal::{Mutable, SignalExt},
+    signal_map::MutableSignalMap,
+};
+use glam::Vec2;
+use guillotiere::euclid::num::Round;
 use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{anchor, aspect_ratio, offset, rect, screen_position, Edges},
+    components::{anchor, offset, rect, Edges},
     input::{
         focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
+        CursorMove,
     },
     layout::{CrossAlign, Direction},
     style::StyleExt,
@@ -66,39 +77,42 @@ struct MainApp;
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
-        let content = Mutable::new(String::new());
-        let value = Mutable::new(0.5);
+        let content = Mutable::new("Hello, World!".into());
+        let value = Mutable::new(1.0);
+        let count = Mutable::new(5);
+
+        let scale = value.signal();
+
+        let item_list = Box::new(map_ref! {scale, let count = count.signal() => ItemList {
+            scale: scale.round(),
+            count: *count,
+        }});
 
         List::new((
-            List::new((Text::new("Input: "), TextInput::new(content))),
-            Stack::new((
-                Movable::new(
-                    Rectangle::new(EMERALD)
-                        .with_size(Unit::px(vec2(15.0, 15.0)))
-                        .with_component(aspect_ratio(), 1.0),
-                )
-                .on_move(|_, v| v.clamp(vec2(0.0, 0.0), vec2(300.0, 0.0))),
-                Rectangle::new(TEAL).with_size(Unit::px(vec2(10.0, 300.0))),
-                Rectangle::new(TEAL).with_size(Unit::px(vec2(300.0, 10.0))),
-            )),
-            ItemList,
             List::new((
-                Slider::new(
-                    value.clone(),
-                    0.0,
-                    1.0,
-                    Rectangle::new(EMERALD * Srgba::new(1.0, 1.0, 1.0, 0.2))
-                        .with_size(Unit::px(vec2(20.0, 20.0))),
-                ),
-                Signal(
-                    value
-                        .signal_cloned()
-                        .map(|v| Text::new(format!("{:.2}", v))),
-                ),
-            )),
+                Text::new("Input: ").with_margin(MARGIN_SM),
+                TextInput::new(content).with_margin(MARGIN_SM),
+            ))
+            .with_padding(MARGIN_SM)
+            .with_margin(MARGIN_SM),
+            List::new((
+                List::new((
+                    Text::new("Size").with_margin(MARGIN_SM),
+                    Text::new("Count").with_margin(MARGIN_SM),
+                ))
+                .with_direction(Direction::Vertical),
+                List::new((
+                    SliderWithLabel::new(value, 0.0, 20.0),
+                    SliderWithLabel::new(count, 0, 20),
+                ))
+                .with_direction(Direction::Vertical),
+            ))
+            .with_padding(MARGIN_SM)
+            .with_margin(MARGIN_SM),
+            Signal::new(item_list),
+            Rectangle::new(EERIE_BLACK_600).with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
         ))
         .with_direction(Direction::Vertical)
-        // .with_cross_align(CrossAlign::Center)
         .with_padding(MARGIN)
         .mount(scope)
     }
@@ -130,22 +144,27 @@ impl Widget for FixedArea {
     }
 }
 
-struct ItemList;
+struct ItemList {
+    scale: f32,
+    count: usize,
+}
 
 impl Widget for ItemList {
     fn mount(self, scope: &mut Scope<'_>) {
-        let count = 10;
         List::new(
-            (0..count)
+            (0..self.count)
                 .map(|i| {
-                    let size = 100.0 + i as f32 * 10.0;
+                    let size = 10.0 + i as f32 * self.scale;
                     // Rectangle::new(Hsva::new(i as f32 * 10.0, 1.0, 1.0, 1.0).into_color())
-                    Stack::new(Text::new(format!("{size}px")).with_size(Unit::px(vec2(size, 20.0))))
+                    Stack::new(Text::new(format!("{size}px")))
                         .with_background(Rectangle::new(
                             Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
                         ))
+                        .with_vertical_alignment(CrossAlign::Center)
+                        .with_horizontal_alignment(CrossAlign::Center)
                         .with_padding(MARGIN_SM)
                         .with_margin(MARGIN_SM)
+                        .with_size(Unit::px2(size, size))
                 })
                 .collect::<Vec<_>>(),
         )
@@ -216,110 +235,204 @@ impl<W: Widget> Widget for Movable<W> {
     }
 }
 
-pub struct Slider<W> {
-    value: Mutable<f32>,
-    min: f32,
-    max: f32,
-    handle: W,
+pub struct Slider<V> {
+    value: Mutable<V>,
+    min: V,
+    max: V,
 }
 
-impl<W> Slider<W> {
-    pub fn new(value: Mutable<f32>, min: f32, max: f32, handle: W) -> Self {
-        Self {
-            value,
-            min,
-            max,
-            handle,
-        }
+impl<V> Slider<V> {
+    pub fn new(value: Mutable<V>, min: V, max: V) -> Self {
+        Self { value, min, max }
     }
 }
 
-impl<W: Widget> Widget for Slider<W> {
+impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        Stack::new(SliderTrack {
-            value: self.value,
-            min: self.min,
-            max: self.max,
-            handle: self.handle,
+        let track = scope.attach(
+            Rectangle::new(EERIE_BLACK_400)
+                .with_size(Unit::px2(200.0, 5.0))
+                .with_margin(Edges::even(5.0))
+                .with_component(offset(), Default::default()),
+        );
+
+        let min = self.min.to_progress();
+        let max = self.max.to_progress();
+
+        fn update<V: SliderValue>(
+            entity: &EntityRef,
+            input: CursorMove,
+            min: f32,
+            max: f32,
+            dst: &Mutable<V>,
+        ) {
+            let rect = entity.get_copy(rect()).unwrap();
+            let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
+            dst.set(V::from_progress(value));
+        }
+
+        Stack::new(SliderHandle {
+            value: self.value.clone(),
+            min,
+            max,
+            rect_id: track,
         })
+        .with_vertical_alignment(CrossAlign::Center)
+        .with_component(focusable(), ())
+        // TODO:wrapper for this
+        .with_component(
+            on_mouse_input(),
+            Box::new({
+                let value = self.value.clone();
+                move |_, entity, _, input| {
+                    if input.state == ElementState::Pressed {
+                        update(entity, input.cursor, min, max, &value);
+                    }
+                }
+            }),
+        )
+        .with_component(
+            on_cursor_move(),
+            Box::new(move |_, entity, _, input| update(entity, input, min, max, &self.value)),
+        )
         .mount(scope)
     }
 }
 
-struct SliderTrack<W> {
-    value: Mutable<f32>,
-
-    min: f32,
-    max: f32,
-    handle: W,
-}
-
-struct SliderHandle {
-    value: MutableSignal<f32>,
+struct SliderHandle<V> {
+    value: Mutable<V>,
     min: f32,
     max: f32,
     rect_id: Entity,
 }
 
-impl Widget for SliderHandle {
+impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
+        let (tx, rx) = flume::unbounded();
+
+        let last_known = Mutable::new(None);
+
+        scope
+            .frame_mut()
+            .world
+            .subscribe(tx.filter(move |kind, data| {
+                data.ids.contains(&self.rect_id)
+                    && matches!(kind, EventKind::Modified | EventKind::Added)
+            }));
+
+        let make_update = {
+            let rect_id = self.rect_id;
+            let max = self.max;
+            let min = self.min;
+
+            move || {
+                move |scope: &mut Scope<'_>, value: f32| {
+                    let parent_rect = scope
+                        .frame()
+                        .world
+                        .get(rect_id, rect())
+                        .map(|v| *v)
+                        .unwrap_or_default();
+
+                    let pos = value * parent_rect.size().x / (max - min) + min;
+
+                    scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
+                }
+            }
+        };
+
+        let update = make_update();
         scope.spawn_effect(StreamEffect::new(
-            self.value.to_stream(),
-            move |scope: &mut Scope<'_>, v| {
-                let parent_rect = scope
-                    .frame()
-                    .world
-                    .get(self.rect_id, rect())
-                    .map(|v| *v)
-                    .unwrap_or_default();
+            self.value.signal_ref(|v| v.to_progress()).to_stream(),
+            {
+                let last_known = last_known.clone();
+                move |scope: &mut Scope<'_>, v: f32| {
+                    last_known.set(Some(v));
+                    update(scope, v);
+                }
+            },
+        ));
 
-                let pos = v * parent_rect.size().x * (self.max - self.min) + self.min;
-
-                scope
-                    .entity()
-                    .update_dedup(offset(), Unit::px_vec2(pos, 0.0));
+        let update_pos = make_update();
+        scope.spawn_effect(StreamEffect::new(
+            rx.into_stream(),
+            move |scope: &mut Scope<'_>, _v| {
+                if let Some(last_known) = last_known.get() {
+                    update_pos(scope, last_known);
+                }
             },
         ));
 
         Rectangle::new(EMERALD)
-            .with_size(Unit::px_vec2(5.0, 20.0))
-            .with_component(anchor(), Unit::rel_vec2(0.5, 0.0))
+            .with_size(Unit::px2(5.0, 20.0))
+            .with_component(anchor(), Unit::rel2(0.5, 0.0))
             .with_component(offset(), Default::default())
             .mount(scope)
     }
 }
 
-impl<W: Widget> Widget for SliderTrack<W> {
+pub trait SliderValue: 'static + Send + Sync + Copy + std::fmt::Display {
+    fn from_progress(v: f32) -> Self;
+    fn to_progress(&self) -> f32;
+}
+
+impl SliderValue for f32 {
+    fn from_progress(v: f32) -> Self {
+        v
+    }
+
+    fn to_progress(&self) -> f32 {
+        *self
+    }
+}
+
+macro_rules! num_impl {
+    ($ty: ty) => {
+        impl SliderValue for $ty {
+            fn from_progress(v: f32) -> Self {
+                v.round() as $ty
+            }
+
+            fn to_progress(&self) -> f32 {
+                *self as f32
+            }
+        }
+    };
+}
+
+num_impl!(i8);
+num_impl!(u8);
+num_impl!(i16);
+num_impl!(u16);
+num_impl!(i32);
+num_impl!(u32);
+num_impl!(i64);
+num_impl!(u64);
+num_impl!(isize);
+num_impl!(usize);
+
+pub struct SliderWithLabel<V> {
+    slider: Slider<V>,
+}
+
+impl<V> SliderWithLabel<V> {
+    pub fn new(value: Mutable<V>, min: V, max: V) -> Self {
+        Self {
+            slider: Slider::new(value, min, max),
+        }
+    }
+}
+
+impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let track = scope.attach(
-            Rectangle::new(EERIE_BLACK_400)
-                .with_size(Unit::px_vec2(200.0, 5.0))
-                .with_component(offset(), Default::default()),
+        let label = Signal(
+            self.slider
+                .value
+                .signal()
+                .map(|v| Text::rich([TextSegment::new(format!("{:>4.2}", v))])),
         );
 
-        Stack::new(SliderHandle {
-            value: self.value.signal(),
-            min: self.min,
-            max: self.max,
-            rect_id: track,
-        })
-        .with_vertical_alignment(CrossAlign::Center)
-        .with_component(focusable(), ())
-        .with_component(
-            on_cursor_move(),
-            Box::new(move |_, entity, _, input| {
-                let rect = entity.get_copy(rect()).unwrap();
-
-                let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0)
-                    * (self.max - self.min)
-                    + self.min;
-
-                tracing::info!("value: {}", value);
-                self.value.set(value);
-            }),
-        )
-        // .with_component(offset(), Unit::px_vec2(50.0, 0.0))
-        .mount(scope)
+        List::new((self.slider, label)).mount(scope)
     }
 }
 

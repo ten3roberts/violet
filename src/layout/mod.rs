@@ -107,7 +107,7 @@ impl Block {
 pub(crate) fn query_size(
     world: &World,
     entity: &EntityRef,
-    content_area: Rect,
+    content_area: Vec2,
     limits: LayoutLimits,
     squeeze: Direction,
 ) -> Sizing {
@@ -129,9 +129,9 @@ pub(crate) fn query_size(
         let sizing = layout.query_size(
             world,
             children,
-            content_area.inset(&padding),
+            Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
-                min_size: limits.min_size,
+                min_size: limits.min_size.max(preferred_size),
                 max_size: limits.max_size - padding.size(),
             },
             squeeze,
@@ -139,8 +139,8 @@ pub(crate) fn query_size(
 
         let margin = (sizing.margin - padding).max(margin);
 
-        let min_size = sizing.min.pad(&padding).max_size(min_size);
-        let preferred_size = sizing.preferred.pad(&padding).max_size(preferred_size);
+        let min_size = sizing.min.pad(&padding);
+        let preferred_size = sizing.preferred.pad(&padding);
 
         let min_offset = resolve_pos(entity, content_area, min_size.size());
         let preferred_offset = resolve_pos(entity, content_area, preferred_size.size());
@@ -174,8 +174,8 @@ pub(crate) fn query_size(
 pub(crate) fn update_subtree(
     world: &World,
     entity: &EntityRef,
-    // The area in which children can be placed without clipping
-    content_area: Rect,
+    // The size of the potentially available space for the subtree
+    content_area: Vec2,
     limits: LayoutLimits,
 ) -> Block {
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
@@ -200,7 +200,7 @@ pub(crate) fn update_subtree(
             world,
             entity,
             children,
-            content_area.inset(&padding),
+            Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
                 min_size: limits
                     .min_size
@@ -209,10 +209,10 @@ pub(crate) fn update_subtree(
             },
         );
 
-        // assert!(block.rect.size().x <= limits.max_size.x);
-        // assert!(block.rect.size().y <= limits.max_size.y);
+        assert!(block.rect.size().x <= limits.max_size.x);
+        assert!(block.rect.size().y <= limits.max_size.y);
 
-        block.rect = block.rect.pad(&padding).max_size(limits.min_size);
+        block.rect = block.rect.pad(&padding);
 
         block.margin = (block.margin - padding).max(margin);
 
@@ -244,16 +244,16 @@ pub(crate) trait SizeResolver: Send + Sync {
     fn query(
         &mut self,
         entity: &EntityRef,
-        content_area: Rect,
+        content_area: Vec2,
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> (Vec2, Vec2);
-    fn apply(&mut self, entity: &EntityRef, content_area: Rect, limits: LayoutLimits) -> Vec2;
+    fn apply(&mut self, entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> Vec2;
 }
 
 fn resolve_base_size(
     entity: &EntityRef,
-    content_area: Rect,
+    content_area: Vec2,
     limits: LayoutLimits,
 ) -> (Vec2, Vec2, Constraints) {
     let query = (
@@ -264,9 +264,9 @@ fn resolve_base_size(
     let mut query = entity.query(&query);
     let (min_size, size, aspect_ratio) = query.get().unwrap();
 
-    let min_size = min_size.resolve(content_area.size());
+    let min_size = min_size.resolve(content_area);
     let size = size
-        .resolve(content_area.size())
+        .resolve(content_area)
         .clamp(limits.min_size, limits.max_size)
         .max(min_size);
 
@@ -300,7 +300,7 @@ impl Constraints {
 
 fn query_constraints(
     entity: &EntityRef,
-    content_area: Rect,
+    content_area: Vec2,
     limits: LayoutLimits,
     squeeze: Direction,
 ) -> (Vec2, Vec2) {
@@ -318,7 +318,7 @@ fn query_constraints(
     )
 }
 
-fn apply_constraints(entity: &EntityRef, content_area: Rect, limits: LayoutLimits) -> Vec2 {
+fn apply_constraints(entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> Vec2 {
     let (_, mut size, constraints) = resolve_base_size(entity, content_area, limits);
     if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
         let resolved_size = resolver.apply(entity, content_area, limits);
@@ -329,12 +329,13 @@ fn apply_constraints(entity: &EntityRef, content_area: Rect, limits: LayoutLimit
     constraints.resolve(size.min(limits.max_size))
 }
 
-fn resolve_pos(entity: &EntityRef, content_area: Rect, self_size: Vec2) -> Vec2 {
+/// Resolves a widgets position relative to its own bounds
+fn resolve_pos(entity: &EntityRef, parent_size: Vec2, self_size: Vec2) -> Vec2 {
     let query = (offset().opt_or_default(), anchor().opt_or_default());
     let mut query = entity.query(&query);
     let (offset, anchor) = query.get().unwrap();
 
-    let offset = offset.resolve(content_area.size());
+    let offset = offset.resolve(parent_size);
 
-    content_area.pos() + offset - anchor.resolve(self_size)
+    offset - anchor.resolve(self_size)
 }

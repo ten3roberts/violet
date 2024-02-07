@@ -31,14 +31,14 @@ impl<T: Zero> Unit<T> {
 }
 
 impl Unit<Vec2> {
-    pub fn px_vec2(x: f32, y: f32) -> Self {
+    pub fn px2(x: f32, y: f32) -> Self {
         Self {
             px: Vec2::new(x, y),
             rel: Vec2::ZERO,
         }
     }
 
-    pub fn rel_vec2(x: f32, y: f32) -> Self {
+    pub fn rel2(x: f32, y: f32) -> Self {
         Self {
             px: Vec2::ZERO,
             rel: Vec2::new(x, y),

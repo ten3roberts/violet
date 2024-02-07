@@ -6,7 +6,11 @@ use crate::{components::layout, layout::Layout, Scope, StreamEffect, Widget};
 pub struct Signal<S>(pub S);
 
 impl<S> Signal<S> {
-    pub fn new(signal: S) -> Self {
+    pub fn new(signal: S) -> Self
+    where
+        S: 'static + signal::Signal,
+        <S as signal::Signal>::Item: Widget,
+    {
         Self(signal)
     }
 }

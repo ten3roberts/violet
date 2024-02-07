@@ -108,10 +108,6 @@ impl InputState {
                     },
                 );
             }
-
-            if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
-                on_input(frame, &entity, &self.modifiers, cursor);
-            }
         }
     }
 

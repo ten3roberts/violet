@@ -5,7 +5,7 @@ use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 
 use crate::{
-    components::{font_size, Rect},
+    components::font_size,
     layout::{Direction, LayoutLimits, SizeResolver},
 };
 
@@ -22,12 +22,12 @@ impl SizeResolver for TextSizeResolver {
     fn query(
         &mut self,
         entity: &flax::EntityRef,
-        content_area: Rect,
+        content_area: Vec2,
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> (glam::Vec2, glam::Vec2) {
         let _span =
-            tracing::info_span!("TextSizeResolver::query", ?squeeze, ?content_area).entered();
+            tracing::debug_span!("TextSizeResolver::query", ?squeeze, ?content_area).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 
@@ -55,10 +55,10 @@ impl SizeResolver for TextSizeResolver {
     fn apply(
         &mut self,
         entity: &flax::EntityRef,
-        content_area: Rect,
+        content_area: Vec2,
         limits: LayoutLimits,
     ) -> Vec2 {
-        let _span = tracing::info_span!("TextSizeResolver::apply", ?content_area).entered();
+        let _span = tracing::debug_span!("TextSizeResolver::apply", ?content_area).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 

@@ -30,7 +30,7 @@ impl SizeResolver for FixedAreaConstraint {
     fn query(
         &mut self,
         _: &flax::EntityRef,
-        _content_area: Rect,
+        _content_area: Vec2,
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> (Vec2, Vec2) {
@@ -47,7 +47,7 @@ impl SizeResolver for FixedAreaConstraint {
         )
     }
 
-    fn apply(&mut self, _: &flax::EntityRef, _: Rect, limits: crate::layout::LayoutLimits) -> Vec2 {
+    fn apply(&mut self, _: &flax::EntityRef, _: Vec2, limits: crate::layout::LayoutLimits) -> Vec2 {
         let width = (limits.max_size.x / self.unit_size).floor().max(1.0);
 
         let height = (self.area / width).ceil();

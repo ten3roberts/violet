@@ -38,6 +38,13 @@ impl StackableBounds {
         }
     }
 
+    fn from_rect(rect: Rect) -> Self {
+        Self {
+            inner: rect,
+            outer: rect,
+        }
+    }
+
     fn merge(&self, other: &Self) -> Self {
         Self {
             inner: self.inner.merge(other.inner),
@@ -84,17 +91,6 @@ impl StackLayout {
         limits: LayoutLimits,
     ) -> Block {
         let _span = tracing::info_span!("StackLayout::apply").entered();
-        // tracing::info!(
-        //     ?content_area,
-        //     content_area_size=%content_area.size(),
-        //     ?limits
-        // );
-
-        // Reset to local
-        let inner_rect = Rect {
-            min: Vec2::ZERO,
-            max: content_area.size(),
-        };
 
         let mut bounds = Rect {
             min: Vec2::MAX,
@@ -113,7 +109,7 @@ impl StackLayout {
                     max_size: limits.max_size,
                 };
 
-                let block = update_subtree(world, &entity, inner_rect, limits);
+                let block = update_subtree(world, &entity, content_area.size(), limits);
 
                 bounds = bounds.merge(block.rect.translate(content_area.min));
 
@@ -123,9 +119,10 @@ impl StackLayout {
 
         let size = bounds.size().max(limits.min_size);
 
-        let mut aligned_bounds = StackableBounds::default();
+        let mut aligned_bounds =
+            StackableBounds::from_rect(Rect::from_size_pos(limits.min_size, content_area.min));
 
-        let offset = resolve_pos(entity, content_area, size);
+        let offset = resolve_pos(entity, content_area.size(), size);
         for (entity, block) in blocks {
             let block_size = block.rect.size();
             let offset = content_area.min
@@ -147,7 +144,10 @@ impl StackLayout {
             entity.update_dedup(components::local_position(), offset);
         }
 
-        let rect = aligned_bounds.inner.max_size(limits.min_size);
+        // tracing::info!(?aligned_bounds);
+
+        // aligned_bounds.inner = aligned_bounds.inner.max_size(limits.min_size);
+        let rect = aligned_bounds.inner;
         let margin = aligned_bounds.margin();
 
         // rect.min += content_area.min;
@@ -164,19 +164,14 @@ impl StackLayout {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
-        // Reset to local
-        let inner_rect = Rect {
-            min: Vec2::ZERO,
-            max: content_area.size(),
-        };
-
-        let mut min_bounds = StackableBounds::default();
-        let mut preferred_bounds = StackableBounds::default();
+        let min_rect = Rect::from_size_pos(limits.min_size, content_area.min);
+        let mut min_bounds = StackableBounds::from_rect(min_rect);
+        let mut preferred_bounds = StackableBounds::from_rect(min_rect);
 
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(world, &entity, inner_rect, limits, squeeze);
+            let query = query_size(world, &entity, content_area.size(), limits, squeeze);
 
             min_bounds = min_bounds.merge(&StackableBounds::new(
                 query.min.translate(content_area.min),
@@ -189,11 +184,16 @@ impl StackLayout {
             ));
         }
 
+        // min_bounds.inner = min_bounds.inner.max_size(limits.min_size);
+        // preferred_bounds.inner = preferred_bounds.inner.max_size(limits.min_size);
+
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
 
+        // tracing::info!(?min_margin, ?preferred_margin);
+
         // if min_margin != preferred_margin {
-        //     tracing::warn!("margin discrepency: {:?}", min_margin - preferred_margin);
+        //     tracing::warn!("margin discrepancy: {:?}", min_margin - preferred_margin);
         // }
         // tracing::info!(?min_margin, ?preferred_margin);
 
