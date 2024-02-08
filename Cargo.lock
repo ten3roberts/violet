@@ -714,15 +714,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "generational-box"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7196899659cc07e0fd90672ea43d546b092968ac53a1c25c825e7b63e9234be9"
-dependencies = [
- "bumpalo",
-]
-
-[[package]]
 name = "gensym"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2251,7 +2242,6 @@ dependencies = [
  "flume",
  "futures",
  "futures-signals",
- "generational-box",
  "glam",
  "guillotiere",
  "image",

@@ -13,8 +13,8 @@ use futures::{Future, Stream};
 use pin_project::pin_project;
 
 use crate::{
-    assets::AssetCache, components::children, effect::Effect, Frame, FutureEffect, StreamEffect,
-    Widget,
+    assets::AssetCache, components::children, effect::Effect, stored::Handle, Frame, FutureEffect,
+    StreamEffect, Widget,
 };
 
 /// The scope within a [`Widget`][crate::Widget] is mounted or modified
@@ -96,8 +96,8 @@ impl<'a> Scope<'a> {
         self
     }
 
-    pub fn entity(&mut self) -> EntityRef {
-        self.flush();
+    pub fn entity(&self) -> EntityRef {
+        // self.flush();
         self.frame.world().entity(self.id).unwrap()
     }
 
@@ -186,6 +186,24 @@ impl<'a> Scope<'a> {
 
     pub fn frame_mut(&mut self) -> &mut Frame {
         self.frame
+    }
+
+    /// Stores an arbitrary value and returns a handle to it.
+    ///
+    /// The value is stored for the duration of the returned handle, and *not* the widgets scope.
+    ///
+    /// A handle can be used to safely store state across multiple widgets and will not panic if
+    /// the original widget is despawned.
+    pub fn store<T: 'static>(&mut self, value: T) -> Handle<T> {
+        self.frame.store_mut().insert(value)
+    }
+
+    pub fn read<T: 'static>(&self, handle: &Handle<T>) -> &T {
+        self.frame.store().get(handle)
+    }
+
+    pub fn write<T: 'static>(&mut self, handle: &Handle<T>) -> &mut T {
+        self.frame.store_mut().get_mut(handle)
     }
 }
 

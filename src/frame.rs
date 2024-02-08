@@ -1,11 +1,11 @@
 use flax::{Entity, World};
-use generational_box::Store;
 
 use crate::{
     assets::AssetCache,
     effect::Effect,
     executor::{Spawner, TaskHandle},
     scope::ScopedEffect,
+    stored::DynamicStore,
     Scope, Widget,
 };
 
@@ -15,7 +15,7 @@ use crate::{
 ///
 /// Is accessible during mutation events of the ECS world.
 pub struct Frame {
-    pub store: Store,
+    pub store: DynamicStore,
     pub world: World,
     pub spawner: Spawner<Self>,
     pub assets: AssetCache,
@@ -25,8 +25,8 @@ pub struct Frame {
 impl Frame {
     pub fn new(spawner: Spawner<Self>, assets: AssetCache, world: World) -> Self {
         Self {
-            store: Store::default(),
-            world: World::new(),
+            store: DynamicStore::default(),
+            world,
             spawner,
             assets,
             delta_time: 0.0,
@@ -66,5 +66,13 @@ impl Frame {
     /// Scope the frame to a particular *existing* entity
     pub(crate) fn scoped(&mut self, id: Entity) -> Option<Scope<'_>> {
         Scope::try_from_id(self, id)
+    }
+
+    pub fn store(&self) -> &DynamicStore {
+        &self.store
+    }
+
+    pub fn store_mut(&mut self) -> &mut DynamicStore {
+        &mut self.store
     }
 }

@@ -26,7 +26,6 @@ slotmap = "1.0"
 anyhow = "1.0"
 once_cell = "1.18"
 slab = "0.4"
-generational-box = "0.4"
 tynm ="0.1"
 
 bytemuck = { version = "1.13", features = ["derive"] }

@@ -23,6 +23,7 @@ use violet::{
     layout::{CrossAlign, Direction},
     style::StyleExt,
     text::{FontFamily, TextSegment},
+    to_owned,
     unit::Unit,
     widget::{ContainerExt, List, Rectangle, Signal, Stack, Text},
     App, Frame, Scope, StreamEffect, Widget,
@@ -103,7 +104,7 @@ impl Widget for MainApp {
                 .with_direction(Direction::Vertical),
                 List::new((
                     SliderWithLabel::new(value, 0.0, 20.0),
-                    SliderWithLabel::new(count, 0, 20),
+                    SliderWithLabel::new(count, 4, 20),
                 ))
                 .with_direction(Direction::Vertical),
             ))
@@ -252,7 +253,8 @@ impl<V: SliderValue> Widget for Slider<V> {
         let track = scope.attach(
             Rectangle::new(EERIE_BLACK_400)
                 .with_size(Unit::px2(200.0, 5.0))
-                .with_margin(Edges::even(5.0))
+                // Accommodate the handle
+                .with_margin(Edges::even(10.0))
                 .with_component(offset(), Default::default()),
         );
 
@@ -320,45 +322,42 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
                     && matches!(kind, EventKind::Modified | EventKind::Added)
             }));
 
-        let make_update = {
+        let update = scope.store({
             let rect_id = self.rect_id;
             let max = self.max;
             let min = self.min;
 
-            move || {
-                move |scope: &mut Scope<'_>, value: f32| {
-                    let parent_rect = scope
-                        .frame()
-                        .world
-                        .get(rect_id, rect())
-                        .map(|v| *v)
-                        .unwrap_or_default();
+            move |scope: &Scope<'_>, value: f32| {
+                let parent_rect = scope
+                    .frame()
+                    .world
+                    .get(rect_id, rect())
+                    .map(|v| *v)
+                    .unwrap_or_default();
 
-                    let pos = value * parent_rect.size().x / (max - min) + min;
+                let pos = (value - min) * parent_rect.size().x / (max - min);
 
-                    scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
-                }
+                scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
             }
-        };
+        });
 
-        let update = make_update();
         scope.spawn_effect(StreamEffect::new(
             self.value.signal_ref(|v| v.to_progress()).to_stream(),
             {
-                let last_known = last_known.clone();
+                to_owned![update, last_known];
                 move |scope: &mut Scope<'_>, v: f32| {
                     last_known.set(Some(v));
-                    update(scope, v);
+                    scope.read(&update)(scope, v);
                 }
             },
         ));
 
-        let update_pos = make_update();
+        to_owned![update, last_known];
         scope.spawn_effect(StreamEffect::new(
             rx.into_stream(),
             move |scope: &mut Scope<'_>, _v| {
                 if let Some(last_known) = last_known.get() {
-                    update_pos(scope, last_known);
+                    scope.read(&update)(scope, last_known);
                 }
             },
         ));
@@ -367,6 +366,7 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
             .with_size(Unit::px2(5.0, 20.0))
             .with_component(anchor(), Unit::rel2(0.5, 0.0))
             .with_component(offset(), Default::default())
+            .with_margin(MARGIN_SM)
             .mount(scope)
     }
 }
