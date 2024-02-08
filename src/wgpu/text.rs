@@ -90,7 +90,7 @@ impl TextSizeResolver {
         buffer.set_metrics(metrics);
         buffer.set_size(size.x, size.y);
 
-        buffer.shape_until_scroll();
+        buffer.shape_until_scroll(true);
 
         measure(&state.buffer)
     }

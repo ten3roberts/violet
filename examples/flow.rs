@@ -1,9 +1,10 @@
-use std::usize;
+use std::{sync::Arc, usize};
 
 use flax::{
     events::{EventKind, EventSubscriber},
     Entity, EntityRef,
 };
+use futures::StreamExt;
 use futures_signals::{
     map_ref,
     signal::{Mutable, SignalExt},
@@ -12,10 +13,12 @@ use futures_signals::{
 use glam::Vec2;
 use guillotiere::euclid::num::Round;
 use palette::{Hsva, IntoColor, Srgba};
+use parking_lot::Mutex;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
     components::{anchor, offset, rect, Edges},
+    editor::{EditAction, EditorAction, TextEditor},
     input::{
         focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
         CursorMove,
@@ -169,6 +172,7 @@ impl Widget for ItemList {
                 })
                 .collect::<Vec<_>>(),
         )
+        .with_cross_align(CrossAlign::Center)
         .mount(scope)
     }
 }
@@ -450,19 +454,47 @@ impl Widget for TextInput {
     fn mount(self, scope: &mut Scope<'_>) {
         scope.set(focusable(), ()).set(focus_sticky(), ());
 
+        let (tx, rx) = flume::unbounded();
+
         let content = self.content.clone();
+
+        let mut editor = TextEditor::new();
+
+        editor.set_text(content.lock_mut().split('\n').map(ToOwned::to_owned));
+        editor.set_cursor_at_end();
+
+        scope.spawn(async move {
+            let mut rx = rx.into_stream();
+
+            while let Some(action) = rx.next().await {
+                editor.apply_action(action);
+
+                let mut c = content.lock_mut();
+                c.clear();
+                for line in editor.text() {
+                    c.push_str(line);
+                    c.push('\n');
+                }
+            }
+        });
+
         scope.set(
             on_char_typed(),
-            Box::new(move |_, _, _, char| {
-                if char.is_control() {
-                    return;
-                }
+            Box::new({
+                to_owned![tx];
+                move |_, _, _, char| {
+                    if char.is_control() {
+                        return;
+                    }
 
-                content.lock_mut().push(char);
+                    tx.send(EditorAction::Edit(EditAction::InsertChar(char)))
+                        .ok();
+                }
             }),
         );
 
         let content = self.content.clone();
+
         scope.set(
             on_keyboard_input(),
             Box::new(move |_, _, mods, input| {
@@ -473,21 +505,17 @@ impl Widget for TextInput {
                 if input.state == ElementState::Pressed {
                     match virtual_keycode {
                         VirtualKeyCode::Back if mods.ctrl() => {
-                            let mut content = content.lock_mut();
-                            if let Some(last_word) =
-                                content.split_inclusive([' ', '\n']).next_back()
-                            {
-                                let n = last_word.chars().count();
-                                for _ in 0..n {
-                                    content.pop();
-                                }
-                            }
+                            tx.send(EditorAction::Edit(EditAction::DeleteBackwardWord))
+                                .ok();
                         }
                         VirtualKeyCode::Back => {
-                            content.lock_mut().pop();
+                            tx.send(EditorAction::Edit(EditAction::DeleteBackwardChar))
+                                .ok();
+                            // content.lock_mut().pop();
                         }
                         VirtualKeyCode::Return => {
-                            content.lock_mut().push('\n');
+                            tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
+                            // content.lock_mut().push('\n');
                         }
                         _ => {}
                     }

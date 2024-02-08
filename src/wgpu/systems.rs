@@ -72,7 +72,7 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
 
                     buffer.set_size(&mut text_system.font_system, size.x, size.y);
 
-                    buffer.shape_until_scroll(&mut text_system.font_system);
+                    buffer.shape_until_scroll(&mut text_system.font_system, true);
                 });
             },
         )

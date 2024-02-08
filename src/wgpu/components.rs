@@ -1,6 +1,6 @@
-use std::{borrow::Borrow, ffi::FromVecWithNulError, sync::Arc};
+use std::{borrow::Borrow, sync::Arc};
 
-use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping, Wrap};
+use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping};
 use flax::component;
 use palette::Srgba;
 
@@ -62,6 +62,7 @@ impl TextBufferState {
                         )),
                 )
             }),
+            Attrs::new(),
             Shaping::Advanced,
         );
         // self.buffer.set_text(

@@ -18,6 +18,7 @@ pub mod unit;
 pub mod wgpu;
 pub mod widget;
 pub mod utils;
+pub mod editor;
 
 pub use app::App;
 pub use effect::{FutureEffect, StreamEffect};

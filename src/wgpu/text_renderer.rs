@@ -369,7 +369,7 @@ impl TextRenderer {
 
                     buffer.set_size(item.layout_bounds.x + 15.0, item.layout_bounds.y);
 
-                    buffer.shape_until_scroll();
+                    buffer.shape_until_scroll(true);
                 }
 
                 let mut new_mesh = None;
