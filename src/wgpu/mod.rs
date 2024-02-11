@@ -6,10 +6,10 @@ pub mod rect_renderer;
 mod renderer;
 mod shape_renderer;
 pub mod systems;
+mod text;
 pub mod text_renderer;
 mod texture;
 pub mod window_renderer;
-mod text;
 
 pub use graphics::Gpu;
 pub use shape_renderer::WidgetRenderer;

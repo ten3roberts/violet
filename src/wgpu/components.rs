@@ -10,6 +10,7 @@ use crate::{
     wgpu::{
         graphics::texture::Texture,
         shape_renderer::{DrawCommand, ObjectData},
+        text::TextBufferState,
     },
 };
 
@@ -29,60 +30,6 @@ component! {
     // pub model_matrix: glam::Mat4,
 
     pub text_buffer_state: TextBufferState,
-}
-
-pub(crate) struct TextBufferState {
-    pub(crate) buffer: Buffer,
-}
-
-impl TextBufferState {
-    pub(crate) fn new(font_system: &mut FontSystem) -> Self {
-        Self {
-            buffer: Buffer::new(font_system, Metrics::new(14.0, 14.0)),
-        }
-    }
-
-    pub(crate) fn update_text(&mut self, font_system: &mut FontSystem, text: &[TextSegment]) {
-        self.buffer.set_rich_text(
-            font_system,
-            text.iter().map(|v| {
-                let color: Srgba<u8> = v.color.into_format();
-
-                (
-                    &*v.text,
-                    Attrs::new()
-                        .family((&v.family).into())
-                        .style(v.style)
-                        .weight(v.weight)
-                        .color(cosmic_text::Color::rgba(
-                            color.red,
-                            color.green,
-                            color.blue,
-                            color.alpha,
-                        )),
-                )
-            }),
-            Attrs::new(),
-            Shaping::Advanced,
-        );
-        // self.buffer.set_text(
-        //     font_system,
-        //     text,
-        //     Attrs::new()
-        //         .family(cosmic_text::Family::Name("Inter"))
-        //         .style(Style::Normal)
-        //         .weight(400.0)
-        //     Shaping::Advanced,
-        // );
-    }
-
-    pub(crate) fn buffer(&self) -> &Buffer {
-        &self.buffer
-    }
-
-    pub(crate) fn buffer_mut(&mut self) -> &mut Buffer {
-        &mut self.buffer
-    }
 }
 
 impl<'a> From<&'a FontFamily> for cosmic_text::Family<'a> {

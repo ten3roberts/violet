@@ -150,9 +150,6 @@ pub(crate) fn query_size(
             preferred: preferred_size.translate(preferred_offset),
             margin,
         }
-    } else if let [child] = children {
-        let entity = world.entity(*child).unwrap();
-        query_size(world, &entity, content_area, limits, squeeze)
     } else {
         // Leaf
 
@@ -209,17 +206,18 @@ pub(crate) fn update_subtree(
             },
         );
 
-        assert!(block.rect.size().x <= limits.max_size.x);
-        assert!(block.rect.size().y <= limits.max_size.y);
+        if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
+            tracing::error!(
+                %entity, rect_size=%block.rect.size(), %limits.max_size,
+                "Widget size exceeds constraints",
+            );
+        }
 
         block.rect = block.rect.pad(&padding);
 
         block.margin = (block.margin - padding).max(margin);
 
         block
-    } else if let [child] = children {
-        let entity = world.entity(*child).unwrap();
-        update_subtree(world, &entity, content_area, limits)
     } else {
         assert_eq!(children, [], "Entity has children but no layout");
         let size = apply_constraints(entity, content_area, limits);

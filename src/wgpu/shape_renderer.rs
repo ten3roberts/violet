@@ -68,6 +68,7 @@ pub struct RendererStore {
 }
 
 #[derive(Fetch)]
+#[fetch(item_derives = [ Debug ])]
 pub(crate) struct DrawQuery {
     pub(crate) entity: EntityRefs,
     pub(crate) object_data: Component<ObjectData>,
@@ -174,6 +175,7 @@ impl WidgetRenderer {
         frame: &mut Frame,
         render_pass: &mut RenderPass<'a>,
     ) -> anyhow::Result<()> {
+        let _span = tracing::info_span!("draw").entered();
         self.quad.bind(render_pass);
 
         self.register_objects.run(&mut frame.world)?;
@@ -204,13 +206,11 @@ impl WidgetRenderer {
         .filter_map(|entity| {
             let mut query = entity.query(&query);
             let item = query.get()?;
-
             let instance_index = self.objects.len() as u32;
 
             self.objects.push(*item.object_data);
 
             let draw_cmd = item.draw_cmd;
-            // tracing::info!(?mesh, "drawing");
             Some(InstancedDrawCommand {
                 draw_cmd: draw_cmd.clone(),
                 first_instance: instance_index,
@@ -267,7 +267,7 @@ impl WidgetRenderer {
     }
 }
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 /// Per object uniform data
 pub(crate) struct ObjectData {

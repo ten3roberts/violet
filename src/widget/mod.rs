@@ -90,6 +90,12 @@ impl<W: Widget> WidgetCollection for Vec<W> {
     }
 }
 
+pub struct NoOp;
+
+impl Widget for NoOp {
+    fn mount(self, _scope: &mut Scope<'_>) {}
+}
+
 macro_rules! tuple_impl {
     ($($idx: tt => $ty: ident),*) => {
         impl<$($ty),*> WidgetCollection for ($($ty,)*)

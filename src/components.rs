@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use flax::{component, Debuggable, Entity, Exclusive};
+use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
 use palette::Srgba;
@@ -8,7 +9,7 @@ use palette::Srgba;
 use crate::{
     assets::Asset,
     layout::{Layout, SizeResolver},
-    text::{TextSegment, Wrap},
+    text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment, Wrap},
     unit::Unit,
 };
 
@@ -77,6 +78,9 @@ component! {
     pub draw_shape(variant): () => [ Debuggable, Exclusive ],
 
     pub size_resolver: Box<dyn SizeResolver>,
+
+    /// If present, publishes information about the widgets laid out text during presentation.
+    pub layout_glyphs: Mutable<LayoutGlyphs>,
 }
 
 /// Spacing between a outer and inner bounds

@@ -1,25 +1,22 @@
 use std::sync::Arc;
 
-use crate::layout::Direction;
-use cosmic_text::{Buffer, LayoutGlyph, Metrics, Wrap};
+use cosmic_text::{Metrics, Wrap};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
     BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
     QueryBorrow, System,
 };
-use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 
 use crate::{
     components::{font_size, rect, size_resolver, text, text_wrap, Rect},
-    layout::{LayoutLimits, SizeResolver},
     text::TextSegment,
 };
 
 use super::{
-    components::{text_buffer_state, TextBufferState},
-    text::TextSizeResolver,
+    components::text_buffer_state,
+    text::{TextBufferState, TextSizeResolver},
     text_renderer::TextSystem,
 };
 
@@ -92,11 +89,13 @@ pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> Boxe
 
                     let resolver = TextSizeResolver::new(text_system.clone());
 
-                    cmd.set(id, text_buffer_state(), state).set(
-                        id,
-                        size_resolver(),
-                        Box::new(resolver),
-                    );
+                    cmd.set(id, text_buffer_state(), state)
+                       .set(
+                            id,
+                            size_resolver(),
+                            Box::new(resolver),
+                       );
+
                 }
             },
         )

@@ -7,6 +7,7 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
+use futures_signals::signal;
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
@@ -15,21 +16,25 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 
 use crate::{
     assets::AssetCache,
-    components::{color, draw_shape, font_size, layout_bounds, rect, screen_position, text, Rect},
+    components::{
+        color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_position, text,
+        Rect,
+    },
     shape::shape_text,
     stored::{self, Handle},
-    text::TextSegment,
+    text::{LayoutGlyphs, TextSegment},
     wgpu::{font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand},
     Frame,
 };
 
 use super::{
-    components::{draw_cmd, object_data, text_buffer_state, text_mesh, TextBufferState},
+    components::{draw_cmd, object_data, text_buffer_state, text_mesh},
     font::GlyphLocation,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
     shape_renderer::{srgba_to_vec4, ObjectData, RendererStore},
+    text::TextBufferState,
     Gpu,
 };
 
@@ -294,6 +299,8 @@ pub(crate) struct TextMeshQuery {
     layout_bounds: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
+    #[fetch(ignore)]
+    layout_glyphs: Opt<Mutable<signal::Mutable<LayoutGlyphs>>>,
 }
 
 impl TextMeshQuery {
@@ -307,6 +314,7 @@ impl TextMeshQuery {
             layout_bounds: layout_bounds(),
             font_size: font_size().opt_or(16.0),
             state: text_buffer_state().as_mut(),
+            layout_glyphs: layout_glyphs().as_mut().opt(),
         }
     }
 }
@@ -387,6 +395,11 @@ impl TextRenderer {
                     text_mesh,
                     store,
                 );
+
+                if let Some(layout_glyphs) = item.layout_glyphs {
+                    let mut v = layout_glyphs.lock_mut();
+                    *v = item.state.to_layout_glyphs();
+                }
 
                 cmd.set(
                     item.id,

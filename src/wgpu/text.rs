@@ -1,18 +1,19 @@
 use std::sync::Arc;
 
-use cosmic_text::{Buffer, LayoutGlyph, Metrics};
+use cosmic_text::{Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping};
+use flax::EntityRef;
 use glam::{vec2, Vec2};
+use itertools::Itertools;
+use palette::Srgba;
 use parking_lot::Mutex;
 
 use crate::{
-    components::font_size,
+    components::{font_size, Rect},
     layout::{Direction, LayoutLimits, SizeResolver},
+    text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
 };
 
-use super::{
-    components::{text_buffer_state, TextBufferState},
-    text_renderer::TextSystem,
-};
+use super::{components::text_buffer_state, text_renderer::TextSystem};
 
 pub struct TextSizeResolver {
     text_system: Arc<Mutex<TextSystem>>,
@@ -123,3 +124,140 @@ fn measure(buffer: &Buffer) -> Vec2 {
 
     vec2(width, total_lines as f32 * buffer.metrics().line_height)
 }
+
+pub(crate) struct TextBufferState {
+    pub(crate) buffer: Buffer,
+}
+
+impl TextBufferState {
+    pub(crate) fn new(font_system: &mut FontSystem) -> Self {
+        Self {
+            buffer: Buffer::new(font_system, Metrics::new(14.0, 14.0)),
+        }
+    }
+
+    pub(crate) fn update_text(&mut self, font_system: &mut FontSystem, text: &[TextSegment]) {
+        self.buffer.set_rich_text(
+            font_system,
+            text.iter().map(|v| {
+                let color: Srgba<u8> = v.color.into_format();
+
+                (
+                    &*v.text,
+                    Attrs::new()
+                        .family((&v.family).into())
+                        .style(v.style)
+                        .weight(v.weight)
+                        .color(cosmic_text::Color::rgba(
+                            color.red,
+                            color.green,
+                            color.blue,
+                            color.alpha,
+                        )),
+                )
+            }),
+            Attrs::new(),
+            Shaping::Advanced,
+        );
+        // self.buffer.set_text(
+        //     font_system,
+        //     text,
+        //     Attrs::new()
+        //         .family(cosmic_text::Family::Name("Inter"))
+        //         .style(Style::Normal)
+        //         .weight(400.0)
+        //     Shaping::Advanced,
+        // );
+    }
+
+    pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
+        let lh = self.buffer.metrics().line_height;
+        let mut glyph_index = 0;
+        let mut current_line = 0;
+
+        self.buffer.layout_runs().enumerate().map(move |(i, run)| {
+            if run.line_i != current_line {
+                current_line = run.line_i;
+                glyph_index = 0;
+            }
+
+            let top = i as f32 * lh;
+            let bottom = top + lh;
+            let glyphs = run
+                .glyphs
+                .iter()
+                .map(|g| {
+                    let index = glyph_index;
+                    glyph_index += 1;
+
+                    crate::text::LayoutGlyph {
+                        index,
+                        start: g.start,
+                        end: g.end,
+                        bounds: Rect {
+                            min: vec2(g.x, top),
+                            max: vec2(g.x + g.w, bottom),
+                        },
+                    }
+                })
+                .collect_vec();
+
+            let bounds = if let (Some(l), Some(r)) = (glyphs.first(), glyphs.last()) {
+                l.bounds.merge(r.bounds)
+            } else {
+                Rect::ZERO
+            };
+
+            LayoutLineGlyphs {
+                row: run.line_i,
+                bounds,
+                glyphs,
+            }
+        })
+    }
+
+    pub(crate) fn buffer(&self) -> &Buffer {
+        &self.buffer
+    }
+
+    pub(crate) fn buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffer
+    }
+
+    pub(crate) fn to_layout_glyphs(&self) -> LayoutGlyphs {
+        LayoutGlyphs::new(
+            self.to_layout_lines().collect_vec(),
+            self.buffer.metrics().line_height,
+        )
+    }
+}
+
+// pub struct TextBufferArea {}
+
+// impl TextArea for TextBufferArea {
+//     fn hit(&self, entity: &EntityRef, x: f32, y: f32) -> Option<(usize, usize)> {
+//         let state = entity.get(text_buffer_state()).ok()?;
+//         let cursor = state.buffer.hit(x, y)?;
+//         Some((cursor.line, cursor.index))
+//     }
+
+//     fn find_glyph(&self, entity: &EntityRef, row: usize, col: usize) -> Option<Rect> {
+//         let state = entity.get(text_buffer_state()).ok()?;
+
+//         let (visual_line, glyph) = state
+//             .buffer
+//             .layout_runs()
+//             .enumerate()
+//             .filter(|(_, v)| v.line_i == row)
+//             .flat_map(|(i, v)| v.glyphs.iter().map(move |v| (i, v)))
+//             .nth(col)?;
+
+//         let (l, r) = glyph_bounds(glyph);
+//         let line_start = visual_line as f32 * state.buffer.metrics().line_height;
+
+//         Some(Rect {
+//             min: vec2(l, line_start),
+//             max: vec2(r, line_start + state.buffer.metrics().line_height),
+//         })
+//     }
+// }

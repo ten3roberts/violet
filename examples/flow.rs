@@ -1,4 +1,4 @@
-use std::{sync::Arc, usize};
+use std::usize;
 
 use flax::{
     events::{EventKind, EventSubscriber},
@@ -7,28 +7,26 @@ use flax::{
 use futures::StreamExt;
 use futures_signals::{
     map_ref,
-    signal::{Mutable, SignalExt},
-    signal_map::MutableSignalMap,
+    signal::{self, Mutable, SignalExt},
 };
-use glam::Vec2;
+use glam::{vec2, Vec2};
 use guillotiere::euclid::num::Round;
 use palette::{Hsva, IntoColor, Srgba};
-use parking_lot::Mutex;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{anchor, offset, rect, Edges},
-    editor::{EditAction, EditorAction, TextEditor},
+    components::{self, anchor, offset, rect, Edges},
+    editor::{self, EditAction, EditorAction, TextEditor},
     input::{
         focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
         CursorMove,
     },
     layout::{CrossAlign, Direction},
     style::StyleExt,
-    text::{FontFamily, TextSegment},
+    text::{LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
-    widget::{ContainerExt, List, Rectangle, Signal, Stack, Text},
+    widget::{ContainerExt, List, NoOp, Rectangle, Signal, Stack, Text},
     App, Frame, Scope, StreamEffect, Widget,
 };
 use winit::event::{ElementState, VirtualKeyCode};
@@ -460,20 +458,61 @@ impl Widget for TextInput {
 
         let mut editor = TextEditor::new();
 
+        let layout_glyphs = Mutable::new(LayoutGlyphs::default());
+
         editor.set_text(content.lock_mut().split('\n').map(ToOwned::to_owned));
         editor.set_cursor_at_end();
 
-        scope.spawn(async move {
-            let mut rx = rx.into_stream();
+        let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(NoOp) as Box<dyn Widget>);
 
-            while let Some(action) = rx.next().await {
-                editor.apply_action(action);
+        scope.spawn({
+            let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream();
+            async move {
+                let mut rx = rx.into_stream();
 
-                let mut c = content.lock_mut();
-                c.clear();
-                for line in editor.text() {
-                    c.push_str(line);
-                    c.push('\n');
+                let mut glyphs;
+
+                let mut cursor_pos = Vec2::ZERO;
+
+                loop {
+                    tokio::select! {
+                        Some(action) = rx.next() => {
+
+                            editor.apply_action(action);
+
+                            let mut c = content.lock_mut();
+                            c.clear();
+                            for line in editor.lines() {
+                                c.push_str(line.text());
+                                c.push('\n');
+                            }
+                        }
+                        Some(new_glyphs) = layout_glyphs.next() => {
+                            glyphs = new_glyphs;
+                            if let Some(loc) = glyphs.to_glyph_position(editor.cursor()) {
+                                cursor_pos = vec2(
+                                    glyphs[loc].bounds.min.x,
+                                    loc.line_index as f32 * glyphs.line_height(),
+                                );
+                            } else if editor.past_eol() {
+                                cursor_pos = glyphs
+                                    .lines_indices(editor.cursor().row)
+                                    .last()
+                                    .map(|(ln, line)| {
+                                        vec2(line.bounds.max.x, ln as f32 * glyphs.line_height())
+                                    })
+                                    .unwrap_or_default();
+                            }
+                        }
+                        else => break,
+                    }
+                    editor_props_tx
+                        .send(Box::new(Stack::new(
+                            Rectangle::new(EMERALD)
+                                .with_size(Unit::px2(2.0, 18.0))
+                                .with_component(offset(), Unit::px(cursor_pos)),
+                        )))
+                        .ok();
                 }
             }
         });
@@ -492,8 +531,6 @@ impl Widget for TextInput {
                 }
             }),
         );
-
-        let content = self.content.clone();
 
         scope.set(
             on_keyboard_input(),
@@ -517,16 +554,44 @@ impl Widget for TextInput {
                             tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
                             // content.lock_mut().push('\n');
                         }
+                        VirtualKeyCode::Left if mods.ctrl() => {
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::BackwardWord))
+                                .ok();
+                        }
+                        VirtualKeyCode::Right if mods.ctrl() => {
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::ForwardWord))
+                                .ok();
+                        }
+                        VirtualKeyCode::Left => {
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::Left))
+                                .ok();
+                        }
+                        VirtualKeyCode::Right => {
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::Right))
+                                .ok();
+                        }
+                        VirtualKeyCode::Up => {
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::Up))
+                                .ok();
+                        }
+                        VirtualKeyCode::Down => {
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::Down))
+                                .ok();
+                        }
                         _ => {}
                     }
                 }
             }),
         );
 
-        pill(Signal(self.content.signal_cloned().map(|v| {
-            Text::rich([TextSegment::new(v).with_family(FontFamily::named("Inter"))])
-                .with_font_size(18.0)
-        })))
+        pill(Stack::new((
+            Signal(self.content.signal_cloned().map(move |v| {
+                Text::rich([TextSegment::new(v)])
+                    .with_font_size(18.0)
+                    .with_component(components::layout_glyphs(), layout_glyphs.clone())
+            })),
+            Signal(editor_props_rx),
+        )))
         .mount(scope)
     }
 }

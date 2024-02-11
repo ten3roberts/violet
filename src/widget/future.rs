@@ -24,16 +24,18 @@ where
         let mut child = None;
         let stream = self.0.to_stream();
 
-        scope.spawn_effect(StreamEffect::new(
-            stream,
-            move |scope: &mut Scope<'_>, v| {
-                if let Some(child) = child {
-                    scope.detach(child);
-                }
+        scope
+            .set(layout(), Layout::Stack(Default::default()))
+            .spawn_effect(StreamEffect::new(
+                stream,
+                move |scope: &mut Scope<'_>, v| {
+                    if let Some(child) = child {
+                        scope.detach(child);
+                    }
 
-                child = Some(scope.attach(v));
-            },
-        ));
+                    child = Some(scope.attach(v));
+                },
+            ));
     }
 }
 
@@ -47,15 +49,17 @@ where
     fn mount(self, scope: &mut crate::Scope<'_>) {
         let mut child = None;
 
-        scope.spawn_effect(StreamEffect::new(
-            self.0,
-            move |scope: &mut Scope<'_>, v| {
-                if let Some(child) = child {
-                    scope.detach(child);
-                }
+        scope
+            .set(layout(), Layout::Stack(Default::default()))
+            .spawn_effect(StreamEffect::new(
+                self.0,
+                move |scope: &mut Scope<'_>, v| {
+                    if let Some(child) = child {
+                        scope.detach(child);
+                    }
 
-                child = Some(scope.attach(v));
-            },
-        ));
+                    child = Some(scope.attach(v));
+                },
+            ));
     }
 }
