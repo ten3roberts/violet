@@ -300,7 +300,7 @@ pub(crate) struct TextMeshQuery {
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
     #[fetch(ignore)]
-    layout_glyphs: Opt<Mutable<signal::Mutable<LayoutGlyphs>>>,
+    layout_glyphs: Opt<Mutable<LayoutGlyphs>>,
 }
 
 impl TextMeshQuery {
@@ -396,8 +396,7 @@ impl TextRenderer {
                     store,
                 );
 
-                if let Some(layout_glyphs) = item.layout_glyphs {
-                    let mut v = layout_glyphs.lock_mut();
+                if let Some(v) = item.layout_glyphs {
                     *v = item.state.to_layout_glyphs();
                 }
 

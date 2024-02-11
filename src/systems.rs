@@ -7,7 +7,8 @@ use glam::Vec2;
 
 use crate::{
     components::{
-        self, children, layout_bounds, local_position, rect, screen_position, text, Rect,
+        self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
+        Rect,
     },
     layout::{update_subtree, LayoutLimits},
 };
@@ -30,6 +31,7 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
             screen_position().without(),
             local_position().without(),
             rect().without(),
+            screen_rect().without(),
         )))
         .filter(root.traverse(child_of));
 
@@ -42,6 +44,7 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
 
                 cmd.set_missing(id, screen_position(), Vec2::ZERO)
                     .set_missing(id, local_position(), Vec2::ZERO)
+                    .set_missing(id, screen_rect(), Rect::default())
                     .set_missing(id, rect(), Rect::default());
             }
         })
@@ -81,14 +84,22 @@ pub fn layout_system() -> BoxedSystem {
 pub fn transform_system() -> BoxedSystem {
     System::builder()
         .with_query(
-            Query::new((screen_position().as_mut(), local_position()))
-                .with_strategy(Dfs::new(child_of)),
+            Query::new((
+                screen_position().as_mut(),
+                screen_rect().as_mut(),
+                rect(),
+                local_position(),
+            ))
+            .with_strategy(Dfs::new(child_of)),
         )
         .build(|mut query: DfsBorrow<_>| {
             query.traverse(
                 &Vec2::ZERO,
-                |(pos, local_pos): (&mut Vec2, &Vec2), _, parent_pos| {
+                |(pos, screen_rect, rect, local_pos): (&mut Vec2, &mut Rect, &Rect, &Vec2),
+                 _,
+                 parent_pos| {
                     *pos = *parent_pos + *local_pos;
+                    *screen_rect = rect.translate(*pos);
                     *pos
                 },
             );

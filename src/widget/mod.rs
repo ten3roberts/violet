@@ -5,7 +5,9 @@ mod future;
 
 pub use basic::{Button, Image, Positioned, Rectangle, Text};
 pub use container::{ContainerExt, List, Stack};
+use flax::{component::ComponentValue, Component};
 pub use future::{Signal, StreamWidget};
+use futures_signals::signal::Mutable;
 
 /// Represents a widget in the UI tree which can mount itself into the frame.
 ///
@@ -55,6 +57,45 @@ pub trait WidgetExt: Widget + Sized {
 
     fn with_name(self, name: impl Into<String>) -> WithComponent<Self, String> {
         WithComponent::new(self, flax::components::name(), name.into())
+    }
+
+    fn monitor<T: ComponentValue>(
+        self,
+        component: Component<T>,
+        on_change: Box<dyn Fn(Option<&T>)>,
+    ) -> Monitor<Self, T> {
+        Monitor {
+            widget: self,
+            component,
+            on_change,
+        }
+    }
+
+    fn monitor_signal<T: Clone + ComponentValue>(
+        self,
+        component: Component<T>,
+        on_change: Mutable<Option<T>>,
+    ) -> Monitor<Self, T> {
+        Monitor {
+            widget: self,
+            component,
+            on_change: Box::new(move |val| {
+                on_change.set(val.cloned());
+            }),
+        }
+    }
+}
+
+pub struct Monitor<W, T> {
+    widget: W,
+    component: Component<T>,
+    on_change: Box<dyn Fn(Option<&T>)>,
+}
+
+impl<W: Widget, T: Clone + ComponentValue> Widget for Monitor<W, T> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.widget.mount(scope);
+        scope.monitor(self.component, self.on_change);
     }
 }
 

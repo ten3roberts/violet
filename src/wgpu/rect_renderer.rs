@@ -13,7 +13,9 @@ use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureF
 
 use crate::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
-    components::{color, draw_shape, image, local_position, rect, screen_position, Rect},
+    components::{
+        color, draw_shape, image, local_position, rect, screen_position, screen_rect, Rect,
+    },
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
     Frame,
@@ -62,9 +64,9 @@ impl AssetKey<DynamicImage> for ImageFromColor {
 
 #[derive(Fetch)]
 struct RectObjectQuery {
-    rect: Component<Rect>,
-    pos: Component<Vec2>,
-    local_pos: Component<Vec2>,
+    screen_rect: Component<Rect>,
+    // pos: Component<Vec2>,
+    // local_pos: Component<Vec2>,
     color: OptOr<Component<Srgba>, Srgba>,
     object_data: Mutable<ObjectData>,
 }
@@ -72,11 +74,9 @@ struct RectObjectQuery {
 impl RectObjectQuery {
     fn new() -> Self {
         Self {
-            rect: rect(),
-            pos: screen_position(),
+            screen_rect: screen_rect(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
-            local_pos: local_position(),
         }
     }
 }
@@ -224,8 +224,8 @@ impl RectRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                tracing::debug!(color=%srgba_to_vec4(*item.color), %item.pos, ?item.rect);
-                let rect = item.rect.translate(*item.pos).align_to_grid();
+                tracing::debug!(color=%srgba_to_vec4(*item.color), ?item.screen_rect);
+                let rect = item.screen_rect.align_to_grid();
 
                 if rect.size().x < 0.01 || rect.size().y < 0.01 {
                     tracing::warn!("rect too small to render");

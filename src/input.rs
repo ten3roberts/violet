@@ -6,7 +6,7 @@ use glam::Vec2;
 use winit::event::{ElementState, KeyboardInput, ModifiersState, MouseButton};
 
 use crate::{
-    components::{rect, screen_position, Rect},
+    components::{rect, screen_position, screen_rect, Rect},
     stored::{Handle, UntypedHandle},
     Frame,
 };
@@ -118,9 +118,7 @@ impl InputState {
         if let Some(cur) = &self.focused {
             let entity = frame.world.entity(cur.id).unwrap();
 
-            let screen_pos = entity.get_copy(screen_position()).unwrap_or_default();
-            let rect = entity.get_copy(rect()).unwrap_or_default();
-            let origin = screen_pos + rect.min;
+            let screen_rect = entity.get_copy(screen_rect()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
                 on_input(
                     frame,
@@ -128,7 +126,7 @@ impl InputState {
                     &self.modifiers,
                     CursorMove {
                         absolute_pos: pos,
-                        local_pos: pos - origin,
+                        local_pos: pos - screen_rect.min,
                     },
                 );
             }

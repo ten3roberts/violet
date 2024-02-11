@@ -1,4 +1,9 @@
-use flax::{Entity, World};
+use flax::{
+    component::ComponentValue,
+    events::{Event, EventData, EventSubscriber},
+    Component, Entity, Fetch, World,
+};
+use futures::StreamExt;
 
 use crate::{
     assets::AssetCache,
@@ -6,7 +11,7 @@ use crate::{
     executor::{Spawner, TaskHandle},
     scope::ScopedEffect,
     stored::DynamicStore,
-    Scope, Widget,
+    Scope, StreamEffect, Widget,
 };
 
 /// Thread local runtime state of the application.
@@ -74,5 +79,30 @@ impl Frame {
 
     pub fn store_mut(&mut self) -> &mut DynamicStore {
         &mut self.store
+    }
+
+    pub fn monitor<T: ComponentValue>(
+        &mut self,
+        id: Entity,
+        component: Component<T>,
+        on_change: impl Fn(Option<&T>) + 'static,
+    ) {
+        let (tx, rx) = flume::unbounded();
+
+        self.world.subscribe(
+            tx.filter_components([component.key()])
+                .filter(move |_, v| v.ids.contains(&id)),
+        );
+
+        self.spawn_scoped(
+            id,
+            StreamEffect::new(
+                rx.into_stream(),
+                move |scope: &mut Scope<'_>, value: Event| {
+                    assert!(scope.id() == value.id);
+                    on_change(scope.entity().get(component).ok().as_deref());
+                },
+            ),
+        );
     }
 }

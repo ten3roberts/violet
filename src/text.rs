@@ -146,7 +146,11 @@ impl LayoutGlyphs {
     pub fn hit(&self, pos: Vec2) -> Option<CursorLocation> {
         for line in self.lines.iter().filter(|v| v.bounds.contains_point(pos)) {
             if let Some(glyph) = line.glyphs.iter().find(|v| v.bounds.contains_point(pos)) {
-                return Some(CursorLocation::new(line.row, glyph.index));
+                if pos.x > glyph.bounds.min.x + glyph.bounds.size().x / 2.0 {
+                    return Some(CursorLocation::new(line.row, glyph.index + 1));
+                } else {
+                    return Some(CursorLocation::new(line.row, glyph.index));
+                }
             }
         }
 

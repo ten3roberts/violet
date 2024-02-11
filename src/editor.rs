@@ -86,6 +86,7 @@ pub enum CursorMove {
     Right,
     ForwardWord,
     BackwardWord,
+    SetPosition(CursorLocation),
 }
 
 pub enum EditAction {
@@ -167,6 +168,14 @@ impl TextEditor {
                     self.cursor.col = self.line().len();
                 }
             }
+            CursorMove::SetPosition(pos) => {
+                if (pos.row > self.text.len() - 1) || (pos.col > self.text[pos.row].len()) {
+                    tracing::error!(?pos, "invalid cursor position");
+                    return;
+                }
+
+                self.cursor = pos;
+            }
         }
     }
 
@@ -197,9 +206,10 @@ impl TextEditor {
                         self.cursor.col -= l;
                     }
                 } else if self.cursor.row > 0 {
-                    self.text.remove(self.cursor.row);
+                    let line = self.text.remove(self.cursor.row);
                     self.cursor.row -= 1;
                     self.cursor.col = self.text[self.cursor.row].len();
+                    self.text[self.cursor.row].push_str(&line.text);
                 }
             }
             EditAction::DeleteBackwardWord => {
@@ -235,7 +245,13 @@ impl TextEditor {
                 }
             }
             EditAction::InsertLine => {
-                self.text.insert(self.cursor.row + 1, EditorLine::default());
+                let col = self.insert_column();
+                let line = &mut self.text[self.cursor.row];
+                let new_line = line.text.split_off(col);
+
+                self.text
+                    .insert(self.cursor.row + 1, EditorLine::new(new_line));
+
                 self.cursor.row += 1;
                 self.cursor.col = 0;
             }
@@ -269,8 +285,7 @@ impl TextEditor {
 
     pub fn set_text(&mut self, text: impl IntoIterator<Item = String>) {
         self.text.clear();
-        self.text
-            .extend(text.into_iter().map(|v| EditorLine::new(v)));
+        self.text.extend(text.into_iter().map(EditorLine::new));
 
         self.cursor.row = self.cursor.row.min(self.text.len() - 1);
         self.cursor.col = self.cursor.col.min(self.text[self.cursor.row].len());

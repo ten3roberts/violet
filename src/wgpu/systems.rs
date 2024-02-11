@@ -10,8 +10,8 @@ use flax::{
 use parking_lot::Mutex;
 
 use crate::{
-    components::{font_size, rect, size_resolver, text, text_wrap, Rect},
-    text::TextSegment,
+    components::{font_size, layout_glyphs, rect, size_resolver, text, text_wrap, Rect},
+    text::{LayoutGlyphs, TextSegment},
 };
 
 use super::{
@@ -90,6 +90,7 @@ pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> Boxe
                     let resolver = TextSizeResolver::new(text_system.clone());
 
                     cmd.set(id, text_buffer_state(), state)
+                       .set(id, layout_glyphs(), LayoutGlyphs::default())
                        .set(
                             id,
                             size_resolver(),

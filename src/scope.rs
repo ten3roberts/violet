@@ -10,7 +10,9 @@ use flax::{
     Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
 };
 use futures::{Future, Stream};
+use futures_signals::signal::Mutable;
 use pin_project::pin_project;
+use tracing::Instrument;
 
 use crate::{
     assets::AssetCache, components::children, effect::Effect, stored::Handle, Frame, FutureEffect,
@@ -97,7 +99,7 @@ impl<'a> Scope<'a> {
     }
 
     pub fn entity(&self) -> EntityRef {
-        // self.flush();
+        assert_eq!(self.data.component_count(), 0);
         self.frame.world().entity(self.id).unwrap()
     }
 
@@ -204,6 +206,14 @@ impl<'a> Scope<'a> {
 
     pub fn write<T: 'static>(&mut self, handle: &Handle<T>) -> &mut T {
         self.frame.store_mut().get_mut(handle)
+    }
+
+    pub fn monitor<T: ComponentValue>(
+        &mut self,
+        component: Component<T>,
+        on_change: impl Fn(Option<&T>) + 'static,
+    ) {
+        self.frame.monitor(self.id, component, on_change);
     }
 }
 

@@ -21,6 +21,7 @@ component! {
 
     /// Defines the outer bounds of a widget relative to its position
     pub rect: Rect => [ Debuggable ],
+    pub screen_rect: Rect => [ Debuggable ],
 
     /// Position relative to parent
     pub local_position: Vec2 => [ Debuggable ],
@@ -79,8 +80,8 @@ component! {
 
     pub size_resolver: Box<dyn SizeResolver>,
 
-    /// If present, publishes information about the widgets laid out text during presentation.
-    pub layout_glyphs: Mutable<LayoutGlyphs>,
+    /// If present, contains information about the laid out text
+    pub layout_glyphs: LayoutGlyphs,
 }
 
 /// Spacing between a outer and inner bounds

@@ -15,7 +15,7 @@ use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{self, anchor, offset, rect, Edges},
+    components::{self, anchor, offset, rect, screen_rect, Edges, Rect},
     editor::{self, EditAction, EditorAction, TextEditor},
     input::{
         focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
@@ -26,7 +26,7 @@ use violet::{
     text::{LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
-    widget::{ContainerExt, List, NoOp, Rectangle, Signal, Stack, Text},
+    widget::{ContainerExt, List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
     App, Frame, Scope, StreamEffect, Widget,
 };
 use winit::event::{ElementState, VirtualKeyCode};
@@ -450,15 +450,14 @@ impl TextInput {
 
 impl Widget for TextInput {
     fn mount(self, scope: &mut Scope<'_>) {
-        scope.set(focusable(), ()).set(focus_sticky(), ());
-
         let (tx, rx) = flume::unbounded();
 
         let content = self.content.clone();
 
         let mut editor = TextEditor::new();
 
-        let layout_glyphs = Mutable::new(LayoutGlyphs::default());
+        let layout_glyphs = Mutable::new(None);
+        let text_bounds: Mutable<Option<Rect>> = Mutable::new(None);
 
         editor.set_text(content.lock_mut().split('\n').map(ToOwned::to_owned));
         editor.set_cursor_at_end();
@@ -470,7 +469,7 @@ impl Widget for TextInput {
             async move {
                 let mut rx = rx.into_stream();
 
-                let mut glyphs;
+                let mut glyphs: LayoutGlyphs;
 
                 let mut cursor_pos = Vec2::ZERO;
 
@@ -487,7 +486,7 @@ impl Widget for TextInput {
                                 c.push('\n');
                             }
                         }
-                        Some(new_glyphs) = layout_glyphs.next() => {
+                        Some(Some(new_glyphs)) = layout_glyphs.next() => {
                             glyphs = new_glyphs;
                             if let Some(loc) = glyphs.to_glyph_position(editor.cursor()) {
                                 cursor_pos = vec2(
@@ -517,6 +516,28 @@ impl Widget for TextInput {
             }
         });
 
+        scope.set(focusable(), ()).set(focus_sticky(), ());
+        scope.set(on_mouse_input(), {
+            to_owned![layout_glyphs, text_bounds, tx];
+            Box::new(move |_, _, _, input| {
+                let glyphs = layout_glyphs.lock_ref();
+
+                if let (Some(glyphs), Some(text_bounds)) = (&*glyphs, &*text_bounds.lock_ref()) {
+                    if input.state == ElementState::Pressed {
+                        let text_pos = input.cursor.absolute_pos - text_bounds.min;
+                        if let Some(hit) = glyphs.hit(text_pos) {
+                            tracing::info!(?hit, "hit");
+                            tx.send(EditorAction::CursorMove(editor::CursorMove::SetPosition(
+                                hit,
+                            )))
+                            .ok();
+                        }
+
+                        tracing::info!(?input, "click");
+                    }
+                }
+            })
+        });
         scope.set(
             on_char_typed(),
             Box::new({
@@ -532,8 +553,8 @@ impl Widget for TextInput {
             }),
         );
 
-        scope.set(
-            on_keyboard_input(),
+        scope.set(on_keyboard_input(), {
+            to_owned![tx];
             Box::new(move |_, _, mods, input| {
                 let Some(virtual_keycode) = input.virtual_keycode else {
                     return;
@@ -581,14 +602,16 @@ impl Widget for TextInput {
                         _ => {}
                     }
                 }
-            }),
-        );
+            })
+        });
 
         pill(Stack::new((
             Signal(self.content.signal_cloned().map(move |v| {
+                to_owned![text_bounds];
                 Text::rich([TextSegment::new(v)])
                     .with_font_size(18.0)
-                    .with_component(components::layout_glyphs(), layout_glyphs.clone())
+                    .monitor_signal(components::layout_glyphs(), layout_glyphs.clone())
+                    .monitor_signal(screen_rect(), text_bounds.clone())
             })),
             Signal(editor_props_rx),
         )))
