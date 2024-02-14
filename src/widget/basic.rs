@@ -1,15 +1,15 @@
-use glam::{vec2, Vec2};
+use glam::Vec2;
 use image::DynamicImage;
 use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
 
 use crate::{
     assets::AssetKey,
-    components::{self, color, draw_shape, font_size, size, text, text_wrap},
+    components::{self, color, draw_shape, font_size, text, text_wrap},
     input::{on_focus, on_mouse_input},
     shape,
     style::StyleExt,
-    text::{self, TextSegment, Wrap},
+    text::{TextSegment, Wrap},
     unit::Unit,
     Frame, Scope, Widget,
 };
@@ -17,6 +17,7 @@ use crate::{
 use super::{ContainerExt, Stack};
 
 /// A rectangular widget
+#[derive(Debug, Clone)]
 pub struct Rectangle {
     color: Srgba,
 }
@@ -189,7 +190,7 @@ impl<W: Widget> Widget for Button<W> {
             )
             .with_component(
                 on_mouse_input(),
-                Box::new(move |frame, _, _mods, (input)| {
+                Box::new(move |frame, _, _mods, input| {
                     if input.state == ElementState::Released {
                         (self.on_press)(frame, input.button);
                     }

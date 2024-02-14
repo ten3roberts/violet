@@ -2,7 +2,7 @@ use std::{
     any::{Any, TypeId},
     borrow::Borrow,
     hash::Hash,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::Arc,
 };
 
 use dashmap::DashMap;
@@ -35,7 +35,6 @@ pub type KeyMap<K, V> = DashMap<K, WeakHandle<V>>;
 
 /// Stores assets which are accessible through handles
 struct AssetCacheInner {
-    next_id: AtomicUsize,
     keys: DashMap<TypeId, Box<dyn Any + Send + Sync>>,
     cells: DashMap<TypeId, Box<dyn Any + Send + Sync>>,
     providers: DashMap<TypeId, Box<dyn Any + Send + Sync>>,
@@ -45,7 +44,6 @@ impl AssetCache {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(AssetCacheInner {
-                next_id: AtomicUsize::new(0),
                 keys: DashMap::new(),
                 cells: DashMap::new(),
                 providers: DashMap::new(),

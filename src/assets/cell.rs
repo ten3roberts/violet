@@ -7,12 +7,12 @@ use super::{handle::WeakHandle, Asset, AssetId};
 /// Contains the actual asset data
 ///
 /// Allows accessing an asset by its id
-pub struct AssetCell<V> {
+pub(crate) struct AssetCell<V> {
     values: SlotMap<AssetId, WeakHandle<V>>,
 }
 
 impl<V> AssetCell<V> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             values: SlotMap::with_key(),
         }
@@ -36,8 +36,10 @@ impl<V> AssetCell<V> {
     pub fn prune(&mut self) {
         self.values.retain(|_, v| v.strong_count() > 0)
     }
+}
 
-    pub(super) fn get(&self, id: AssetId) -> Option<&WeakHandle<V>> {
-        self.values.get(id)
+impl<V> Default for AssetCell<V> {
+    fn default() -> Self {
+        Self::new()
     }
 }

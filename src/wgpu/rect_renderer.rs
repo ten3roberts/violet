@@ -2,20 +2,17 @@ use std::{convert::Infallible, sync::Arc};
 
 use flax::{
     entity_ids,
-    fetch::{Modified, TransformFetch},
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
+use glam::{vec2, vec3, Mat4, Quat, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
-    components::{
-        color, draw_shape, image, local_position, rect, screen_position, screen_rect, Rect,
-    },
+    components::{color, draw_shape, image, screen_rect, Rect},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
     Frame,

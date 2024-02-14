@@ -7,7 +7,6 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use futures_signals::signal;
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
@@ -146,7 +145,6 @@ struct MeshGenerator {
 impl MeshGenerator {
     fn new(
         ctx: &mut RendererContext,
-        frame: &mut Frame,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
@@ -272,8 +270,8 @@ impl MeshGenerator {
         if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
             ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
         } else {
-            tracing::info!(?glyph_count, "Allocating new mesh for text");
             *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
+            tracing::info!(?glyph_count, ?mesh, "Allocating new mesh for text");
         }
 
         indices.len() as u32
@@ -296,6 +294,7 @@ pub(crate) struct TextMeshQuery {
 
     rect: Component<Rect>,
     text: Component<Vec<TextSegment>>,
+    #[fetch(ignore)]
     layout_bounds: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
@@ -319,13 +318,13 @@ impl TextMeshQuery {
     }
 }
 
-pub struct RasterizedFont {
+pub(crate) struct RasterizedFont {
     /// Stored to retrieve *where* the character is located
     atlas: FontAtlas,
     bind_group: stored::Handle<BindGroup>,
 }
 
-pub struct TextRenderer {
+pub(crate) struct TextRenderer {
     mesh_generator: MeshGenerator,
     text_system: Arc<Mutex<TextSystem>>,
 
@@ -334,15 +333,14 @@ pub struct TextRenderer {
 }
 
 impl TextRenderer {
-    pub fn new(
+    pub(crate) fn new(
         ctx: &mut RendererContext,
-        frame: &mut Frame,
         text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
-        let mesh_generator = MeshGenerator::new(ctx, frame, color_format, object_layout, store);
+        let mesh_generator = MeshGenerator::new(ctx, color_format, object_layout, store);
         Self {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
@@ -368,8 +366,6 @@ impl TextRenderer {
             .rev()
             .for_each(|item| {
                 let _span = tracing::info_span!( "update_mesh", %item.id).entered();
-                // tracing::debug!(%item.id, "updating mesh for {:?}", item.text);
-
                 // Update intrinsic sizes
 
                 {
@@ -397,7 +393,7 @@ impl TextRenderer {
                 );
 
                 if let Some(v) = item.layout_glyphs {
-                    *v = item.state.to_layout_glyphs();
+                    *v = item.state.layout_glyphs(&mut text_system.font_system);
                 }
 
                 cmd.set(

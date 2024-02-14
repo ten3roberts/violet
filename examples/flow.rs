@@ -11,6 +11,7 @@ use futures_signals::{
 };
 use glam::{vec2, Vec2};
 use guillotiere::euclid::num::Round;
+use itertools::Itertools;
 use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
@@ -22,7 +23,7 @@ use violet::{
         CursorMove,
     },
     layout::{CrossAlign, Direction},
-    style::StyleExt,
+    style::{StyleExt, WithComponent},
     text::{LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
@@ -79,7 +80,9 @@ struct MainApp;
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
-        let content = Mutable::new("Hello, World!".into());
+        let content = Mutable::new(
+            "This is a multiline text that is wrapped around because it is so long".into(),
+        );
         let value = Mutable::new(1.0);
         let count = Mutable::new(5);
 
@@ -488,28 +491,32 @@ impl Widget for TextInput {
                         }
                         Some(Some(new_glyphs)) = layout_glyphs.next() => {
                             glyphs = new_glyphs;
-                            if let Some(loc) = glyphs.to_glyph_position(editor.cursor()) {
-                                cursor_pos = vec2(
-                                    glyphs[loc].bounds.min.x,
-                                    loc.line_index as f32 * glyphs.line_height(),
-                                );
+                            tracing::info!("{:?}", glyphs.lines().iter().map(|v| v.glyphs.len()).collect_vec());
+
+                            if let Some(loc) = glyphs.to_glyph_boundary(editor.cursor()) {
+                                cursor_pos = loc;
                             } else if editor.past_eol() {
                                 cursor_pos = glyphs
-                                    .lines_indices(editor.cursor().row)
+                                    .find_lines_indices(editor.cursor().row)
                                     .last()
                                     .map(|(ln, line)| {
                                         vec2(line.bounds.max.x, ln as f32 * glyphs.line_height())
                                     })
                                     .unwrap_or_default();
+                            } else {
+                                cursor_pos = Vec2::ZERO;
                             }
                         }
                         else => break,
                     }
+
                     editor_props_tx
                         .send(Box::new(Stack::new(
-                            Rectangle::new(EMERALD)
-                                .with_size(Unit::px2(2.0, 18.0))
-                                .with_component(offset(), Unit::px(cursor_pos)),
+                                    (
+                                        Rectangle::new(EMERALD)
+                                        .with_size(Unit::px2(2.0, 18.0))
+                                        .with_component(offset(), Unit::px(cursor_pos)),
+                                    )
                         )))
                         .ok();
                 }
@@ -569,11 +576,9 @@ impl Widget for TextInput {
                         VirtualKeyCode::Back => {
                             tx.send(EditorAction::Edit(EditAction::DeleteBackwardChar))
                                 .ok();
-                            // content.lock_mut().pop();
                         }
                         VirtualKeyCode::Return => {
                             tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
-                            // content.lock_mut().push('\n');
                         }
                         VirtualKeyCode::Left if mods.ctrl() => {
                             tx.send(EditorAction::CursorMove(editor::CursorMove::BackwardWord))

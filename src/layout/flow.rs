@@ -152,18 +152,7 @@ impl CrossAlign {
 pub(crate) struct Row<'a> {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
-    pub(crate) margin: Edges,
     pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
-}
-
-impl<'a> Row<'a> {
-    pub(crate) fn sizing(&self) -> Sizing {
-        Sizing {
-            min: self.min,
-            preferred: self.preferred,
-            margin: self.margin,
-        }
-    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -195,7 +184,7 @@ impl FlowLayout {
         let row = self.query_row(world, children, content_area, limits, self.direction);
 
         // tracing::info!(?row.margin, "row margins to be contained");
-        self.distribute_children(world, entity, &row, content_area, limits, false)
+        self.distribute_children(world, entity, &row, content_area, limits)
     }
 
     fn distribute_children(
@@ -205,7 +194,6 @@ impl FlowLayout {
         row: &Row<'_>,
         content_area: Rect,
         limits: LayoutLimits,
-        min: bool,
     ) -> Block {
         let (axis, cross_axis) = self.direction.axis(self.reverse);
 
@@ -654,14 +642,13 @@ impl FlowLayout {
         Row {
             min,
             preferred,
-            margin: preferred_margin,
             blocks,
         }
     }
 
-    pub(crate) fn query_size<'a>(
+    pub(crate) fn query_size(
         &self,
-        world: &'a World,
+        world: &World,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,

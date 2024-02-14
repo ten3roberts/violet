@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ffi::FromBytesWithNulError, sync::Arc};
 
 use cosmic_text::{Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping};
 use flax::EntityRef;
@@ -6,6 +6,7 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     components::{font_size, Rect},
@@ -47,8 +48,9 @@ impl SizeResolver for TextSizeResolver {
             },
         );
 
-        let preferred = Self::resolve_text_size(state, text_system, font_size, limits.max_size)
-            + vec2(5.0, 5.0);
+        let preferred =
+            Self::resolve_text_size(state, text_system, font_size, limits.max_size - 5.0)
+                + vec2(5.0, 5.0);
 
         (min, preferred)
     }
@@ -170,50 +172,63 @@ impl TextBufferState {
         // );
     }
 
-    pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
+    pub(crate) fn to_layout_lines(
+        &self,
+        font_system: &mut FontSystem,
+    ) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
         let lh = self.buffer.metrics().line_height;
-        let mut glyph_index = 0;
-        let mut current_line = 0;
 
-        self.buffer.layout_runs().enumerate().map(move |(i, run)| {
-            if run.line_i != current_line {
-                current_line = run.line_i;
-                glyph_index = 0;
-            }
+        let mut result = Vec::new();
 
-            let top = i as f32 * lh;
-            let bottom = top + lh;
-            let glyphs = run
-                .glyphs
-                .iter()
-                .map(|g| {
-                    let index = glyph_index;
-                    glyph_index += 1;
+        let mut current_offset = 0;
 
-                    crate::text::LayoutGlyph {
-                        index,
-                        start: g.start,
-                        end: g.end,
-                        bounds: Rect {
-                            min: vec2(g.x, top),
-                            max: vec2(g.x + g.w, bottom),
-                        },
-                    }
-                })
-                .collect_vec();
+        for (row, line) in self.buffer.lines.iter().enumerate() {
+            let mut glyph_index = 0;
+            let layout = line.layout_opt().as_ref().unwrap();
 
-            let bounds = if let (Some(l), Some(r)) = (glyphs.first(), glyphs.last()) {
-                l.bounds.merge(r.bounds)
-            } else {
-                Rect::ZERO
-            };
+            result.extend(layout.iter().enumerate().map(|(i, run)| {
+                let top = i as f32 * lh;
+                let bottom = top + lh;
 
-            LayoutLineGlyphs {
-                row: run.line_i,
-                bounds,
-                glyphs,
-            }
-        })
+                let start = current_offset;
+                let glyphs = run
+                    .glyphs
+                    .iter()
+                    .map(|glyph| {
+                        let index = glyph_index;
+                        glyph_index += 1;
+
+                        current_offset = glyph.end;
+
+                        crate::text::LayoutGlyph {
+                            index,
+                            start: glyph.start,
+                            end: glyph.end,
+                            bounds: Rect {
+                                min: vec2(glyph.x, top),
+                                max: vec2(glyph.x + glyph.w, bottom),
+                            },
+                        }
+                    })
+                    .collect_vec();
+
+                let bounds = if let (Some(l), Some(r)) = (glyphs.first(), glyphs.last()) {
+                    l.bounds.merge(r.bounds)
+                } else {
+                    Rect::ZERO
+                };
+
+                LayoutLineGlyphs {
+                    row,
+                    bounds,
+                    glyphs,
+                    start,
+                    end: current_offset,
+                }
+            }));
+        }
+
+        result.into_iter()
     }
 
     pub(crate) fn buffer(&self) -> &Buffer {
@@ -224,11 +239,9 @@ impl TextBufferState {
         &mut self.buffer
     }
 
-    pub(crate) fn to_layout_glyphs(&self) -> LayoutGlyphs {
-        LayoutGlyphs::new(
-            self.to_layout_lines().collect_vec(),
-            self.buffer.metrics().line_height,
-        )
+    pub(crate) fn layout_glyphs(&mut self, font_system: &mut FontSystem) -> LayoutGlyphs {
+        let lines = self.to_layout_lines(font_system).collect_vec();
+        LayoutGlyphs::new(lines, self.buffer.metrics().line_height)
     }
 }
 

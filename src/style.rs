@@ -54,6 +54,7 @@ pub trait StyleExt {
 impl<W> StyleExt for W where W: Widget {}
 
 /// A widget extended with a single component
+#[derive(Debug, Clone)]
 pub struct WithComponent<W, T> {
     widget: W,
     component: Component<T>,

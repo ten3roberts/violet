@@ -1,12 +1,10 @@
 use std::{borrow::Borrow, sync::Arc};
 
-use cosmic_text::{Attrs, Buffer, FontSystem, Metrics, Shaping};
 use flax::component;
-use palette::Srgba;
 
 use crate::{
     assets::Asset,
-    text::{FontFamily, TextSegment},
+    text::FontFamily,
     wgpu::{
         graphics::texture::Texture,
         shape_renderer::{DrawCommand, ObjectData},

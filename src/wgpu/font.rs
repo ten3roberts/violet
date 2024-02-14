@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use cosmic_text::{CacheKey, Placement, SwashImage};
 use glam::{uvec2, vec3, UVec2};
@@ -9,7 +6,7 @@ use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
-use crate::assets::{Asset, AssetCache, AssetKey};
+use crate::assets::AssetCache;
 
 use super::{graphics::texture::Texture, text_renderer::TextSystem, Gpu};
 

@@ -21,12 +21,22 @@ pub struct MeshBuffer {
 }
 
 /// Handle to an allocation within a mesh
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MeshHandle {
     id: u64,
     vb: SubBuffer<Vertex>,
     ib: SubBuffer<u32>,
     on_drop: Arc<Mutex<Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>>>,
+}
+
+impl std::fmt::Debug for MeshHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MeshHandle")
+            .field("id", &self.id)
+            .field("vb", &self.vb)
+            .field("ib", &self.ib)
+            .finish()
+    }
 }
 
 impl std::hash::Hash for MeshHandle {

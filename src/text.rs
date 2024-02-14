@@ -1,6 +1,5 @@
 pub use cosmic_text::{Style, Weight, Wrap};
-use glam::Vec2;
-use itertools::Itertools;
+use glam::{vec2, Vec2};
 use palette::Srgba;
 use std::{borrow::Cow, fmt::Display, ops::Index, sync::Arc};
 
@@ -117,6 +116,8 @@ pub struct LayoutGlyph {
 pub struct LayoutLineGlyphs {
     pub row: usize,
     pub bounds: Rect,
+    pub start: usize,
+    pub end: usize,
     pub glyphs: Vec<LayoutGlyph>,
 }
 
@@ -144,26 +145,54 @@ impl LayoutGlyphs {
     }
 
     pub fn hit(&self, pos: Vec2) -> Option<CursorLocation> {
-        for line in self.lines.iter().filter(|v| v.bounds.contains_point(pos)) {
-            if let Some(glyph) = line.glyphs.iter().find(|v| v.bounds.contains_point(pos)) {
-                if pos.x > glyph.bounds.min.x + glyph.bounds.size().x / 2.0 {
-                    return Some(CursorLocation::new(line.row, glyph.index + 1));
+        self.lines
+            .iter()
+            .enumerate()
+            .find(|&(ln, _)| {
+                let h = ln as f32 * self.line_height;
+                pos.y >= h && pos.y <= h + self.line_height
+            })
+            .map(|(_, line)| {
+                if let Some(glyph) = line
+                    .glyphs
+                    .iter()
+                    .find(|v| pos.x >= v.bounds.min.x && pos.x <= v.bounds.max.x)
+                {
+                    if pos.x > glyph.bounds.min.x + glyph.bounds.size().x / 2.0 {
+                        CursorLocation::new(line.row, glyph.end)
+                    } else {
+                        CursorLocation::new(line.row, glyph.start)
+                    }
+                } else if pos.x > line.bounds.max.x {
+                    // place eol
+                    CursorLocation::new(line.row, line.end)
                 } else {
-                    return Some(CursorLocation::new(line.row, glyph.index));
+                    CursorLocation::new(line.row, line.start)
                 }
-            }
-        }
-
-        None
+            })
     }
 
     /// Returns the line and glyph index for the given cursor location
-    pub fn to_glyph_position(&self, cursor: CursorLocation) -> Option<LayoutCursorLocation> {
-        for (ln, line) in self.lines.iter().enumerate() {
+    pub fn to_glyph_boundary(&self, cursor: CursorLocation) -> Option<Vec2> {
+        for (ln, line) in self.find_lines_indices(cursor.row) {
             if line.row == cursor.row {
-                for (i, glyph) in line.glyphs.iter().enumerate() {
+                for glyph in &line.glyphs {
                     if glyph.start == cursor.col {
-                        return Some(LayoutCursorLocation::new(ln, i));
+                        return Some(vec2(glyph.bounds.min.x, ln as f32 * self.line_height));
+                    }
+                }
+
+                // Account for end-of-run whitespace which are not present as glyphs in the final
+                // layout.
+                if let (Some(last_glyph), Some(next_line)) =
+                    (line.glyphs.last(), self.lines.get(ln + 1))
+                {
+                    if next_line
+                        .glyphs
+                        .first()
+                        .is_some_and(|v| v.start == cursor.col + 1)
+                    {
+                        return Some(vec2(last_glyph.bounds.max.x, ln as f32 * self.line_height));
                     }
                 }
             }
@@ -172,19 +201,17 @@ impl LayoutGlyphs {
         None
     }
 
-    pub fn lines(&self, row: usize) -> impl Iterator<Item = &LayoutLineGlyphs> {
+    pub fn find_lines(&self, row: usize) -> impl Iterator<Item = &LayoutLineGlyphs> {
         self.lines
             .iter()
             .skip_while(move |v| v.row < row)
             .take_while(move |v| v.row == row)
     }
 
-    pub fn lines_indices(&self, row: usize) -> impl Iterator<Item = (usize, &LayoutLineGlyphs)> {
-        tracing::info!(
-            ?row,
-            "{:#?}",
-            self.lines.iter().map(|v| (v.row, v.bounds)).collect_vec()
-        );
+    pub fn find_lines_indices(
+        &self,
+        row: usize,
+    ) -> impl Iterator<Item = (usize, &LayoutLineGlyphs)> {
         self.lines
             .iter()
             .enumerate()
@@ -194,6 +221,10 @@ impl LayoutGlyphs {
 
     pub fn line_height(&self) -> f32 {
         self.line_height
+    }
+
+    pub fn lines(&self) -> &[LayoutLineGlyphs] {
+        self.lines.as_ref()
     }
 }
 

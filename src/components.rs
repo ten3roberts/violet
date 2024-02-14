@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use flax::{component, Debuggable, Entity, Exclusive};
-use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use image::DynamicImage;
 use palette::Srgba;
@@ -9,7 +8,7 @@ use palette::Srgba;
 use crate::{
     assets::Asset,
     layout::{Layout, SizeResolver},
-    text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment, Wrap},
+    text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
 };
 

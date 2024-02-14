@@ -1,20 +1,18 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use bytemuck::Zeroable;
-use cosmic_text::FontSystem;
 use flax::{
     component,
     components::child_of,
     entity_ids,
     fetch::{entity_refs, nth_relation, EntityRefs, NthRelation},
-    query::GraphQuery,
-    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, World,
+    CommandBuffer, Component, EntityRef, Fetch, Query, QueryBorrow, World,
 };
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
-use wgpu::{BindGroup, BufferUsages, RenderPass, ShaderStages, TextureFormat};
+use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
 use crate::{
     components::{children, draw_shape},
@@ -50,13 +48,6 @@ struct InstancedDrawCommand {
     instance_count: u32,
 }
 
-pub(crate) struct InstancedDrawCommandRef<'a> {
-    draw_cmd: &'a DrawCommand,
-
-    pub(crate) first_instance: u32,
-    pub(crate) instance_count: u32,
-}
-
 component! {
     draw_cmd_id: usize,
 }
@@ -87,6 +78,25 @@ impl DrawQuery {
     }
 }
 
+fn create_object_bindings(
+    ctx: &mut RendererContext,
+    bind_group_layout: &BindGroupLayout,
+    object_count: usize,
+) -> (TypedBuffer<ObjectData>, BindGroup) {
+    let object_buffer = TypedBuffer::new_uninit(
+        &ctx.gpu,
+        "ShapeRenderer::object_buffer",
+        BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+        object_count,
+    );
+
+    let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
+        .bind_buffer(object_buffer.buffer())
+        .build(&ctx.gpu, bind_group_layout);
+
+    (object_buffer, bind_group)
+}
+
 /// Draws shapes from the frame
 pub struct WidgetRenderer {
     store: RendererStore,
@@ -101,10 +111,11 @@ pub struct WidgetRenderer {
 
     rect_renderer: RectRenderer,
     text_renderer: TextRenderer,
+    object_bind_group_layout: BindGroupLayout,
 }
 
 impl WidgetRenderer {
-    pub fn new(
+    pub(crate) fn new(
         frame: &mut Frame,
         ctx: &mut RendererContext,
         text_system: Arc<Mutex<TextSystem>>,
@@ -115,16 +126,7 @@ impl WidgetRenderer {
                 .bind_storage_buffer(ShaderStages::VERTEX)
                 .build(&ctx.gpu);
 
-        let object_buffer = TypedBuffer::new_uninit(
-            &ctx.gpu,
-            "ShapeRenderer::object_buffer",
-            BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-            128,
-        );
-
-        let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
-            .bind_buffer(object_buffer.buffer())
-            .build(&ctx.gpu, &object_bind_group_layout);
+        let (object_buffer, bind_group) = create_object_bindings(ctx, &object_bind_group_layout, 8);
 
         let register_objects = flax::system::System::builder()
             .with_cmd_mut()
@@ -158,7 +160,6 @@ impl WidgetRenderer {
             ),
             text_renderer: TextRenderer::new(
                 ctx,
-                frame,
                 text_system,
                 color_format,
                 &object_bind_group_layout,
@@ -166,6 +167,7 @@ impl WidgetRenderer {
             ),
             store,
             register_objects,
+            object_bind_group_layout,
         }
     }
 
@@ -237,6 +239,20 @@ impl WidgetRenderer {
 
         self.commands.clear();
         self.commands.extend(commands);
+
+        if self.object_buffer.len() < self.objects.len()
+            || self.object_buffer.len() > (self.objects.len() * 2).max(8)
+        {
+            let len = self.objects.len().next_power_of_two();
+            tracing::info!(len, "resizing object buffer");
+
+            let (object_buffer, bind_group) =
+                create_object_bindings(ctx, &self.object_bind_group_layout, len);
+
+            self.object_buffer = object_buffer;
+            self.bind_group = bind_group;
+        }
+
         self.object_buffer.write(&ctx.gpu.queue, 0, &self.objects);
 
         ctx.mesh_buffer.bind(render_pass);
