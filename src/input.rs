@@ -7,7 +7,6 @@ use winit::event::{ElementState, KeyboardInput, ModifiersState, MouseButton};
 
 use crate::{
     components::{rect, screen_position, screen_rect, Rect},
-    stored::{Handle, UntypedHandle},
     Frame,
 };
 

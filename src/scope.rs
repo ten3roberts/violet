@@ -1,5 +1,4 @@
 use std::{
-    any::type_name,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -10,9 +9,7 @@ use flax::{
     Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
 };
 use futures::{Future, Stream};
-use futures_signals::signal::Mutable;
 use pin_project::pin_project;
-use tracing::Instrument;
 
 use crate::{
     assets::AssetCache, components::children, effect::Effect, stored::Handle, Frame, FutureEffect,

@@ -1,9 +1,6 @@
 use glam::{vec2, Vec2};
 
-use crate::{
-    components::Rect,
-    layout::{Direction, LayoutLimits, SizeResolver},
-};
+use crate::layout::{Direction, LayoutLimits, SizeResolver};
 
 pub struct FixedAreaConstraint {
     pub area: f32,

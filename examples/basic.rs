@@ -9,15 +9,13 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::{
-    components::{self, aspect_ratio, layout, rect, size, text, Edges},
+    components::{self, rect, size, text, Edges},
     layout::{CrossAlign, Direction},
     style::StyleExt,
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
     time::interval,
     unit::Unit,
-    widget::{
-        Button, ContainerExt, Image, List, Rectangle, Signal, Stack, StreamWidget, Text, WidgetExt,
-    },
+    widget::{Button, ContainerExt, Image, List, Rectangle, Signal, Stack, Text, WidgetExt},
     App, Scope, StreamEffect, Widget,
 };
 

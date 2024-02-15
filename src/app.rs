@@ -1,9 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
-use cosmic_text::FontSystem;
 use flax::{components::name, Schedule, World};
 use glam::{vec2, Vec2};
-use image::buffer::EnumeratePixels;
 use parking_lot::Mutex;
 use winit::{
     event::{Event, WindowEvent},

@@ -1,9 +1,8 @@
 use flax::{
     component::ComponentValue,
-    events::{Event, EventData, EventSubscriber},
-    Component, Entity, Fetch, World,
+    events::{Event, EventSubscriber},
+    Component, Entity, World,
 };
-use futures::StreamExt;
 
 use crate::{
     assets::AssetCache,

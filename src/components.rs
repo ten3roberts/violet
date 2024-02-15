@@ -180,7 +180,7 @@ impl Edges {
         (front_margin, back_margin)
     }
 
-    pub(crate) fn max(&self, other: Self) -> Self {
+    pub fn max(&self, other: Self) -> Self {
         Self {
             left: self.left.max(other.left),
             right: self.right.max(other.right),
@@ -189,7 +189,7 @@ impl Edges {
         }
     }
 
-    pub(crate) fn min(&self, other: Self) -> Self {
+    pub fn min(&self, other: Self) -> Self {
         Self {
             left: self.left.min(other.left),
             right: self.right.min(other.right),
@@ -296,7 +296,7 @@ impl Rect {
     }
 
     #[must_use]
-    pub(crate) fn min_size(&self, size: Vec2) -> Self {
+    pub fn min_size(&self, size: Vec2) -> Self {
         let size = self.size().min(size);
         Self {
             min: self.min,
@@ -305,7 +305,7 @@ impl Rect {
     }
 
     #[must_use]
-    pub(crate) fn max_size(&self, size: Vec2) -> Self {
+    pub fn max_size(&self, size: Vec2) -> Self {
         let size = self.size().max(size);
         Self {
             min: self.min,
@@ -313,7 +313,7 @@ impl Rect {
         }
     }
 
-    pub(crate) fn contains_point(&self, local_pos: Vec2) -> bool {
+    pub fn contains_point(&self, local_pos: Vec2) -> bool {
         local_pos.x >= self.min.x
             && local_pos.x <= self.max.x
             && local_pos.y >= self.min.y
@@ -321,14 +321,14 @@ impl Rect {
     }
 
     #[must_use]
-    pub(crate) fn translate(&self, pos: Vec2) -> Self {
+    pub fn translate(&self, pos: Vec2) -> Self {
         Self {
             min: self.min + pos,
             max: self.max + pos,
         }
     }
 
-    pub(crate) fn clip(&self, mask: Rect) -> Rect {
+    pub fn clip(&self, mask: Rect) -> Rect {
         let min = self.min.max(mask.min);
         let max = self.max.min(mask.max);
 

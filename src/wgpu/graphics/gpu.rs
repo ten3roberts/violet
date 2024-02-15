@@ -4,7 +4,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 /// Represents the Gpu and graphics state
 #[derive(Debug)]
 pub struct Gpu {
-    adapter: Adapter,
+    pub adapter: Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 }

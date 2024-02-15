@@ -71,6 +71,7 @@ impl SizeResolver for TextSizeResolver {
         let text_system = &mut *self.text_system.lock();
 
         Self::resolve_text_size(state, text_system, font_size, limits.max_size)
+            .clamp(limits.min_size, limits.max_size)
     }
 }
 
@@ -231,46 +232,8 @@ impl TextBufferState {
         result.into_iter()
     }
 
-    pub(crate) fn buffer(&self) -> &Buffer {
-        &self.buffer
-    }
-
-    pub(crate) fn buffer_mut(&mut self) -> &mut Buffer {
-        &mut self.buffer
-    }
-
     pub(crate) fn layout_glyphs(&mut self, font_system: &mut FontSystem) -> LayoutGlyphs {
         let lines = self.to_layout_lines(font_system).collect_vec();
         LayoutGlyphs::new(lines, self.buffer.metrics().line_height)
     }
 }
-
-// pub struct TextBufferArea {}
-
-// impl TextArea for TextBufferArea {
-//     fn hit(&self, entity: &EntityRef, x: f32, y: f32) -> Option<(usize, usize)> {
-//         let state = entity.get(text_buffer_state()).ok()?;
-//         let cursor = state.buffer.hit(x, y)?;
-//         Some((cursor.line, cursor.index))
-//     }
-
-//     fn find_glyph(&self, entity: &EntityRef, row: usize, col: usize) -> Option<Rect> {
-//         let state = entity.get(text_buffer_state()).ok()?;
-
-//         let (visual_line, glyph) = state
-//             .buffer
-//             .layout_runs()
-//             .enumerate()
-//             .filter(|(_, v)| v.line_i == row)
-//             .flat_map(|(i, v)| v.glyphs.iter().map(move |v| (i, v)))
-//             .nth(col)?;
-
-//         let (l, r) = glyph_bounds(glyph);
-//         let line_start = visual_line as f32 * state.buffer.metrics().line_height;
-
-//         Some(Rect {
-//             min: vec2(l, line_start),
-//             max: vec2(r, line_start + state.buffer.metrics().line_height),
-//         })
-//     }
-// }

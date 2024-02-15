@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use cosmic_text::FontSystem;
 use glam::Mat4;
 use parking_lot::Mutex;
 use wgpu::{Operations, RenderPassDescriptor, SurfaceError};

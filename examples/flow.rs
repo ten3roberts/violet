@@ -24,7 +24,7 @@ use violet::{
     },
     layout::{CrossAlign, Direction},
     style::{StyleExt, WithComponent},
-    text::{LayoutGlyphs, TextSegment},
+    text::{FontFamily, LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
     widget::{ContainerExt, List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
@@ -430,12 +430,9 @@ impl<V> SliderWithLabel<V> {
 
 impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let label = Signal(
-            self.slider
-                .value
-                .signal()
-                .map(|v| Text::rich([TextSegment::new(format!("{:>4.2}", v))])),
-        );
+        let label = Signal(self.slider.value.signal().map(|v| {
+            Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(cosmic_text::Wrap::None)
+        }));
 
         List::new((self.slider, label)).mount(scope)
     }

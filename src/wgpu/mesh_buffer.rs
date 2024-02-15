@@ -14,7 +14,6 @@ pub struct MeshBufferInner {}
 
 pub struct MeshBuffer {
     next_id: u64,
-    label: String,
     pub vertex_buffers: MultiBuffer<Vertex>,
     pub index_buffers: MultiBuffer<u32>,
     dropped: Arc<Mutex<Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>>>,
@@ -87,7 +86,6 @@ impl MeshBuffer {
         );
 
         Self {
-            label,
             vertex_buffers: vertex_buffer,
             index_buffers: index_buffer,
             dropped: Arc::default(),

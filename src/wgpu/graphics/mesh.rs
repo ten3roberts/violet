@@ -3,8 +3,6 @@ use wgpu::{
     util::DeviceExt, vertex_attr_array, Buffer, RenderPass, VertexAttribute, VertexBufferLayout,
 };
 
-use crate::unit::Zero;
-
 use super::Gpu;
 
 #[repr(C)]

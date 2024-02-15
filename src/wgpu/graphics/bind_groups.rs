@@ -87,8 +87,6 @@ impl BindGroupLayoutBuilder {
 #[derive(Debug, Clone)]
 pub struct BindGroupBuilder<'a> {
     entries: Vec<BindGroupEntry<'a>>,
-    layouts: Vec<BindGroupLayoutEntry>,
-
     label: &'a str,
 }
 
@@ -96,7 +94,6 @@ impl<'a> BindGroupBuilder<'a> {
     pub fn new(label: &'a str) -> Self {
         Self {
             entries: Vec::new(),
-            layouts: Vec::new(),
             label,
         }
     }

@@ -37,7 +37,7 @@ use super::{
     Gpu,
 };
 
-pub(crate) struct TextSystem {
+pub struct TextSystem {
     pub(crate) font_system: FontSystem,
     pub(crate) swash_cache: SwashCache,
 }
@@ -271,7 +271,6 @@ impl MeshGenerator {
             ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
         } else {
             *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
-            tracing::info!(?glyph_count, ?mesh, "Allocating new mesh for text");
         }
 
         indices.len() as u32

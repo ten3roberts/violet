@@ -449,10 +449,10 @@ impl FlowLayout {
         let mut sum = 0.0;
 
         // Distribute the size to the widgets and apply their layout
-        let blocks = row
+        row
             .blocks
             .iter()
-            .map(|(entity, sizing)| {
+            .for_each(|(entity, sizing)| {
                 let _span = tracing::debug_span!("block", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
@@ -477,16 +477,6 @@ impl FlowLayout {
                 };
 
                 let given_size = block_min_size + target_inner_size * ratio;
-                // tracing::debug!(
-                //     remaining,
-                //     distribute_size,
-                //     ratio,
-                //     given_size,
-                //     target_inner_size,
-                //     block_min_size,
-                //     "block"
-                // );
-
                 sum += ratio;
 
                 let axis_sizing = given_size * axis;
@@ -496,7 +486,7 @@ impl FlowLayout {
                     axis_sizing.dot(axis) >= block_min_size,
                     "{axis_sizing} {block_min_size}"
                 );
-                // // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
+               // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
                 let child_margin = if self.contain_margins {
                     sizing.margin
@@ -528,8 +518,8 @@ impl FlowLayout {
 
                 tracing::debug!(min=%block.min.size(), preferred=%block.preferred.size(), ?child_limits, "query");
 
-                if block.preferred.size().x > child_limits.max_size.x
-                    || block.preferred.size().y > child_limits.max_size.y
+                if block.preferred.size().x > child_limits.max_size.x + 0.1
+                    || block.preferred.size().y > child_limits.max_size.y + 0.1
                 {
                     tracing::error!(
                         %entity,
@@ -541,14 +531,13 @@ impl FlowLayout {
                     );
                 }
 
+                // TODO: show red rect here
+
                 min_cursor.put(&Block::new(block.min, block.margin));
                 cursor.put(&Block::new(block.preferred, block.margin));
 
                 tracing::debug!(min_cursor=%min_cursor.rect().size(), cursor=%cursor.rect().size(), "cursor");
-
-                (entity, block)
-            })
-            .collect_vec();
+            });
 
         let min_rect = min_cursor.finish();
         let rect = cursor.finish();
@@ -557,13 +546,13 @@ impl FlowLayout {
             .direction
             .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
-        if (rect.size().x > limits.max_size.x || rect.size().y > limits.max_size.y) && !self.stretch
-        {
+        if rect.size().x > limits.max_size.x + 0.1 || rect.size().y > limits.max_size.y + 0.1 {
             tracing::error!(
-                %axis,
-                "Preferred size exceeded max size, preferred: {:?} max: {:?}",
-                rect.size(),
-                limits.max_size
+                ?self.direction,
+                size=%rect.size(),
+                max=%limits.max_size,
+                diff=%rect.size() - limits.max_size,
+                "Widget does not fit within limits",
             );
         }
         Sizing {
@@ -604,17 +593,23 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
-                let sizing = query_size(world, &entity, content_area.size(), limits, squeeze);
+                let sizing = query_size(
+                    world,
+                    &entity,
+                    content_area.size(),
+                    LayoutLimits {
+                        min_size: limits.min_size,
+                        max_size: limits.max_size,
+                        // max_size: limits.max_size - child_margin.size(),
+                    },
+                    squeeze,
+                );
 
                 min_cursor.put(&Block::new(sizing.min, sizing.margin));
                 preferred_cursor.put(&Block::new(sizing.preferred, sizing.margin));
                 (entity, sizing)
             })
             .collect_vec();
-
-        // let min_margin = self
-        //     .direction
-        //     .to_edges(min_cursor.main_margin, min_cursor.cross_margin);
 
         let preferred = preferred_cursor.finish();
         let min = min_cursor.finish();
@@ -625,19 +620,6 @@ impl FlowLayout {
         //     preferred.size(),
         //     content_area.size()
         // );
-
-        let preferred_margin = self.direction.to_edges(
-            preferred_cursor.main_margin,
-            preferred_cursor.cross_margin,
-            self.reverse,
-        );
-
-        // assert_le!(preferred.size().x, limits.max_size.x);
-        // assert_le!(preferred.size().y, limits.max_size.y);
-        // assert_le!(min.size().x, limits.max_size.x);
-        // assert_le!(min.size().y, limits.max_size.y);
-
-        // assert_eq!(min_margin, preferred_margin);
 
         Row {
             min,

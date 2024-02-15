@@ -232,6 +232,19 @@ pub struct WeakUntypedHandle {
     _marker: PhantomData<*const ()>,
 }
 
+impl WeakUntypedHandle {
+    pub fn downcast<T: 'static>(&self) -> Option<WeakHandle<T>> {
+        if self.ty == TypeId::of::<T>() {
+            Some(WeakHandle {
+                index: self.index,
+                _marker: PhantomData,
+            })
+        } else {
+            None
+        }
+    }
+}
+
 pub struct WeakHandle<T> {
     index: HandleIndex,
     _marker: PhantomData<T>,

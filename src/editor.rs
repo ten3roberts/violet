@@ -120,10 +120,10 @@ impl TextEditor {
                 self.cursor.row = (self.cursor.row + 1).min(self.text.len() - 1);
             }
             CursorMove::Left => {
-                if let Some((i, g)) = self
+                if let Some((i, _)) = self
                     .line()
                     .graphemes()
-                    .take_while(|(i, g)| *i < self.cursor.col)
+                    .take_while(|(i, _)| *i < self.cursor.col)
                     .last()
                 {
                     self.cursor.col = i;
@@ -160,7 +160,7 @@ impl TextEditor {
                         .rev()
                         .find(|(i, _)| *i < self.cursor.col);
                     tracing::info!(?word, "current word");
-                    if let Some((i, word)) = word {
+                    if let Some((i, _)) = word {
                         self.cursor.col = i;
                     }
                 } else if self.cursor.row > 0 {

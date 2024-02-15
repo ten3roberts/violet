@@ -10,7 +10,7 @@ pub mod input;
 pub mod layout;
 mod scope;
 pub mod shape;
-mod stored;
+pub mod stored;
 pub mod style;
 pub mod systems;
 pub mod text;
