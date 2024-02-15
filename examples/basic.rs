@@ -8,7 +8,7 @@ use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
-use violet::{
+use violet::core::{
     components::{self, rect, size, text, Edges},
     layout::{CrossAlign, Direction},
     style::StyleExt,
@@ -113,7 +113,7 @@ impl Widget for MainApp {
             Stack::new((Text::rich([TextSegment::new(
                 "The quick brown fox 🦊 jumps over the lazy dog 🐕",
             )
-            .with_style(cosmic_text::Style::Italic)])
+            .with_style(Style::Italic)])
             .with_wrap(Wrap::Glyph)
             // .with_family("Inter")
             .with_font_size(32.0)

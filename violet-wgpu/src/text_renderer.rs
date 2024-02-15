@@ -13,7 +13,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
-use violet::{
+use violet_core::{
     assets::AssetCache,
     components::{
         color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_position, text,

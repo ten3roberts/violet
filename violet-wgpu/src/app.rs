@@ -9,13 +9,13 @@ use winit::{
     window::WindowBuilder,
 };
 
-use violet::{
+use violet_core::{
     assets::AssetCache,
     components::{self, local_position, rect, screen_position, Rect},
     executor::Executor,
     input::InputState,
     systems::{hydrate_text, layout_system, templating_system, transform_system},
-    Frame, Widget,
+    Frame, Scope, Widget,
 };
 
 use crate::{
@@ -31,7 +31,7 @@ pub struct Canvas<W> {
 }
 
 impl<W: Widget> Widget for Canvas<W> {
-    fn mount(self, scope: &mut violet::Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         scope
             .set(name(), "Canvas".into())
             .set(

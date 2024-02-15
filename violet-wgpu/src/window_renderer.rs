@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use wgpu::{Operations, RenderPassDescriptor, SurfaceError};
 use winit::dpi::PhysicalSize;
 
-use violet::Frame;
+use violet_core::Frame;
 
 use super::{
     graphics::{Gpu, Surface},

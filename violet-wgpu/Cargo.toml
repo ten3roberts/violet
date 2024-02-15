@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-violet = { path = ".." }
+violet-core = { path = "../violet-core" }
 
 flax.workspace = true
 
@@ -24,4 +24,3 @@ image.workspace = true
 futures.workspace = true
 palette.workspace = true
 itertools.workspace = true
-unicode-segmentation.workspace = true

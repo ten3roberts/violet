@@ -1,8 +1,14 @@
+use futures_signals::signal::Mutable;
+use glam::Vec2;
+use winit::event::ElementState;
+
 use crate::{
-    components::{self, layout, Edges},
+    components::{self, anchor, layout, offset, rect, Edges},
+    input::{focusable, on_cursor_move, on_mouse_input},
     layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
-    style::WithComponent,
-    Scope, Widget, WidgetCollection,
+    style::{StyleExt, WithComponent},
+    unit::Unit,
+    Frame, Scope, Widget, WidgetCollection,
 };
 
 pub struct Stack<W> {
@@ -138,4 +144,72 @@ pub trait ContainerExt {
 
     /// Adds a background to the widget.
     fn with_background<W: 'static + Widget>(self, background: W) -> Self;
+}
+
+type OnMove = Box<dyn Send + Sync + FnMut(&Frame, Vec2) -> Vec2>;
+
+/// Allows a widget to be dragged around using the mouse.
+///
+/// Building block for windows and other draggable widgets.
+pub struct Movable<W> {
+    content: W,
+    on_move: OnMove,
+}
+
+impl<W> Movable<W> {
+    pub fn new(content: W) -> Self {
+        Self {
+            content,
+            on_move: Box::new(|_, v| v),
+        }
+    }
+
+    pub fn on_move(
+        mut self,
+        on_move: impl 'static + Send + Sync + FnMut(&Frame, Vec2) -> Vec2,
+    ) -> Self {
+        self.on_move = Box::new(on_move);
+        self
+    }
+}
+
+impl<W: Widget> Widget for Movable<W> {
+    fn mount(mut self, scope: &mut Scope<'_>) {
+        let start_offset = Mutable::new(Vec2::ZERO);
+
+        Stack::new(self.content)
+            .with_component(focusable(), ())
+            .with_component(offset(), Unit::default())
+            .with_component(
+                on_mouse_input(),
+                Box::new({
+                    let start_offset = start_offset.clone();
+                    move |_, _, _, input| {
+                        if input.state == ElementState::Pressed {
+                            let cursor_pos = input.cursor.local_pos;
+                            *start_offset.lock_mut() = cursor_pos;
+                        }
+                    }
+                }),
+            )
+            .with_component(
+                on_cursor_move(),
+                Box::new({
+                    move |frame, entity, _, input| {
+                        let rect = entity.get_copy(rect()).unwrap();
+                        let anchor = entity
+                            .get_copy(anchor())
+                            .unwrap_or_default()
+                            .resolve(rect.size());
+
+                        let cursor_pos = input.local_pos + rect.min;
+
+                        let new_offset = cursor_pos - start_offset.get() + anchor;
+                        let new_offset = (self.on_move)(frame, new_offset);
+                        entity.update_dedup(offset(), Unit::px(new_offset));
+                    }
+                }),
+            )
+            .mount(scope)
+    }
 }

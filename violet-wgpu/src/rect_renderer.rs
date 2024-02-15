@@ -10,7 +10,7 @@ use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
-use violet::{
+use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{color, draw_shape, image, screen_rect, Rect},
     shape::{self, shape_rectangle},

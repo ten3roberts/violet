@@ -1,0 +1,43 @@
+[package]
+name = "violet-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flax.workspace = true
+
+futures-signals.workspace = true
+itertools.workspace = true
+glam.workspace = true
+futures.workspace = true
+flume.workspace = true
+parking_lot.workspace = true
+slotmap.workspace = true
+anyhow.workspace = true
+once_cell.workspace = true
+slab.workspace = true
+tynm.workspace = true
+
+bytemuck.workspace = true
+palette.workspace = true
+dashmap.workspace = true
+image.workspace = true
+color-hex.workspace = true
+serde.workspace = true
+cosmic-text.workspace = true
+winit.workspace = true
+
+tracing.workspace = true
+pin-project.workspace = true
+
+bytes.workspace = true
+more-asserts.workspace = true
+unicode-segmentation.workspace = true
+

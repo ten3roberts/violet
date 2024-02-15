@@ -1,14 +1,12 @@
-use std::{ffi::FromBytesWithNulError, sync::Arc};
+use std::sync::Arc;
 
 use cosmic_text::{Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping};
-use flax::EntityRef;
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
-use unicode_segmentation::UnicodeSegmentation;
 
-use violet::{
+use violet_core::{
     components::{font_size, Rect},
     layout::{Direction, LayoutLimits, SizeResolver},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
@@ -201,7 +199,7 @@ impl TextBufferState {
 
                         current_offset = glyph.end;
 
-                        violet::text::LayoutGlyph {
+                        violet_core::text::LayoutGlyph {
                             index,
                             start: glyph.start,
                             end: glyph.end,

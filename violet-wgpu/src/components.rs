@@ -8,7 +8,7 @@ use crate::{
     text::TextBufferState,
 };
 
-use violet::{assets::Asset, text::FontFamily};
+use violet_core::{assets::Asset, text::FontFamily};
 
 use super::mesh_buffer::MeshHandle;
 

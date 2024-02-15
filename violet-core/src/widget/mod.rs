@@ -2,12 +2,14 @@ use crate::{style::WithComponent, Scope};
 mod basic;
 mod container;
 mod future;
+mod input;
 
 pub use basic::{Button, Image, Positioned, Rectangle, Text};
-pub use container::{ContainerExt, List, Stack};
+pub use container::{ContainerExt, List, Movable, Stack};
 use flax::{component::ComponentValue, Component};
 pub use future::{Signal, StreamWidget};
 use futures_signals::signal::Mutable;
+pub use input::slider::{Slider, SliderStyle, SliderValue, SliderWithLabel};
 
 /// Represents a widget in the UI tree which can mount itself into the frame.
 ///

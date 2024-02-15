@@ -4,7 +4,7 @@ use glam::vec2;
 use palette::Srgba;
 use tracing_subscriber::{prelude::*, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-use violet::{
+use violet::core::{
     components::{size, Edges},
     layout::CrossAlign,
     style::StyleExt,

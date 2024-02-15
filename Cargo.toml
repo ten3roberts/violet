@@ -1,16 +1,24 @@
 [workspace]
-members = ["violet-wgpu"]
-
-[package]
-name = "violet"
+members = [ "violet-wgpu", "violet-core" ]
+  
+[workspace.package]
 version = "0.0.1"
 edition = "2021"
 authors = ["Tei Roberts"]
 description = "Retained mode GUI library"
-readme = "README.md"
 license = "MIT OR Apache-2.0"
-documentation = "https://docs.rs/violet"
+readme = "README.md"
 repository = "https://github.com/ten3roberts/violet"
+
+[package]
+name = "violet"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+readme.workspace = true
+license.workspace = true
+documentation = "https://docs.rs/violet"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -50,44 +58,28 @@ more-asserts = "0.3"
 unicode-segmentation="1.0"
 
 [dependencies]
-flax.workspace = true
-
-futures-signals.workspace = true
-itertools.workspace = true
+violet-wgpu = { path = "violet-wgpu" }
+violet-core = { path = "violet-core" }
 glam.workspace = true
-futures.workspace = true
-flume.workspace = true
-parking_lot.workspace = true
-slotmap.workspace = true
-anyhow.workspace = true
-once_cell.workspace = true
-slab.workspace = true
-tynm.workspace = true
-
-bytemuck.workspace = true
 palette.workspace = true
-dashmap.workspace = true
-image.workspace = true
-color-hex.workspace = true
-serde.workspace = true
-cosmic-text.workspace = true
-winit.workspace = true
-
-tracing.workspace = true
-pin-project.workspace = true
-
-bytes.workspace = true
-more-asserts.workspace = true
-unicode-segmentation="1.0"
+futures-signals.workspace = true
 
 [dev-dependencies]
+anyhow.workspace = true
+flume.workspace = true
+flax.workspace = true
+itertools.workspace = true
+color-hex.workspace = true
+tracing.workspace = true
+futures.workspace = true
+
 tokio = { version = "1.0", default_features= false, features = ["macros"] }
 serde_json = "1.0"
-tracing-tree = "0.2"
+
+tracing-tree = "0.3"
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ] }
-violet-wgpu = { path = "violet-wgpu" }
 
 
 [profile.dev.package.image]
