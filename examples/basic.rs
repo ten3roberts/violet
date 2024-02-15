@@ -16,7 +16,7 @@ use violet::{
     time::interval,
     unit::Unit,
     widget::{Button, ContainerExt, Image, List, Rectangle, Signal, Stack, Text, WidgetExt},
-    App, Scope, StreamEffect, Widget,
+    Scope, StreamEffect, Widget,
 };
 
 struct MainApp;
@@ -306,5 +306,5 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    App::new().run(MainApp)
+    violet_wgpu::App::new().run(MainApp)
 }

@@ -6,7 +6,7 @@ use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
 use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
-use crate::assets::AssetCache;
+use violet::assets::AssetCache;
 
 use super::{graphics::texture::Texture, text_renderer::TextSystem, Gpu};
 

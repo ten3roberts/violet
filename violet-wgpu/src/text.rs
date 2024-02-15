@@ -8,7 +8,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{
+use violet::{
     components::{font_size, Rect},
     layout::{Direction, LayoutLimits, SizeResolver},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
@@ -201,7 +201,7 @@ impl TextBufferState {
 
                         current_offset = glyph.end;
 
-                        crate::text::LayoutGlyph {
+                        violet::text::LayoutGlyph {
                             index,
                             start: glyph.start,
                             end: glyph.end,

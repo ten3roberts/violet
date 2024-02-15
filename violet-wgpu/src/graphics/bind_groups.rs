@@ -6,7 +6,7 @@ use wgpu::{
     ShaderStages, TextureSampleType, TextureView, TextureViewDimension,
 };
 
-use crate::wgpu::Gpu;
+use crate::Gpu;
 
 /// Incrementally construct a bind group layout
 #[derive(Debug, Clone)]

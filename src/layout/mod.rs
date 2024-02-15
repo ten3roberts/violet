@@ -85,7 +85,7 @@ pub struct Sizing {
 ///
 /// Allows for the parent to control the size of the children, such as stretching
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LayoutLimits {
+pub struct LayoutLimits {
     pub min_size: Vec2,
     pub max_size: Vec2,
 }
@@ -237,7 +237,7 @@ pub(crate) fn update_subtree(
     }
 }
 
-pub(crate) trait SizeResolver: Send + Sync {
+pub trait SizeResolver: Send + Sync {
     fn query(
         &mut self,
         entity: &EntityRef,

@@ -10,7 +10,7 @@ use violet::{
     style::StyleExt,
     unit::Unit,
     widget::{Button, ContainerExt, List, Rectangle, Signal, Stack, Text},
-    App, Scope, Widget,
+    Scope, Widget,
 };
 
 macro_rules! srgba {
@@ -82,5 +82,5 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    App::new().run(MainApp)
+    violet_wgpu::App::new().run(MainApp)
 }

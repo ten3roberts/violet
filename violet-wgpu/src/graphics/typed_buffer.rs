@@ -11,7 +11,7 @@ use wgpu::{
     Queue,
 };
 
-use crate::wgpu::Gpu;
+use crate::Gpu;
 
 /// Type safe buffer
 pub struct TypedBuffer<T> {

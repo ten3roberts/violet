@@ -9,7 +9,7 @@ use flax::{
 };
 use parking_lot::Mutex;
 
-use crate::{
+use violet::{
     components::{font_size, layout_glyphs, rect, size_resolver, text, text_wrap, Rect},
     text::{LayoutGlyphs, TextSegment},
 };

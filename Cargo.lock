@@ -514,7 +514,7 @@ dependencies = [
  "bitflags 2.4.2",
  "flax-derive",
  "flume",
- "itertools",
+ "itertools 0.11.0",
  "once_cell",
  "rayon",
  "smallvec",
@@ -526,7 +526,7 @@ name = "flax-derive"
 version = "0.6.0"
 source = "git+https://github.com/ten3roberts/flax#2d65fd4108b908d4b6459c6ad400c21399fd91df"
 dependencies = [
- "itertools",
+ "itertools 0.11.0",
  "proc-macro-crate 2.0.1",
  "proc-macro2",
  "quote",
@@ -928,6 +928,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -941,9 +950,9 @@ checksum = "8eaf4bc02d17cbdd7ff4c7438cafcdf7fb9a4613313ad11b4f8fefe7d3fa0130"
 
 [[package]]
 name = "jobserver"
-version = "0.1.27"
+version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c37f63953c4c63420ed5fd3d6d398c719489b9f872b9fa683262f8edd363c7d"
+checksum = "ab46a6e9526ddef3ae7f787c06f0f2600639ba80ea3eade3d8e670a2230f51d6"
 dependencies = [
  "libc",
 ]
@@ -2277,9 +2286,8 @@ dependencies = [
  "futures",
  "futures-signals",
  "glam",
- "guillotiere",
  "image",
- "itertools",
+ "itertools 0.12.1",
  "more-asserts",
  "once_cell",
  "palette",
@@ -2295,6 +2303,28 @@ dependencies = [
  "tracing-tree",
  "tynm",
  "unicode-segmentation",
+ "violet-wgpu",
+ "winit",
+]
+
+[[package]]
+name = "violet-wgpu"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cosmic-text",
+ "flax",
+ "futures",
+ "glam",
+ "guillotiere",
+ "image",
+ "itertools 0.12.1",
+ "palette",
+ "parking_lot",
+ "tracing",
+ "unicode-segmentation",
+ "violet",
  "wgpu",
  "winit",
 ]

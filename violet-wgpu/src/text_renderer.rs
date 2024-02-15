@@ -13,7 +13,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
-use crate::{
+use violet::{
     assets::AssetCache,
     components::{
         color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_position, text,
@@ -22,9 +22,10 @@ use crate::{
     shape::shape_text,
     stored::{self, Handle},
     text::{LayoutGlyphs, TextSegment},
-    wgpu::{font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand},
     Frame,
 };
+
+use crate::{components, font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand};
 
 use super::{
     components::{draw_cmd, object_data, text_buffer_state, text_mesh},
@@ -364,9 +365,9 @@ impl TextRenderer {
             .into_iter()
             .rev()
             .for_each(|item| {
-                let _span = tracing::info_span!( "update_mesh", %item.id).entered();
-                // Update intrinsic sizes
+                let _span = tracing::debug_span!( "update_mesh", %item.id).entered();
 
+                // Update intrinsic sizes
                 {
                     let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);
 
@@ -408,7 +409,7 @@ impl TextRenderer {
                 );
 
                 if let Some(text_mesh) = new_mesh {
-                    cmd.set(item.id, crate::wgpu::components::text_mesh(), text_mesh);
+                    cmd.set(item.id, components::text_mesh(), text_mesh);
                 }
             });
 

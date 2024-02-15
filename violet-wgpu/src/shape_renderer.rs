@@ -14,7 +14,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
-use crate::{
+use violet::{
     components::{children, draw_shape},
     stored::{self, Store},
     Frame,

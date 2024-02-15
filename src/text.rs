@@ -1,7 +1,12 @@
 pub use cosmic_text::{Style, Weight, Wrap};
 use glam::{vec2, Vec2};
 use palette::Srgba;
-use std::{borrow::Cow, fmt::Display, ops::Index, sync::Arc};
+use std::{
+    borrow::{Borrow, Cow},
+    fmt::Display,
+    ops::Index,
+    sync::Arc,
+};
 
 use crate::components::Rect;
 
@@ -277,5 +282,18 @@ pub struct LayoutCursorLocation {
 impl LayoutCursorLocation {
     pub fn new(line_index: usize, index: usize) -> Self {
         Self { line_index, index }
+    }
+}
+
+impl<'a> From<&'a FontFamily> for cosmic_text::Family<'a> {
+    fn from(value: &'a FontFamily) -> Self {
+        match value {
+            FontFamily::Named(name) => cosmic_text::Family::Name(name.borrow()),
+            FontFamily::Serif => cosmic_text::Family::Serif,
+            FontFamily::SansSerif => cosmic_text::Family::SansSerif,
+            FontFamily::Cursive => cosmic_text::Family::Cursive,
+            FontFamily::Fantasy => cosmic_text::Family::Fantasy,
+            FontFamily::Monospace => cosmic_text::Family::Monospace,
+        }
     }
 }

@@ -1,0 +1,27 @@
+[package]
+name = "violet-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+violet = { path = ".." }
+
+flax.workspace = true
+
+wgpu.workspace = true
+winit.workspace = true
+
+tracing.workspace = true
+cosmic-text.workspace = true
+guillotiere.workspace = true
+bytemuck.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+parking_lot.workspace = true
+image.workspace = true
+futures.workspace = true
+palette.workspace = true
+itertools.workspace = true
+unicode-segmentation.workspace = true

@@ -10,7 +10,6 @@ use futures_signals::{
     signal::{self, Mutable, SignalExt},
 };
 use glam::{vec2, Vec2};
-use guillotiere::euclid::num::Round;
 use itertools::Itertools;
 use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
@@ -23,12 +22,12 @@ use violet::{
         CursorMove,
     },
     layout::{CrossAlign, Direction},
-    style::{StyleExt, WithComponent},
-    text::{FontFamily, LayoutGlyphs, TextSegment},
+    style::StyleExt,
+    text::{LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
     widget::{ContainerExt, List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
-    App, Frame, Scope, StreamEffect, Widget,
+    Frame, Scope, StreamEffect, Widget,
 };
 use winit::event::{ElementState, VirtualKeyCode};
 
@@ -73,7 +72,7 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    App::new().run(MainApp)
+    violet_wgpu::App::new().run(MainApp)
 }
 
 struct MainApp;
@@ -83,7 +82,7 @@ impl Widget for MainApp {
         let content = Mutable::new(
             "This is a multiline text that is wrapped around because it is so long".into(),
         );
-        let value = Mutable::new(1.0);
+        let value = Mutable::new(1.0f32);
         let count = Mutable::new(5);
 
         let scale = value.signal();

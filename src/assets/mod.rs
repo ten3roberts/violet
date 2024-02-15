@@ -2,6 +2,7 @@ use std::{
     any::{Any, TypeId},
     borrow::Borrow,
     hash::Hash,
+    path::Path,
     sync::Arc,
 };
 
@@ -13,6 +14,7 @@ mod handle;
 pub mod map;
 mod provider;
 pub use handle::Asset;
+use image::{DynamicImage, ImageError, ImageResult};
 
 use self::{cell::AssetCell, handle::WeakHandle};
 
@@ -155,6 +157,14 @@ pub trait AssetKey<V>: StoredKey {
     type Error: 'static;
 
     fn load(&self, assets: &AssetCache) -> Result<Asset<V>, Self::Error>;
+}
+
+impl AssetKey<DynamicImage> for Path {
+    type Error = ImageError;
+
+    fn load(&self, assets: &AssetCache) -> ImageResult<Asset<DynamicImage>> {
+        Ok(assets.insert(image::open(self)?))
+    }
 }
 
 #[cfg(test)]

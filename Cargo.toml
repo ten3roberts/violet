@@ -1,3 +1,6 @@
+[workspace]
+members = ["violet-wgpu"]
+
 [package]
 name = "violet"
 version = "0.0.1"
@@ -11,13 +14,13 @@ repository = "https://github.com/ten3roberts/violet"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[workspace.dependencies]
 flax = { git = "https://github.com/ten3roberts/flax", version = "0.6.0", features = [
     "derive",
 ] }
 
 futures-signals = "0.3"
-itertools = "0.11"
+itertools = "0.12"
 glam = { version = "0.24", features = ["bytemuck"] }
 futures = "0.3"
 flume = "0.11"
@@ -46,6 +49,37 @@ bytes = "1.5"
 more-asserts = "0.3"
 unicode-segmentation="1.0"
 
+[dependencies]
+flax.workspace = true
+
+futures-signals.workspace = true
+itertools.workspace = true
+glam.workspace = true
+futures.workspace = true
+flume.workspace = true
+parking_lot.workspace = true
+slotmap.workspace = true
+anyhow.workspace = true
+once_cell.workspace = true
+slab.workspace = true
+tynm.workspace = true
+
+bytemuck.workspace = true
+palette.workspace = true
+dashmap.workspace = true
+image.workspace = true
+color-hex.workspace = true
+serde.workspace = true
+cosmic-text.workspace = true
+winit.workspace = true
+
+tracing.workspace = true
+pin-project.workspace = true
+
+bytes.workspace = true
+more-asserts.workspace = true
+unicode-segmentation="1.0"
+
 [dev-dependencies]
 tokio = { version = "1.0", default_features= false, features = ["macros"] }
 serde_json = "1.0"
@@ -53,6 +87,7 @@ tracing-tree = "0.2"
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ] }
+violet-wgpu = { path = "violet-wgpu" }
 
 
 [profile.dev.package.image]

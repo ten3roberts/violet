@@ -1,4 +1,4 @@
-use crate::wgpu::Gpu;
+use crate::Gpu;
 use wgpu::{
     BindGroupLayout, PipelineLayoutDescriptor, RenderPipeline, TextureFormat, VertexBufferLayout,
 };

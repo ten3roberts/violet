@@ -1,3 +1,4 @@
+pub mod app;
 pub mod components;
 pub mod font;
 pub mod graphics;
@@ -12,5 +13,5 @@ mod texture;
 pub mod window_renderer;
 
 pub use graphics::Gpu;
-pub use shape_renderer::WidgetRenderer;
-pub use window_renderer::WindowRenderer;
+
+pub use app::App;

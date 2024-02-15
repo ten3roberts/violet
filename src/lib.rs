@@ -1,4 +1,3 @@
-mod app;
 pub mod assets;
 pub mod components;
 pub mod constraints;
@@ -17,10 +16,8 @@ pub mod text;
 pub mod time;
 pub mod unit;
 pub mod utils;
-pub mod wgpu;
 pub mod widget;
 
-pub use app::App;
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;
 pub use scope::Scope;

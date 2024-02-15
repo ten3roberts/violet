@@ -6,13 +6,13 @@ use parking_lot::Mutex;
 use wgpu::{Operations, RenderPassDescriptor, SurfaceError};
 use winit::dpi::PhysicalSize;
 
-use crate::Frame;
+use violet::Frame;
 
 use super::{
     graphics::{Gpu, Surface},
     renderer::RendererContext,
+    shape_renderer::WidgetRenderer,
     text_renderer::TextSystem,
-    WidgetRenderer,
 };
 
 /// Renders to a window surface

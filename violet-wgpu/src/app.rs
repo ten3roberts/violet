@@ -9,19 +9,20 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::{
+use violet::{
     assets::AssetCache,
     components::{self, local_position, rect, screen_position, Rect},
     executor::Executor,
     input::InputState,
     systems::{hydrate_text, layout_system, templating_system, transform_system},
-    wgpu::{
-        graphics::Gpu,
-        systems::{register_text_buffers, update_text_buffers},
-        text_renderer::TextSystem,
-        window_renderer::WindowRenderer,
-    },
     Frame, Widget,
+};
+
+use crate::{
+    graphics::Gpu,
+    systems::{register_text_buffers, update_text_buffers},
+    text_renderer::TextSystem,
+    window_renderer::WindowRenderer,
 };
 
 pub struct Canvas<W> {
@@ -30,7 +31,7 @@ pub struct Canvas<W> {
 }
 
 impl<W: Widget> Widget for Canvas<W> {
-    fn mount(self, scope: &mut crate::Scope<'_>) {
+    fn mount(self, scope: &mut violet::Scope<'_>) {
         scope
             .set(name(), "Canvas".into())
             .set(
