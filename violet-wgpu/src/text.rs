@@ -171,17 +171,14 @@ impl TextBufferState {
         // );
     }
 
-    pub(crate) fn to_layout_lines(
-        &self,
-        font_system: &mut FontSystem,
-    ) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
+    pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
         let lh = self.buffer.metrics().line_height;
 
         let mut result = Vec::new();
 
-        let mut current_offset = 0;
-
         for (row, line) in self.buffer.lines.iter().enumerate() {
+            let mut current_offset = 0;
+
             let mut glyph_index = 0;
             let layout = line.layout_opt().as_ref().unwrap();
 
@@ -230,8 +227,8 @@ impl TextBufferState {
         result.into_iter()
     }
 
-    pub(crate) fn layout_glyphs(&mut self, font_system: &mut FontSystem) -> LayoutGlyphs {
-        let lines = self.to_layout_lines(font_system).collect_vec();
+    pub(crate) fn layout_glyphs(&mut self) -> LayoutGlyphs {
+        let lines = self.to_layout_lines().collect_vec();
         LayoutGlyphs::new(lines, self.buffer.metrics().line_height)
     }
 }

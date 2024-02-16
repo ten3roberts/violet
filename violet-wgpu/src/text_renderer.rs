@@ -393,7 +393,7 @@ impl TextRenderer {
                 );
 
                 if let Some(v) = item.layout_glyphs {
-                    *v = item.state.layout_glyphs(&mut text_system.font_system);
+                    *v = item.state.layout_glyphs();
                 }
 
                 cmd.set(

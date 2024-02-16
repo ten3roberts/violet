@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::text::CursorLocation;
+use crate::{input, text::CursorLocation};
 
 #[derive(Default, Debug)]
 pub struct EditorLine {
