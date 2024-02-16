@@ -5,7 +5,7 @@ use flax::{
 use glam::Vec2;
 
 /// NOTE: maybe redefine these types ourselves
-pub use winit::event::{ElementState, KeyboardInput, ModifiersState, MouseButton, VirtualKeyCode};
+pub use winit::event::{ElementState, ModifiersState, MouseButton, VirtualKeyCode};
 
 use crate::{
     components::{rect, screen_position, screen_rect, Rect},
@@ -95,6 +95,7 @@ impl InputState {
 
             tracing::info!(%entity, "sending input event");
             let cursor = CursorMove {
+                modifiers: self.modifiers,
                 absolute_pos: self.pos,
                 local_pos: self.pos - origin,
             };
@@ -102,8 +103,8 @@ impl InputState {
                 on_input(
                     frame,
                     &entity,
-                    &self.modifiers,
                     MouseInput {
+                        modifiers: self.modifiers,
                         state,
                         cursor,
                         button,
@@ -124,8 +125,8 @@ impl InputState {
                 on_input(
                     frame,
                     &entity,
-                    &self.modifiers,
                     CursorMove {
+                        modifiers: self.modifiers,
                         absolute_pos: pos,
                         local_pos: pos - screen_rect.min,
                     },
@@ -138,13 +139,26 @@ impl InputState {
         self.modifiers = modifiers;
     }
 
-    pub fn on_keyboard_input(&mut self, frame: &mut Frame, input: KeyboardInput) {
+    pub fn on_keyboard_input(
+        &mut self,
+        frame: &mut Frame,
+        state: ElementState,
+        keycode: VirtualKeyCode,
+    ) {
         if let Some(cur) = &self.focused {
             tracing::info!(?cur, "sending keyboard input event");
             let entity = frame.world.entity(cur.id).unwrap();
 
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
-                on_input(frame, &entity, &self.modifiers, input);
+                on_input(
+                    frame,
+                    &entity,
+                    KeyboardInput {
+                        modifiers: self.modifiers,
+                        state,
+                        keycode,
+                    },
+                );
             }
         }
     }
@@ -155,7 +169,7 @@ impl InputState {
             let entity = frame.world.entity(cur.id).unwrap();
 
             if let Ok(mut on_input) = entity.get_mut(on_char_typed()) {
-                on_input(frame, &entity, &self.modifiers, input);
+                on_input(frame, &entity, input);
             }
         }
     }
@@ -192,6 +206,7 @@ impl InputState {
 
 #[derive(Debug, Clone, Copy)]
 pub struct MouseInput {
+    modifiers: ModifiersState,
     pub state: ElementState,
     pub cursor: CursorMove,
     pub button: MouseButton,
@@ -199,21 +214,30 @@ pub struct MouseInput {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CursorMove {
+    modifiers: ModifiersState,
     /// Mouse cursor relative to the screen
     pub absolute_pos: Vec2,
     /// Mouse cursor relative to the bounds of the widget
     pub local_pos: Vec2,
 }
 
-pub type OnFocus = Box<dyn FnMut(&Frame, &EntityRef, bool) + Send + Sync>;
+pub struct KeyboardInput {
+    pub modifiers: ModifiersState,
+    pub state: ElementState,
 
-pub type InputEventHandler<T> =
-    Box<dyn FnMut(&Frame, &EntityRef, &ModifiersState, T) + Send + Sync>;
+    /// Identifies the semantic meaning of the key
+    ///
+    /// Use when the semantics of the key are more important than the physical location of the key, such as when
+    /// implementing appropriate behavior for "page up."
+    pub keycode: VirtualKeyCode,
+}
+
+pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&Frame, &EntityRef, T)>;
 
 component! {
     pub focus_sticky: (),
     pub focusable: (),
-    pub on_focus: OnFocus,
+    pub on_focus: InputEventHandler<bool>,
     pub on_cursor_move: InputEventHandler<CursorMove>,
     pub on_mouse_input: InputEventHandler<MouseInput>,
     pub on_keyboard_input: InputEventHandler<KeyboardInput>,

@@ -9,9 +9,10 @@ use violet::core::{
     layout::CrossAlign,
     style::StyleExt,
     unit::Unit,
-    widget::{Button, ContainerExt, List, Rectangle, Signal, Stack, Text},
+    widget::{Button, List, Signal, Stack, Text},
     Scope, Widget,
 };
+use violet_core::{style::Background, widget::ContainerStyle};
 
 macro_rules! srgba {
     ($color:literal) => {{
@@ -21,7 +22,6 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(15.0);
 const MARGIN_SM: Edges = Edges::even(5.0);
 
 pub const EERIE_BLACK: Srgba = srgba!("#222525");
@@ -36,10 +36,11 @@ pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
 
 fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget)
-        .with_background(Rectangle::new(EERIE_BLACK_300))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
+    Stack::new(widget).with_style(ContainerStyle {
+        background: Some(Background::new(EERIE_BLACK_300)),
+        padding: MARGIN_SM,
+        margin: MARGIN_SM,
+    })
 }
 
 struct MainApp;
@@ -58,14 +59,15 @@ impl Widget for MainApp {
                     .signal()
                     .map(|v| Text::new(format!("Count: {v:>4}"))),
             )),
-            Button::new(Text::new("Increment"))
-                .on_press(move |_, _| *counter.lock_mut() += 1)
-                .with_padding(MARGIN_SM),
+            Button::new(Text::new("Increment")).on_press(move |_, _| *counter.lock_mut() += 1),
             pill(Text::new(
                 "Please click the button to increment the counter",
             )),
         ))
-        .with_background(Rectangle::new(EMERALD))
+        .with_style(ContainerStyle {
+            background: Some(Background::new(EMERALD)),
+            ..Default::default()
+        })
         .with_cross_align(CrossAlign::Center)
         .mount(scope);
     }

@@ -175,9 +175,9 @@ impl Edges {
         let neg = vec2(-self.left, -self.top).dot(axis);
 
         let front_margin = pos.max(neg);
-        let back_margin = -pos.min(neg);
+        let back_margin = -(pos.min(neg));
 
-        (front_margin, back_margin)
+        (back_margin, front_margin)
     }
 
     pub fn max(&self, other: Self) -> Self {

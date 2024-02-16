@@ -4,7 +4,7 @@ use flax::{components::name, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
-    event::{Event, WindowEvent},
+    event::{Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
@@ -137,9 +137,15 @@ impl App {
                 WindowEvent::ModifiersChanged(modifiers) => {
                     input_state.on_modifiers_change(modifiers);
                 }
-                WindowEvent::KeyboardInput { input, .. } => {
-                    input_state.on_keyboard_input(&mut frame, input)
-                }
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            state,
+                            virtual_keycode: Some(keycode),
+                            ..
+                        },
+                    ..
+                } => input_state.on_keyboard_input(&mut frame, state, keycode),
                 WindowEvent::CursorMoved { position, .. } => input_state
                     .on_cursor_move(&mut frame, vec2(position.x as f32, position.y as f32)),
                 WindowEvent::Resized(size) => {

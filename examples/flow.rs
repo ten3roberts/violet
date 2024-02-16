@@ -1,10 +1,5 @@
 use std::usize;
 
-use flax::{
-    events::{EventKind, EventSubscriber},
-    Entity, EntityRef,
-};
-
 use futures_signals::{
     map_ref,
     signal::{self, Mutable, SignalExt},
@@ -12,30 +7,27 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{named::DEEPPINK, Hsva, IntoColor, Srgba};
+use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
 use futures::stream::StreamExt;
 use violet::core::{
-    components::{self, anchor, offset, rect, screen_rect, Edges, Rect},
+    components::{self, screen_rect, Edges, Rect},
     editor::{self, EditAction, EditorAction, TextEditor},
-    input::{
-        focus_sticky, focusable, on_char_typed, on_cursor_move, on_keyboard_input, on_mouse_input,
-        CursorMove,
-    },
+    input::{focusable, on_char_typed, on_keyboard_input, on_mouse_input},
     layout::{CrossAlign, Direction},
     style::StyleExt,
     text::{LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
-    widget::{ContainerExt, List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
-    Scope, StreamEffect, Widget,
+    widget::{List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
+    Scope, Widget,
 };
 use violet_core::{
-    input::{ElementState, VirtualKeyCode},
-    text::Wrap,
-    widget::{SliderStyle, SliderWithLabel},
+    input::{focus_sticky, ElementState, VirtualKeyCode},
+    style::Background,
+    widget::{BoxSized, ContainerStyle, Positioned, SliderStyle, SliderWithLabel},
 };
 
 macro_rules! srgba {
@@ -61,10 +53,11 @@ pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
 
 fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget)
-        .with_background(Rectangle::new(EERIE_BLACK_300))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
+    Stack::new(widget).with_style(ContainerStyle {
+        background: Some(Background::new(EERIE_BLACK_300)),
+        padding: MARGIN_SM,
+        margin: MARGIN_SM,
+    })
 }
 
 pub fn main() -> anyhow::Result<()> {
@@ -100,34 +93,36 @@ impl Widget for MainApp {
         }});
 
         List::new((
-            List::new((
-                Text::new("Input: ").with_margin(MARGIN_SM),
-                TextInput::new(content).with_margin(MARGIN_SM),
-            ))
-            .with_padding(MARGIN_SM)
-            .with_margin(MARGIN_SM),
+            List::new((Text::new("Input: "), TextInput::new(content))).with_style(ContainerStyle {
+                margin: MARGIN_SM,
+                padding: MARGIN_SM,
+                ..Default::default()
+            }),
             List::new((
                 List::new((
-                    Text::new("Size").with_margin(MARGIN_SM),
-                    Text::new("Count").with_margin(MARGIN_SM),
-                ))
-                .with_direction(Direction::Vertical),
-                List::new((
+                    Text::new("Size"),
                     SliderWithLabel::new(value, 0.0, 20.0).with_style(SliderStyle {
                         size: Unit::px2(0.0, 5.0) + Unit::rel2(0.5, 0.0),
                         ..Default::default()
                     }),
-                    SliderWithLabel::new(count, 4, 20),
-                ))
-                .with_direction(Direction::Vertical),
+                )),
+                List::new((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
             ))
-            .with_padding(MARGIN_SM)
-            .with_margin(MARGIN_SM),
+            .with_direction(Direction::Vertical)
+            .with_style(ContainerStyle {
+                padding: MARGIN_SM,
+                margin: MARGIN_SM,
+                ..Default::default()
+            }),
             Signal::new(item_list),
-            Rectangle::new(EERIE_BLACK_600).with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
+            BoxSized::new(Rectangle::new(EERIE_BLACK_600))
+                .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
         ))
         .with_direction(Direction::Vertical)
-        .with_padding(MARGIN)
+        .with_style(ContainerStyle {
+            padding: MARGIN,
+            ..Default::default()
+        })
         .mount(scope)
     }
 }
@@ -143,16 +138,19 @@ impl Widget for ItemList {
             (0..self.count)
                 .map(|i| {
                     let size = 10.0 + i as f32 * self.scale;
-                    // Rectangle::new(Hsva::new(i as f32 * 10.0, 1.0, 1.0, 1.0).into_color())
-                    Stack::new(Text::new(format!("{size}px")))
-                        .with_background(Rectangle::new(
-                            Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
-                        ))
-                        .with_vertical_alignment(CrossAlign::Center)
-                        .with_horizontal_alignment(CrossAlign::Center)
-                        .with_padding(MARGIN_SM)
-                        .with_margin(MARGIN_SM)
-                        .with_size(Unit::px2(size, size))
+                    BoxSized::new(
+                        Stack::new(Text::new(format!("{size}px")))
+                            .with_style(ContainerStyle {
+                                background: Some(Background::new(
+                                    Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
+                                )),
+                                padding: MARGIN_SM,
+                                margin: MARGIN_SM,
+                            })
+                            .with_vertical_alignment(CrossAlign::Center)
+                            .with_horizontal_alignment(CrossAlign::Center),
+                    )
+                    .with_size(Unit::px2(size, size))
                 })
                 .collect::<Vec<_>>(),
         )
@@ -233,9 +231,9 @@ impl Widget for TextInput {
                     editor_props_tx
                         .send(Box::new(Stack::new(
                                     (
-                                        Rectangle::new(EMERALD)
-                                        .with_size(Unit::px2(2.0, 18.0))
-                                        .with_component(offset(), Unit::px(cursor_pos)),
+                                        Positioned::new(BoxSized::new(Rectangle::new(EMERALD))
+                                        .with_size(Unit::px2(2.0, 18.0)))
+                                        .with_offset(Unit::px(cursor_pos)),
                                     )
                         )))
                         .ok();
@@ -243,33 +241,34 @@ impl Widget for TextInput {
             }
         });
 
-        scope.set(focusable(), ()).set(focus_sticky(), ());
-        scope.set(on_mouse_input(), {
-            to_owned![layout_glyphs, text_bounds, tx];
-            Box::new(move |_, _, _, input| {
-                let glyphs = layout_glyphs.lock_ref();
+        scope
+            .set(focusable(), ())
+            .set(focus_sticky(), ())
+            .on_event(on_mouse_input(), {
+                to_owned![layout_glyphs, text_bounds, tx];
+                move |_, _, input| {
+                    let glyphs = layout_glyphs.lock_ref();
 
-                if let (Some(glyphs), Some(text_bounds)) = (&*glyphs, &*text_bounds.lock_ref()) {
-                    if input.state == ElementState::Pressed {
-                        let text_pos = input.cursor.absolute_pos - text_bounds.min;
-                        if let Some(hit) = glyphs.hit(text_pos) {
-                            tracing::info!(?hit, "hit");
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::SetPosition(
-                                hit,
-                            )))
-                            .ok();
+                    if let (Some(glyphs), Some(text_bounds)) = (&*glyphs, &*text_bounds.lock_ref())
+                    {
+                        if input.state == ElementState::Pressed {
+                            let text_pos = input.cursor.absolute_pos - text_bounds.min;
+                            if let Some(hit) = glyphs.hit(text_pos) {
+                                tracing::info!(?hit, "hit");
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::SetPosition(
+                                    hit,
+                                )))
+                                .ok();
+                            }
+
+                            tracing::info!(?input, "click");
                         }
-
-                        tracing::info!(?input, "click");
                     }
                 }
             })
-        });
-        scope.set(
-            on_char_typed(),
-            Box::new({
+            .on_event(on_char_typed(), {
                 to_owned![tx];
-                move |_, _, _, char| {
+                move |_, _, char| {
                     if char.is_control() {
                         return;
                     }
@@ -277,58 +276,53 @@ impl Widget for TextInput {
                     tx.send(EditorAction::Edit(EditAction::InsertChar(char)))
                         .ok();
                 }
-            }),
-        );
-
-        scope.set(on_keyboard_input(), {
-            to_owned![tx];
-            Box::new(move |_, _, mods, input| {
-                let Some(virtual_keycode) = input.virtual_keycode else {
-                    return;
-                };
-
-                if input.state == ElementState::Pressed {
-                    match virtual_keycode {
-                        VirtualKeyCode::Back if mods.ctrl() => {
-                            tx.send(EditorAction::Edit(EditAction::DeleteBackwardWord))
-                                .ok();
+            })
+            .on_event(on_keyboard_input(), {
+                to_owned![tx];
+                move |_, _, input| {
+                    let ctrl = input.modifiers.ctrl();
+                    if input.state == ElementState::Pressed {
+                        match input.keycode {
+                            VirtualKeyCode::Back if ctrl => {
+                                tx.send(EditorAction::Edit(EditAction::DeleteBackwardWord))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Back => {
+                                tx.send(EditorAction::Edit(EditAction::DeleteBackwardChar))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Return => {
+                                tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
+                            }
+                            VirtualKeyCode::Left if ctrl => {
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::BackwardWord))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Right if ctrl => {
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::ForwardWord))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Left => {
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::Left))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Right => {
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::Right))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Up => {
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::Up))
+                                    .ok();
+                            }
+                            VirtualKeyCode::Down => {
+                                tx.send(EditorAction::CursorMove(editor::CursorMove::Down))
+                                    .ok();
+                            }
+                            _ => {}
                         }
-                        VirtualKeyCode::Back => {
-                            tx.send(EditorAction::Edit(EditAction::DeleteBackwardChar))
-                                .ok();
-                        }
-                        VirtualKeyCode::Return => {
-                            tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
-                        }
-                        VirtualKeyCode::Left if mods.ctrl() => {
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::BackwardWord))
-                                .ok();
-                        }
-                        VirtualKeyCode::Right if mods.ctrl() => {
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::ForwardWord))
-                                .ok();
-                        }
-                        VirtualKeyCode::Left => {
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::Left))
-                                .ok();
-                        }
-                        VirtualKeyCode::Right => {
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::Right))
-                                .ok();
-                        }
-                        VirtualKeyCode::Up => {
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::Up))
-                                .ok();
-                        }
-                        VirtualKeyCode::Down => {
-                            tx.send(EditorAction::CursorMove(editor::CursorMove::Down))
-                                .ok();
-                        }
-                        _ => {}
                     }
                 }
-            })
-        });
+            });
 
         pill(Stack::new((
             Signal(self.content.signal_cloned().map(move |v| {

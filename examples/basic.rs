@@ -15,8 +15,12 @@ use violet::core::{
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
     time::interval,
     unit::Unit,
-    widget::{Button, ContainerExt, Image, List, Rectangle, Signal, Stack, Text, WidgetExt},
+    widget::{Button, Image, List, Rectangle, Signal, Stack, Text, WidgetExt},
     Scope, StreamEffect, Widget,
+};
+use violet_core::{
+    style::Background,
+    widget::{BoxSized, ContainerStyle},
 };
 
 struct MainApp;
@@ -29,7 +33,7 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(15.0);
+const MARGIN: Edges = Edges::even(10.0);
 const MARGIN_SM: Edges = Edges::even(5.0);
 
 pub const EERIE_BLACK: Srgba = srgba!("#222525");
@@ -68,79 +72,77 @@ impl Widget for MainApp {
                 (1..=4)
                     .map(|i| {
                         let size = Vec2::splat(128.0 / i as f32);
-                        Image::new("./assets/images/statue.jpg")
-                            .with_min_size(Unit::px(vec2(16.0, 16.0)))
-                            .with_size(Unit::px(size))
+                        BoxSized::new(Image::new("./assets/images/statue.jpg"))
+                            .with_min_size(Unit::px(size))
                             .with_margin(MARGIN)
                             .with_aspect_ratio(1.0)
                     })
                     .collect_vec(),
             )
             .with_name("Images"),
-            Stack::new((
-                Rectangle::new(EMERALD).with_size(Unit::px(vec2(100.0, 20.0))),
+            Stack::new((Text::rich([
+                TextSegment::new("Violet").with_color(VIOLET),
+                TextSegment::new(" now has support for "),
+                TextSegment::new("rich ").with_style(Style::Italic),
+                TextSegment::new("text. I wanted to "),
+                TextSegment::new("emphasize").with_style(Style::Italic),
+                TextSegment::new(" that, "),
+                TextSegment::new("(and put something in bold)")
+                    .with_family("Inter")
+                    .with_weight(Weight::BOLD),
+                TextSegment::new(", and").with_style(Style::Italic),
+                TextSegment::new(" also show off the different font loadings: \n"),
+                TextSegment::new("Monospace:")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                    .with_color(TEAL),
+                TextSegment::new("\n\nfn main() { \n    println!(")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+                TextSegment::new("\"Hello, world!\"")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                    .with_color(BRONZE)
+                    .with_style(Style::Italic),
+                TextSegment::new("); \n}")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+            ])
+            .with_font_size(18.0),))
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK)),
+                padding: MARGIN,
+                margin: MARGIN,
+            }),
+            Stack::new(
                 Text::rich([
-                    TextSegment::new("Violet").with_color(VIOLET),
-                    TextSegment::new(" now has support for "),
-                    TextSegment::new("rich ").with_style(Style::Italic),
-                    TextSegment::new("text. I wanted to "),
-                    TextSegment::new("emphasize").with_style(Style::Italic),
-                    TextSegment::new(" that, "),
-                    TextSegment::new("(and put something in bold)")
-                        .with_family("Inter")
-                        .with_weight(Weight::BOLD),
-                    TextSegment::new(", and").with_style(Style::Italic),
-                    TextSegment::new(" also show off the different font loadings: \n"),
-                    TextSegment::new("Monospace:")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                        .with_color(TEAL),
-                    TextSegment::new("\n\nfn main() { \n    println!(")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
-                    TextSegment::new("\"Hello, world!\"")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                        .with_color(BRONZE)
+                    TextSegment::new("The quick brown fox 🦊 jumps over the lazy dog 🐕")
                         .with_style(Style::Italic),
-                    TextSegment::new("); \n}")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
                 ])
-                .with_font_size(28.0)
-                .with_margin(MARGIN),
-            ))
-            .with_vertical_alignment(CrossAlign::End)
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_padding(MARGIN)
-            .with_margin(MARGIN),
-            Stack::new((Text::rich([TextSegment::new(
-                "The quick brown fox 🦊 jumps over the lazy dog 🐕",
+                .with_wrap(Wrap::Word)
+                // .with_family("Inter")
+                .with_font_size(18.0),
             )
-            .with_style(Style::Italic)])
-            .with_wrap(Wrap::Glyph)
-            // .with_family("Inter")
-            .with_font_size(32.0)
-            .with_margin(MARGIN),))
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_padding(MARGIN)
-            .with_margin(MARGIN),
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK)),
+                padding: MARGIN,
+                margin: MARGIN,
+            }),
             Stack::new((
-                Rectangle::new(CHILI_RED)
+                BoxSized::new(Rectangle::new(CHILI_RED))
                     .with_min_size(Unit::px(vec2(100.0, 30.0)))
-                    .with_size(Unit::px(vec2(100.0, 30.0))),
-                Rectangle::new(TEAL)
+                    .with_size(Unit::px(vec2(50.0, 30.0))),
+                BoxSized::new(Rectangle::new(TEAL))
                     .with_min_size(Unit::px(vec2(200.0, 10.0)))
-                    .with_size(Unit::px(vec2(100.0, 10.0)))
-                    .with_margin(MARGIN),
-                Text::new("This is some text")
-                    .with_font_size(16.0)
-                    .with_margin(MARGIN),
-                // Rectangle::n#ew(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),
+                    .with_size(Unit::px(vec2(50.0, 10.0))),
+                Text::new("This is some text").with_font_size(16.0),
             ))
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_margin(MARGIN),
-            // Text::new("Foo"),
-            // DisplayWorld,
-            // Rectangle::new(CHILI_RED).with_size(Unit::px(vec2(100.0, 10.0))),
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK)),
+                margin: MARGIN,
+                padding: MARGIN,
+            }),
         ))
-        .with_background(Rectangle::new(EERIE_BLACK_600))
+        .with_style(ContainerStyle {
+            background: Some(Background::new(EERIE_BLACK_600)),
+            ..Default::default()
+        })
         .contain_margins(true)
         .with_direction(Direction::Vertical)
         .mount(scope);
@@ -170,7 +172,7 @@ impl Widget for DisplayWorld {
 
         Text::new("")
             .with_font_size(12.0)
-            .with_margin(MARGIN)
+            // .with_margin(MARGIN)
             .mount(scope);
     }
 }
@@ -179,13 +181,12 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // Text::new("This is an overlaid text")
-        //     .with_color(EMERALD)
-        //     .mount(scope)
         Stack::new((Text::new("This is an overlaid text").with_color(EMERALD),))
-            .with_background(Rectangle::new(EERIE_BLACK_300))
-            .with_padding(MARGIN)
-            .with_margin(MARGIN)
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK_300)),
+                padding: MARGIN,
+                margin: MARGIN,
+            })
             .mount(scope)
     }
 }
@@ -200,10 +201,12 @@ impl Widget for LayoutFlexTest {
                 .map(|i| {
                     let size = vec2(100.0, 20.0);
 
-                    Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
-                        .with_min_size(Unit::px(size))
-                        .with_size(Unit::px(size * vec2(i as f32, 1.0)))
-                        .with_margin(MARGIN)
+                    BoxSized::new(Rectangle::new(
+                        Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color(),
+                    ))
+                    .with_min_size(Unit::px(size))
+                    .with_size(Unit::px(size * vec2(i as f32, 1.0)))
+                    .with_margin(MARGIN)
                 })
                 .collect_vec(),
         )
@@ -219,78 +222,81 @@ struct LayoutTest {
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
         let row_2 = List::new((
-            Rectangle::new(BRONZE)
+            BoxSized::new(Rectangle::new(BRONZE))
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(100.0, 20.0))),
-            Rectangle::new(EMERALD)
+            BoxSized::new(Rectangle::new(EMERALD))
                 .with_margin(MARGIN)
                 .with_size(Unit::px(vec2(20.0, 20.0))),
         ))
         .with_direction(Direction::Vertical)
         .contain_margins(self.contain_margins)
-        .with_background(Rectangle::new(EERIE_BLACK_300))
-        .with_margin(MARGIN);
+        .with_style(ContainerStyle {
+            background: Some(Background::new(EERIE_BLACK_300)),
+            padding: MARGIN,
+            margin: MARGIN,
+        });
 
         let click_count = Mutable::new(0);
 
         let row_1 = List::new((
-            Button::new(List::new((Stack::new(
-                Text::rich([
-                    TextSegment::new("This is "),
-                    TextSegment::new("sparta")
-                        .with_style(Style::Italic)
-                        .with_color(BRONZE),
-                ])
-                .with_font_size(32.0)
-                .with_wrap(Wrap::None),
-            )
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_padding(MARGIN_SM),)))
+            Button::new(List::new(
+                Stack::new(
+                    Text::rich([
+                        TextSegment::new("This is "),
+                        TextSegment::new("sparta")
+                            .with_style(Style::Italic)
+                            .with_color(BRONZE),
+                    ])
+                    .with_font_size(16.0)
+                    .with_wrap(Wrap::None),
+                )
+                .with_style(ContainerStyle {
+                    background: Some(Background::new(EERIE_BLACK)),
+                    padding: MARGIN_SM,
+                    margin: MARGIN_SM,
+                }),
+            ))
             .on_press({
                 let click_count = click_count.clone();
                 move |_, _| {
                     *click_count.lock_mut() += 1;
                 }
-            })
-            .with_background(Image::new("./assets/images/statue.jpg"))
-            .with_background_color(Srgba::new(1.0, 1.0, 1.0, 1.0))
-            .with_pressed_color(EERIE_BLACK)
-            .with_padding(MARGIN)
-            .with_margin(MARGIN)
-            .with_size(Unit::px(vec2(800.0, 50.0))),
-            row_2,
+            }),
+            // row_2,
             StackTest {},
-            Button::new(Text::new("Nope, don't you dare").with_color(CHILI_RED))
-                .on_press({
-                    let click_count = click_count.clone();
-                    move |_, _| {
-                        *click_count.lock_mut() -= 1;
-                    }
-                })
-                .with_padding(MARGIN_SM)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(200.0, 50.0))),
-            Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
-            Rectangle::new(EMERALD)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(10.0, 80.0))),
-            Signal(
-                click_count
-                    .signal()
-                    .map(|v| Text::new(format!("Clicked {} times", v))),
-            )
-            .with_margin(MARGIN),
+            // Button::new(Text::new("Nope, don't you dare").with_color(CHILI_RED)).on_press({
+            //     let click_count = click_count.clone();
+            //     move |_, _| {
+            //         *click_count.lock_mut() -= 1;
+            //     }
+            // }),
+            // Text::new("Inline text, wrapping to fit"),
+            // BoxSized::new(Rectangle::new(EMERALD))
+            //     .with_margin(MARGIN)
+            //     .with_size(Unit::px(vec2(10.0, 80.0))),
+            // Signal(
+            //     click_count
+            //         .signal()
+            //         .map(|v| Text::new(format!("Clicked {} times", v))),
+            // ),
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(CrossAlign::Center)
-        .with_background(Rectangle::new(EERIE_BLACK))
-        .with_margin(MARGIN);
-
+        .with_style(ContainerStyle {
+            background: Some(Background::new(EERIE_BLACK)),
+            padding: MARGIN,
+            margin: MARGIN,
+        });
         // row_1.mount(scope);
 
         List::new((row_1,))
             .contain_margins(self.contain_margins)
-            .with_background(Rectangle::new(EERIE_BLACK_300))
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK_300)),
+                padding: MARGIN,
+                margin: MARGIN,
+            })
             .mount(scope);
     }
 }

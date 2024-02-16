@@ -36,6 +36,13 @@ impl Direction {
             (Direction::Vertical, true) => Edges::new(cross.1, cross.0, main.0, main.1),
         }
     }
+
+    pub fn to_vec(self) -> Vec2 {
+        match self {
+            Direction::Horizontal => Vec2::X,
+            Direction::Vertical => Vec2::Y,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -284,10 +291,12 @@ struct Constraints {
 impl Constraints {
     fn resolve(&self, mut size: Vec2) -> Vec2 {
         if let Some(aspect_ratio) = self.aspect_ratio {
-            if size.x > size.y {
-                size = vec2(size.y * aspect_ratio, size.y);
-            } else {
-                size = vec2(size.x, size.x / aspect_ratio);
+            if aspect_ratio > 0.0 {
+                if size.x > size.y {
+                    size = vec2(size.y * aspect_ratio, size.y);
+                } else {
+                    size = vec2(size.x, size.x / aspect_ratio);
+                }
             }
         }
 

@@ -44,7 +44,7 @@ impl MarginCursor {
     }
 
     fn put(&mut self, block: &Block) -> (Vec2, f32) {
-        let (front_margin, back_margin) = block.margin.in_axis(self.axis);
+        let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
             + self.pending_margin.min(0.0)
@@ -460,14 +460,19 @@ impl FlowLayout {
 
                 if block_min_size > block_preferred_size {
                     tracing::error!(
+                        %entity,
                         ?block_min_size,
                         block_preferred_size,
                         "min is larger than preferred",
                     );
+
+                    return;
                 }
 
                 assert!(block_min_size.is_finite());
                 assert!(block_preferred_size.is_finite());
+
+                assert!(block_min_size <= block_preferred_size, "min is larger than preferred");
 
                 let remaining = block_preferred_size - block_min_size;
                 let ratio = if distribute_size == 0.0 {

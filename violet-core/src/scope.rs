@@ -12,8 +12,8 @@ use futures::{Future, Stream};
 use pin_project::pin_project;
 
 use crate::{
-    assets::AssetCache, components::children, effect::Effect, stored::Handle, Frame, FutureEffect,
-    StreamEffect, Widget,
+    assets::AssetCache, components::children, effect::Effect, input::InputEventHandler,
+    stored::Handle, Frame, FutureEffect, StreamEffect, Widget,
 };
 
 /// The scope within a [`Widget`][crate::Widget] is mounted or modified
@@ -211,6 +211,15 @@ impl<'a> Scope<'a> {
         on_change: impl Fn(Option<&T>) + 'static,
     ) {
         self.frame.monitor(self.id, component, on_change);
+    }
+
+    /// Invokes the provided callback when the targeted event is dispatched to the entity
+    pub fn on_event<T: 'static>(
+        &mut self,
+        event: Component<InputEventHandler<T>>,
+        func: impl 'static + Send + Sync + FnMut(&Frame, &EntityRef, T),
+    ) -> &mut Self {
+        self.set(event, Box::new(func) as _)
     }
 }
 

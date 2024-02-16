@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     fmt::Debug,
     marker::PhantomData,
+    ops::{Index, IndexMut},
     sync::{Arc, Weak},
 };
 
@@ -81,35 +82,35 @@ impl<T> Store<T> {
     }
 }
 
-impl<T> std::ops::Index<&Handle<T>> for Store<T> {
+impl<T> Index<&Handle<T>> for Store<T> {
     type Output = T;
 
     fn index(&self, handle: &Handle<T>) -> &Self::Output {
-        &self.values[handle.index]
+        self.get(handle)
     }
 }
 
-impl<T> std::ops::IndexMut<&Handle<T>> for Store<T> {
+impl<T> IndexMut<&Handle<T>> for Store<T> {
     fn index_mut(&mut self, handle: &Handle<T>) -> &mut Self::Output {
-        &mut self.values[handle.index]
+        self.get_mut(handle)
     }
 }
 
-impl<T> std::ops::Index<&WeakHandle<T>> for Store<T> {
+impl<T> Index<&WeakHandle<T>> for Store<T> {
     type Output = T;
 
     fn index(&self, handle: &WeakHandle<T>) -> &Self::Output {
-        &self.values[handle.index]
+        self.get(&handle.upgrade(self).unwrap())
     }
 }
 
-impl<T> std::ops::IndexMut<&WeakHandle<T>> for Store<T> {
+impl<T> IndexMut<&WeakHandle<T>> for Store<T> {
     fn index_mut(&mut self, handle: &WeakHandle<T>) -> &mut Self::Output {
-        &mut self.values[handle.index]
+        self.get_mut(&handle.upgrade(self).unwrap())
     }
 }
 
-/// Cheap to clone handle to a value in a store
+/// Reference counted handle to a value in a store
 ///
 /// When the handle is dropped, the value is removed from the store
 pub struct Handle<T> {
@@ -319,6 +320,20 @@ impl DynamicStore {
 
     pub fn insert<T: 'static>(&mut self, value: T) -> Handle<T> {
         self.store_mut::<T>().insert(value)
+    }
+}
+
+impl<T: 'static> Index<&Handle<T>> for DynamicStore {
+    type Output = T;
+
+    fn index(&self, handle: &Handle<T>) -> &Self::Output {
+        self.get(&handle)
+    }
+}
+
+impl<T: 'static> IndexMut<&Handle<T>> for DynamicStore {
+    fn index_mut(&mut self, handle: &Handle<T>) -> &mut Self::Output {
+        self.get_mut(&handle)
     }
 }
 

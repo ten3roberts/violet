@@ -1,12 +1,12 @@
-use crate::{style::WithComponent, Scope};
+use crate::Scope;
 mod basic;
 mod container;
 mod future;
 mod input;
 
-pub use basic::{Button, Image, Positioned, Rectangle, Text};
-pub use container::{ContainerExt, List, Movable, Stack};
-use flax::{component::ComponentValue, Component};
+pub use basic::{BoxSized, Button, Image, Positioned, Rectangle, Text};
+pub use container::{ContainerStyle, List, Movable, Stack};
+use flax::{component::ComponentValue, components::name, Component};
 pub use future::{Signal, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use input::slider::{Slider, SliderStyle, SliderValue, SliderWithLabel};
@@ -57,8 +57,11 @@ pub trait WidgetExt: Widget + Sized {
         Box::new(self)
     }
 
-    fn with_name(self, name: impl Into<String>) -> WithComponent<Self, String> {
-        WithComponent::new(self, flax::components::name(), name.into())
+    fn with_name(self, name: impl Into<String>) -> Named<Self> {
+        Named {
+            name: name.into(),
+            widget: self,
+        }
     }
 
     fn monitor<T: ComponentValue>(
@@ -98,6 +101,19 @@ impl<W: Widget, T: Clone + ComponentValue> Widget for Monitor<W, T> {
     fn mount(self, scope: &mut Scope<'_>) {
         self.widget.mount(scope);
         scope.monitor(self.component, self.on_change);
+    }
+}
+
+/// An explicitly named widget. Used for diagnostic purposes
+pub struct Named<W> {
+    widget: W,
+    name: String,
+}
+
+impl<W: Widget> Widget for Named<W> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.widget.mount(scope);
+        scope.set(name(), self.name);
     }
 }
 

@@ -6,19 +6,19 @@ use futures_signals::{
 };
 use glam::Vec2;
 use palette::{
-    named::{BLACK, GREEN},
+    named::{BLACK, GREEN, GREY},
     Srgba, WithAlpha,
 };
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, offset, rect, Edges},
+    components::{offset, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::CrossAlign,
-    style::StyleExt,
+    style::{Background, StyleExt},
     text::TextSegment,
     unit::Unit,
-    widget::{List, Rectangle, Signal, Stack, Text},
+    widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, Signal, Stack, Text},
     Scope, StreamEffect, Widget,
 };
 
@@ -65,11 +65,7 @@ impl<V> Slider<V> {
 impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let track = scope.attach(
-            Rectangle::new(self.style.track_color)
-                .with_size(self.style.size)
-                // Accommodate the handle
-                .with_margin(Edges::even(10.0))
-                .with_component(offset(), Default::default()),
+            BoxSized::new(Rectangle::new(self.style.track_color)).with_size(self.style.size),
         );
 
         let min = self.min.to_progress();
@@ -87,32 +83,35 @@ impl<V: SliderValue> Widget for Slider<V> {
             dst.set(V::from_progress(value));
         }
 
-        Stack::new(SliderHandle {
+        let handle = SliderHandle {
             value: self.value.signal(),
             min,
             max,
             rect_id: track,
             style: &self.style,
-        })
-        .with_vertical_alignment(CrossAlign::Center)
-        .with_component(focusable(), ())
-        // TODO:wrapper for this
-        .with_component(
-            on_mouse_input(),
-            Box::new({
+        };
+
+        scope
+            .set(focusable(), ())
+            .on_event(on_mouse_input(), {
                 let value = self.value.clone();
-                move |_, entity, _, input| {
+                move |_, entity, input| {
                     if input.state == ElementState::Pressed {
                         update(entity, input.cursor, min, max, &value);
                     }
                 }
-            }),
-        )
-        .with_component(
-            on_cursor_move(),
-            Box::new(move |_, entity, _, input| update(entity, input, min, max, &self.value)),
-        )
-        .mount(scope)
+            })
+            .on_event(on_cursor_move(), move |_, entity, input| {
+                update(entity, input, min, max, &self.value)
+            });
+
+        Stack::new(handle)
+            .with_vertical_alignment(CrossAlign::Center)
+            .with_style(ContainerStyle {
+                margin: Edges::even(10.0),
+                ..Default::default()
+            })
+            .mount(scope)
     }
 }
 struct SliderHandle<'a, V> {
@@ -147,12 +146,11 @@ impl<V: SliderValue> Widget for SliderHandle<'_, V> {
             }
         }));
 
-        Rectangle::new(self.style.handle_color)
-            .with_size(Unit::px2(5.0, 20.0))
-            .with_component(anchor(), Unit::rel2(0.5, 0.0))
-            .with_component(offset(), Default::default())
-            .with_margin(Edges::even(2.0))
-            .mount(scope)
+        Positioned::new(
+            BoxSized::new(Rectangle::new(self.style.handle_color)).with_size(Unit::px2(5.0, 20.0)),
+        )
+        .with_anchor(Unit::rel2(0.5, 0.0))
+        .mount(scope)
     }
 }
 

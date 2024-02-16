@@ -46,10 +46,12 @@ impl SizeResolver for TextSizeResolver {
             },
         );
 
-        let preferred =
-            Self::resolve_text_size(state, text_system, font_size, limits.max_size - 5.0)
-                + vec2(5.0, 5.0);
+        let preferred = Self::resolve_text_size(state, text_system, font_size, limits.max_size);
+        // + vec2(5.0, 5.0);
 
+        if min.dot(squeeze.to_vec()) > preferred.dot(squeeze.to_vec()) {
+            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?squeeze, %limits.max_size, "Text wrapping failed");
+        }
         (min, preferred)
     }
 
@@ -169,6 +171,14 @@ impl TextBufferState {
         //         .weight(400.0)
         //     Shaping::Advanced,
         // );
+    }
+
+    fn text(&self) -> Vec<String> {
+        self.buffer
+            .lines
+            .iter()
+            .map(|v| v.text().to_owned())
+            .collect::<Vec<_>>()
     }
 
     pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {

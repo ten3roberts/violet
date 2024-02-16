@@ -3,29 +3,53 @@ use glam::Vec2;
 use winit::event::ElementState;
 
 use crate::{
-    components::{self, anchor, layout, offset, rect, Edges},
+    components::{anchor, layout, margin, offset, padding, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
-    style::{StyleExt, WithComponent},
+    style::{Background, StyleExt},
     unit::Unit,
     Frame, Scope, Widget, WidgetCollection,
 };
 
+/// Style for most container type widgets.
+///
+/// Includes margin, padding, and background color.
+///
+/// **NOTE**: direction and alignment are not included here, and should be given on a per-widget basis.
+#[derive(Default, Debug, Clone)]
+pub struct ContainerStyle {
+    pub margin: Edges,
+    pub padding: Edges,
+    pub background: Option<Background>,
+}
+
+impl ContainerStyle {
+    pub fn mount(self, scope: &mut Scope) {
+        if let Some(background) = self.background {
+            background.mount(scope);
+        }
+
+        scope
+            .set(margin(), self.margin)
+            .set(padding(), self.padding);
+    }
+}
+
 pub struct Stack<W> {
     items: W,
-    background: Option<Box<dyn Widget>>,
 
     horizontal_alignment: CrossAlign,
     vertical_alignment: CrossAlign,
+    style: ContainerStyle,
 }
 
 impl<W> Stack<W> {
     pub fn new(items: W) -> Self {
         Self {
             items,
-            background: None,
             horizontal_alignment: CrossAlign::default(),
             vertical_alignment: CrossAlign::default(),
+            style: Default::default(),
         }
     }
 
@@ -42,9 +66,11 @@ impl<W> Stack<W> {
     }
 }
 
-impl<W> ContainerExt for Stack<W> {
-    fn with_background<B: 'static + Widget>(mut self, background: B) -> Self {
-        self.background = Some(Box::new(background));
+impl<W> StyleExt for Stack<W> {
+    type Style = ContainerStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
         self
     }
 }
@@ -56,9 +82,7 @@ where
     fn mount(self, scope: &mut Scope<'_>) {
         self.items.attach(scope);
 
-        if let Some(background) = self.background {
-            background.mount(scope);
-        }
+        self.style.mount(scope);
 
         scope.set(
             layout(),
@@ -74,7 +98,7 @@ where
 pub struct List<W> {
     items: W,
     layout: FlowLayout,
-    background: Option<Box<dyn Widget>>,
+    style: ContainerStyle,
 }
 
 impl<W: WidgetCollection> List<W> {
@@ -82,7 +106,7 @@ impl<W: WidgetCollection> List<W> {
         Self {
             items,
             layout: FlowLayout::default(),
-            background: None,
+            style: Default::default(),
         }
     }
 
@@ -114,36 +138,22 @@ impl<W: WidgetCollection> List<W> {
     }
 }
 
-impl<W: WidgetCollection> ContainerExt for List<W> {
-    fn with_background<B: 'static + Widget>(mut self, background: B) -> Self {
-        self.background = Some(Box::new(background));
+impl<W: WidgetCollection> StyleExt for List<W> {
+    type Style = ContainerStyle;
+    fn with_style(mut self, style: ContainerStyle) -> Self {
+        self.style = style;
         self
     }
 }
 
 impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
-        if let Some(background) = self.background {
-            background.mount(scope);
-        }
+        self.style.mount(scope);
 
         scope.set(layout(), Layout::Flow(self.layout));
 
         self.items.attach(scope);
     }
-}
-
-/// Additional functionality for available containers.
-pub trait ContainerExt {
-    fn with_padding(self, padding: Edges) -> WithComponent<Self, Edges>
-    where
-        Self: Sized,
-    {
-        WithComponent::new(self, components::padding(), padding)
-    }
-
-    /// Adds a background to the widget.
-    fn with_background<W: 'static + Widget>(self, background: W) -> Self;
 }
 
 type OnMove = Box<dyn Send + Sync + FnMut(&Frame, Vec2) -> Vec2>;
@@ -177,39 +187,32 @@ impl<W: Widget> Widget for Movable<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
         let start_offset = Mutable::new(Vec2::ZERO);
 
-        Stack::new(self.content)
-            .with_component(focusable(), ())
-            .with_component(offset(), Unit::default())
-            .with_component(
-                on_mouse_input(),
-                Box::new({
-                    let start_offset = start_offset.clone();
-                    move |_, _, _, input| {
-                        if input.state == ElementState::Pressed {
-                            let cursor_pos = input.cursor.local_pos;
-                            *start_offset.lock_mut() = cursor_pos;
-                        }
+        scope
+            .set(focusable(), ())
+            .set(offset(), Unit::default())
+            .on_event(on_mouse_input(), {
+                let start_offset = start_offset.clone();
+                move |_, _, input| {
+                    if input.state == ElementState::Pressed {
+                        let cursor_pos = input.cursor.local_pos;
+                        *start_offset.lock_mut() = cursor_pos;
                     }
-                }),
-            )
-            .with_component(
-                on_cursor_move(),
-                Box::new({
-                    move |frame, entity, _, input| {
-                        let rect = entity.get_copy(rect()).unwrap();
-                        let anchor = entity
-                            .get_copy(anchor())
-                            .unwrap_or_default()
-                            .resolve(rect.size());
+                }
+            })
+            .on_event(on_cursor_move(), move |frame, entity, input| {
+                let rect = entity.get_copy(rect()).unwrap();
+                let anchor = entity
+                    .get_copy(anchor())
+                    .unwrap_or_default()
+                    .resolve(rect.size());
 
-                        let cursor_pos = input.local_pos + rect.min;
+                let cursor_pos = input.local_pos + rect.min;
 
-                        let new_offset = cursor_pos - start_offset.get() + anchor;
-                        let new_offset = (self.on_move)(frame, new_offset);
-                        entity.update_dedup(offset(), Unit::px(new_offset));
-                    }
-                }),
-            )
-            .mount(scope)
+                let new_offset = cursor_pos - start_offset.get() + anchor;
+                let new_offset = (self.on_move)(frame, new_offset);
+                entity.update_dedup(offset(), Unit::px(new_offset));
+            });
+
+        Stack::new(self.content).mount(scope)
     }
 }

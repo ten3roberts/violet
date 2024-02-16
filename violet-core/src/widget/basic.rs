@@ -1,20 +1,26 @@
 use glam::Vec2;
 use image::DynamicImage;
-use palette::Srgba;
+use palette::{
+    named::{BLACK, GREEN},
+    Srgba, WithAlpha,
+};
 use winit::event::{ElementState, MouseButton};
 
 use crate::{
     assets::AssetKey,
-    components::{self, color, draw_shape, font_size, text, text_wrap},
+    components::{
+        self, anchor, aspect_ratio, color, draw_shape, font_size, margin, min_size, offset, size,
+        text, text_wrap, Edges,
+    },
     input::{on_focus, on_mouse_input},
     shape,
-    style::StyleExt,
+    style::{Background, StyleExt},
     text::{TextSegment, Wrap},
     unit::Unit,
     Frame, Scope, Widget,
 };
 
-use super::{ContainerExt, Stack};
+use super::{container::ContainerStyle, Stack};
 
 /// A rectangular widget
 #[derive(Debug, Clone)]
@@ -122,37 +128,39 @@ impl Widget for Text {
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
 
+#[derive(Debug, Clone)]
+pub struct ButtonStyle {
+    pub normal_color: Srgba,
+    pub pressed_color: Srgba,
+    pub margin: Edges,
+    pub padding: Edges,
+}
+
+impl Default for ButtonStyle {
+    fn default() -> Self {
+        Self {
+            normal_color: BLACK.into_format().with_alpha(1.0),
+            pressed_color: GREEN.into_format().with_alpha(1.0),
+            margin: Edges::even(10.0),
+            padding: Edges::even(10.0),
+        }
+    }
+}
+
 /// A button which invokes the callback when clicked
 pub struct Button<W = Text> {
-    background_color: Srgba,
-    pressed_color: Srgba,
-
     on_press: ButtonCallback,
-    container: Stack<W>,
+    label: W,
+    style: ButtonStyle,
 }
 
 impl<W> Button<W> {
     pub fn new(label: W) -> Self {
-        let pressed_color = Srgba::new(0.1, 0.1, 0.1, 1.0);
-        let background_color = Srgba::new(0.2, 0.2, 0.2, 1.0);
         Self {
-            pressed_color,
-            background_color,
             on_press: Box::new(|_, _| {}),
-            container: Stack::new(label).with_background(Rectangle::new(background_color)),
+            label,
+            style: Default::default(),
         }
-    }
-
-    /// Set the background color
-    pub fn with_background_color(mut self, background_color: Srgba) -> Self {
-        self.background_color = background_color;
-        self
-    }
-
-    /// Set the pressed color
-    pub fn with_pressed_color(mut self, pressed_color: Srgba) -> Self {
-        self.pressed_color = pressed_color;
-        self
     }
 
     /// Handle the button press
@@ -165,42 +173,45 @@ impl<W> Button<W> {
     }
 }
 
-impl<W> ContainerExt for Button<W> {
-    fn with_background<B: 'static + Widget>(mut self, background: B) -> Self {
-        self.container = self.container.with_background(background);
+impl<W> StyleExt for Button<W> {
+    type Style = ButtonStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
         self
     }
 }
 
 impl<W: Widget> Widget for Button<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
-        self.container
-            .with_component(
-                on_focus(),
-                Box::new(move |_, entity, focus| {
-                    entity.update_dedup(
-                        color(),
-                        if focus {
-                            self.pressed_color
-                        } else {
-                            self.background_color
-                        },
-                    );
-                }),
-            )
-            .with_component(
-                on_mouse_input(),
-                Box::new(move |frame, _, _mods, input| {
-                    if input.state == ElementState::Released {
-                        (self.on_press)(frame, input.button);
-                    }
-                }),
-            )
+        scope
+            .on_event(on_focus(), move |_, entity, focus| {
+                entity.update_dedup(
+                    color(),
+                    if focus {
+                        self.style.pressed_color
+                    } else {
+                        self.style.normal_color
+                    },
+                );
+            })
+            .on_event(on_mouse_input(), move |frame, entity, input| {
+                if input.state == ElementState::Pressed {
+                    (self.on_press)(frame, input.button);
+                }
+            });
+
+        Stack::new(self.label)
+            .with_style(ContainerStyle {
+                margin: self.style.margin,
+                padding: self.style.padding,
+                background: Some(Background::new(self.style.normal_color)),
+            })
             .mount(scope);
     }
 }
 
-/// Manually position a widget
+/// Allows a widget to be manually positioned and offset
 pub struct Positioned<W> {
     offset: Unit<Vec2>,
     anchor: Unit<Vec2>,
@@ -238,5 +249,50 @@ where
 
         scope.set(components::anchor(), self.anchor);
         scope.set(components::offset(), self.offset);
+    }
+}
+
+pub struct BoxSized<W> {
+    size: Unit<Vec2>,
+    min_size: Unit<Vec2>,
+    aspect_ratio: f32,
+    widget: W,
+}
+
+impl<W> BoxSized<W> {
+    pub fn new(widget: W) -> Self {
+        Self {
+            size: Unit::ZERO,
+            min_size: Unit::ZERO,
+            widget,
+            aspect_ratio: 0.0,
+        }
+    }
+
+    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
+        self.min_size = min_size;
+        self
+    }
+
+    /// Set the aspect ratio
+    pub fn with_aspect_ratio(mut self, aspect_ratio: f32) -> Self {
+        self.aspect_ratio = aspect_ratio;
+        self
+    }
+}
+
+impl<W: Widget> Widget for BoxSized<W> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.widget.mount(scope);
+
+        scope
+            .set(size(), self.size)
+            .set(min_size(), self.min_size)
+            .set(aspect_ratio(), self.aspect_ratio);
     }
 }
