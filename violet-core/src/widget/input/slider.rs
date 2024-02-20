@@ -1,39 +1,64 @@
+use std::ops::Deref;
+
 use cosmic_text::Wrap;
-use flax::{Entity, EntityRef};
+use flax::{Dfs, Entity, EntityRef};
 use futures_signals::{
     map_ref,
     signal::{Mutable, MutableSignal, SignalExt},
 };
-use glam::Vec2;
-use palette::{
-    named::{BLACK, GREEN, GREY},
-    Srgba, WithAlpha,
-};
+use glam::{vec2, Vec2};
+use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
     components::{offset, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::CrossAlign,
-    style::{Background, StyleExt},
+    style::{get_style, StyleExt, StyleSheet},
     text::TextSegment,
     unit::Unit,
     widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, Signal, Stack, Text},
     Scope, StreamEffect, Widget,
 };
 
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SliderStyle {
-    pub track_color: Srgba,
-    pub handle_color: Srgba,
-    pub size: Unit<Vec2>,
+    pub track_color: Option<Srgba>,
+    pub handle_color: Option<Srgba>,
+    pub track_size: Option<Unit<Vec2>>,
+    pub handle_size: Option<Unit<Vec2>>,
 }
 
-impl Default for SliderStyle {
-    fn default() -> Self {
+impl SliderStyle {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn with_track_color(self, color: Srgba) -> Self {
         Self {
-            track_color: BLACK.into_format().with_alpha(1.0),
-            handle_color: GREEN.into_format().with_alpha(1.0),
-            size: Unit::px2(200.0, 5.0),
+            track_color: Some(color),
+            ..self
+        }
+    }
+
+    pub fn with_handle_color(self, color: Srgba) -> Self {
+        Self {
+            handle_color: Some(color),
+            ..self
+        }
+    }
+
+    pub fn with_track_size(self, size: Unit<Vec2>) -> Self {
+        Self {
+            track_size: Some(size),
+            ..self
+        }
+    }
+
+    pub fn with_handle_size(self, size: Unit<Vec2>) -> Self {
+        Self {
+            handle_size: Some(size),
+            ..self
         }
     }
 }
@@ -51,7 +76,7 @@ impl<V> Slider<V> {
             value,
             min,
             max,
-            style: SliderStyle::default(),
+            style: Default::default(),
         }
     }
 
@@ -64,9 +89,31 @@ impl<V> Slider<V> {
 
 impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let track = scope.attach(
-            BoxSized::new(Rectangle::new(self.style.track_color)).with_size(self.style.size),
-        );
+        let style = get_style(scope.frame());
+
+        let track_color = self
+            .style
+            .track_color
+            .unwrap_or(style.colors.secondary_surface);
+
+        let track_size = self
+            .style
+            .track_size
+            .unwrap_or(Unit::px2(64.0, 1.0) * style.spacing.base_scale);
+
+        let handle_size = self
+            .style
+            .handle_size
+            .unwrap_or(Unit::px2(1.0, 5.0) * style.spacing.base_scale);
+
+        let handle_color = self
+            .style
+            .handle_color
+            .unwrap_or(style.colors.accent_element);
+
+        drop(style);
+
+        let track = scope.attach(BoxSized::new(Rectangle::new(track_color)).with_size(track_size));
 
         let min = self.min.to_progress();
         let max = self.max.to_progress();
@@ -88,7 +135,8 @@ impl<V: SliderValue> Widget for Slider<V> {
             min,
             max,
             rect_id: track,
-            style: &self.style,
+            handle_color,
+            handle_size,
         };
 
         scope
@@ -114,15 +162,17 @@ impl<V: SliderValue> Widget for Slider<V> {
             .mount(scope)
     }
 }
-struct SliderHandle<'a, V> {
+
+struct SliderHandle<V> {
     value: MutableSignal<V>,
-    style: &'a SliderStyle,
+    handle_color: Srgba,
+    handle_size: Unit<Vec2>,
     min: f32,
     max: f32,
     rect_id: Entity,
 }
 
-impl<V: SliderValue> Widget for SliderHandle<'_, V> {
+impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
@@ -147,7 +197,7 @@ impl<V: SliderValue> Widget for SliderHandle<'_, V> {
         }));
 
         Positioned::new(
-            BoxSized::new(Rectangle::new(self.style.handle_color)).with_size(Unit::px2(5.0, 20.0)),
+            BoxSized::new(Rectangle::new(self.handle_color)).with_size(self.handle_size),
         )
         .with_anchor(Unit::rel2(0.5, 0.0))
         .mount(scope)

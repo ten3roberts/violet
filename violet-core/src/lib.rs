@@ -1,4 +1,5 @@
 pub mod assets;
+pub mod atom;
 pub mod components;
 pub mod constraints;
 pub mod editor;

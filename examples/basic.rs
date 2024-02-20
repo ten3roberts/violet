@@ -72,10 +72,15 @@ impl Widget for MainApp {
                 (1..=4)
                     .map(|i| {
                         let size = Vec2::splat(128.0 / i as f32);
-                        BoxSized::new(Image::new("./assets/images/statue.jpg"))
-                            .with_min_size(Unit::px(size))
-                            .with_margin(MARGIN)
-                            .with_aspect_ratio(1.0)
+                        Stack::new(
+                            BoxSized::new(Image::new("./assets/images/statue.jpg"))
+                                .with_min_size(Unit::px(size))
+                                .with_aspect_ratio(1.0),
+                        )
+                        .with_style(ContainerStyle {
+                            margin: MARGIN,
+                            ..Default::default()
+                        })
                     })
                     .collect_vec(),
             )
@@ -201,12 +206,17 @@ impl Widget for LayoutFlexTest {
                 .map(|i| {
                     let size = vec2(100.0, 20.0);
 
-                    BoxSized::new(Rectangle::new(
-                        Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color(),
-                    ))
-                    .with_min_size(Unit::px(size))
-                    .with_size(Unit::px(size * vec2(i as f32, 1.0)))
-                    .with_margin(MARGIN)
+                    Stack::new(
+                        BoxSized::new(Rectangle::new(
+                            Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color(),
+                        ))
+                        .with_min_size(Unit::px(size))
+                        .with_size(Unit::px(size * vec2(i as f32, 1.0))),
+                    )
+                    .with_style(ContainerStyle {
+                        margin: MARGIN,
+                        ..Default::default()
+                    })
                 })
                 .collect_vec(),
         )

@@ -27,6 +27,7 @@ flax = { git = "https://github.com/ten3roberts/flax", version = "0.6.0", feature
     "derive",
 ] }
 
+atomic_refcell = "0.1"
 futures-signals = "0.3"
 itertools = "0.12"
 glam = { version = "0.24", features = ["bytemuck"] }

@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 flax.workspace = true
 
+atomic_refcell.workspace = true
 futures-signals.workspace = true
 itertools.workspace = true
 glam.workspace = true

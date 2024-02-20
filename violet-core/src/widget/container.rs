@@ -64,6 +64,21 @@ impl<W> Stack<W> {
         self.vertical_alignment = align;
         self
     }
+
+    pub fn with_margin(mut self, margin: Edges) -> Self {
+        self.style.margin = margin;
+        self
+    }
+
+    pub fn with_padding(mut self, padding: Edges) -> Self {
+        self.style.padding = padding;
+        self
+    }
+
+    pub fn with_background(mut self, background: Background) -> Self {
+        self.style.background = Some(background);
+        self
+    }
 }
 
 impl<W> StyleExt for Stack<W> {
@@ -132,8 +147,18 @@ impl<W: WidgetCollection> List<W> {
         self
     }
 
-    pub fn with_proportional_growth(mut self, proportional_growth: bool) -> Self {
-        self.layout.proportional_growth = proportional_growth;
+    pub fn with_margin(mut self, margin: Edges) -> Self {
+        self.style.margin = margin;
+        self
+    }
+
+    pub fn with_padding(mut self, padding: Edges) -> Self {
+        self.style.padding = padding;
+        self
+    }
+
+    pub fn with_background(mut self, background: Background) -> Self {
+        self.style.background = Some(background);
         self
     }
 }

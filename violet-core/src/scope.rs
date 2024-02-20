@@ -12,7 +12,7 @@ use futures::{Future, Stream};
 use pin_project::pin_project;
 
 use crate::{
-    assets::AssetCache, components::children, effect::Effect, input::InputEventHandler,
+    assets::AssetCache, atom::Atom, components::children, effect::Effect, input::InputEventHandler,
     stored::Handle, Frame, FutureEffect, StreamEffect, Widget,
 };
 

@@ -101,3 +101,5 @@ It will then apply this limited size to the column.
 
 The column will use these 100px and query the two text objects with `[0, 1]`, to reduce the height of the container as
 much as possible, which will in extension force the text objects to use as much width as possible.
+
+# Styling

@@ -81,6 +81,8 @@ component! {
 
     /// If present, contains information about the laid out text
     pub layout_glyphs: LayoutGlyphs,
+
+    pub(crate) atoms,
 }
 
 /// Spacing between a outer and inner bounds

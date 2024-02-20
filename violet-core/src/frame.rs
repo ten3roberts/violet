@@ -1,3 +1,6 @@
+use std::{any::Any, collections::HashMap};
+
+use atomic_refcell::AtomicRef;
 use flax::{
     component::ComponentValue,
     events::{Event, EventSubscriber},
@@ -6,12 +9,16 @@ use flax::{
 
 use crate::{
     assets::AssetCache,
+    atom::Atom,
+    components::atoms,
     effect::Effect,
     executor::{Spawner, TaskHandle},
     scope::ScopedEffect,
     stored::DynamicStore,
     Scope, StreamEffect, Widget,
 };
+
+type AtomStore = HashMap<u32, Box<dyn Any>>;
 
 /// Thread local runtime state of the application.
 ///
@@ -20,6 +27,7 @@ use crate::{
 /// Is accessible during mutation events of the ECS world.
 pub struct Frame {
     pub store: DynamicStore,
+    pub atoms: AtomStore,
     pub world: World,
     pub spawner: Spawner<Self>,
     pub assets: AssetCache,
@@ -34,6 +42,7 @@ impl Frame {
             spawner,
             assets,
             delta_time: 0.0,
+            atoms: AtomStore::new(),
         }
     }
 
@@ -103,5 +112,24 @@ impl Frame {
                 },
             ),
         );
+    }
+
+    pub fn set_atom<T: ComponentValue>(&mut self, atom: Atom<T>, value: T) {
+        self.world.set(atoms(), atom.0, value).unwrap();
+    }
+
+    /// Retrieves the value of an atom.
+    ///
+    /// Returns `None` if the atom does not exist.
+    pub fn get_atom<T: ComponentValue>(&self, atom: Atom<T>) -> Option<AtomicRef<T>> {
+        self.world.get(atoms(), atom.0).ok()
+    }
+
+    pub fn monitor_atom<T: ComponentValue>(
+        &mut self,
+        atom: Atom<T>,
+        on_change: impl Fn(Option<&T>) + 'static,
+    ) {
+        self.monitor(atoms(), atom.0, on_change)
     }
 }

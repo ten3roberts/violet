@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use glam::Vec2;
 use image::DynamicImage;
 use palette::{
@@ -12,9 +14,9 @@ use crate::{
         self, anchor, aspect_ratio, color, draw_shape, font_size, margin, min_size, offset, size,
         text, text_wrap, Edges,
     },
-    input::{on_focus, on_mouse_input},
+    input::{focusable, on_focus, on_mouse_input},
     shape,
-    style::{Background, StyleExt},
+    style::{get_style, Background, StyleExt, StyleSheet},
     text::{TextSegment, Wrap},
     unit::Unit,
     Frame, Scope, Widget,
@@ -128,23 +130,12 @@ impl Widget for Text {
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ButtonStyle {
-    pub normal_color: Srgba,
-    pub pressed_color: Srgba,
-    pub margin: Edges,
-    pub padding: Edges,
-}
-
-impl Default for ButtonStyle {
-    fn default() -> Self {
-        Self {
-            normal_color: BLACK.into_format().with_alpha(1.0),
-            pressed_color: GREEN.into_format().with_alpha(1.0),
-            margin: Edges::even(10.0),
-            padding: Edges::even(10.0),
-        }
-    }
+    pub normal_color: Option<Srgba>,
+    pub pressed_color: Option<Srgba>,
+    pub margin: Option<Edges>,
+    pub padding: Option<Edges>,
 }
 
 /// A button which invokes the callback when clicked
@@ -184,18 +175,36 @@ impl<W> StyleExt for Button<W> {
 
 impl<W: Widget> Widget for Button<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
+        let style = get_style(scope.frame());
+
+        let pressed_color = self
+            .style
+            .pressed_color
+            .unwrap_or(style.colors.accent_element);
+
+        let normal_color = self
+            .style
+            .normal_color
+            .unwrap_or(style.colors.secondary_surface);
+
+        let margin = self
+            .style
+            .margin
+            .unwrap_or(Edges::even(style.spacing.size(2)));
+
+        let padding = self
+            .style
+            .margin
+            .unwrap_or(Edges::even(style.spacing.size(2)));
+
+        drop(style);
+
         scope
+            .set(focusable(), ())
             .on_event(on_focus(), move |_, entity, focus| {
-                entity.update_dedup(
-                    color(),
-                    if focus {
-                        self.style.pressed_color
-                    } else {
-                        self.style.normal_color
-                    },
-                );
+                entity.update_dedup(color(), if focus { pressed_color } else { normal_color });
             })
-            .on_event(on_mouse_input(), move |frame, entity, input| {
+            .on_event(on_mouse_input(), move |frame, _, input| {
                 if input.state == ElementState::Pressed {
                     (self.on_press)(frame, input.button);
                 }
@@ -203,9 +212,9 @@ impl<W: Widget> Widget for Button<W> {
 
         Stack::new(self.label)
             .with_style(ContainerStyle {
-                margin: self.style.margin,
-                padding: self.style.padding,
-                background: Some(Background::new(self.style.normal_color)),
+                margin,
+                padding,
+                background: Some(Background::new(normal_color)),
             })
             .mount(scope);
     }

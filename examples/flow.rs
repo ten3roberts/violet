@@ -26,8 +26,8 @@ use violet::core::{
 };
 use violet_core::{
     input::{focus_sticky, ElementState, VirtualKeyCode},
-    style::Background,
-    widget::{BoxSized, ContainerStyle, Positioned, SliderStyle, SliderWithLabel},
+    style::{get_style, Background},
+    widget::{BoxSized, Button, ContainerStyle, Positioned, SliderStyle, SliderWithLabel},
 };
 
 macro_rules! srgba {
@@ -98,13 +98,14 @@ impl Widget for MainApp {
                 padding: MARGIN_SM,
                 ..Default::default()
             }),
+            Button::new(Text::new("Button")),
             List::new((
                 List::new((
                     Text::new("Size"),
-                    SliderWithLabel::new(value, 0.0, 20.0).with_style(SliderStyle {
-                        size: Unit::px2(0.0, 5.0) + Unit::rel2(0.5, 0.0),
-                        ..Default::default()
-                    }),
+                    SliderWithLabel::new(value, 0.0, 20.0).with_style(
+                        SliderStyle::new()
+                            .with_track_size(Unit::px2(0.0, 4.0) + Unit::rel2(0.5, 0.0)),
+                    ),
                 )),
                 List::new((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
             ))

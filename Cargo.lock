@@ -2296,6 +2296,7 @@ name = "violet-core"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "atomic_refcell",
  "bytemuck",
  "bytes",
  "color-hex",

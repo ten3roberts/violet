@@ -162,7 +162,6 @@ pub struct FlowLayout {
     pub direction: Direction,
     pub reverse: bool,
     pub contain_margins: bool,
-    pub proportional_growth: bool,
 }
 
 impl FlowLayout {
@@ -604,8 +603,8 @@ impl FlowLayout {
                     content_area.size(),
                     LayoutLimits {
                         min_size: limits.min_size,
-                        max_size: limits.max_size,
-                        // max_size: limits.max_size - child_margin.size(),
+                        // max_size: limits.max_size,
+                        max_size: limits.max_size - child_margin.size(),
                     },
                     squeeze,
                 );
