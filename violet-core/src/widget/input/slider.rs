@@ -1,12 +1,12 @@
 use std::ops::Deref;
 
 use cosmic_text::Wrap;
-use flax::{Dfs, Entity, EntityRef};
+use flax::{Component, Dfs, Entity, EntityRef};
 use futures_signals::{
     map_ref,
     signal::{Mutable, MutableSignal, SignalExt},
 };
-use glam::{vec2, Vec2};
+use glam::{ivec2, vec2, IVec2, Vec2};
 use palette::Srgba;
 use winit::event::ElementState;
 
@@ -14,51 +14,28 @@ use crate::{
     components::{offset, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::CrossAlign,
-    style::{get_style, StyleExt, StyleSheet},
+    style::{accent_element, get_stylesheet, secondary_surface, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
     widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, Signal, Stack, Text},
     Scope, StreamEffect, Widget,
 };
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {
-    pub track_color: Option<Srgba>,
-    pub handle_color: Option<Srgba>,
-    pub track_size: Option<Unit<Vec2>>,
-    pub handle_size: Option<Unit<Vec2>>,
+    pub track_color: Component<Srgba>,
+    pub handle_color: Component<Srgba>,
+    pub track_size: Unit<IVec2>,
+    pub handle_size: Unit<IVec2>,
 }
 
-impl SliderStyle {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn with_track_color(self, color: Srgba) -> Self {
+impl Default for SliderStyle {
+    fn default() -> Self {
         Self {
-            track_color: Some(color),
-            ..self
-        }
-    }
-
-    pub fn with_handle_color(self, color: Srgba) -> Self {
-        Self {
-            handle_color: Some(color),
-            ..self
-        }
-    }
-
-    pub fn with_track_size(self, size: Unit<Vec2>) -> Self {
-        Self {
-            track_size: Some(size),
-            ..self
-        }
-    }
-
-    pub fn with_handle_size(self, size: Unit<Vec2>) -> Self {
-        Self {
-            handle_size: Some(size),
-            ..self
+            track_color: secondary_surface(),
+            handle_color: accent_element(),
+            track_size: Unit::px2i(64, 1),
+            handle_size: Unit::px2i(1, 5),
         }
     }
 }
@@ -89,29 +66,19 @@ impl<V> Slider<V> {
 
 impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let style = get_style(scope.frame());
+        let stylesheet = get_stylesheet(scope);
 
-        let track_color = self
-            .style
-            .track_color
-            .unwrap_or(style.colors.secondary_surface);
+        let track_color = stylesheet
+            .get_copy(self.style.track_color)
+            .unwrap_or_default();
+        let handle_color = stylesheet
+            .get_copy(self.style.handle_color)
+            .unwrap_or_default();
 
-        let track_size = self
-            .style
-            .track_size
-            .unwrap_or(Unit::px2(64.0, 1.0) * style.spacing.base_scale);
+        let spacing = stylesheet.get_copy(spacing()).unwrap_or_default();
 
-        let handle_size = self
-            .style
-            .handle_size
-            .unwrap_or(Unit::px2(1.0, 5.0) * style.spacing.base_scale);
-
-        let handle_color = self
-            .style
-            .handle_color
-            .unwrap_or(style.colors.accent_element);
-
-        drop(style);
+        let handle_size = spacing.resolve_unit(self.style.handle_size);
+        let track_size = spacing.resolve_unit(self.style.track_size);
 
         let track = scope.attach(BoxSized::new(Rectangle::new(track_color)).with_size(track_size));
 

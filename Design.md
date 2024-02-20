@@ -102,4 +102,24 @@ It will then apply this limited size to the column.
 The column will use these 100px and query the two text objects with `[0, 1]`, to reduce the height of the container as
 much as possible, which will in extension force the text objects to use as much width as possible.
 
-# Styling
+## Styling
+
+The styling is dictated by a stylesheet entity.
+
+The entity contains data in the form of components that influence the appearance of the app, such as colors, spacing,
+etc. This system works similarly to design tokens using Figma variables. Flax components are used for type-safe variable
+names, to protect against typos compared to using a string-keyed API.
+
+
+Widgets will use the different components/properties of the stylesheet to determine their appearance. The components to
+target can be specific with each widgets specific *style*, or through the use of helper functions to construct specific
+context-dependent widgets, such as error buttons or toolbar buttons.
+
+By default, the widgets target a semantic color system and will target a "best effort fit" for the semantic.
+
+Due to the dynamic nature of an ECS, new semantic colors can be added by the user of the library. A widget can then be
+set to target the semantic color. An example would be adding new context specific colors to the semantic color system,
+such as toolbar colors. Widgets such as buttons can the then be set to use the toolbar color, instead of the default
+accent color.
+
+Any number of semantic or tint color names can be added.

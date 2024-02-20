@@ -220,7 +220,6 @@ impl Widget for LayoutFlexTest {
                 })
                 .collect_vec(),
         )
-        .with_proportional_growth(self.proportional_growth)
         .mount(scope)
     }
 }
@@ -232,12 +231,8 @@ struct LayoutTest {
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
         let row_2 = List::new((
-            BoxSized::new(Rectangle::new(BRONZE))
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 20.0))),
-            BoxSized::new(Rectangle::new(EMERALD))
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(20.0, 20.0))),
+            BoxSized::new(Rectangle::new(BRONZE)).with_size(Unit::px(vec2(100.0, 20.0))),
+            BoxSized::new(Rectangle::new(EMERALD)).with_size(Unit::px(vec2(20.0, 20.0))),
         ))
         .with_direction(Direction::Vertical)
         .contain_margins(self.contain_margins)

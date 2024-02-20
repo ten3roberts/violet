@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use flax::Component;
 use glam::Vec2;
 use image::DynamicImage;
 use palette::{
@@ -16,7 +17,9 @@ use crate::{
     },
     input::{focusable, on_focus, on_mouse_input},
     shape,
-    style::{get_style, Background, StyleExt, StyleSheet},
+    style::{
+        accent_surface, get_stylesheet, secondary_surface, spacing, Background, StyleExt, Theme,
+    },
     text::{TextSegment, Wrap},
     unit::Unit,
     Frame, Scope, Widget,
@@ -125,98 +128,6 @@ impl Widget for Text {
             .set(text_wrap(), self.wrap)
             .set(text(), self.text)
             .set_opt(color(), self.color);
-    }
-}
-
-type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
-
-#[derive(Debug, Clone, Default)]
-pub struct ButtonStyle {
-    pub normal_color: Option<Srgba>,
-    pub pressed_color: Option<Srgba>,
-    pub margin: Option<Edges>,
-    pub padding: Option<Edges>,
-}
-
-/// A button which invokes the callback when clicked
-pub struct Button<W = Text> {
-    on_press: ButtonCallback,
-    label: W,
-    style: ButtonStyle,
-}
-
-impl<W> Button<W> {
-    pub fn new(label: W) -> Self {
-        Self {
-            on_press: Box::new(|_, _| {}),
-            label,
-            style: Default::default(),
-        }
-    }
-
-    /// Handle the button press
-    pub fn on_press(
-        mut self,
-        on_press: impl 'static + Send + Sync + FnMut(&Frame, MouseButton),
-    ) -> Self {
-        self.on_press = Box::new(on_press);
-        self
-    }
-}
-
-impl<W> StyleExt for Button<W> {
-    type Style = ButtonStyle;
-
-    fn with_style(mut self, style: Self::Style) -> Self {
-        self.style = style;
-        self
-    }
-}
-
-impl<W: Widget> Widget for Button<W> {
-    fn mount(mut self, scope: &mut Scope<'_>) {
-        let style = get_style(scope.frame());
-
-        let pressed_color = self
-            .style
-            .pressed_color
-            .unwrap_or(style.colors.accent_element);
-
-        let normal_color = self
-            .style
-            .normal_color
-            .unwrap_or(style.colors.secondary_surface);
-
-        let margin = self
-            .style
-            .margin
-            .unwrap_or(Edges::even(style.spacing.size(2)));
-
-        let padding = self
-            .style
-            .margin
-            .unwrap_or(Edges::even(style.spacing.size(2)));
-
-        drop(style);
-
-        scope
-            .set(focusable(), ())
-            .on_event(on_focus(), move |_, entity, focus| {
-                entity.update_dedup(color(), if focus { pressed_color } else { normal_color });
-            })
-            .on_event(on_mouse_input(), move |frame, _, input| {
-                if input.state == ElementState::Pressed {
-                    (self.on_press)(frame, input.button);
-                }
-            });
-
-        Stack::new(self.label)
-            .with_style(ContainerStyle {
-                margin,
-                padding,
-                background: Some(Background::new(normal_color)),
-            })
-            .mount(scope);
     }
 }
 

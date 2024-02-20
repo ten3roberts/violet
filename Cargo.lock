@@ -506,8 +506,8 @@ dependencies = [
 
 [[package]]
 name = "flax"
-version = "0.6.1"
-source = "git+https://github.com/ten3roberts/flax#2d65fd4108b908d4b6459c6ad400c21399fd91df"
+version = "0.6.2"
+source = "git+https://github.com/ten3roberts/flax#4b6524a563813a663584b2dfc22c2130c6c20332"
 dependencies = [
  "anyhow",
  "atomic_refcell",
@@ -524,7 +524,7 @@ dependencies = [
 [[package]]
 name = "flax-derive"
 version = "0.6.0"
-source = "git+https://github.com/ten3roberts/flax#2d65fd4108b908d4b6459c6ad400c21399fd91df"
+source = "git+https://github.com/ten3roberts/flax#4b6524a563813a663584b2dfc22c2130c6c20332"
 dependencies = [
  "itertools 0.11.0",
  "proc-macro-crate 2.0.1",

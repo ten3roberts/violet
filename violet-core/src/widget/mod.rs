@@ -4,12 +4,15 @@ mod container;
 mod future;
 mod input;
 
-pub use basic::{BoxSized, Button, Image, Positioned, Rectangle, Text};
+pub use basic::{BoxSized, Image, Positioned, Rectangle, Text};
 pub use container::{ContainerStyle, List, Movable, Stack};
 use flax::{component::ComponentValue, components::name, Component};
 pub use future::{Signal, StreamWidget};
 use futures_signals::signal::Mutable;
-pub use input::slider::{Slider, SliderStyle, SliderValue, SliderWithLabel};
+pub use input::{
+    button::*,
+    slider::{Slider, SliderStyle, SliderValue, SliderWithLabel},
+};
 
 /// Represents a widget in the UI tree which can mount itself into the frame.
 ///

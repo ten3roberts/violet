@@ -96,7 +96,7 @@ impl<'a> Scope<'a> {
     }
 
     pub fn entity(&self) -> EntityRef {
-        assert_eq!(self.data.component_count(), 0);
+        assert!(self.data.is_empty(), "EntityBuilder not flushed");
         self.frame.world().entity(self.id).unwrap()
     }
 
@@ -124,6 +124,7 @@ impl<'a> Scope<'a> {
 
             s.set(child_of(self.id), ());
             s.set(name(), tynm::type_name::<W>());
+            s.flush();
 
             widget.mount(&mut s);
             s.id

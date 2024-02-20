@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Instant};
 
-use flax::{components::name, Schedule, World};
+use flax::{components::name, Entity, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
@@ -14,6 +14,7 @@ use violet_core::{
     components::{self, local_position, rect, screen_position, Rect},
     executor::Executor,
     input::InputState,
+    style::{setup_stylesheet, stylesheet},
     systems::{hydrate_text, layout_system, templating_system, transform_system},
     Frame, Scope, Widget,
 };
@@ -26,6 +27,7 @@ use crate::{
 };
 
 pub struct Canvas<W> {
+    stylesheet: Entity,
     size: Vec2,
     root: W,
 }
@@ -34,6 +36,7 @@ impl<W: Widget> Widget for Canvas<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
             .set(name(), "Canvas".into())
+            .set(stylesheet(self.stylesheet), ())
             .set(
                 rect(),
                 Rect {
@@ -71,8 +74,11 @@ impl App {
 
         let mut input_state = InputState::new(Vec2::ZERO);
 
+        let stylesheet = setup_stylesheet().spawn(frame.world_mut());
+
         // Mount the root widget
         let root = frame.new_root(Canvas {
+            stylesheet,
             size: window_size,
             root,
         });

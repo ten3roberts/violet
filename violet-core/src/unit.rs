@@ -1,12 +1,12 @@
 use std::ops::{self, Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use glam::Vec2;
+use glam::{IVec2, Vec2};
 
 /// Represents a unit of measurement
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Unit<T> {
-    px: T,
-    rel: T,
+    pub px: T,
+    pub rel: T,
 }
 
 impl<T: Zero> Default for Unit<T> {
@@ -46,6 +46,22 @@ impl Unit<Vec2> {
     }
 }
 
+impl Unit<IVec2> {
+    pub fn px2i(x: i32, y: i32) -> Self {
+        Self {
+            px: IVec2::new(x, y),
+            rel: IVec2::ZERO,
+        }
+    }
+
+    pub fn rel2i(x: i32, y: i32) -> Self {
+        Self {
+            px: IVec2::ZERO,
+            rel: IVec2::new(x, y),
+        }
+    }
+}
+
 impl<T> Unit<T>
 where
     T: Add<Output = T> + Mul<Output = T> + Copy,
@@ -65,6 +81,10 @@ impl Zero for f32 {
 
 impl Zero for Vec2 {
     const ZERO: Self = Vec2::ZERO;
+}
+
+impl Zero for IVec2 {
+    const ZERO: Self = IVec2::ZERO;
 }
 
 impl<T> std::ops::Add for Unit<T>
