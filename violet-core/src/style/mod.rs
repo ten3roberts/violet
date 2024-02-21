@@ -1,3 +1,5 @@
+pub mod colors;
+
 use core::prelude;
 use std::{
     borrow::BorrowMut,
@@ -30,6 +32,21 @@ use crate::{
     Frame, Scope,
 };
 
+use self::colors::{
+    DARK_CYAN_DEFAULT, EERIE_BLACK_200, EERIE_BLACK_400, EERIE_BLACK_600, EERIE_BLACK_700,
+    EERIE_BLACK_DEFAULT, JADE_400, JADE_500, JADE_600, JADE_DEFAULT, LION_DEFAULT,
+    PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+};
+
+#[macro_export]
+/// Create a color from a hex string
+macro_rules! srgba {
+    ($color:literal) => {{
+        let [r, g, b] = color_hex::color_from_hex!($color);
+
+        Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
+    }};
+}
 /// Allows overriding a style for a widget
 pub trait StyleExt {
     /// Stylesheet used to style the widget
@@ -149,17 +166,21 @@ pub fn setup_stylesheet() -> EntityBuilder {
     let mut builder = Entity::builder();
 
     builder
-        .set(primary_surface(), BLACK.with_alpha(1.0).into_format())
-        .set(primary_element(), WHITE.with_alpha(1.0).into_format())
-        .set(secondary_surface(), GRAY.with_alpha(1.0).into_format())
-        .set(accent_surface(), BLACK.with_alpha(1.0).into_format())
-        .set(accent_element(), GREEN.with_alpha(1.0).into_format())
-        .set(success_surface(), BLACK.with_alpha(1.0).into_format())
-        .set(success_element(), LIMEGREEN.with_alpha(1.0).into_format())
-        .set(warning_surface(), BLACK.with_alpha(1.0).into_format())
-        .set(warning_element(), ORANGE.with_alpha(1.0).into_format())
-        .set(error_surface(), BLACK.with_alpha(1.0).into_format())
-        .set(error_element(), RED.with_alpha(1.0).into_format())
+        .set(primary_surface(), EERIE_BLACK_DEFAULT)
+        .set(primary_element(), PLATINUM_DEFAULT)
+        .set(secondary_surface(), EERIE_BLACK_600)
+        .set(accent_surface(), EERIE_BLACK_DEFAULT)
+        .set(accent_element(), JADE_DEFAULT)
+        .set(success_surface(), EERIE_BLACK_DEFAULT)
+        .set(success_element(), JADE_DEFAULT)
+        .set(warning_surface(), EERIE_BLACK_DEFAULT)
+        .set(warning_element(), LION_DEFAULT)
+        .set(error_surface(), EERIE_BLACK_DEFAULT)
+        .set(error_element(), REDWOOD_DEFAULT)
+        .set(interactive_active(), JADE_DEFAULT)
+        .set(interactive_hover(), JADE_600)
+        .set(interactive_pressed(), JADE_400)
+        .set(interactive_inactive(), EERIE_BLACK_700)
         .set(spacing(), Spacing { base_scale: 4.0 });
 
     builder
@@ -171,9 +192,11 @@ pub fn setup_stylesheet() -> EntityBuilder {
 // to Figma variables.
 flax::component! {
     pub stylesheet(id): () => [ Exclusive ],
+    /// The primary surface color
     pub primary_surface: Srgba,
     pub primary_element: Srgba,
 
+    /// Used for secondary surfaces, such as card backgrounds
     pub secondary_surface: Srgba,
     pub secondary_element: Srgba,
 
@@ -190,4 +213,11 @@ flax::component! {
     pub error_element: Srgba,
 
     pub spacing: Spacing,
+
+    /// Used for the main parts of interactive elements
+    pub interactive_active: Srgba,
+    pub interactive_hover: Srgba,
+    pub interactive_pressed: Srgba,
+    pub interactive_inactive: Srgba,
+
 }

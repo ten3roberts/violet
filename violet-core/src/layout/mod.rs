@@ -8,7 +8,7 @@ use crate::components::{
     self, anchor, aspect_ratio, children, layout, offset, padding, Edges, Rect,
 };
 
-pub use flow::{CrossAlign, FlowLayout};
+pub use flow::{Alignment, FlowLayout};
 pub use stack::StackLayout;
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -117,6 +117,8 @@ pub(crate) fn query_size(
     limits: LayoutLimits,
     squeeze: Direction,
 ) -> Sizing {
+    assert!(limits.min_size.x <= limits.max_size.x);
+    assert!(limits.min_size.y <= limits.max_size.y);
     let query = (
         components::margin().opt_or_default(),
         padding().opt_or_default(),
@@ -137,7 +139,7 @@ pub(crate) fn query_size(
             children,
             Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
-                min_size: limits.min_size.max(preferred_size),
+                min_size: limits.min_size.max(preferred_size) - padding.size(),
                 max_size: limits.max_size - padding.size(),
             },
             squeeze,
@@ -181,6 +183,8 @@ pub(crate) fn update_subtree(
     content_area: Vec2,
     limits: LayoutLimits,
 ) -> Block {
+    assert!(limits.min_size.x <= limits.max_size.x);
+    assert!(limits.min_size.y <= limits.max_size.y);
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
     let _span = tracing::debug_span!("update_subtree", %entity).entered();
 
@@ -207,7 +211,8 @@ pub(crate) fn update_subtree(
             LayoutLimits {
                 min_size: limits
                     .min_size
-                    .max(apply_constraints(entity, content_area, limits)),
+                    .max(apply_constraints(entity, content_area, limits))
+                    - padding.size(),
                 max_size: limits.max_size - padding.size(),
             },
         );

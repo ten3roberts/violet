@@ -6,7 +6,7 @@ use tracing_subscriber::{prelude::*, registry, util::SubscriberInitExt, EnvFilte
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
     components::{size, Edges},
-    layout::CrossAlign,
+    layout::Alignment,
     style::StyleExt,
     unit::Unit,
     widget::{Button, List, Signal, Stack, Text},
@@ -68,7 +68,7 @@ impl Widget for MainApp {
             background: Some(Background::new(EMERALD)),
             ..Default::default()
         })
-        .with_cross_align(CrossAlign::Center)
+        .with_cross_align(Alignment::Center)
         .mount(scope);
     }
 }

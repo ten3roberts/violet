@@ -5,7 +5,7 @@ use winit::event::ElementState;
 use crate::{
     components::{anchor, layout, margin, offset, padding, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input},
-    layout::{CrossAlign, Direction, FlowLayout, Layout, StackLayout},
+    layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
     style::{Background, StyleExt},
     unit::Unit,
     Frame, Scope, Widget, WidgetCollection,
@@ -38,8 +38,8 @@ impl ContainerStyle {
 pub struct Stack<W> {
     items: W,
 
-    horizontal_alignment: CrossAlign,
-    vertical_alignment: CrossAlign,
+    horizontal_alignment: Alignment,
+    vertical_alignment: Alignment,
     style: ContainerStyle,
 }
 
@@ -47,20 +47,20 @@ impl<W> Stack<W> {
     pub fn new(items: W) -> Self {
         Self {
             items,
-            horizontal_alignment: CrossAlign::default(),
-            vertical_alignment: CrossAlign::default(),
+            horizontal_alignment: Alignment::default(),
+            vertical_alignment: Alignment::default(),
             style: Default::default(),
         }
     }
 
     /// Set the horizontal alignment
-    pub fn with_horizontal_alignment(mut self, align: CrossAlign) -> Self {
+    pub fn with_horizontal_alignment(mut self, align: Alignment) -> Self {
         self.horizontal_alignment = align;
         self
     }
 
     /// Set the vertical alignment
-    pub fn with_vertical_alignment(mut self, align: CrossAlign) -> Self {
+    pub fn with_vertical_alignment(mut self, align: Alignment) -> Self {
         self.vertical_alignment = align;
         self
     }
@@ -132,7 +132,7 @@ impl<W: WidgetCollection> List<W> {
     }
 
     /// Set the List's cross axis alignment
-    pub fn with_cross_align(mut self, cross_align: CrossAlign) -> Self {
+    pub fn with_cross_align(mut self, cross_align: Alignment) -> Self {
         self.layout.cross_align = cross_align;
         self
     }

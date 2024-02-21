@@ -1,20 +1,18 @@
-use std::ops::Deref;
-
 use cosmic_text::Wrap;
-use flax::{Component, Dfs, Entity, EntityRef};
+use flax::{Component, Entity, EntityRef};
 use futures_signals::{
     map_ref,
     signal::{Mutable, MutableSignal, SignalExt},
 };
-use glam::{ivec2, vec2, IVec2, Vec2};
+use glam::{IVec2, Vec2};
 use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
     components::{offset, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
-    layout::CrossAlign,
-    style::{accent_element, get_stylesheet, secondary_surface, spacing, StyleExt},
+    layout::Alignment,
+    style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
     widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, Signal, Stack, Text},
@@ -32,8 +30,8 @@ pub struct SliderStyle {
 impl Default for SliderStyle {
     fn default() -> Self {
         Self {
-            track_color: secondary_surface(),
-            handle_color: accent_element(),
+            track_color: interactive_inactive(),
+            handle_color: interactive_active(),
             track_size: Unit::px2i(64, 1),
             handle_size: Unit::px2i(1, 5),
         }
@@ -121,7 +119,7 @@ impl<V: SliderValue> Widget for Slider<V> {
             });
 
         Stack::new(handle)
-            .with_vertical_alignment(CrossAlign::Center)
+            .with_vertical_alignment(Alignment::Center)
             .with_style(ContainerStyle {
                 margin: Edges::even(10.0),
                 ..Default::default()

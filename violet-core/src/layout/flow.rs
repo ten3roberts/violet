@@ -129,7 +129,7 @@ impl MarginCursor {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub enum CrossAlign {
+pub enum Alignment {
     #[default]
     /// Align items to the start of the cross axis
     Start,
@@ -139,12 +139,12 @@ pub enum CrossAlign {
     End,
 }
 
-impl CrossAlign {
+impl Alignment {
     pub fn align_offset(&self, total_size: f32, size: f32) -> f32 {
         match self {
-            CrossAlign::Start => 0.0,
-            CrossAlign::Center => (total_size - size) / 2.0,
-            CrossAlign::End => total_size - size,
+            Alignment::Start => 0.0,
+            Alignment::Center => (total_size - size) / 2.0,
+            Alignment::End => total_size - size,
         }
     }
 }
@@ -153,11 +153,12 @@ pub(crate) struct Row<'a> {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
     pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
+    max_cross_size: f32,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct FlowLayout {
-    pub cross_align: CrossAlign,
+    pub cross_align: Alignment,
     pub stretch: bool,
     pub direction: Direction,
     pub reverse: bool,
@@ -303,7 +304,7 @@ impl FlowLayout {
                 //
                 // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
-                    let cross_size = content_area.size().min(limits.max_size) - child_margin.size();
+                    let cross_size = row.max_cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
@@ -503,7 +504,7 @@ impl FlowLayout {
                 //
                 // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
-                    let cross_size = content_area.size().min(limits.max_size) - child_margin.size();
+                    let cross_size = row.max_cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
@@ -586,6 +587,8 @@ impl FlowLayout {
         let mut preferred_cursor =
             MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
 
+        let mut max_cross_size = 0.0f32;
+
         let blocks = children
             .iter()
             .map(|&child| {
@@ -611,6 +614,10 @@ impl FlowLayout {
 
                 min_cursor.put(&Block::new(sizing.min, sizing.margin));
                 preferred_cursor.put(&Block::new(sizing.preferred, sizing.margin));
+
+                // NOTE: cross size is guaranteed to be fulfilled by the parent
+                max_cross_size = max_cross_size.max(sizing.preferred.size().dot(cross_axis));
+
                 (entity, sizing)
             })
             .collect_vec();
@@ -626,6 +633,7 @@ impl FlowLayout {
         // );
 
         Row {
+            max_cross_size,
             min,
             preferred,
             blocks,

@@ -5,9 +5,9 @@ use winit::event::{ElementState, MouseButton};
 use crate::{
     components::{color, Edges},
     input::{focusable, on_focus, on_mouse_input},
+    layout::Alignment,
     style::{
-        accent_element, accent_surface, get_stylesheet, secondary_surface, spacing, Background,
-        StyleExt,
+        get_stylesheet, interactive_active, interactive_pressed, spacing, Background, StyleExt,
     },
     widget::{ContainerStyle, Stack, Text},
     Frame, Scope, Widget,
@@ -24,8 +24,8 @@ pub struct ButtonStyle {
 impl Default for ButtonStyle {
     fn default() -> Self {
         Self {
-            normal_color: accent_element(),
-            pressed_color: secondary_surface(),
+            normal_color: interactive_active(),
+            pressed_color: interactive_pressed(),
         }
     }
 }
@@ -53,6 +53,12 @@ impl<W> Button<W> {
     ) -> Self {
         self.on_press = Box::new(on_press);
         self
+    }
+}
+
+impl Button<Text> {
+    pub fn with_label(label: impl Into<String>) -> Self {
+        Self::new(Text::new(label.into()))
     }
 }
 
@@ -97,6 +103,8 @@ impl<W: Widget> Widget for Button<W> {
                 padding,
                 background: Some(Background::new(normal_color)),
             })
+            .with_horizontal_alignment(Alignment::Center)
+            .with_vertical_alignment(Alignment::Center)
             .mount(scope);
     }
 }

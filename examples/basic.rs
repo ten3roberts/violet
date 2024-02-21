@@ -10,7 +10,7 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
     components::{self, rect, size, text, Edges},
-    layout::{CrossAlign, Direction},
+    layout::{Alignment, Direction},
     style::StyleExt,
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
     time::interval,
@@ -287,7 +287,7 @@ impl Widget for LayoutTest {
             // ),
         ))
         .contain_margins(self.contain_margins)
-        .with_cross_align(CrossAlign::Center)
+        .with_cross_align(Alignment::Center)
         .with_style(ContainerStyle {
             background: Some(Background::new(EERIE_BLACK)),
             padding: MARGIN,

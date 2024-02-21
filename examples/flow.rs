@@ -7,7 +7,7 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor, Srgba};
+use palette::{Hsva, IntoColor};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -16,7 +16,7 @@ use violet::core::{
     components::{self, screen_rect, Edges, Rect},
     editor::{self, EditAction, EditorAction, TextEditor},
     input::{focusable, on_char_typed, on_keyboard_input, on_mouse_input},
-    layout::{CrossAlign, Direction},
+    layout::{Alignment, Direction},
     style::StyleExt,
     text::{LayoutGlyphs, TextSegment},
     to_owned,
@@ -26,37 +26,40 @@ use violet::core::{
 };
 use violet_core::{
     input::{focus_sticky, ElementState, VirtualKeyCode},
-    style::Background,
-    widget::{BoxSized, Button, ContainerStyle, Positioned, SliderWithLabel},
+    style::{
+        self,
+        colors::{
+            EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT,
+        },
+        Background,
+    },
+    widget::{BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, SliderWithLabel},
+    WidgetCollection,
 };
 
-macro_rules! srgba {
-    ($color:literal) => {{
-        let [r, g, b] = color_hex::color_from_hex!($color);
+const MARGIN: Edges = Edges::even(8.0);
+const MARGIN_SM: Edges = Edges::even(4.0);
 
-        Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
-    }};
+fn row<W: WidgetCollection>(widgets: W) -> List<W> {
+    List::new(widgets).with_direction(Direction::Horizontal)
 }
 
-const MARGIN: Edges = Edges::even(10.0);
-const MARGIN_SM: Edges = Edges::even(5.0);
+fn column<W: WidgetCollection>(widgets: W) -> List<W> {
+    List::new(widgets).with_direction(Direction::Vertical)
+}
 
-pub const EERIE_BLACK: Srgba = srgba!("#222525");
-pub const EERIE_BLACK_300: Srgba = srgba!("#151616");
-pub const EERIE_BLACK_400: Srgba = srgba!("#1b1e1e");
-pub const EERIE_BLACK_600: Srgba = srgba!("#4c5353");
-pub const PLATINUM: Srgba = srgba!("#dddddf");
-pub const VIOLET: Srgba = srgba!("#8000ff");
-pub const TEAL: Srgba = srgba!("#247b7b");
-pub const EMERALD: Srgba = srgba!("#50c878");
-pub const BRONZE: Srgba = srgba!("#cd7f32");
-pub const CHILI_RED: Srgba = srgba!("#d34131");
+fn card<W>(widget: W) -> Stack<W> {
+    Stack::new(widget)
+        .with_background(Background::new(EERIE_BLACK_400))
+        .with_padding(MARGIN)
+        .with_margin(MARGIN)
+}
 
 fn pill(widget: impl Widget) -> impl Widget {
     Stack::new(widget).with_style(ContainerStyle {
         background: Some(Background::new(EERIE_BLACK_300)),
-        padding: MARGIN_SM,
-        margin: MARGIN_SM,
+        padding: MARGIN,
+        margin: MARGIN,
     })
 }
 
@@ -92,32 +95,40 @@ impl Widget for MainApp {
             count: *count,
         }});
 
-        List::new((
-            List::new((Text::new("Input: "), TextInput::new(content))).with_style(ContainerStyle {
+        column((
+            row((Text::new("Input: "), TextInput::new(content))).with_style(ContainerStyle {
                 margin: MARGIN_SM,
                 padding: MARGIN_SM,
                 ..Default::default()
             }),
-            Button::new(Text::new("Button")),
-            List::new((
-                List::new((Text::new("Size"), SliderWithLabel::new(value, 0.0, 20.0))),
-                List::new((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
-            ))
-            .with_direction(Direction::Vertical)
-            .with_style(ContainerStyle {
-                padding: MARGIN_SM,
-                margin: MARGIN_SM,
-                ..Default::default()
-            }),
-            Signal::new(item_list),
+            card(
+                column((
+                    BoxSized::new(Button::with_label("Button"))
+                        .with_size(Unit::rel2(0.5, 0.0) + Unit::px2(0.0, 10.0)),
+                    Button::with_label("Warning").with_style(ButtonStyle {
+                        normal_color: style::warning_element(),
+                        ..Default::default()
+                    }),
+                    Button::with_label("Error").with_style(ButtonStyle {
+                        normal_color: style::error_element(),
+                        ..Default::default()
+                    }),
+                ))
+                .with_stretch(false),
+            ),
             BoxSized::new(Rectangle::new(EERIE_BLACK_600))
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
+            card(column((
+                column((
+                    row((Text::new("Size"), SliderWithLabel::new(value, 0.0, 20.0))),
+                    row((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
+                ))
+                .with_direction(Direction::Vertical),
+                Signal::new(item_list),
+            ))),
         ))
-        .with_direction(Direction::Vertical)
-        .with_style(ContainerStyle {
-            padding: MARGIN,
-            ..Default::default()
-        })
+        .with_background(Background::new(EERIE_BLACK_DEFAULT))
+        .contain_margins(true)
         .mount(scope)
     }
 }
@@ -142,14 +153,14 @@ impl Widget for ItemList {
                                 padding: MARGIN_SM,
                                 margin: MARGIN_SM,
                             })
-                            .with_vertical_alignment(CrossAlign::Center)
-                            .with_horizontal_alignment(CrossAlign::Center),
+                            .with_vertical_alignment(Alignment::Center)
+                            .with_horizontal_alignment(Alignment::Center),
                     )
                     .with_size(Unit::px2(size, size))
                 })
                 .collect::<Vec<_>>(),
         )
-        .with_cross_align(CrossAlign::Center)
+        .with_cross_align(Alignment::Center)
         .mount(scope)
     }
 }
@@ -226,7 +237,7 @@ impl Widget for TextInput {
                     editor_props_tx
                         .send(Box::new(Stack::new(
                                     (
-                                        Positioned::new(BoxSized::new(Rectangle::new(EMERALD))
+                                        Positioned::new(BoxSized::new(Rectangle::new(JADE_DEFAULT))
                                         .with_size(Unit::px2(2.0, 18.0)))
                                         .with_offset(Unit::px(cursor_pos)),
                                     )

@@ -7,7 +7,7 @@ use crate::{
     layout::query_size,
 };
 
-use super::{resolve_pos, update_subtree, Block, CrossAlign, Direction, LayoutLimits, Sizing};
+use super::{resolve_pos, update_subtree, Block, Alignment, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -68,15 +68,15 @@ impl StackableBounds {
 /// The stack layout
 #[derive(Debug, Clone)]
 pub struct StackLayout {
-    pub horizontal_alignment: CrossAlign,
-    pub vertical_alignment: CrossAlign,
+    pub horizontal_alignment: Alignment,
+    pub vertical_alignment: Alignment,
 }
 
 impl Default for StackLayout {
     fn default() -> Self {
         Self {
-            horizontal_alignment: CrossAlign::Center,
-            vertical_alignment: CrossAlign::Center,
+            horizontal_alignment: Alignment::Center,
+            vertical_alignment: Alignment::Center,
         }
     }
 }
