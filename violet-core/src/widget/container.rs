@@ -3,7 +3,7 @@ use glam::Vec2;
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, margin, offset, padding, rect, Edges},
+    components::{anchor, layout, margin, max_size, min_size, offset, padding, rect, size, Edges},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
     style::{Background, StyleExt},
@@ -114,6 +114,8 @@ pub struct List<W> {
     items: W,
     layout: FlowLayout,
     style: ContainerStyle,
+    min_size: Option<Unit<Vec2>>,
+    max_size: Option<Unit<Vec2>>,
 }
 
 impl<W: WidgetCollection> List<W> {
@@ -122,6 +124,8 @@ impl<W: WidgetCollection> List<W> {
             items,
             layout: FlowLayout::default(),
             style: Default::default(),
+            min_size: None,
+            max_size: None,
         }
     }
 
@@ -161,6 +165,18 @@ impl<W: WidgetCollection> List<W> {
         self.style.background = Some(background);
         self
     }
+
+    /// Set the max size
+    pub fn with_max_size(mut self, max_size: Unit<Vec2>) -> Self {
+        self.max_size = Some(max_size);
+        self
+    }
+
+    /// Set the min size
+    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
+        self.min_size = Some(min_size);
+        self
+    }
 }
 
 impl<W: WidgetCollection> StyleExt for List<W> {
@@ -175,7 +191,10 @@ impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         self.style.mount(scope);
 
-        scope.set(layout(), Layout::Flow(self.layout));
+        scope
+            .set(layout(), Layout::Flow(self.layout))
+            .set_opt(max_size(), self.max_size)
+            .set_opt(min_size(), self.min_size);
 
         self.items.attach(scope);
     }

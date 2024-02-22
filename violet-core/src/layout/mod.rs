@@ -5,7 +5,7 @@ use flax::{Entity, EntityRef, FetchExt, World};
 use glam::{vec2, Vec2};
 
 use crate::components::{
-    self, anchor, aspect_ratio, children, layout, offset, padding, Edges, Rect,
+    self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding, Edges, Rect,
 };
 
 pub use flow::{Alignment, FlowLayout};
@@ -19,7 +19,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    fn axis(&self, reverse: bool) -> (Vec2, Vec2) {
+    fn as_main_and_cross(&self, reverse: bool) -> (Vec2, Vec2) {
         match (self, reverse) {
             (Direction::Horizontal, false) => (Vec2::X, Vec2::Y),
             (Direction::Vertical, false) => (Vec2::Y, Vec2::X),
@@ -37,7 +37,7 @@ impl Direction {
         }
     }
 
-    pub fn to_vec(self) -> Vec2 {
+    pub fn to_axis(self) -> Vec2 {
         match self {
             Direction::Horizontal => Vec2::X,
             Direction::Vertical => Vec2::Y,
@@ -110,65 +110,130 @@ impl Block {
     }
 }
 
+fn validate_sizing(entity: &EntityRef, sizing: &Sizing, limits: LayoutLimits) {
+    if sizing.min.size().x > limits.max_size.x || sizing.min.size().y > limits.max_size.y {
+        tracing::error!(
+            %entity,
+            min_size = %sizing.min.size(),
+            max_size = %limits.max_size,
+            "Minimum size exceeds size limit",
+        );
+    }
+
+    if sizing.preferred.size().x > limits.max_size.x
+        || sizing.preferred.size().y > limits.max_size.y
+    {
+        tracing::error!(
+            %entity,
+            preferred_size = %sizing.preferred.size(),
+            max_size = %limits.max_size,
+            "Preferred size exceeds size limit",
+        );
+    }
+
+    if sizing.min.size().x < limits.min_size.x || sizing.min.size().y < limits.min_size.y {
+        tracing::error!(
+            %entity,
+            min_size = %sizing.min.size(),
+            min_size = %limits.min_size,
+            "Minimum size is less than size limit",
+        );
+    }
+}
+
+fn validate_block(entity: &EntityRef, block: &Block, limits: LayoutLimits) {
+    if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
+        tracing::error!(
+            %entity,
+            rect_size = %block.rect.size(),
+            max_size = %limits.max_size,
+            "Widget size exceeds size limit",
+        );
+    }
+
+    if block.rect.size().x < limits.min_size.x || block.rect.size().y < limits.min_size.y {
+        tracing::error!(
+            %entity,
+            rect_size = %block.rect.size(),
+            min_size = %limits.min_size,
+            "Widget size is less than size limit",
+        );
+    }
+}
+
 pub(crate) fn query_size(
     world: &World,
     entity: &EntityRef,
     content_area: Vec2,
-    limits: LayoutLimits,
+    mut limits: LayoutLimits,
     squeeze: Direction,
 ) -> Sizing {
-    assert!(limits.min_size.x <= limits.max_size.x);
-    assert!(limits.min_size.y <= limits.max_size.y);
+    // assert!(limits.min_size.x <= limits.max_size.x);
+    // assert!(limits.min_size.y <= limits.max_size.y);
+
     let query = (
         components::margin().opt_or_default(),
         padding().opt_or_default(),
+        min_size().opt_or_default(),
+        max_size().opt(),
         children().opt(),
         layout().opt(),
     );
+
     let mut query = entity.query(&query);
-    let (&margin, &padding, children, layout) = query.get().unwrap();
+    let (&margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
+
+    limits.min_size = limits.min_size.max(min_size.resolve(content_area));
+
+    if let Some(max_size) = max_size {
+        limits.max_size = limits.max_size.min(max_size.resolve(content_area));
+    }
+
+    // assert!(limits.min_size.x <= limits.max_size.x);
+    // assert!(limits.min_size.y <= limits.max_size.y);
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
-
     // Flow
     if let Some(layout) = layout {
-        let sizing = layout.query_size(
+        let mut sizing = layout.query_size(
             world,
             children,
             Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
-                min_size: limits.min_size.max(preferred_size) - padding.size(),
-                max_size: limits.max_size - padding.size(),
+                min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
+                max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
             squeeze,
         );
 
-        let margin = (sizing.margin - padding).max(margin);
+        sizing.margin = (sizing.margin - padding).max(margin);
+        sizing.min = sizing.min.pad(&padding);
+        sizing.preferred = sizing.preferred.pad(&padding);
 
-        let min_size = sizing.min.pad(&padding);
-        let preferred_size = sizing.preferred.pad(&padding);
+        let min_offset = resolve_pos(entity, content_area, sizing.min.size());
+        let preferred_offset = resolve_pos(entity, content_area, sizing.preferred.size());
 
-        let min_offset = resolve_pos(entity, content_area, min_size.size());
-        let preferred_offset = resolve_pos(entity, content_area, preferred_size.size());
+        sizing.min = sizing.min.translate(min_offset);
+        sizing.preferred = sizing.preferred.translate(preferred_offset);
 
-        Sizing {
-            min: min_size.translate(min_offset),
-            preferred: preferred_size.translate(preferred_offset),
-            margin,
-        }
+        validate_sizing(entity, &sizing, limits);
+        sizing
     } else {
         // Leaf
+        let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
 
-        Sizing {
+        let sizing = Sizing {
             min: Rect::from_size_pos(min_size, min_offset),
             preferred: Rect::from_size_pos(preferred_size, preferred_offset),
             margin,
-        }
+        };
+
+        validate_sizing(entity, &sizing, limits);
+        sizing
     }
 }
 
@@ -181,39 +246,47 @@ pub(crate) fn update_subtree(
     entity: &EntityRef,
     // The size of the potentially available space for the subtree
     content_area: Vec2,
-    limits: LayoutLimits,
+    mut limits: LayoutLimits,
 ) -> Block {
-    assert!(limits.min_size.x <= limits.max_size.x);
-    assert!(limits.min_size.y <= limits.max_size.y);
+    // assert!(limits.min_size.x <= limits.max_size.x);
+    // assert!(limits.min_size.y <= limits.max_size.y);
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
     let _span = tracing::debug_span!("update_subtree", %entity).entered();
 
     let query = (
         components::margin().opt_or_default(),
         padding().opt_or_default(),
+        min_size().opt_or_default(),
+        max_size().opt(),
         children().opt(),
         layout().opt(),
     );
 
     let mut query = entity.query(&query);
-    let (&margin, &padding, children, layout) = query.get().unwrap();
+    let (&margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
+
+    limits.min_size = limits.min_size.max(min_size.resolve(content_area));
+
+    if let Some(max_size) = max_size {
+        limits.max_size = limits.max_size.min(max_size.resolve(content_area));
+    }
+
+    // limits.min_size = limits.min_size.min(limits.max_size);
+
+    // assert!(limits.min_size.x <= limits.max_size.x);
+    // assert!(limits.min_size.y <= limits.max_size.y);
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
     if let Some(layout) = layout {
-        // For a given layout use the largest size that fits within the constraints and then
-        // potentially shrink it down.
         let mut block = layout.apply(
             world,
             entity,
             children,
             Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
-                min_size: limits
-                    .min_size
-                    .max(apply_constraints(entity, content_area, limits))
-                    - padding.size(),
-                max_size: limits.max_size - padding.size(),
+                min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
+                max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
         );
 
@@ -226,11 +299,16 @@ pub(crate) fn update_subtree(
 
         block.rect = block.rect.pad(&padding);
 
+        let offset = resolve_pos(entity, content_area, block.rect.size());
+        block.rect = block.rect.translate(offset);
+
         block.margin = (block.margin - padding).max(margin);
+
+        validate_block(entity, &block, limits);
 
         block
     } else {
-        assert_eq!(children, [], "Entity has children but no layout");
+        assert_eq!(children, [], "Widget with children must have a layout");
         let size = apply_constraints(entity, content_area, limits);
 
         if size.x > limits.max_size.x || size.y > limits.max_size.y {
@@ -245,42 +323,39 @@ pub(crate) fn update_subtree(
 
         entity.update_dedup(components::layout_bounds(), size);
 
-        Block { rect, margin }
+        let block = Block { rect, margin };
+        validate_block(entity, &block, limits);
+        block
     }
 }
 
+/// Used to resolve dynamically determined sizes of widgets. This is most commonly used for text
+/// elements or other widgets whose size depends on the current sizing limits.
 pub trait SizeResolver: Send + Sync {
+    /// Query the size of the widget given the current constraints
+    ///
+    /// Returns a minimum possible size optimized for the `optimize` direction, and the preferred
+    /// size
     fn query(
         &mut self,
         entity: &EntityRef,
         content_area: Vec2,
         limits: LayoutLimits,
-        squeeze: Direction,
+        optimize: Direction,
     ) -> (Vec2, Vec2);
+
+    /// Uses the current constraints to determine the size of the widget
     fn apply(&mut self, entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> Vec2;
 }
 
-fn resolve_base_size(
-    entity: &EntityRef,
-    content_area: Vec2,
-    limits: LayoutLimits,
-) -> (Vec2, Vec2, Constraints) {
-    let query = (
-        components::min_size().opt_or_default(),
-        components::size().opt_or_default(),
-        aspect_ratio().opt(),
-    );
+fn resolve_base_size(entity: &EntityRef, content_area: Vec2) -> (Vec2, Constraints) {
+    let query = (components::size().opt_or_default(), aspect_ratio().opt());
     let mut query = entity.query(&query);
-    let (min_size, size, aspect_ratio) = query.get().unwrap();
+    let (size, aspect_ratio) = query.get().unwrap();
 
-    let min_size = min_size.resolve(content_area);
-    let size = size
-        .resolve(content_area)
-        .clamp(limits.min_size, limits.max_size)
-        .max(min_size);
+    let size = size.resolve(content_area);
 
     (
-        min_size,
         size,
         Constraints {
             aspect_ratio: aspect_ratio.copied(),
@@ -315,29 +390,38 @@ fn query_constraints(
     limits: LayoutLimits,
     squeeze: Direction,
 ) -> (Vec2, Vec2) {
-    let (mut min_size, mut size, constraints) = resolve_base_size(entity, content_area, limits);
+    let (mut size, constraints) = resolve_base_size(entity, content_area);
+
+    let mut min_size = limits.min_size;
+
     if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
         let (resolved_min, resolved_size) = resolver.query(entity, content_area, limits, squeeze);
 
-        min_size = resolved_min.max(min_size);
+        let optimize_axis = squeeze.to_axis();
+        if resolved_min.dot(optimize_axis) > resolved_size.dot(optimize_axis) {
+            panic!("Size resolver returned a minimum size that is larger than the preferred size for the given optimization\n\nmin: {}, size: {}, widget: {}", resolved_min.dot(optimize_axis), resolved_size.dot(optimize_axis), entity);
+        }
+
+        min_size = resolved_min;
         size = resolved_size.max(size);
     }
 
     (
-        constraints.resolve(min_size),
-        constraints.resolve(size.min(limits.max_size)),
+        constraints.resolve(min_size.clamp(limits.min_size, limits.max_size)),
+        constraints.resolve(size.clamp(limits.min_size, limits.max_size)),
     )
 }
 
 fn apply_constraints(entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> Vec2 {
-    let (_, mut size, constraints) = resolve_base_size(entity, content_area, limits);
+    let (mut size, constraints) = resolve_base_size(entity, content_area);
+
     if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
         let resolved_size = resolver.apply(entity, content_area, limits);
 
         size = resolved_size.max(size);
     }
 
-    constraints.resolve(size.min(limits.max_size))
+    constraints.resolve(size.clamp(limits.max_size, limits.max_size))
 }
 
 /// Resolves a widgets position relative to its own bounds

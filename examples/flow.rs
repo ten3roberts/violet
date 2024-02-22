@@ -3,11 +3,12 @@ use std::usize;
 use futures_signals::{
     map_ref,
     signal::{self, Mutable, SignalExt},
+    signal_map::MutableSignalMap,
 };
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor};
+use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -29,7 +30,9 @@ use violet_core::{
     style::{
         self,
         colors::{
-            EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT,
+            DARK_CYAN_DEFAULT, EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600,
+            EERIE_BLACK_DEFAULT, JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+            ULTRA_VIOLET_DEFAULT,
         },
         Background,
     },
@@ -39,6 +42,12 @@ use violet_core::{
 
 const MARGIN: Edges = Edges::even(8.0);
 const MARGIN_SM: Edges = Edges::even(4.0);
+
+fn label(text: impl Into<String>) -> Stack<Text> {
+    Stack::new(Text::new(text.into()))
+        .with_padding(MARGIN_SM)
+        .with_margin(MARGIN_SM)
+}
 
 fn row<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Horizontal)
@@ -126,9 +135,50 @@ impl Widget for MainApp {
                 .with_direction(Direction::Vertical),
                 Signal::new(item_list),
             ))),
+            column(
+                [
+                    EERIE_BLACK_DEFAULT,
+                    PLATINUM_DEFAULT,
+                    JADE_DEFAULT,
+                    DARK_CYAN_DEFAULT,
+                    ULTRA_VIOLET_DEFAULT,
+                    LION_DEFAULT,
+                    REDWOOD_DEFAULT,
+                ]
+                .into_iter()
+                .map(|color| Tints { color })
+                .collect_vec(),
+            ),
         ))
         .with_background(Background::new(EERIE_BLACK_DEFAULT))
         .contain_margins(true)
+        .mount(scope)
+    }
+}
+
+struct Tints {
+    color: Srgba,
+}
+
+impl Widget for Tints {
+    fn mount(self, scope: &mut Scope<'_>) {
+        row((0..=10)
+            .map(|i| {
+                let tint = i * 100;
+                let color = style::tint(self.color, tint);
+                let color_bytes: Srgba<u8> = color.into_format();
+                let color_string = format!(
+                    "#{:02x}{:02x}{:02x}",
+                    color_bytes.red, color_bytes.green, color_bytes.blue
+                );
+
+                card(column((
+                    BoxSized::new(Rectangle::new(color)).with_size(Unit::px2(100.0, 40.0)),
+                    label(format!("{tint}")),
+                    label(color_string),
+                )))
+            })
+            .collect_vec())
         .mount(scope)
     }
 }
@@ -146,13 +196,11 @@ impl Widget for ItemList {
                     let size = 10.0 + i as f32 * self.scale;
                     BoxSized::new(
                         Stack::new(Text::new(format!("{size}px")))
-                            .with_style(ContainerStyle {
-                                background: Some(Background::new(
-                                    Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
-                                )),
-                                padding: MARGIN_SM,
-                                margin: MARGIN_SM,
-                            })
+                            .with_background(Background::new(
+                                Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
+                            ))
+                            .with_padding(MARGIN_SM)
+                            .with_margin(MARGIN_SM)
                             .with_vertical_alignment(Alignment::Center)
                             .with_horizontal_alignment(Alignment::Center),
                     )

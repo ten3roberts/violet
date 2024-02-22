@@ -1,4 +1,7 @@
-use std::ops::{self, Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::{
+    fmt::{Display, Formatter},
+    ops::{self, Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
+};
 
 use glam::{IVec2, Vec2};
 
@@ -150,5 +153,11 @@ impl MulAssign<f32> for Unit<Vec2> {
     fn mul_assign(&mut self, rhs: f32) {
         self.px *= rhs;
         self.rel *= rhs;
+    }
+}
+
+impl<T: Display> Display for Unit<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(px: {}, rel: {})", self.px, self.rel)
     }
 }

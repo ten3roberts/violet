@@ -49,7 +49,7 @@ impl SizeResolver for TextSizeResolver {
         let preferred = Self::resolve_text_size(state, text_system, font_size, limits.max_size);
         // + vec2(5.0, 5.0);
 
-        if min.dot(squeeze.to_vec()) > preferred.dot(squeeze.to_vec()) {
+        if min.dot(squeeze.to_axis()) > preferred.dot(squeeze.to_axis()) {
             tracing::error!(%entity, text=?state.text(), %min, %preferred, ?squeeze, %limits.max_size, "Text wrapping failed");
         }
         (min, preferred)

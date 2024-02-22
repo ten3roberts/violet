@@ -3,6 +3,7 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
+    assets,
     components::{self, Edges, Rect},
     layout::query_size,
 };
@@ -153,7 +154,6 @@ pub(crate) struct Row<'a> {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
     pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
-    max_cross_size: f32,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -195,7 +195,7 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
-        let (axis, cross_axis) = self.direction.axis(self.reverse);
+        let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
 
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
@@ -219,7 +219,7 @@ impl FlowLayout {
         //     );
         // }
 
-        // How much space there is left to distribute out
+        // How much space there is left to distribute to the children
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
         // tracing::info!(?distribute_size);
 
@@ -243,6 +243,8 @@ impl FlowLayout {
 
         // Reset to local
         let mut sum = 0.0;
+
+        let cross_size = row.preferred.size().max(limits.min_size).dot(cross_axis);
 
         // Distribute the size to the widgets and apply their layout
         let blocks = row
@@ -291,7 +293,6 @@ impl FlowLayout {
                     axis_sizing.dot(axis) >= block_min_size,
                     "{axis_sizing} {block_min_size}"
                 );
-                // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
                 let child_margin = if self.contain_margins {
                     sizing.margin
@@ -299,12 +300,12 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
-                // Calculate hard sizing constraints ensure the children are laid out
+                // Calculate hard sizing constraints and ensure the children are laid out
                 // accordingly.
                 //
                 // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
-                    let cross_size = row.max_cross_size - child_margin.size().dot(cross_axis);
+                    let cross_size = cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
@@ -398,7 +399,7 @@ impl FlowLayout {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
-        let (axis, cross_axis) = self.direction.axis(self.reverse);
+        let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
 
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
@@ -447,6 +448,8 @@ impl FlowLayout {
             MarginCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
 
         let mut sum = 0.0;
+
+        let cross_size = row.preferred.size().dot(cross_axis);
 
         // Distribute the size to the widgets and apply their layout
         row
@@ -504,9 +507,9 @@ impl FlowLayout {
                 //
                 // The child may return a size *less* than the specified limit
                 let child_limits = if self.stretch {
-                    let cross_size = row.max_cross_size - child_margin.size().dot(cross_axis);
+                    let cross_size = cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
-                        min_size: cross_size * cross_axis,
+                        min_size: cross_size*cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
                     }
                 } else {
@@ -523,19 +526,6 @@ impl FlowLayout {
 
                 tracing::debug!(min=%block.min.size(), preferred=%block.preferred.size(), ?child_limits, "query");
 
-                if block.preferred.size().x > child_limits.max_size.x + 0.1
-                    || block.preferred.size().y > child_limits.max_size.y + 0.1
-                {
-                    tracing::error!(
-                        %entity,
-                        block_min_size,
-                        block_preferred_size,
-                        "Widget exceeded max size: {:?} > {:?}",
-                        block.preferred.size(),
-                        child_limits.max_size,
-                    );
-                }
-
                 // TODO: show red rect here
 
                 min_cursor.put(&Block::new(block.min, block.margin));
@@ -551,18 +541,9 @@ impl FlowLayout {
             .direction
             .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
-        if rect.size().x > limits.max_size.x + 0.1 || rect.size().y > limits.max_size.y + 0.1 {
-            tracing::error!(
-                ?self.direction,
-                size=%rect.size(),
-                max=%limits.max_size,
-                diff=%rect.size() - limits.max_size,
-                "Widget does not fit within limits",
-            );
-        }
         Sizing {
-            min: min_rect,
-            preferred: rect,
+            min: min_rect.clamp_size(limits.min_size, limits.max_size),
+            preferred: rect.clamp_size(limits.min_size, limits.max_size),
             margin,
         }
     }
@@ -581,7 +562,7 @@ impl FlowLayout {
         //
         // The inner rect is position relative to the layouts parent
 
-        let (axis, cross_axis) = self.direction.axis(self.reverse);
+        let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
 
         let mut min_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
         let mut preferred_cursor =
@@ -605,7 +586,7 @@ impl FlowLayout {
                     &entity,
                     content_area.size(),
                     LayoutLimits {
-                        min_size: limits.min_size,
+                        min_size: Vec2::ZERO,
                         // max_size: limits.max_size,
                         max_size: limits.max_size - child_margin.size(),
                     },
@@ -633,7 +614,6 @@ impl FlowLayout {
         // );
 
         Row {
-            max_cross_size,
             min,
             preferred,
             blocks,

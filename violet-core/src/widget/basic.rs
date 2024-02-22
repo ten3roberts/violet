@@ -31,11 +31,27 @@ use super::{container::ContainerStyle, Stack};
 #[derive(Debug, Clone)]
 pub struct Rectangle {
     color: Srgba,
+    size: Unit<Vec2>,
+    min_size: Unit<Vec2>,
 }
 
 impl Rectangle {
     pub fn new(color: Srgba) -> Self {
-        Self { color }
+        Self {
+            color,
+            size: Default::default(),
+            min_size: Default::default(),
+        }
+    }
+
+    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
+        self.min_size = min_size;
+        self
     }
 }
 
@@ -43,6 +59,8 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(draw_shape(shape::shape_rectangle()), ())
+            .set(size(), self.size)
+            .set(min_size(), self.min_size)
             .set(color(), self.color);
     }
 }
@@ -76,46 +94,66 @@ where
     }
 }
 
-pub struct Text {
-    color: Option<Srgba>,
-    text: Vec<TextSegment>,
+/// Style and decorate text
+pub struct TextStyle {
     font_size: f32,
     wrap: Wrap,
+    color: Option<Srgba>,
+}
+
+impl Default for TextStyle {
+    fn default() -> Self {
+        Self {
+            font_size: 16.0,
+            wrap: Wrap::WordOrGlyph,
+            color: None,
+        }
+    }
+}
+
+pub struct Text {
+    text: Vec<TextSegment>,
+    style: TextStyle,
 }
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: vec![TextSegment::new(text.into())],
-            color: None,
-            font_size: 16.0,
-            wrap: Wrap::Word,
+            style: TextStyle::default(),
         }
     }
 
     pub fn rich(text: impl IntoIterator<Item = TextSegment>) -> Self {
         Self {
             text: text.into_iter().collect(),
-            color: None,
-            font_size: 16.0,
-            wrap: Wrap::Word,
+            style: TextStyle::default(),
         }
     }
 
     /// Set the font_size
     pub fn with_font_size(mut self, font_size: f32) -> Self {
-        self.font_size = font_size;
+        self.style.font_size = font_size;
         self
     }
 
     /// Set the text color
     pub fn with_color(mut self, color: Srgba) -> Self {
-        self.color = Some(color);
+        self.style.color = Some(color);
         self
     }
 
     pub fn with_wrap(mut self, wrap: Wrap) -> Self {
-        self.wrap = wrap;
+        self.style.wrap = wrap;
+        self
+    }
+}
+
+impl StyleExt for Text {
+    type Style = TextStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
         self
     }
 }
@@ -124,10 +162,10 @@ impl Widget for Text {
     fn mount(self, scope: &mut Scope) {
         scope
             .set(draw_shape(shape::shape_text()), ())
-            .set(font_size(), self.font_size)
-            .set(text_wrap(), self.wrap)
+            .set(font_size(), self.style.font_size)
+            .set(text_wrap(), self.style.wrap)
             .set(text(), self.text)
-            .set_opt(color(), self.color);
+            .set_opt(color(), self.style.color);
     }
 }
 

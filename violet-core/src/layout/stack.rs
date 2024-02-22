@@ -7,7 +7,7 @@ use crate::{
     layout::query_size,
 };
 
-use super::{resolve_pos, update_subtree, Block, Alignment, Direction, LayoutLimits, Sizing};
+use super::{resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -66,6 +66,20 @@ impl StackableBounds {
 }
 
 /// The stack layout
+///
+/// A stack layout is the Swiss army knife of layouts.
+///
+/// It can be used to create a stacked arrangement of widgets, aligning widgets in a horizontal or
+/// vertical direction, or constraining and offsetting widgets within.
+///
+/// In short, this layout can works as one of the following:
+/// - Stack
+/// - Overlaying widgets
+/// - Horizontal or vertical alignment
+/// - Padding and margin with background colors (widgets don't inherently have a concept of "inner"
+/// content, as they are their own content)
+/// - Centering widgets (this isn't HTML :P)
+/// - Limiting and expanding size of widgets
 #[derive(Debug, Clone)]
 pub struct StackLayout {
     pub horizontal_alignment: Alignment,
