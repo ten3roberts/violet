@@ -3,7 +3,7 @@ use palette::Srgba;
 
 pub const EERIE_BLACK_100: Srgba = srgba!("#070707");
 pub const EERIE_BLACK_200: Srgba = srgba!("#0d0d0d");
-pub const EERIE_BLACK_300: Srgba = srgba!("#111414");
+pub const EERIE_BLACK_300: Srgba = srgba!("#101010");
 pub const EERIE_BLACK_400: Srgba = srgba!("#1a1a1a");
 pub const EERIE_BLACK_500: Srgba = srgba!("#212121");
 pub const EERIE_BLACK_600: Srgba = srgba!("#2e2e2e");

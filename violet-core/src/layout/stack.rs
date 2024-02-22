@@ -131,7 +131,8 @@ impl StackLayout {
             })
             .collect_vec();
 
-        let size = bounds.size().max(limits.min_size);
+        // The size used for alignment calculation
+        let size = bounds.size().clamp(limits.min_size, limits.max_size);
 
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(limits.min_size, content_area.min));
@@ -185,7 +186,16 @@ impl StackLayout {
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(world, &entity, content_area.size(), limits, squeeze);
+            let query = query_size(
+                world,
+                &entity,
+                content_area.size(),
+                LayoutLimits {
+                    min_size: Vec2::ZERO,
+                    max_size: limits.max_size,
+                },
+                squeeze,
+            );
 
             min_bounds = min_bounds.merge(&StackableBounds::new(
                 query.min.translate(content_area.min),
@@ -212,8 +222,12 @@ impl StackLayout {
         // tracing::info!(?min_margin, ?preferred_margin);
 
         Sizing {
-            min: min_bounds.inner,
-            preferred: preferred_bounds.inner,
+            min: min_bounds
+                .inner
+                .clamp_size(limits.min_size, limits.max_size),
+            preferred: preferred_bounds
+                .inner
+                .clamp_size(limits.min_size, limits.max_size),
             margin: min_margin.max(preferred_margin),
         }
     }

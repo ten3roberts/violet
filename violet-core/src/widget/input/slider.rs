@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use cosmic_text::Wrap;
 use flax::{Component, Entity, EntityRef};
 use futures_signals::{
     map_ref,
-    signal::{Mutable, MutableSignal, SignalExt},
+    signal::{Mutable, MutableSignal, MutableSignalRef, SignalExt},
 };
 use glam::{IVec2, Vec2};
 use palette::Srgba;
@@ -12,6 +14,7 @@ use crate::{
     components::{offset, rect, Edges},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
+    stored::Handle,
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
@@ -38,20 +41,48 @@ impl Default for SliderStyle {
     }
 }
 
-pub struct Slider<V> {
+pub struct Slider<V, T = V> {
     style: SliderStyle,
-    value: Mutable<V>,
+    value: Mutable<T>,
     min: V,
     max: V,
+    lower: fn(&T) -> V,
+    update: fn(&mut T, V),
 }
 
 impl<V> Slider<V> {
-    pub fn new(value: Mutable<V>, min: V, max: V) -> Self {
+    pub fn new(value: Mutable<V>, min: V, max: V) -> Self
+    where
+        V: Copy,
+    {
         Self {
             value,
             min,
             max,
             style: Default::default(),
+            lower: |v| *v,
+            update: |dst, src| {
+                *dst = src;
+            },
+        }
+    }
+}
+
+impl<V, T> Slider<V, T> {
+    pub fn new_with_transform(
+        value: Mutable<T>,
+        min: V,
+        max: V,
+        lower: fn(&T) -> V,
+        update: fn(&mut T, V),
+    ) -> Self {
+        Self {
+            value,
+            min,
+            max,
+            style: Default::default(),
+            lower,
+            update,
         }
     }
 
@@ -62,7 +93,7 @@ impl<V> Slider<V> {
     }
 }
 
-impl<V: SliderValue> Widget for Slider<V> {
+impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = get_stylesheet(scope);
 
@@ -83,20 +114,23 @@ impl<V: SliderValue> Widget for Slider<V> {
         let min = self.min.to_progress();
         let max = self.max.to_progress();
 
-        fn update<V: SliderValue>(
+        let lower = scope.store(self.lower);
+
+        fn update<V: SliderValue, T>(
             entity: &EntityRef,
             input: CursorMove,
             min: f32,
             max: f32,
-            dst: &Mutable<V>,
+            dst: &Mutable<T>,
+            update: fn(&mut T, V),
         ) {
             let rect = entity.get_copy(rect()).unwrap();
             let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
-            dst.set(V::from_progress(value));
+            update(&mut dst.lock_mut(), V::from_progress(value));
         }
 
         let handle = SliderHandle {
-            value: self.value.signal(),
+            value: self.value.signal_ref(self.lower),
             min,
             max,
             rect_id: track,
@@ -108,14 +142,14 @@ impl<V: SliderValue> Widget for Slider<V> {
             .set(focusable(), ())
             .on_event(on_mouse_input(), {
                 let value = self.value.clone();
-                move |_, entity, input| {
+                move |frame, entity, input| {
                     if input.state == ElementState::Pressed {
-                        update(entity, input.cursor, min, max, &value);
+                        update(entity, input.cursor, min, max, &value, self.update);
                     }
                 }
             })
-            .on_event(on_cursor_move(), move |_, entity, input| {
-                update(entity, input, min, max, &self.value)
+            .on_event(on_cursor_move(), move |frame, entity, input| {
+                update(entity, input, min, max, &self.value, self.update)
             });
 
         Stack::new(handle)
@@ -128,8 +162,8 @@ impl<V: SliderValue> Widget for Slider<V> {
     }
 }
 
-struct SliderHandle<V> {
-    value: MutableSignal<V>,
+struct SliderHandle<V, T> {
+    value: MutableSignalRef<T, fn(&T) -> V>,
     handle_color: Srgba,
     handle_size: Unit<Vec2>,
     min: f32,
@@ -137,7 +171,7 @@ struct SliderHandle<V> {
     rect_id: Entity,
 }
 
-impl<V: SliderValue> Widget for SliderHandle<V> {
+impl<V: SliderValue, T: 'static + Send + Sync> Widget for SliderHandle<V, T> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
@@ -209,14 +243,30 @@ num_impl!(u64);
 num_impl!(isize);
 num_impl!(usize);
 
-pub struct SliderWithLabel<V> {
-    slider: Slider<V>,
+pub struct SliderWithLabel<V, T = V> {
+    slider: Slider<V, T>,
 }
 
 impl<V> SliderWithLabel<V> {
-    pub fn new(value: Mutable<V>, min: V, max: V) -> Self {
+    pub fn new(value: Mutable<V>, min: V, max: V) -> Self
+    where
+        V: Copy,
+    {
         Self {
             slider: Slider::new(value, min, max),
+        }
+    }
+}
+impl<V, T> SliderWithLabel<V, T> {
+    pub fn new_with_transform(
+        value: Mutable<T>,
+        min: V,
+        max: V,
+        lower: fn(&T) -> V,
+        update: fn(&mut T, V),
+    ) -> Self {
+        Self {
+            slider: Slider::new_with_transform(value, min, max, lower, update),
         }
     }
 
@@ -227,10 +277,11 @@ impl<V> SliderWithLabel<V> {
     }
 }
 
-impl<V: SliderValue> Widget for SliderWithLabel<V> {
+impl<V: SliderValue, T: 'static + Send + Sync> Widget for SliderWithLabel<V, T> {
     fn mount(self, scope: &mut Scope<'_>) {
+        let lower = self.slider.lower;
         let label =
-            Signal(self.slider.value.signal().map(|v| {
+            Signal(self.slider.value.signal_ref(lower).map(|v| {
                 Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
             }));
 

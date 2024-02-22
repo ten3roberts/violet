@@ -8,7 +8,7 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor, Srgba};
+use palette::{num::Round, Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -47,6 +47,7 @@ fn label(text: impl Into<String>) -> Stack<Text> {
     Stack::new(Text::new(text.into()))
         .with_padding(MARGIN_SM)
         .with_margin(MARGIN_SM)
+        .with_background(Background::new(EERIE_BLACK_400))
 }
 
 fn row<W: WidgetCollection>(widgets: W) -> List<W> {
@@ -87,29 +88,101 @@ pub fn main() -> anyhow::Result<()> {
     violet_wgpu::App::new().run(MainApp)
 }
 
+struct Vec2Editor {
+    value: Mutable<Vec2>,
+    x_label: String,
+    y_label: String,
+}
+
+impl Vec2Editor {
+    fn new(value: Mutable<Vec2>, x_label: impl Into<String>, y_label: impl Into<String>) -> Self {
+        Self {
+            value,
+            x_label: x_label.into(),
+            y_label: y_label.into(),
+        }
+    }
+}
+
+impl Widget for Vec2Editor {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let value = self.value;
+
+        column((
+            row((
+                label(self.x_label),
+                SliderWithLabel::new_with_transform(
+                    value.clone(),
+                    0.0,
+                    200.0,
+                    |v| v.x,
+                    |v, x| v.x = x.round(),
+                ),
+            )),
+            row((
+                label(self.y_label),
+                SliderWithLabel::new_with_transform(
+                    value.clone(),
+                    0.0,
+                    200.0,
+                    |v| v.y,
+                    |v, y| v.y = y.round(),
+                ),
+            )),
+        ))
+        .mount(scope)
+    }
+}
 struct MainApp;
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
+        let size = Mutable::new(vec2(100.0, 100.0));
+
         column((
-            row(Text::new("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height")),
-            row((
-                SizedBox::new(JADE_DEFAULT, Unit::px2(100.0, 40.0)),
-                SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-            ))
-            .with_background(Background::new(EERIE_BLACK_300)),
-            row((
-                SizedBox::new(JADE_DEFAULT, Unit::px2(100.0, 40.0)),
-                SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-            ))
-            .with_background(Background::new(EERIE_BLACK_300))
-            .with_min_size(Unit::px2(200.0, 200.0)),
-            row((
-                SizedBox::new(JADE_DEFAULT, Unit::px2(100.0, 40.0)),
-                SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-            ))
-            .with_background(Background::new(EERIE_BLACK_300))
-            .with_max_size(Unit::px2(100.0, 200.0)),
+            card(column((
+                Vec2Editor::new(size.clone(), "width", "height"),
+                Signal::new(size.signal().map(|size| label(format!("Rectangle size: {size}")))),
+            ))),
+            row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height"), label(":P"))),
+            Signal::new(size.signal().map(|size| SizeTest { size })),
+        ))
+        .contain_margins(true)
+        .with_background(Background::new(EERIE_BLACK_DEFAULT))
+        .mount(scope)
+    }
+}
+
+struct SizeTest {
+    size: Vec2,
+}
+
+impl Widget for SizeTest {
+    fn mount(self, scope: &mut Scope<'_>) {
+        row((
+            card(column((
+                label("Unconstrained list"),
+                row((
+                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
+                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
+                )),
+            ))),
+            card(column((
+                label("Constrained list with min size"),
+                row((
+                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
+                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
+                ))
+                .with_min_size(Unit::px2(100.0, 100.0)),
+            ))),
+            card(column((
+                label("Constrained list with max size"),
+                row((
+                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
+                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
+                ))
+                .with_max_size(Unit::px2(100.0, 100.0)),
+            ))),
         ))
         .mount(scope)
     }

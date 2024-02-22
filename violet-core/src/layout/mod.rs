@@ -421,7 +421,7 @@ fn apply_constraints(entity: &EntityRef, content_area: Vec2, limits: LayoutLimit
         size = resolved_size.max(size);
     }
 
-    constraints.resolve(size.clamp(limits.max_size, limits.max_size))
+    constraints.resolve(size.clamp(limits.min_size, limits.max_size))
 }
 
 /// Resolves a widgets position relative to its own bounds

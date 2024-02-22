@@ -21,7 +21,8 @@ use palette::{
         BLACK, DARKSLATEGRAY, GRAY, GREEN, LIMEGREEN, ORANGE, RED, SLATEGRAY, TEAL, WHITE,
         WHITESMOKE,
     },
-    Srgb, Srgba, WithAlpha,
+    num::Clamp,
+    IntoColor, Oklab, Srgb, Srgba, WithAlpha,
 };
 
 use crate::{
@@ -47,6 +48,18 @@ macro_rules! srgba {
         Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
     }};
 }
+
+pub fn tint(base_color: Srgba, tint: usize) -> Srgba {
+    let f = (tint as f32 / 1000.0) * 2.0;
+    let mut color: Oklab = base_color.into_color();
+
+    let base_luminance = color.l;
+    let target_luminance = base_luminance * f;
+    color.l = target_luminance.clamp(0.0, 1.0);
+
+    color.into_color()
+}
+
 /// Allows overriding a style for a widget
 pub trait StyleExt {
     /// Stylesheet used to style the widget

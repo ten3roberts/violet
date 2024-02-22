@@ -138,11 +138,11 @@ impl Widget for MainApp {
                     .with_size(Unit::px(vec2(50.0, 10.0))),
                 Text::new("This is some text").with_font_size(16.0),
             ))
-            .with_style(ContainerStyle {
-                background: Some(Background::new(EERIE_BLACK)),
-                margin: MARGIN,
-                padding: MARGIN,
-            }),
+            .with_vertical_alignment(Alignment::Center)
+            .with_horizontal_alignment(Alignment::Center)
+            .with_background(Background::new(EERIE_BLACK_300))
+            .with_padding(MARGIN)
+            .with_margin(MARGIN),
         ))
         .with_style(ContainerStyle {
             background: Some(Background::new(EERIE_BLACK_600)),
