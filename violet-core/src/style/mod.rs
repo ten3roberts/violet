@@ -75,7 +75,7 @@ pub trait WidgetStyle {
     fn resolve_style(&self, stylesheet: &Theme) -> Self::Resolved;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Background {
     pub color: Srgba,
 }

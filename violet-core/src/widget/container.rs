@@ -38,30 +38,32 @@ impl ContainerStyle {
 pub struct Stack<W> {
     items: W,
 
-    horizontal_alignment: Alignment,
-    vertical_alignment: Alignment,
+    layout: StackLayout,
     style: ContainerStyle,
+    min_size: Option<Unit<Vec2>>,
+    max_size: Option<Unit<Vec2>>,
 }
 
 impl<W> Stack<W> {
     pub fn new(items: W) -> Self {
         Self {
             items,
-            horizontal_alignment: Alignment::default(),
-            vertical_alignment: Alignment::default(),
+            layout: StackLayout::default(),
             style: Default::default(),
+            min_size: None,
+            max_size: None,
         }
     }
 
     /// Set the horizontal alignment
     pub fn with_horizontal_alignment(mut self, align: Alignment) -> Self {
-        self.horizontal_alignment = align;
+        self.layout.horizontal_alignment = align;
         self
     }
 
     /// Set the vertical alignment
     pub fn with_vertical_alignment(mut self, align: Alignment) -> Self {
-        self.vertical_alignment = align;
+        self.layout.vertical_alignment = align;
         self
     }
 
@@ -77,6 +79,18 @@ impl<W> Stack<W> {
 
     pub fn with_background(mut self, background: Background) -> Self {
         self.style.background = Some(background);
+        self
+    }
+
+    /// Set the max size
+    pub fn with_max_size(mut self, max_size: Unit<Vec2>) -> Self {
+        self.max_size = Some(max_size);
+        self
+    }
+
+    /// Set the min size
+    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
+        self.min_size = Some(min_size);
         self
     }
 }
@@ -99,13 +113,10 @@ where
 
         self.style.mount(scope);
 
-        scope.set(
-            layout(),
-            Layout::Stack(StackLayout {
-                horizontal_alignment: self.horizontal_alignment,
-                vertical_alignment: self.vertical_alignment,
-            }),
-        );
+        scope
+            .set(layout(), Layout::Stack(self.layout))
+            .set_opt(min_size(), self.min_size)
+            .set_opt(max_size(), self.max_size);
     }
 }
 

@@ -80,19 +80,10 @@ impl StackableBounds {
 /// content, as they are their own content)
 /// - Centering widgets (this isn't HTML :P)
 /// - Limiting and expanding size of widgets
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct StackLayout {
     pub horizontal_alignment: Alignment,
     pub vertical_alignment: Alignment,
-}
-
-impl Default for StackLayout {
-    fn default() -> Self {
-        Self {
-            horizontal_alignment: Alignment::Center,
-            vertical_alignment: Alignment::Center,
-        }
-    }
 }
 
 impl StackLayout {
@@ -162,7 +153,9 @@ impl StackLayout {
         // tracing::info!(?aligned_bounds);
 
         // aligned_bounds.inner = aligned_bounds.inner.max_size(limits.min_size);
-        let rect = aligned_bounds.inner;
+        let rect = aligned_bounds
+            .inner
+            .clamp_size(limits.min_size, limits.max_size);
         let margin = aligned_bounds.margin();
 
         // rect.min += content_area.min;
