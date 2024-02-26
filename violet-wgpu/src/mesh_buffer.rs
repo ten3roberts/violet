@@ -12,11 +12,13 @@ use super::{
 
 pub struct MeshBufferInner {}
 
+type DroppedList = Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>;
+
 pub struct MeshBuffer {
     next_id: u64,
     pub vertex_buffers: MultiBuffer<Vertex>,
     pub index_buffers: MultiBuffer<u32>,
-    dropped: Arc<Mutex<Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>>>,
+    dropped: Arc<Mutex<DroppedList>>,
 }
 
 /// Handle to an allocation within a mesh
@@ -25,7 +27,7 @@ pub struct MeshHandle {
     id: u64,
     vb: SubBuffer<Vertex>,
     ib: SubBuffer<u32>,
-    on_drop: Arc<Mutex<Vec<(SubBuffer<Vertex>, SubBuffer<u32>)>>>,
+    on_drop: Arc<Mutex<DroppedList>>,
 }
 
 impl std::fmt::Debug for MeshHandle {
@@ -155,6 +157,7 @@ impl MeshBuffer {
         render_pass.set_index_buffer(self.index_buffers.slice(..), wgpu::IndexFormat::Uint32);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn reallocate(
         &mut self,
         gpu: &Gpu,

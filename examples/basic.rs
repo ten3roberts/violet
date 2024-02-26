@@ -1,5 +1,5 @@
 use flax::{components::name, FetchExt, Query};
-use futures_signals::signal::{Mutable, SignalExt};
+use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::{Hsva, IntoColor, Srgba};
@@ -9,18 +9,19 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    components::{self, rect, size, text, Edges},
+    components::{self, rect, size, text},
     layout::{Alignment, Direction},
     style::StyleExt,
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
     time::interval,
     unit::Unit,
-    widget::{Button, Image, List, Rectangle, Signal, Stack, Text, WidgetExt},
+    widget::{Button, Image, List, Rectangle, Stack, Text, WidgetExt},
     Scope, StreamEffect, Widget,
 };
 use violet_core::{
     style::Background,
     widget::{BoxSized, ContainerStyle},
+    Edges,
 };
 
 struct MainApp;
@@ -54,12 +55,7 @@ impl Widget for MainApp {
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         List::new((
-            LayoutFlexTest {
-                proportional_growth: false,
-            },
-            LayoutFlexTest {
-                proportional_growth: true,
-            },
+            LayoutFlexTest,
             LayoutTest {
                 contain_margins: true,
             }
@@ -196,9 +192,8 @@ impl Widget for StackTest {
     }
 }
 
-struct LayoutFlexTest {
-    proportional_growth: bool,
-}
+struct LayoutFlexTest;
+
 impl Widget for LayoutFlexTest {
     fn mount(self, scope: &mut Scope<'_>) {
         List::new(
@@ -230,18 +225,6 @@ struct LayoutTest {
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        let row_2 = List::new((
-            BoxSized::new(Rectangle::new(BRONZE)).with_size(Unit::px(vec2(100.0, 20.0))),
-            BoxSized::new(Rectangle::new(EMERALD)).with_size(Unit::px(vec2(20.0, 20.0))),
-        ))
-        .with_direction(Direction::Vertical)
-        .contain_margins(self.contain_margins)
-        .with_style(ContainerStyle {
-            background: Some(Background::new(EERIE_BLACK_300)),
-            padding: MARGIN,
-            margin: MARGIN,
-        });
-
         let click_count = Mutable::new(0);
 
         let row_1 = List::new((

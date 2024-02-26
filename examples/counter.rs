@@ -5,14 +5,14 @@ use palette::Srgba;
 use tracing_subscriber::{prelude::*, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    components::{size, Edges},
+    components::size,
     layout::Alignment,
     style::StyleExt,
     unit::Unit,
     widget::{Button, List, Signal, Stack, Text},
     Scope, Widget,
 };
-use violet_core::{style::Background, widget::ContainerStyle};
+use violet_core::{style::Background, widget::ContainerStyle, Edges};
 
 macro_rules! srgba {
     ($color:literal) => {{

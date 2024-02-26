@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, sync::Arc};
+use std::sync::Arc;
 
 use flax::component;
 
@@ -8,7 +8,7 @@ use crate::{
     text::TextBufferState,
 };
 
-use violet_core::{assets::Asset, text::FontFamily};
+use violet_core::assets::Asset;
 
 use super::mesh_buffer::MeshHandle;
 

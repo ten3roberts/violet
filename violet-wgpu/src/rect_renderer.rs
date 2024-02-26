@@ -12,10 +12,10 @@ use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureF
 
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
-    components::{color, draw_shape, image, screen_rect, Rect},
+    components::{color, draw_shape, image, screen_rect},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
-    Frame,
+    Frame, Rect,
 };
 
 use super::{

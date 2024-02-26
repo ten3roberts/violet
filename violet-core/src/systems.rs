@@ -1,10 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     sync::{Arc, Weak},
 };
 
 use atomic_refcell::AtomicRefCell;
-use dashmap::DashSet;
 use flax::{
     archetype::Storage,
     component::ComponentValue,
@@ -20,12 +19,12 @@ use glam::Vec2;
 use crate::{
     components::{
         self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
-        Rect,
     },
     layout::{
         cache::{invalidate_widget, layout_cache, LayoutCache},
         update_subtree, LayoutLimits,
     },
+    Rect,
 };
 
 pub fn hydrate_text() -> BoxedSystem {

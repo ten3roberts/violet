@@ -1,42 +1,24 @@
 pub mod colors;
 
-use core::prelude;
-use std::{
-    borrow::BorrowMut,
-    ops::{Deref, DerefMut},
-};
-
-use atomic_refcell::{AtomicRef, AtomicRefCell};
 use flax::{
-    component::ComponentValue, components::child_of, fetch::entity_refs, filter::Filtered,
-    query::QueryOne, system::SystemData, Component, Entity, EntityBuilder, EntityRef, Exclusive,
-    FetchExt, RelationExt,
+    components::child_of, Entity, EntityBuilder, EntityRef, Exclusive, FetchExt, RelationExt,
 };
 use glam::{IVec2, Vec2};
-use image::codecs::png;
-use once_cell::sync::Lazy;
 use palette::{
-    chromatic_adaptation::TransformMatrix,
-    named::{
-        BLACK, DARKSLATEGRAY, GRAY, GREEN, LIMEGREEN, ORANGE, RED, SLATEGRAY, TEAL, WHITE,
-        WHITESMOKE,
-    },
-    num::Clamp,
-    IntoColor, Oklab, Srgb, Srgba, WithAlpha,
+    named::{BLACK, GRAY, GREEN, LIMEGREEN, ORANGE, RED, SLATEGRAY, WHITE},
+    IntoColor, Oklab, Srgba, WithAlpha,
 };
 
 use crate::{
     components::{color, draw_shape},
-    declare_atom,
     shape::shape_rectangle,
     unit::Unit,
-    Frame, Scope,
+    Scope,
 };
 
 use self::colors::{
-    DARK_CYAN_DEFAULT, EERIE_BLACK_200, EERIE_BLACK_400, EERIE_BLACK_600, EERIE_BLACK_700,
-    EERIE_BLACK_DEFAULT, JADE_400, JADE_500, JADE_600, JADE_DEFAULT, LION_DEFAULT,
-    PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
+    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
 };
 
 #[macro_export]
@@ -232,5 +214,4 @@ flax::component! {
     pub interactive_hover: Srgba,
     pub interactive_pressed: Srgba,
     pub interactive_inactive: Srgba,
-
 }

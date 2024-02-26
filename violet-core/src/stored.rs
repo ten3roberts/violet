@@ -327,13 +327,13 @@ impl<T: 'static> Index<&Handle<T>> for DynamicStore {
     type Output = T;
 
     fn index(&self, handle: &Handle<T>) -> &Self::Output {
-        self.get(&handle)
+        self.get(handle)
     }
 }
 
 impl<T: 'static> IndexMut<&Handle<T>> for DynamicStore {
     fn index_mut(&mut self, handle: &Handle<T>) -> &mut Self::Output {
-        self.get_mut(&handle)
+        self.get_mut(handle)
     }
 }
 

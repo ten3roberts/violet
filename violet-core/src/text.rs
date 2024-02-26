@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::components::Rect;
+use crate::Rect;
 
 #[derive(Debug, Clone)]
 // Inspired by: https://github.com/pop-os/cosmic-text

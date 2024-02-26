@@ -1,49 +1,28 @@
-use std::{
-    time::{Duration, Instant},
-    usize,
-};
+use std::time::{Duration, Instant};
 
 use flax::components::name;
-use futures_signals::{
-    map_ref,
-    signal::{self, Mutable, SignalExt},
-    signal_map::MutableSignalMap,
-};
+use futures_signals::signal::{Mutable, SignalExt};
 
 use glam::{vec2, Vec2};
-use itertools::Itertools;
-use palette::{num::Round, Hsva, IntoColor, Srgba, WithAlpha};
+use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
-use futures::stream::{StreamExt, StreamFuture};
 use violet::core::{
-    components::{self, screen_rect, Edges, Rect},
-    editor::{self, EditAction, EditorAction, TextEditor},
-    input::{focusable, on_char_typed, on_keyboard_input, on_mouse_input},
+    components,
     layout::{Alignment, Direction},
-    style::StyleExt,
-    text::{LayoutGlyphs, TextSegment},
-    to_owned,
-    unit::Unit,
-    widget::{List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
-    Scope, Widget,
-};
-use violet_core::{
-    components::size,
-    input::{focus_sticky, ElementState, VirtualKeyCode},
     style::{
-        self,
         colors::{
-            DARK_CYAN_DEFAULT, EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600,
-            EERIE_BLACK_DEFAULT, JADE_100, JADE_400, JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT,
-            REDWOOD_DEFAULT, ULTRA_VIOLET_DEFAULT,
+            EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_100, JADE_DEFAULT, LION_DEFAULT,
+            REDWOOD_DEFAULT,
         },
         Background,
     },
-    time::{interval, Interval},
-    widget::{BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, SliderWithLabel},
-    StreamEffect, WidgetCollection,
+    time::interval,
+    unit::Unit,
+    widget::SliderWithLabel,
+    widget::{List, Rectangle, Signal, Stack, Text, WidgetExt},
+    Edges, Scope, StreamEffect, Widget, WidgetCollection,
 };
 
 const MARGIN: Edges = Edges::even(8.0);
@@ -75,14 +54,6 @@ fn card<W>(widget: W) -> Stack<W> {
         .with_background(Background::new(EERIE_BLACK_400))
         .with_padding(MARGIN)
         .with_margin(MARGIN)
-}
-
-fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget).with_style(ContainerStyle {
-        background: Some(Background::new(EERIE_BLACK_300)),
-        padding: MARGIN,
-        margin: MARGIN,
-    })
 }
 
 pub fn main() -> anyhow::Result<()> {

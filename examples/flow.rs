@@ -3,7 +3,6 @@ use std::usize;
 use futures_signals::{
     map_ref,
     signal::{self, Mutable, SignalExt},
-    signal_map::MutableSignalMap,
 };
 
 use glam::{vec2, Vec2};
@@ -14,7 +13,7 @@ use tracing_tree::HierarchicalLayer;
 
 use futures::stream::StreamExt;
 use violet::core::{
-    components::{self, screen_rect, Edges, Rect},
+    components::{self, screen_rect},
     editor::{self, EditAction, EditorAction, TextEditor},
     input::{focusable, on_char_typed, on_keyboard_input, on_mouse_input},
     layout::{Alignment, Direction},
@@ -37,7 +36,7 @@ use violet_core::{
         Background,
     },
     widget::{BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, SliderWithLabel},
-    WidgetCollection,
+    Edges, Rect, WidgetCollection,
 };
 
 const MARGIN: Edges = Edges::even(8.0);

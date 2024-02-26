@@ -14,7 +14,7 @@ use winit::{
 
 use violet_core::{
     assets::AssetCache,
-    components::{self, local_position, rect, screen_position, Rect},
+    components::{self, local_position, rect, screen_position},
     executor::Executor,
     input::InputState,
     style::{setup_stylesheet, stylesheet},
@@ -22,7 +22,7 @@ use violet_core::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    Frame, Scope, Widget,
+    Frame, Rect, Scope, Widget,
 };
 
 use crate::{

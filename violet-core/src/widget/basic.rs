@@ -1,31 +1,18 @@
-use std::ops::Deref;
-
-use flax::Component;
 use glam::Vec2;
 use image::DynamicImage;
-use palette::{
-    named::{BLACK, GREEN},
-    Srgba, WithAlpha,
-};
-use winit::event::{ElementState, MouseButton};
+use palette::Srgba;
 
 use crate::{
     assets::AssetKey,
     components::{
-        self, anchor, aspect_ratio, color, draw_shape, font_size, margin, min_size, offset, size,
-        text, text_wrap, Edges,
+        self, aspect_ratio, color, draw_shape, font_size, min_size, size, text, text_wrap,
     },
-    input::{focusable, on_focus, on_mouse_input},
     shape,
-    style::{
-        accent_surface, get_stylesheet, secondary_surface, spacing, Background, StyleExt, Theme,
-    },
+    style::StyleExt,
     text::{TextSegment, Wrap},
     unit::Unit,
-    Frame, Scope, Widget,
+    Scope, Widget,
 };
-
-use super::{container::ContainerStyle, Stack};
 
 /// A rectangular widget
 #[derive(Debug, Clone)]

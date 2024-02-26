@@ -17,12 +17,11 @@ use violet_core::{
     assets::AssetCache,
     components::{
         color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_position, text,
-        Rect,
     },
     shape::shape_text,
     stored::{self, Handle},
     text::{LayoutGlyphs, TextSegment},
-    Frame,
+    Frame, Rect,
 };
 
 use crate::{components, font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand};
@@ -49,6 +48,12 @@ impl TextSystem {
             font_system: FontSystem::new(),
             swash_cache: SwashCache::new(),
         }
+    }
+}
+
+impl Default for TextSystem {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

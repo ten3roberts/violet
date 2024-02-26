@@ -2,10 +2,7 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
-use crate::{
-    components::{self, Edges, Rect},
-    layout::query_size,
-};
+use crate::{components, layout::query_size, Edges, Rect};
 
 use super::{resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, Sizing};
 

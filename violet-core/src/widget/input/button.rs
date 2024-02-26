@@ -3,14 +3,14 @@ use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
 
 use crate::{
-    components::{color, Edges},
+    components::color,
     input::{focusable, on_focus, on_mouse_input},
     layout::Alignment,
     style::{
         get_stylesheet, interactive_active, interactive_pressed, spacing, Background, StyleExt,
     },
     widget::{ContainerStyle, Stack, Text},
-    Frame, Scope, Widget,
+    Edges, Frame, Scope, Widget,
 };
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;

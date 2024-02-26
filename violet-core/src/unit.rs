@@ -1,6 +1,6 @@
 use std::{
     fmt::{Display, Formatter},
-    ops::{self, Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
+    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
 use glam::{IVec2, Vec2};

@@ -2,11 +2,7 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
-use crate::{
-    assets,
-    components::{self, Edges, Rect},
-    layout::query_size,
-};
+use crate::{components, layout::query_size, Edges, Rect};
 
 use super::{resolve_pos, update_subtree, Block, Direction, LayoutLimits, Sizing};
 
@@ -29,7 +25,7 @@ struct MarginCursor {
 impl MarginCursor {
     fn new(start: Vec2, axis: Vec2, cross_axis: Vec2, contain_margins: bool) -> Self {
         Self {
-            // Setting this to -inf will cause the marging to leak out of the container. This would
+            // Setting this to -inf will cause the margin to leak out of the container. This would
             // be akin to having no back support for the widget to be placed against.
             pending_margin: if contain_margins { 0.0 } else { f32::MIN },
             start,

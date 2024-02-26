@@ -52,11 +52,3 @@ impl SizeResolver for FixedAreaConstraint {
         vec2(width, height) * self.unit_size
     }
 }
-
-fn fix_area(area: f32, x: f32) -> f32 {
-    area / x
-}
-
-fn round(v: f32) -> f32 {
-    (v / 10.0).ceil() * 10.0
-}

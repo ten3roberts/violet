@@ -7,9 +7,10 @@ use palette::Srgba;
 use parking_lot::Mutex;
 
 use violet_core::{
-    components::{font_size, Rect},
+    components::font_size,
     layout::{Direction, LayoutLimits, SizeResolver},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
+    Rect,
 };
 
 use super::{components::text_buffer_state, text_renderer::TextSystem};

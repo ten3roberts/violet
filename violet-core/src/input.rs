@@ -8,8 +8,8 @@ use glam::Vec2;
 pub use winit::event::{ElementState, ModifiersState, MouseButton, VirtualKeyCode};
 
 use crate::{
-    components::{rect, screen_position, screen_rect, Rect},
-    Frame,
+    components::{rect, screen_position, screen_rect},
+    Frame, Rect,
 };
 
 pub struct Input {}
@@ -206,7 +206,7 @@ impl InputState {
 
 #[derive(Debug, Clone, Copy)]
 pub struct MouseInput {
-    modifiers: ModifiersState,
+    pub modifiers: ModifiersState,
     pub state: ElementState,
     pub cursor: CursorMove,
     pub button: MouseButton,
@@ -214,7 +214,7 @@ pub struct MouseInput {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CursorMove {
-    modifiers: ModifiersState,
+    pub modifiers: ModifiersState,
     /// Mouse cursor relative to the screen
     pub absolute_pos: Vec2,
     /// Mouse cursor relative to the bounds of the widget

@@ -1,25 +1,22 @@
-use std::sync::Arc;
-
 use cosmic_text::Wrap;
 use flax::{Component, Entity, EntityRef};
 use futures_signals::{
     map_ref,
-    signal::{Mutable, MutableSignal, MutableSignalRef, SignalExt},
+    signal::{Mutable, MutableSignalRef, SignalExt},
 };
 use glam::{IVec2, Vec2};
 use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{offset, rect, Edges},
+    components::{offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
-    stored::Handle,
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
     widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, Signal, Stack, Text},
-    Scope, StreamEffect, Widget,
+    Edges, Scope, StreamEffect, Widget,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -114,8 +111,6 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
         let min = self.min.to_progress();
         let max = self.max.to_progress();
 
-        let lower = scope.store(self.lower);
-
         fn update<V: SliderValue, T>(
             entity: &EntityRef,
             input: CursorMove,
@@ -142,13 +137,13 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
             .set(focusable(), ())
             .on_event(on_mouse_input(), {
                 let value = self.value.clone();
-                move |frame, entity, input| {
+                move |_, entity, input| {
                     if input.state == ElementState::Pressed {
                         update(entity, input.cursor, min, max, &value, self.update);
                     }
                 }
             })
-            .on_event(on_cursor_move(), move |frame, entity, input| {
+            .on_event(on_cursor_move(), move |_, entity, input| {
                 update(entity, input, min, max, &self.value, self.update)
             });
 

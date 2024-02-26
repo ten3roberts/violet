@@ -77,7 +77,7 @@ impl Frame {
     }
 
     /// Scope the frame to a particular *existing* entity
-    pub(crate) fn scoped(&mut self, id: Entity) -> Option<Scope<'_>> {
+    pub fn scoped(&mut self, id: Entity) -> Option<Scope<'_>> {
         Scope::try_from_id(self, id)
     }
 
