@@ -1,7 +1,19 @@
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Weak},
+};
+
+use atomic_refcell::AtomicRefCell;
+use dashmap::DashSet;
 use flax::{
-    component::ComponentValue, components::child_of, entity_ids, filter::Or, BoxedSystem,
-    CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System,
-    World,
+    archetype::Storage,
+    component::ComponentValue,
+    components::child_of,
+    entity_ids,
+    events::{EventData, EventSubscriber},
+    filter::Or,
+    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query,
+    QueryBorrow, System, World,
 };
 use glam::Vec2;
 
@@ -10,7 +22,10 @@ use crate::{
         self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
         Rect,
     },
-    layout::{update_subtree, LayoutLimits},
+    layout::{
+        cache::{invalidate_widget, layout_cache, LayoutCache},
+        update_subtree, LayoutLimits,
+    },
 };
 
 pub fn hydrate_text() -> BoxedSystem {
@@ -45,12 +60,78 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
                 cmd.set_missing(id, screen_position(), Vec2::ZERO)
                     .set_missing(id, local_position(), Vec2::ZERO)
                     .set_missing(id, screen_rect(), Rect::default())
+                    .set_missing(id, layout_cache(), LayoutCache::new())
                     .set_missing(id, rect(), Rect::default());
             }
         })
         .boxed()
 }
 
+/// Invalidates layout caches
+pub fn invalidate_cached_layout_system(world: &mut World) -> BoxedSystem {
+    let components = [
+        components::min_size().key(),
+        components::size().key(),
+        components::max_size().key(),
+        components::offset().key(),
+        components::anchor().key(),
+        components::aspect_ratio().key(),
+        components::padding().key(),
+        components::margin().key(),
+        components::children().key(),
+        components::text().key(),
+        components::layout().key(),
+    ];
+
+    let dirty = Arc::new(AtomicRefCell::new(HashSet::new()));
+
+    let invalidator = QueryInvalidator {
+        dirty: Arc::downgrade(&dirty),
+    };
+
+    world.subscribe(invalidator.filter_components(components));
+
+    System::builder()
+        .with_world_mut()
+        .build(move |world: &mut World| {
+            for id in dirty.borrow_mut().drain() {
+                if world.is_alive(id) {
+                    invalidate_widget(world, id);
+                }
+            }
+        })
+        .boxed()
+}
+
+struct QueryInvalidator {
+    dirty: Weak<AtomicRefCell<HashSet<Entity>>>,
+}
+
+impl QueryInvalidator {
+    pub fn mark_dirty(&self, ids: &[Entity]) {
+        if let Some(dirty) = self.dirty.upgrade() {
+            dirty.borrow_mut().extend(ids);
+        }
+    }
+}
+
+impl EventSubscriber for QueryInvalidator {
+    fn on_added(&self, _: &Storage, event: &EventData) {
+        self.mark_dirty(event.ids);
+    }
+
+    fn on_modified(&self, event: &EventData) {
+        self.mark_dirty(event.ids);
+    }
+
+    fn on_removed(&self, _: &Storage, event: &EventData) {
+        self.mark_dirty(event.ids);
+    }
+
+    fn is_connected(&self) -> bool {
+        self.dirty.upgrade().is_some()
+    }
+}
 /// Updates the layout for entities using the given constraints
 pub fn layout_system() -> BoxedSystem {
     System::builder()

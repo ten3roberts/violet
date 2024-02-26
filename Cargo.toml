@@ -57,6 +57,7 @@ guillotiere = "0.6"
 bytes = "1.5"
 more-asserts = "0.3"
 unicode-segmentation="1.0"
+lru = "0.12"
 
 [dependencies]
 violet-wgpu = { path = "violet-wgpu" }
@@ -91,3 +92,6 @@ opt-level = 2
 
 [patch.crates-io]
 palette = { git = "https://github.com/Ogeon/palette" }
+
+[profile.release]
+debug = true

@@ -108,6 +108,7 @@ impl<W: Widget, T: Clone + ComponentValue> Widget for Monitor<W, T> {
 }
 
 /// An explicitly named widget. Used for diagnostic purposes
+#[derive(Debug, Clone)]
 pub struct Named<W> {
     widget: W,
     name: String,

@@ -224,10 +224,11 @@ impl RectRenderer {
                 tracing::debug!(color=%srgba_to_vec4(*item.color), ?item.screen_rect);
                 let rect = item.screen_rect.align_to_grid();
 
-                if rect.size().x < 0.01 || rect.size().y < 0.01 {
-                    tracing::warn!("rect too small to render");
-                    return;
-                }
+                // if rect.size().x < 0.01 || rect.size().y < 0.01 {
+                // tracing::warn!("rect too small to render");
+                //     return;
+                // }
+
                 let model_matrix = Mat4::from_scale_rotation_translation(
                     rect.size().extend(1.0),
                     Quat::IDENTITY,

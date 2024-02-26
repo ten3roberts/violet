@@ -328,18 +328,18 @@ impl FlowLayout {
                 //     .rect
                 //     .clamp_size(child_limits.min_size, child_limits.max_size);
 
-                if block.rect.size().x > child_limits.max_size.x
-                    || block.rect.size().y > child_limits.max_size.y
-                {
-                    tracing::error!(
-                        block_min_size,
-                        block_preferred_size,
-                        "child {} exceeded max size: {:?} > {:?}",
-                        entity,
-                        block.rect.size(),
-                        child_limits.max_size,
-                    );
-                }
+                // if block.rect.size().x > child_limits.max_size.x
+                //     || block.rect.size().y > child_limits.max_size.y
+                // {
+                //     tracing::error!(
+                //         block_min_size,
+                //         block_preferred_size,
+                //         "child {} exceeded max size: {:?} > {:?}",
+                //         entity,
+                //         block.rect.size(),
+                //         child_limits.max_size,
+                //     );
+                // }
 
                 cursor.put(&block);
 

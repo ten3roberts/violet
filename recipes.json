@@ -44,7 +44,8 @@
             "cargo",
             "nextest",
             "run",
-            "--all-features"
+            "--all-features",
+            "--workspace"
         ]
     }
 }

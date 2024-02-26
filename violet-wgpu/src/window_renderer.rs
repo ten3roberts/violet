@@ -104,4 +104,8 @@ impl WindowRenderer {
 
         Ok(())
     }
+
+    pub fn surface(&self) -> &Surface {
+        &self.surface
+    }
 }

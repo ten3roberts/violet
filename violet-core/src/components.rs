@@ -13,7 +13,6 @@ use crate::{
 };
 
 component! {
-    pub is_widget: () => [ Debuggable ],
     /// Ordered list of children for an entity
     pub children: Vec<Entity> => [ Debuggable ],
     // pub child_of(parent): Entity => [ Debuggable ],
@@ -40,7 +39,7 @@ component! {
     /// that implies clipping.
     pub min_size: Unit<Vec2> => [ Debuggable ],
 
-    /// The maximum size of the widget.
+    /// The maximum allowed size of the widget.
     ///
     /// This is to constrain an upper size for containers or relatively sized widgets
     pub max_size: Unit<Vec2> => [ Debuggable ],

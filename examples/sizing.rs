@@ -1,5 +1,9 @@
-use std::usize;
+use std::{
+    time::{Duration, Instant},
+    usize,
+};
 
+use flax::components::name;
 use futures_signals::{
     map_ref,
     signal::{self, Mutable, SignalExt},
@@ -8,11 +12,11 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{num::Round, Hsva, IntoColor, Srgba};
+use palette::{num::Round, Hsva, IntoColor, Srgba, WithAlpha};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
-use futures::stream::StreamExt;
+use futures::stream::{StreamExt, StreamFuture};
 use violet::core::{
     components::{self, screen_rect, Edges, Rect},
     editor::{self, EditAction, EditorAction, TextEditor},
@@ -26,6 +30,7 @@ use violet::core::{
     Scope, Widget,
 };
 use violet_core::{
+    components::size,
     input::{focus_sticky, ElementState, VirtualKeyCode},
     style::{
         self,
@@ -36,8 +41,9 @@ use violet_core::{
         },
         Background,
     },
+    time::{interval, Interval},
     widget::{BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, SliderWithLabel},
-    WidgetCollection,
+    StreamEffect, WidgetCollection,
 };
 
 const MARGIN: Edges = Edges::even(8.0);
@@ -152,7 +158,7 @@ impl Widget for MainApp {
             ))),
             row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height"), label(":P"))),
             Signal::new(size.signal().map(|size| FlowSizing { size })),
-            Signal::new(size.signal().map(|size| StackSizing { size })),
+            // AnimatedSize,
         ))
         .contain_margins(true)
         .with_background(Background::new(EERIE_BLACK_DEFAULT))
@@ -167,77 +173,56 @@ struct FlowSizing {
 impl Widget for FlowSizing {
     fn mount(self, scope: &mut Scope<'_>) {
         let bg = Background::new(JADE_100);
-        row((
-            card(column((
-                label("Unconstrained list"),
-                row((
-                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
-                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-                ))
-                .with_background(bg),
-            ))),
-            card(column((
-                label("Constrained list with min size"),
-                row((
-                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
-                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-                ))
-                .with_background(bg)
-                .with_min_size(Unit::px2(100.0, 100.0)),
-            ))),
-            card(column((
-                label("Constrained list with max size"),
-                row((
-                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
-                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-                ))
-                .with_background(bg)
-                .with_max_size(Unit::px2(100.0, 100.0)),
-            ))),
+
+        let content = (
+            SizedBox::new(JADE_DEFAULT, Unit::px(self.size)).with_name("JADE"),
+            SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
+            AnimatedSize,
+        );
+
+        column((
+            row((
+                card(column((
+                    label("Unconstrained list"),
+                    row(content.clone()).with_background(bg),
+                ))),
+                card(column((
+                    label("Constrained list with min size"),
+                    row(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained list with max size"),
+                    row(content.clone())
+                        .with_background(bg)
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+            )),
+            row((
+                card(column((
+                    label("Unconstrained list"),
+                    centered(content.clone()).with_background(bg),
+                ))),
+                card(column((
+                    label("Constrained list with min size"),
+                    centered(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained list with max size"),
+                    centered(content.clone())
+                        .with_background(bg)
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+            )),
         ))
         .mount(scope)
     }
 }
 
-struct StackSizing {
-    size: Vec2,
-}
-
-impl Widget for StackSizing {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let bg = Background::new(JADE_100);
-
-        row((
-            card(column((
-                label("Unconstrained list"),
-                centered((
-                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
-                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-                ))
-                .with_background(bg),
-            ))),
-            card(column((
-                label("Constrained list with min size"),
-                centered((
-                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
-                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-                ))
-                .with_background(bg)
-                .with_min_size(Unit::px2(100.0, 100.0)),
-            ))),
-            card(column((
-                label("Constrained list with max size"),
-                centered((
-                    SizedBox::new(JADE_DEFAULT, Unit::px(self.size)),
-                    SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)),
-                ))
-                .with_background(bg)
-                .with_max_size(Unit::px2(100.0, 100.0)),
-            ))),
-        ))
-        .mount(scope)
-    }
-}
+#[derive(Debug, Clone)]
 struct SizedBox {
     color: Srgba,
     size: Unit<Vec2>,
@@ -251,13 +236,36 @@ impl SizedBox {
 
 impl Widget for SizedBox {
     fn mount(self, scope: &mut Scope<'_>) {
-        Stack::new((
-            Rectangle::new(self.color).with_size(self.size),
-            column((
-                Text::new(format!("{}", self.size.px)),
-                Text::new(format!("{}", self.size.rel)),
-            )),
-        ))
-        .mount(scope)
+        // Stack::new((
+        Rectangle::new(self.color)
+            .with_size(self.size)
+            //     column((
+            //         Text::new(format!("{}", self.size.px)),
+            //         Text::new(format!("{}", self.size.rel)),
+            //     )),
+            // ))
+            .mount(scope)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AnimatedSize;
+
+impl Widget for AnimatedSize {
+    fn mount(self, scope: &mut Scope<'_>) {
+        scope.set(name(), "AnimatedBox".into());
+        let start = Instant::now();
+        scope.spawn_effect(StreamEffect::new(
+            interval(Duration::from_millis(100)),
+            move |scope: &mut Scope<'_>, deadline: Instant| {
+                let t = (deadline - start).as_secs_f32();
+
+                let size = vec2(t.sin() * 50.0, (t * 2.5).cos() * 50.0) + vec2(100.0, 100.0);
+
+                scope.set(components::size(), Unit::px(size));
+            },
+        ));
+
+        Rectangle::new(LION_DEFAULT).mount(scope)
     }
 }

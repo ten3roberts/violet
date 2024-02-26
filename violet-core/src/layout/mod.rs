@@ -1,17 +1,24 @@
+pub(crate) mod cache;
 mod flow;
 mod stack;
 
 use flax::{Entity, EntityRef, FetchExt, World};
 use glam::{vec2, Vec2};
 
-use crate::components::{
-    self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding, Edges, Rect,
+use crate::{
+    components::{
+        self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding, Edges,
+        Rect,
+    },
+    layout::cache::CachedQuery,
 };
 
 pub use flow::{Alignment, FlowLayout};
 pub use stack::StackLayout;
 
-#[derive(Default, Debug, Clone, Copy)]
+use self::cache::{layout_cache, CachedLayout, QueryKey};
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Ord, Eq)]
 pub enum Direction {
     #[default]
     Horizontal,
@@ -81,7 +88,7 @@ impl Layout {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sizing {
     min: Rect,
     preferred: Rect,
@@ -111,7 +118,10 @@ impl Block {
 }
 
 fn validate_sizing(entity: &EntityRef, sizing: &Sizing, limits: LayoutLimits) {
-    if sizing.min.size().x > limits.max_size.x || sizing.min.size().y > limits.max_size.y {
+    const TOLERANCE: f32 = 0.02;
+    if sizing.min.size().x > limits.max_size.x + TOLERANCE
+        || sizing.min.size().y > limits.max_size.y + TOLERANCE
+    {
         tracing::error!(
             %entity,
             min_size = %sizing.min.size(),
@@ -120,29 +130,34 @@ fn validate_sizing(entity: &EntityRef, sizing: &Sizing, limits: LayoutLimits) {
         );
     }
 
-    if sizing.preferred.size().x > limits.max_size.x
-        || sizing.preferred.size().y > limits.max_size.y
+    if sizing.preferred.size().x > limits.max_size.x + TOLERANCE
+        || sizing.preferred.size().y > limits.max_size.y + TOLERANCE
     {
         tracing::error!(
             %entity,
             preferred_size = %sizing.preferred.size(),
-            max_size = %limits.max_size,
+            ?limits,
             "Preferred size exceeds size limit",
         );
     }
 
-    if sizing.min.size().x < limits.min_size.x || sizing.min.size().y < limits.min_size.y {
+    if sizing.min.size().x + TOLERANCE < limits.min_size.x
+        || sizing.min.size().y + TOLERANCE < limits.min_size.y
+    {
         tracing::error!(
             %entity,
             min_size = %sizing.min.size(),
-            min_size = %limits.min_size,
+            ?limits,
             "Minimum size is less than size limit",
         );
     }
 }
 
 fn validate_block(entity: &EntityRef, block: &Block, limits: LayoutLimits) {
-    if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
+    const TOLERANCE: f32 = 0.02;
+    if block.rect.size().x > limits.max_size.x + TOLERANCE
+        || block.rect.size().y > limits.max_size.y + TOLERANCE
+    {
         tracing::error!(
             %entity,
             rect_size = %block.rect.size(),
@@ -151,7 +166,9 @@ fn validate_block(entity: &EntityRef, block: &Block, limits: LayoutLimits) {
         );
     }
 
-    if block.rect.size().x < limits.min_size.x || block.rect.size().y < limits.min_size.y {
+    if block.rect.size().x + TOLERANCE < limits.min_size.x
+        || block.rect.size().y + TOLERANCE < limits.min_size.y
+    {
         tracing::error!(
             %entity,
             rect_size = %block.rect.size(),
@@ -166,12 +183,14 @@ pub(crate) fn query_size(
     entity: &EntityRef,
     content_area: Vec2,
     mut limits: LayoutLimits,
-    squeeze: Direction,
+    direction: Direction,
 ) -> Sizing {
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
+    let _span = tracing::info_span!("query_size", %entity, ?limits, %content_area).entered();
 
     let query = (
+        layout_cache().as_mut(),
         components::margin().opt_or_default(),
         padding().opt_or_default(),
         min_size().opt_or_default(),
@@ -181,7 +200,7 @@ pub(crate) fn query_size(
     );
 
     let mut query = entity.query(&query);
-    let (&margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
+    let (cache, &margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
 
     limits.min_size = limits.min_size.max(min_size.resolve(content_area));
 
@@ -189,13 +208,26 @@ pub(crate) fn query_size(
         limits.max_size = limits.max_size.min(max_size.resolve(content_area));
     }
 
+    // Check if cache is valid
+    let cache_key = QueryKey::new(content_area, limits, direction);
+    if let Some(cache) = cache.query.get(&cache_key) {
+        if cache.is_valid(limits, content_area) {
+            let _span = tracing::info_span!("cached").entered();
+            validate_sizing(entity, &cache.sizing, limits);
+            tracing::debug!(%entity, "found valid cached query");
+            return cache.sizing;
+        }
+    }
+
+    // tracing::info!(%entity, "query cache miss");
+
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
     // Flow
-    if let Some(layout) = layout {
+    let sizing = if let Some(layout) = layout {
         let mut sizing = layout.query_size(
             world,
             children,
@@ -204,7 +236,7 @@ pub(crate) fn query_size(
                 min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                 max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
-            squeeze,
+            direction,
         );
 
         sizing.margin = (sizing.margin - padding).max(margin);
@@ -217,24 +249,29 @@ pub(crate) fn query_size(
         sizing.min = sizing.min.translate(min_offset);
         sizing.preferred = sizing.preferred.translate(preferred_offset);
 
-        validate_sizing(entity, &sizing, limits);
         sizing
     } else {
         // Leaf
-        let (min_size, preferred_size) = query_constraints(entity, content_area, limits, squeeze);
+        let (min_size, preferred_size) = query_constraints(entity, content_area, limits, direction);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
 
-        let sizing = Sizing {
+        Sizing {
             min: Rect::from_size_pos(min_size, min_offset),
             preferred: Rect::from_size_pos(preferred_size, preferred_offset),
             margin,
-        };
+        }
+    };
 
-        validate_sizing(entity, &sizing, limits);
-        sizing
-    }
+    validate_sizing(entity, &sizing, limits);
+
+    cache.query.put(
+        cache_key,
+        CachedQuery::new(limits.min_size, limits.max_size, content_area, sizing),
+    );
+
+    sizing
 }
 
 /// Updates the layout of the given subtree given the passes constraints.
@@ -254,6 +291,7 @@ pub(crate) fn update_subtree(
     let _span = tracing::debug_span!("update_subtree", %entity).entered();
 
     let query = (
+        layout_cache().as_mut(),
         components::margin().opt_or_default(),
         padding().opt_or_default(),
         min_size().opt_or_default(),
@@ -263,12 +301,22 @@ pub(crate) fn update_subtree(
     );
 
     let mut query = entity.query(&query);
-    let (&margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
+    let (cache, &margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
 
     limits.min_size = limits.min_size.max(min_size.resolve(content_area));
 
     if let Some(max_size) = max_size {
         limits.max_size = limits.max_size.min(max_size.resolve(content_area));
+    }
+
+    // Check if cache is still valid
+
+    if let Some(cache) = cache.layout.as_ref() {
+        if cache.is_valid(limits, content_area) {
+            tracing::debug!(%entity, ?cache, "found valid cached layout");
+            validate_block(entity, &cache.block, limits);
+            return cache.block;
+        }
     }
 
     // limits.min_size = limits.min_size.min(limits.max_size);
@@ -278,7 +326,7 @@ pub(crate) fn update_subtree(
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    if let Some(layout) = layout {
+    let block = if let Some(layout) = layout {
         let mut block = layout.apply(
             world,
             entity,
@@ -304,8 +352,6 @@ pub(crate) fn update_subtree(
 
         block.margin = (block.margin - padding).max(margin);
 
-        validate_block(entity, &block, limits);
-
         block
     } else {
         assert_eq!(children, [], "Widget with children must have a layout");
@@ -323,10 +369,19 @@ pub(crate) fn update_subtree(
 
         entity.update_dedup(components::layout_bounds(), size);
 
-        let block = Block { rect, margin };
-        validate_block(entity, &block, limits);
-        block
-    }
+        Block { rect, margin }
+    };
+
+    validate_block(entity, &block, limits);
+
+    cache.layout = Some(CachedLayout::new(
+        limits.min_size,
+        limits.max_size,
+        content_area,
+        block,
+    ));
+
+    block
 }
 
 /// Used to resolve dynamically determined sizes of widgets. This is most commonly used for text
@@ -405,6 +460,8 @@ fn query_constraints(
         min_size = resolved_min;
         size = resolved_size.max(size);
     }
+
+    // tracing::info!(?min_size, ?size, ?limits, "query_constraints");
 
     (
         constraints.resolve(min_size.clamp(limits.min_size, limits.max_size)),
