@@ -1,5 +1,3 @@
-use std::{any::Any, collections::HashMap};
-
 use atomic_refcell::AtomicRef;
 use flax::{
     component::ComponentValue,
@@ -18,8 +16,6 @@ use crate::{
     Scope, StreamEffect, Widget,
 };
 
-type AtomStore = HashMap<u32, Box<dyn Any>>;
-
 /// Thread local runtime state of the application.
 ///
 /// Contains the ECS world, asset system, and a thread local store
@@ -27,11 +23,9 @@ type AtomStore = HashMap<u32, Box<dyn Any>>;
 /// Is accessible during mutation events of the ECS world.
 pub struct Frame {
     pub store: DynamicStore,
-    pub atoms: AtomStore,
     pub world: World,
     pub spawner: Spawner<Self>,
     pub assets: AssetCache,
-    pub delta_time: f32,
 }
 
 impl Frame {
@@ -41,8 +35,6 @@ impl Frame {
             world,
             spawner,
             assets,
-            delta_time: 0.0,
-            atoms: AtomStore::new(),
         }
     }
 

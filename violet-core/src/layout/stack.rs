@@ -92,6 +92,7 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
+        puffin::profile_function!();
         let _span = tracing::info_span!("StackLayout::apply").entered();
 
         let mut bounds = Rect {
@@ -169,6 +170,7 @@ impl StackLayout {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
+        puffin::profile_function!();
         let min_rect = Rect::from_size_pos(limits.min_size, content_area.min);
         let mut min_bounds = StackableBounds::from_rect(min_rect);
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);

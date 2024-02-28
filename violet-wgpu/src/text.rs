@@ -27,6 +27,7 @@ impl SizeResolver for TextSizeResolver {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> (glam::Vec2, glam::Vec2) {
+        puffin::profile_scope!("TextSizeResolver::query");
         let _span =
             tracing::debug_span!("TextSizeResolver::query", ?squeeze, ?content_area).entered();
 
@@ -62,6 +63,7 @@ impl SizeResolver for TextSizeResolver {
         content_area: Vec2,
         limits: LayoutLimits,
     ) -> Vec2 {
+        puffin::profile_scope!("TextSizeResolver::apply");
         let _span = tracing::debug_span!("TextSizeResolver::apply", ?content_area).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
@@ -141,6 +143,7 @@ impl TextBufferState {
     }
 
     pub(crate) fn update_text(&mut self, font_system: &mut FontSystem, text: &[TextSegment]) {
+        puffin::profile_function!();
         self.buffer.set_rich_text(
             font_system,
             text.iter().map(|v| {
@@ -183,6 +186,7 @@ impl TextBufferState {
     }
 
     pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
+        puffin::profile_function!();
         let lh = self.buffer.metrics().line_height;
 
         let mut result = Vec::new();

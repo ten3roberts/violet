@@ -24,6 +24,7 @@ use violet::core::{
     widget::{List, Rectangle, Signal, Stack, Text, WidgetExt},
     Edges, Scope, StreamEffect, Widget, WidgetCollection,
 };
+use violet_core::{components::size, text::Wrap};
 
 const MARGIN: Edges = Edges::even(8.0);
 const MARGIN_SM: Edges = Edges::even(4.0);
@@ -127,7 +128,7 @@ impl Widget for MainApp {
                 Vec2Editor::new(size.clone(), "width", "height"),
                 Signal::new(size.signal().map(|size| label(format!("Rectangle size: {size}")))),
             ))),
-            row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height"), label(":P"))),
+            row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height"), card(Text::new(":P").with_wrap(Wrap::None)))),
             Signal::new(size.signal().map(|size| FlowSizing { size })),
             // AnimatedSize,
         ))
@@ -146,7 +147,7 @@ impl Widget for FlowSizing {
         let bg = Background::new(JADE_100);
 
         let content = (
-            SizedBox::new(JADE_DEFAULT, Unit::px(self.size)).with_name("JADE"),
+            SizedBox::new(JADE_DEFAULT, Unit::px(self.size)).with_name("EMERALD"),
             SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
             AnimatedSize,
         );
@@ -225,17 +226,15 @@ pub struct AnimatedSize;
 impl Widget for AnimatedSize {
     fn mount(self, scope: &mut Scope<'_>) {
         scope.set(name(), "AnimatedBox".into());
-        let start = Instant::now();
-        scope.spawn_effect(StreamEffect::new(
-            interval(Duration::from_millis(100)),
-            move |scope: &mut Scope<'_>, deadline: Instant| {
-                let t = (deadline - start).as_secs_f32();
+        scope.set(
+            components::on_animation_frame(),
+            Box::new(move |_, entity, t| {
+                let t = t.as_secs_f32();
 
                 let size = vec2(t.sin() * 50.0, (t * 2.5).cos() * 50.0) + vec2(100.0, 100.0);
-
-                scope.set(components::size(), Unit::px(size));
-            },
-        ));
+                entity.update_dedup(components::size(), Unit::px(size));
+            }),
+        );
 
         Rectangle::new(LION_DEFAULT).mount(scope)
     }

@@ -59,6 +59,9 @@ more-asserts = "0.3"
 unicode-segmentation="1.0"
 lru = "0.12"
 
+puffin = "0.19"
+puffin_http = "0.16"
+
 [dependencies]
 violet-wgpu = { path = "violet-wgpu" }
 violet-core = { path = "violet-core" }

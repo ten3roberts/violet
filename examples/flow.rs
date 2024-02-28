@@ -7,7 +7,7 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor, Srgba};
+use palette::{Hsva, IntoColor, Oklch, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -29,7 +29,7 @@ use violet_core::{
     style::{
         self,
         colors::{
-            DARK_CYAN_DEFAULT, EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600,
+            DARK_CYAN_DEFAULT, EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600, EERIE_BLACK_900,
             EERIE_BLACK_DEFAULT, JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
             ULTRA_VIOLET_DEFAULT,
         },

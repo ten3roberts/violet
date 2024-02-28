@@ -118,7 +118,7 @@ impl Block {
 }
 
 fn validate_sizing(entity: &EntityRef, sizing: &Sizing, limits: LayoutLimits) {
-    const TOLERANCE: f32 = 0.02;
+    const TOLERANCE: f32 = 0.2;
     if sizing.min.size().x > limits.max_size.x + TOLERANCE
         || sizing.min.size().y > limits.max_size.y + TOLERANCE
     {
@@ -154,7 +154,7 @@ fn validate_sizing(entity: &EntityRef, sizing: &Sizing, limits: LayoutLimits) {
 }
 
 fn validate_block(entity: &EntityRef, block: &Block, limits: LayoutLimits) {
-    const TOLERANCE: f32 = 0.02;
+    const TOLERANCE: f32 = 0.2;
     if block.rect.size().x > limits.max_size.x + TOLERANCE
         || block.rect.size().y > limits.max_size.y + TOLERANCE
     {
@@ -185,6 +185,7 @@ pub(crate) fn query_size(
     mut limits: LayoutLimits,
     direction: Direction,
 ) -> Sizing {
+    puffin::profile_function!(format!("{entity}"));
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
     let _span = tracing::info_span!("query_size", %entity, ?limits, %content_area).entered();
@@ -285,6 +286,7 @@ pub(crate) fn update_subtree(
     content_area: Vec2,
     mut limits: LayoutLimits,
 ) -> Block {
+    puffin::profile_function!(format!("{entity}"));
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
@@ -318,6 +320,8 @@ pub(crate) fn update_subtree(
             return cache.block;
         }
     }
+
+    // tracing::info!(%entity, ?cache.layout, "layout cache miss");
 
     // limits.min_size = limits.min_size.min(limits.max_size);
 

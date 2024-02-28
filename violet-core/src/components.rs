@@ -1,4 +1,6 @@
-use flax::{component, Debuggable, Entity, Exclusive};
+use std::time::Duration;
+
+use flax::{component, Debuggable, Entity, EntityRef, Exclusive};
 use glam::Vec2;
 use image::DynamicImage;
 use palette::Srgba;
@@ -8,7 +10,7 @@ use crate::{
     layout::{Layout, SizeResolver},
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
-    Edges, Rect,
+    Edges, Frame, Rect,
 };
 
 component! {
@@ -86,4 +88,8 @@ component! {
     pub layout_glyphs: LayoutGlyphs,
 
     pub(crate) atoms,
+
+    pub on_animation_frame: OnAnimationFrame,
 }
+
+pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration) + Send + Sync>;

@@ -42,3 +42,4 @@ bytes.workspace = true
 more-asserts.workspace = true
 unicode-segmentation.workspace = true
 lru.workspace = true
+puffin.workspace = true

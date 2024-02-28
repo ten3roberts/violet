@@ -24,3 +24,5 @@ image.workspace = true
 futures.workspace = true
 palette.workspace = true
 itertools.workspace = true
+puffin.workspace = true
+puffin_http.workspace = true

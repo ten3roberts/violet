@@ -11,6 +11,7 @@ mod text;
 pub mod text_renderer;
 mod texture;
 pub mod window_renderer;
+mod debug_renderer;
 
 pub use graphics::Gpu;
 

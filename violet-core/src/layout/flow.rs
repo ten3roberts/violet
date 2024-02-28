@@ -173,6 +173,7 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
+        puffin::profile_function!();
         let _span = tracing::debug_span!("Flow::apply", ?limits, flow=?self).entered();
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
@@ -191,6 +192,7 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
+        puffin::profile_function!();
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
 
         // If everything was squished as much as possible
@@ -395,6 +397,7 @@ impl FlowLayout {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
+        puffin::profile_function!();
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
 
         // If everything was squished as much as possible
@@ -552,6 +555,7 @@ impl FlowLayout {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Row<'a> {
+        puffin::profile_function!();
         // let available_size = inner_rect.size();
 
         // Start at the corner of the inner rect
@@ -624,6 +628,7 @@ impl FlowLayout {
         limits: LayoutLimits,
         squeeze: Direction,
     ) -> Sizing {
+        puffin::profile_function!();
         let _span =
             tracing::debug_span!("Flow::query_size", ?limits, flow=?self, ?squeeze).entered();
         let row = self.query_row(world, children, content_area, limits, self.direction);

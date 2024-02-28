@@ -13,6 +13,7 @@ use winit::{
 };
 
 use violet_core::{
+    animation::update_animations,
     assets::AssetCache,
     components::{self, local_position, rect, screen_position},
     executor::Executor,
@@ -111,10 +112,17 @@ impl App {
             .with_system(layout_system())
             .with_system(transform_system());
 
-        let mut cur_time = Instant::now();
+        let start_time = Instant::now();
+        let mut cur_time = start_time;
+
+        let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
+        let _puffin_server = puffin_http::Server::new(&server_addr).unwrap();
+        eprintln!("Run this to view profiling data:  puffin_viewer {server_addr}");
+        puffin::set_scopes_on(true);
 
         event_loop.run(move |event, _, ctl| match event {
             Event::MainEventsCleared => {
+                puffin::profile_scope!("MainEventsCleared");
                 let new_time = Instant::now();
 
                 let frame_time = new_time.duration_since(cur_time);
@@ -122,13 +130,13 @@ impl App {
 
                 cur_time = new_time;
 
-                frame.delta_time = delta_time;
-
                 // tracing::info!(?dt, fps = 1.0 / delta_time);
 
                 stats.record_frame(frame_time);
 
                 ex.tick(&mut frame);
+
+                update_animations(&mut frame, cur_time - start_time);
 
                 schedule.execute_seq(&mut frame.world).unwrap();
 
@@ -142,8 +150,10 @@ impl App {
                     "Violet - {:>4.1?} {:>4.1?} {:>4.1?}",
                     report.min_frame_time, report.average_frame_time, report.max_frame_time,
                 ));
+                puffin::GlobalProfiler::lock().new_frame();
             }
             Event::RedrawRequested(_) => {
+                puffin::profile_scope!("RedrawRequested");
                 tracing::info!("Redraw requested");
                 if let Err(err) = window_renderer.draw(&mut frame) {
                     tracing::error!("Failed to draw to window: {err:?}");
@@ -152,12 +162,15 @@ impl App {
             }
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::MouseInput { state, button, .. } => {
+                    puffin::profile_scope!("MouseInput");
                     input_state.on_mouse_input(&mut frame, state, button);
                 }
                 WindowEvent::ReceivedCharacter(c) => {
+                    puffin::profile_scope!("ReceivedCharacter");
                     input_state.on_char_input(&mut frame, c);
                 }
                 WindowEvent::ModifiersChanged(modifiers) => {
+                    puffin::profile_scope!("ModifiersChanged");
                     input_state.on_modifiers_change(modifiers);
                 }
                 WindowEvent::KeyboardInput {
@@ -168,10 +181,18 @@ impl App {
                             ..
                         },
                     ..
-                } => input_state.on_keyboard_input(&mut frame, state, keycode),
-                WindowEvent::CursorMoved { position, .. } => input_state
-                    .on_cursor_move(&mut frame, vec2(position.x as f32, position.y as f32)),
+                } => {
+                    puffin::profile_scope!("KeyboardInput");
+
+                    input_state.on_keyboard_input(&mut frame, state, keycode)
+                }
+                WindowEvent::CursorMoved { position, .. } => {
+                    puffin::profile_scope!("CursorMoved");
+                    input_state
+                        .on_cursor_move(&mut frame, vec2(position.x as f32, position.y as f32))
+                }
                 WindowEvent::Resized(size) => {
+                    puffin::profile_scope!("Resized");
                     frame
                         .world_mut()
                         .set(

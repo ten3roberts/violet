@@ -32,7 +32,7 @@ pub(crate) struct CachedQuery {
     pub(crate) sizing: Sizing,
 }
 
-const TOLERANCE: f32 = 0.01;
+const TOLERANCE: f32 = 0.1;
 
 impl CachedQuery {
     pub(crate) fn new(min_size: Vec2, max_size: Vec2, content_area: Vec2, sizing: Sizing) -> Self {
