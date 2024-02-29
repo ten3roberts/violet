@@ -91,6 +91,7 @@ pub enum CursorMove {
 
 pub enum EditAction {
     InsertChar(char),
+    InsertText(String),
     DeleteBackwardChar,
     DeleteBackwardWord,
     InsertLine,
@@ -192,6 +193,9 @@ impl TextEditor {
                 let line = &mut self.text[self.cursor.row];
                 line.insert(col, c);
                 self.cursor.col += c.len_utf8();
+            }
+            EditAction::InsertText(text) => {
+                todo!()
             }
             EditAction::DeleteBackwardChar => {
                 if self.cursor.col > 0 {

@@ -3,9 +3,9 @@ use futures_signals::signal::{self, SignalExt};
 
 use crate::{components::layout, layout::Layout, Scope, StreamEffect, Widget};
 
-pub struct Signal<S>(pub S);
+pub struct SignalWidget<S>(pub S);
 
-impl<S> Signal<S> {
+impl<S> SignalWidget<S> {
     pub fn new(signal: S) -> Self
     where
         S: 'static + signal::Signal,
@@ -15,7 +15,7 @@ impl<S> Signal<S> {
     }
 }
 
-impl<S, W> Widget for Signal<S>
+impl<S, W> Widget for SignalWidget<S>
 where
     S: 'static + signal::Signal<Item = W>,
     W: Widget,

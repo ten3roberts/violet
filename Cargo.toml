@@ -1,5 +1,5 @@
 [workspace]
-members = [ "violet-wgpu", "violet-core" ]
+members = [ "violet-wgpu", "violet-core", "violet-web-example" ]
   
 [workspace.package]
 version = "0.0.1"
@@ -41,8 +41,8 @@ slab = "0.4"
 tynm ="0.1"
 
 bytemuck = { version = "1.13", features = ["derive"] }
-winit = "0.28"
-wgpu = { version = "0.17" }
+winit = "0.29"
+wgpu = { version = "0.19", default-features = false, features = ["dx12", "fragile-send-sync-non-atomic-wasm", "webgl", "wgsl"] }
 palette = { version = "0.7", features = ["serializing"] }
 dashmap = "5.4"
 image = { version = "0.24", default_features = false, features = ["png", "jpeg"] }
@@ -52,7 +52,7 @@ serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"
 pin-project = "1.1"
 
-cosmic-text = "0.11"
+cosmic-text = { version = "0.11", features = ["wasm-web"] }
 guillotiere = "0.6"
 bytes = "1.5"
 more-asserts = "0.3"
@@ -61,6 +61,11 @@ lru = "0.12"
 
 puffin = "0.19"
 puffin_http = "0.16"
+gloo-timers = "0.3"
+web-time = "1.0"
+wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2"
+web-sys = "0.3"
 
 [dependencies]
 violet-wgpu = { path = "violet-wgpu" }
@@ -68,6 +73,7 @@ violet-core = { path = "violet-core" }
 glam.workspace = true
 palette.workspace = true
 futures-signals.workspace = true
+flax.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

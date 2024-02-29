@@ -21,11 +21,11 @@ use violet::core::{
     text::{LayoutGlyphs, TextSegment},
     to_owned,
     unit::Unit,
-    widget::{List, NoOp, Rectangle, Signal, Stack, Text, WidgetExt},
+    widget::{List, NoOp, Rectangle, SignalWidget, Stack, Text, WidgetExt},
     Scope, Widget,
 };
 use violet_core::{
-    input::{focus_sticky, ElementState, VirtualKeyCode},
+    input::{focus_sticky, ElementState, NamedKey},
     style::{
         self,
         colors::{
@@ -132,7 +132,7 @@ impl Widget for MainApp {
                     row((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
                 ))
                 .with_direction(Direction::Vertical),
-                Signal::new(item_list),
+                SignalWidget::new(item_list),
             ))),
             column(
                 [
@@ -321,53 +321,49 @@ impl Widget for TextInput {
             })
             .on_event(on_char_typed(), {
                 to_owned![tx];
-                move |_, _, char| {
-                    if char.is_control() {
-                        return;
-                    }
-
-                    tx.send(EditorAction::Edit(EditAction::InsertChar(char)))
+                move |_, _, text| {
+                    tx.send(EditorAction::Edit(EditAction::InsertText(text.to_string())))
                         .ok();
                 }
             })
             .on_event(on_keyboard_input(), {
                 to_owned![tx];
                 move |_, _, input| {
-                    let ctrl = input.modifiers.ctrl();
+                    let ctrl = input.modifiers.control_key();
                     if input.state == ElementState::Pressed {
                         match input.keycode {
-                            VirtualKeyCode::Back if ctrl => {
+                            NamedKey::Backspace if ctrl => {
                                 tx.send(EditorAction::Edit(EditAction::DeleteBackwardWord))
                                     .ok();
                             }
-                            VirtualKeyCode::Back => {
+                            NamedKey::Backspace => {
                                 tx.send(EditorAction::Edit(EditAction::DeleteBackwardChar))
                                     .ok();
                             }
-                            VirtualKeyCode::Return => {
+                            NamedKey::Enter => {
                                 tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
                             }
-                            VirtualKeyCode::Left if ctrl => {
+                            NamedKey::ArrowLeft if ctrl => {
                                 tx.send(EditorAction::CursorMove(editor::CursorMove::BackwardWord))
                                     .ok();
                             }
-                            VirtualKeyCode::Right if ctrl => {
+                            NamedKey::ArrowRight if ctrl => {
                                 tx.send(EditorAction::CursorMove(editor::CursorMove::ForwardWord))
                                     .ok();
                             }
-                            VirtualKeyCode::Left => {
+                            NamedKey::ArrowLeft => {
                                 tx.send(EditorAction::CursorMove(editor::CursorMove::Left))
                                     .ok();
                             }
-                            VirtualKeyCode::Right => {
+                            NamedKey::ArrowRight => {
                                 tx.send(EditorAction::CursorMove(editor::CursorMove::Right))
                                     .ok();
                             }
-                            VirtualKeyCode::Up => {
+                            NamedKey::ArrowUp => {
                                 tx.send(EditorAction::CursorMove(editor::CursorMove::Up))
                                     .ok();
                             }
-                            VirtualKeyCode::Down => {
+                            NamedKey::ArrowDown => {
                                 tx.send(EditorAction::CursorMove(editor::CursorMove::Down))
                                     .ok();
                             }
@@ -378,14 +374,14 @@ impl Widget for TextInput {
             });
 
         pill(Stack::new((
-            Signal(self.content.signal_cloned().map(move |v| {
+            SignalWidget(self.content.signal_cloned().map(move |v| {
                 to_owned![text_bounds];
                 Text::rich([TextSegment::new(v)])
                     .with_font_size(18.0)
                     .monitor_signal(components::layout_glyphs(), layout_glyphs.clone())
                     .monitor_signal(screen_rect(), text_bounds.clone())
             })),
-            Signal(editor_props_rx),
+            SignalWidget(editor_props_rx),
         )))
         .mount(scope)
     }

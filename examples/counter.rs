@@ -9,7 +9,7 @@ use violet::core::{
     layout::Alignment,
     style::StyleExt,
     unit::Unit,
-    widget::{Button, List, Signal, Stack, Text},
+    widget::{Button, List, SignalWidget, Stack, Text},
     Scope, Widget,
 };
 use violet_core::{style::Background, widget::ContainerStyle, Edges};
@@ -54,7 +54,7 @@ impl Widget for MainApp {
         let counter = Mutable::new(0);
 
         List::new((
-            pill(Signal(
+            pill(SignalWidget(
                 counter
                     .signal()
                     .map(|v| Text::new(format!("Count: {v:>4}"))),

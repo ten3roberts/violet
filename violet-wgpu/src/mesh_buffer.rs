@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use itertools::Itertools;
 use wgpu::{BufferUsages, RenderPass};
 
 use super::{
@@ -157,38 +158,15 @@ impl MeshBuffer {
         render_pass.set_index_buffer(self.index_buffers.slice(..), wgpu::IndexFormat::Uint32);
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn reallocate(
-        &mut self,
-        gpu: &Gpu,
-        handle: &mut MeshHandle,
-        vertex_count: usize,
-        index_count: usize,
-    ) {
-        if handle.vb.size() >= vertex_count && handle.ib.size() >= index_count {
-            return;
-        }
-
-        self.reclaim();
-        handle.vb = match self.vertex_buffers.try_reallocate(handle.vb, vertex_count) {
-            Some(v) => v,
-            None => {
-                self.vertex_buffers.grow(gpu, vertex_count);
-                self.vertex_buffers.allocate(vertex_count).unwrap()
-            }
-        };
-
-        handle.ib = match self.index_buffers.try_reallocate(handle.ib, index_count) {
-            Some(v) => v,
-            None => {
-                self.index_buffers.grow(gpu, index_count);
-                self.index_buffers.allocate(index_count).unwrap()
-            }
-        };
-    }
-
     pub fn write(&mut self, gpu: &Gpu, handle: &MeshHandle, vertices: &[Vertex], indices: &[u32]) {
         self.vertex_buffers.write(&gpu.queue, &handle.vb, vertices);
-        self.index_buffers.write(&gpu.queue, &handle.ib, indices);
+        self.index_buffers.write(
+            &gpu.queue,
+            &handle.ib,
+            &indices
+                .iter()
+                .map(|v| v + handle.vb.offset() as u32)
+                .collect_vec(),
+        );
     }
 }

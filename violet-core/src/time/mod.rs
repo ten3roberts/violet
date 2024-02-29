@@ -6,12 +6,12 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
     thread::{self, Thread},
-    time::{Duration, Instant},
 };
 
 use futures::{
+    channel::oneshot,
     task::{ArcWake, AtomicWaker},
     Future,
 };
@@ -20,6 +20,8 @@ use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
 use slotmap::new_key_type;
 mod interval;
+
+use web_time::{Duration, Instant};
 
 pub use interval::{interval, interval_at, Interval};
 
@@ -65,6 +67,7 @@ impl ArcWake for ThreadWaker {
 struct Inner {
     /// Invoked when there is a new timer
     waker: AtomicWaker,
+    ready: AtomicBool,
     heap: Mutex<BTreeSet<Entry>>,
     handle_count: AtomicUsize,
 }
@@ -73,6 +76,11 @@ impl Inner {
     pub fn register(&self, deadline: Instant, timer: *const TimerEntry) {
         self.heap.lock().insert(Entry { deadline, timer });
 
+        self.wake()
+    }
+
+    fn wake(&self) {
+        self.ready.store(true, Ordering::Release);
         self.waker.wake();
     }
 
@@ -99,7 +107,7 @@ impl Drop for TimersHandle {
     fn drop(&mut self) {
         let count = self.inner.handle_count.fetch_sub(1, Ordering::Relaxed);
         if count == 1 {
-            self.inner.waker.wake();
+            self.inner.wake();
         }
     }
 }
@@ -116,6 +124,7 @@ impl Timers {
             heap: Mutex::new(BTreeSet::new()),
             waker: AtomicWaker::new(),
             handle_count: AtomicUsize::new(1),
+            ready: AtomicBool::new(false),
         });
 
         (
@@ -127,9 +136,7 @@ impl Timers {
     }
 
     /// Advances the timers, returning the next deadline
-    fn tick(&mut self, time: Instant, waker: &Waker) -> Result<Option<Instant>, TimersFinished> {
-        self.inner.waker.register(waker);
-
+    fn tick(&mut self, time: Instant) -> Result<Option<Instant>, TimersFinished> {
         let mut heap = self.inner.heap.lock();
 
         while let Some(entry) = heap.first() {
@@ -158,9 +165,17 @@ impl Timers {
     }
 
     /// Starts executing the timers in the background
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn start() -> TimersHandle {
         let (timers, handle) = Timers::new();
         std::thread::spawn(move || timers.run_blocking());
+        handle
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn start() -> TimersHandle {
+        let (timers, handle) = Timers::new();
+        wasm_bindgen_futures::spawn_local(timers.run_web());
         handle
     }
 
@@ -173,7 +188,8 @@ impl Timers {
 
         loop {
             let now = Instant::now();
-            let next = match self.tick(now, &waker) {
+            self.inner.waker.register(&waker);
+            let next = match self.tick(now) {
                 Ok(v) => v,
                 Err(_) => {
                     break;
@@ -187,6 +203,81 @@ impl Timers {
                 thread::park();
             }
         }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn run_web(mut self) {
+        loop {
+            tracing::info!("Polling timers");
+            let now = Instant::now();
+            let next = match self.tick(now) {
+                Ok(v) => v,
+                Err(_) => {
+                    break;
+                }
+            };
+
+            let fut = TickFuture::new(self.inner.clone(), next.map(|v| v - now));
+            fut.await;
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+struct TickFuture {
+    inner: Arc<Inner>,
+    timeout: Option<(oneshot::Receiver<()>, gloo_timers::callback::Timeout)>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl TickFuture {
+    fn new(inner: Arc<Inner>, timeout: Option<Duration>) -> Self {
+        let timeout = if let Some(timeout) = timeout {
+            let (tx, rx) = oneshot::channel();
+
+            let timeout = gloo_timers::callback::Timeout::new(
+                timeout.as_millis().try_into().unwrap(),
+                || {
+                    tx.send(()).ok();
+                },
+            );
+
+            Some((rx, timeout))
+        } else {
+            None
+        };
+
+        Self { inner, timeout }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Future for TickFuture {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        use futures::FutureExt;
+        let waker = cx.waker().clone();
+        self.inner.waker.register(&waker);
+
+        if self
+            .inner
+            .ready
+            .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
+            .is_ok()
+        {
+            tracing::info!("Timers finished");
+
+            return Poll::Ready(());
+        }
+
+        if let Some((rx, _)) = self.timeout.as_mut() {
+            if let Poll::Ready(_) = rx.poll_unpin(cx) {
+                return Poll::Ready(());
+            }
+        }
+
+        Poll::Pending
     }
 }
 

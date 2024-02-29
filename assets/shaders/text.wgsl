@@ -24,7 +24,7 @@ struct Globals {
 var<uniform> globals: Globals;
 
 @group(1) @binding(0)
-var<storage> objects: array<Object>;
+var<uniform> objects: array<Object, 32>;
 
 @group(2) @binding(0)
 var default_sampler: sampler;

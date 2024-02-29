@@ -1,14 +1,16 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use futures::channel::oneshot;
+use std::sync::Arc;
+use web_time::{Duration, Instant};
 
+use anyhow::anyhow;
 use flax::{components::name, Entity, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder},
+    dpi::PhysicalSize,
+    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event_loop::EventLoopBuilder,
+    keyboard::Key,
     window::WindowBuilder,
 };
 
@@ -23,11 +25,11 @@ use violet_core::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    Frame, Rect, Scope, Widget,
+    Frame, FutureEffect, Rect, Scope, Widget,
 };
 
 use crate::{
-    graphics::Gpu,
+    graphics::{Gpu, Surface},
     systems::{register_text_buffers, update_text_buffers},
     text_renderer::TextSystem,
     window_renderer::WindowRenderer,
@@ -72,12 +74,45 @@ impl App {
 
         let mut frame = Frame::new(spawner, AssetCache::new(), World::new());
 
-        let event_loop = EventLoopBuilder::new().build();
+        let event_loop = EventLoopBuilder::new().build()?;
 
-        let window = WindowBuilder::new().build(&event_loop)?;
+        #[allow(unused_mut)]
+        let mut builder = WindowBuilder::new().with_inner_size(PhysicalSize::new(800, 600));
 
-        let window_size = window.inner_size();
-        let window_size = vec2(window_size.width as f32, window_size.height as f32);
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::JsCast;
+
+            use winit::platform::web::WindowBuilderExtWebSys;
+            let canvas = web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("canvas")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlCanvasElement>()
+                .unwrap();
+            builder = builder.with_canvas(Some(canvas));
+            // use winit::dpi::PhysicalSize;
+            // window.request_inner_size(PhysicalSize::new(450, 400));
+
+            // let node = web_sys::window()
+            //     .unwrap()
+            //     .document()
+            //     .unwrap()
+            //     .get_element_by_id("canvas-container")
+            //     .unwrap();
+
+            // use winit::platform::web::WindowExtWebSys;
+            // node.append_child(&web_sys::Element::from(
+            //     window.canvas().ok_or_else(|| anyhow!("No canvas"))?,
+            // ))
+            // .expect("Failed to add child");
+        }
+
+        let window = builder.build(&event_loop)?;
+
+        let mut window_size = window.inner_size();
 
         let mut input_state = InputState::new(Vec2::ZERO);
 
@@ -86,19 +121,32 @@ impl App {
         // Mount the root widget
         let root = frame.new_root(Canvas {
             stylesheet,
-            size: window_size,
+            size: vec2(window_size.width as f32, window_size.height as f32),
             root,
         });
 
         let mut stats = AppStats::new(60);
 
-        // TODO: Make this a proper effect
-        let (gpu, surface) = futures::executor::block_on(Gpu::with_surface(window));
+        tracing::info!("creating gpu");
+        let window = Arc::new(window);
 
-        let text_system = Arc::new(Mutex::new(TextSystem::new()));
+        // TODO: async within violet's executor
+        let (gpu_tx, mut gpu_rx) = oneshot::channel();
 
-        let mut window_renderer =
-            WindowRenderer::new(gpu, &mut frame, text_system.clone(), surface);
+        let text_system = Arc::new(Mutex::new(TextSystem::new_with_defaults()));
+        frame.spawn(FutureEffect::new(
+            {
+                let window = window.clone();
+                async move {
+                    violet_core::time::sleep(Duration::from_secs(2)).await;
+                    let gpu = Gpu::with_surface(window).await;
+                    gpu_tx.send(gpu).ok();
+                }
+            },
+            |_: &mut Frame, _| {},
+        ));
+
+        let mut window_renderer = None;
 
         let mut schedule = Schedule::new()
             .with_system(templating_system(root))
@@ -107,7 +155,7 @@ impl App {
             .flush()
             .with_system(register_text_buffers(text_system.clone()))
             .flush()
-            .with_system(update_text_buffers(text_system))
+            .with_system(update_text_buffers(text_system.clone()))
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(layout_system())
             .with_system(transform_system());
@@ -115,14 +163,27 @@ impl App {
         let start_time = Instant::now();
         let mut cur_time = start_time;
 
-        let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
-        let _puffin_server = puffin_http::Server::new(&server_addr).unwrap();
-        eprintln!("Run this to view profiling data:  puffin_viewer {server_addr}");
-        puffin::set_scopes_on(true);
+        // let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
+        // let _puffin_server = puffin_http::Server::new(&server_addr).unwrap();
+        // eprintln!("Run this to view profiling data:  puffin_viewer {server_addr}");
+        // puffin::set_scopes_on(true);
+        let mut minimized = true;
 
-        event_loop.run(move |event, _, ctl| match event {
-            Event::MainEventsCleared => {
-                puffin::profile_scope!("MainEventsCleared");
+        event_loop.run(move |event, ctl| match event {
+            Event::AboutToWait => {
+                puffin::profile_scope!("AboutToWait");
+
+                if let Some((gpu, surface)) = gpu_rx.try_recv().ok().flatten() {
+                    tracing::info!("created gpu");
+                    let mut w = WindowRenderer::new(&mut frame, gpu, text_system.clone(), surface);
+                    w.resize(window_size);
+                    window_renderer = Some(w);
+                }
+
+                if minimized {
+                    return;
+                }
+
                 let new_time = Instant::now();
 
                 let frame_time = new_time.duration_since(cur_time);
@@ -140,44 +201,54 @@ impl App {
 
                 schedule.execute_seq(&mut frame.world).unwrap();
 
-                if let Err(err) = window_renderer.draw(&mut frame) {
-                    tracing::error!("Failed to draw to window: {err:?}");
-                    *ctl = ControlFlow::Exit
+                if let Some(window_renderer) = &mut window_renderer {
+                    if let Err(err) = window_renderer.draw(&mut frame) {
+                        tracing::error!("Failed to draw to window: {err:?}");
+                    }
                 }
 
                 let report = stats.report();
-                window_renderer.surface().window().set_title(&format!(
+                window.set_title(&format!(
                     "Violet - {:>4.1?} {:>4.1?} {:>4.1?}",
                     report.min_frame_time, report.average_frame_time, report.max_frame_time,
                 ));
                 puffin::GlobalProfiler::lock().new_frame();
             }
-            Event::RedrawRequested(_) => {
-                puffin::profile_scope!("RedrawRequested");
-                tracing::info!("Redraw requested");
-                if let Err(err) = window_renderer.draw(&mut frame) {
-                    tracing::error!("Failed to draw to window: {err:?}");
-                    *ctl = ControlFlow::Exit
-                }
-            }
             Event::WindowEvent { window_id, event } => match event {
+                WindowEvent::RedrawRequested => {
+                    puffin::profile_scope!("RedrawRequested");
+                    if let Some(window_renderer) = &mut window_renderer {
+                        if let Err(err) = window_renderer.draw(&mut frame) {
+                            tracing::error!("Failed to draw to window: {err:?}");
+                        }
+                    }
+                }
                 WindowEvent::MouseInput { state, button, .. } => {
                     puffin::profile_scope!("MouseInput");
                     input_state.on_mouse_input(&mut frame, state, button);
                 }
-                WindowEvent::ReceivedCharacter(c) => {
-                    puffin::profile_scope!("ReceivedCharacter");
-                    input_state.on_char_input(&mut frame, c);
-                }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     puffin::profile_scope!("ModifiersChanged");
-                    input_state.on_modifiers_change(modifiers);
+                    input_state.on_modifiers_change(modifiers.state());
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state: ElementState::Pressed,
+                            text: Some(text),
+                            ..
+                        },
+                    ..
+                } => {
+                    puffin::profile_scope!("KeyboardInput");
+
+                    input_state.on_char_input(&mut frame, text.as_str());
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
                             state,
-                            virtual_keycode: Some(keycode),
+                            logical_key: Key::Named(keycode),
                             ..
                         },
                     ..
@@ -193,6 +264,10 @@ impl App {
                 }
                 WindowEvent::Resized(size) => {
                     puffin::profile_scope!("Resized");
+                    minimized = size.width == 0 || size.height == 0;
+
+                    window_size = size;
+
                     frame
                         .world_mut()
                         .set(
@@ -205,10 +280,12 @@ impl App {
                         )
                         .unwrap();
 
-                    window_renderer.resize(size);
+                    if let Some(window_renderer) = &mut window_renderer {
+                        window_renderer.resize(size);
+                    }
                 }
                 WindowEvent::CloseRequested => {
-                    *ctl = ControlFlow::Exit;
+                    ctl.exit();
                 }
                 event => {
                     tracing::trace!(?event, ?window_id, "Window event")
@@ -217,7 +294,9 @@ impl App {
             event => {
                 tracing::trace!(?event, "Event")
             }
-        })
+        })?;
+
+        Ok(())
     }
 }
 

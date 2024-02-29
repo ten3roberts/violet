@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cosmic_text::{Buffer, CacheKey, FontSystem, Placement, SwashCache};
+use cosmic_text::{fontdb::Source, Buffer, CacheKey, FontSystem, Placement, SwashCache};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -24,7 +24,9 @@ use violet_core::{
     Frame, Rect,
 };
 
-use crate::{components, font::FontAtlas, graphics::BindGroupBuilder, shape_renderer::DrawCommand};
+use crate::{
+    components, font::FontAtlas, graphics::BindGroupBuilder, widget_renderer::DrawCommand,
+};
 
 use super::{
     components::{draw_cmd, object_data, text_buffer_state, text_mesh},
@@ -32,10 +34,13 @@ use super::{
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
-    shape_renderer::{srgba_to_vec4, ObjectData, RendererStore},
     text::TextBufferState,
+    widget_renderer::{srgba_to_vec4, ObjectData, RendererStore},
     Gpu,
 };
+
+static INTER_FONT: &[u8] =
+    include_bytes!("../../assets/fonts/Inter/Inter-VariableFont_slnt,wght.ttf");
 
 pub struct TextSystem {
     pub(crate) font_system: FontSystem,
@@ -46,6 +51,16 @@ impl TextSystem {
     pub fn new() -> Self {
         Self {
             font_system: FontSystem::new(),
+            swash_cache: SwashCache::new(),
+        }
+    }
+
+    pub fn new_with_defaults() -> Self {
+        let sources = [Source::Binary(Arc::new(INTER_FONT.to_vec()))];
+        let font_system = FontSystem::new_with_fonts(sources);
+
+        Self {
+            font_system,
             swash_cache: SwashCache::new(),
         }
     }
@@ -273,11 +288,11 @@ impl MeshGenerator {
             .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
             .collect_vec();
 
-        if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
-            ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
-        } else {
-            *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
-        }
+        *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
+        // if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
+        //     ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
+        // } else {
+        // }
 
         indices.len() as u32
     }
@@ -409,7 +424,6 @@ impl TextRenderer {
                         shader: self.mesh_generator.shader.clone(),
                         mesh: text_mesh.clone(),
                         index_count,
-                        vertex_offset: 0,
                     },
                 );
 

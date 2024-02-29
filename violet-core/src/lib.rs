@@ -1,3 +1,4 @@
+pub mod animation;
 pub mod assets;
 pub mod atom;
 pub mod components;
@@ -19,7 +20,6 @@ mod types;
 pub mod unit;
 pub mod utils;
 pub mod widget;
-pub mod animation;
 
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;

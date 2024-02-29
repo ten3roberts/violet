@@ -7,7 +7,7 @@ mod input;
 pub use basic::{BoxSized, Image, Positioned, Rectangle, Text};
 pub use container::{ContainerStyle, List, Movable, Stack};
 use flax::{component::ComponentValue, components::name, Component};
-pub use future::{Signal, StreamWidget};
+pub use future::{SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use input::{
     button::*,

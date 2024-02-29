@@ -47,5 +47,13 @@
             "--all-features",
             "--workspace"
         ]
+    },
+    "build web": {
+        "cmd": "wasm-pack build --target web",
+        "cwd": "./violet-web-example/"
+    },
+    "host": {
+        "cmd": "python3 -m http.server 8080",
+        "cwd": "./violet-web-example/"
     }
 }

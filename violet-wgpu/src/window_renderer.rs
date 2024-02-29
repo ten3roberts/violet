@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use glam::Mat4;
 use parking_lot::Mutex;
-use wgpu::{Operations, RenderPassDescriptor, SurfaceError};
+use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
 use winit::dpi::PhysicalSize;
 
 use violet_core::Frame;
@@ -11,8 +11,8 @@ use violet_core::Frame;
 use super::{
     graphics::{Gpu, Surface},
     renderer::RendererContext,
-    shape_renderer::WidgetRenderer,
     text_renderer::TextSystem,
+    widget_renderer::WidgetRenderer,
 };
 
 /// Renders to a window surface
@@ -20,24 +20,24 @@ pub struct WindowRenderer {
     surface: Surface,
 
     ctx: RendererContext,
-    shape_renderer: WidgetRenderer,
+    widget_renderer: WidgetRenderer,
 }
 
 impl WindowRenderer {
     pub fn new(
-        gpu: Gpu,
         frame: &mut Frame,
+        gpu: Gpu,
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
     ) -> Self {
         let mut ctx = RendererContext::new(gpu);
 
-        let shape_renderer =
+        let widget_renderer =
             WidgetRenderer::new(frame, &mut ctx, text_system, surface.surface_format());
 
         Self {
             surface,
-            shape_renderer,
+            widget_renderer,
             ctx,
         }
     }
@@ -55,6 +55,10 @@ impl WindowRenderer {
     }
 
     pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<()> {
+        if !self.surface.has_size() {
+            tracing::info!("No surface size, skipping draw");
+            return Ok(());
+        }
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
             Err(SurfaceError::Lost | SurfaceError::Outdated) => {
@@ -88,13 +92,14 @@ impl WindowRenderer {
                             b: 0.05,
                             a: 1.0,
                         }),
-                        store: true,
+                        store: StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: None,
+                ..Default::default()
             });
 
-            self.shape_renderer
+            self.widget_renderer
                 .draw(&mut self.ctx, frame, &mut render_pass)
                 .context("Failed to draw shapes")?;
         }

@@ -26,7 +26,7 @@ use super::{
     },
     mesh_buffer::MeshHandle,
     renderer::RendererContext,
-    shape_renderer::{srgba_to_vec4, DrawCommand, ObjectData, RendererStore},
+    widget_renderer::{srgba_to_vec4, DrawCommand, ObjectData, RendererStore},
     Gpu,
 };
 
@@ -207,7 +207,6 @@ impl RectRenderer {
                         shader: self.shader.clone(),
                         mesh: self.mesh.clone(),
                         index_count: 6,
-                        vertex_offset: 0,
                     },
                 );
             });

@@ -1,75 +1,49 @@
-use std::time::{Duration, Instant};
-
-use flax::components::name;
-use futures_signals::signal::{Mutable, SignalExt};
-
-use glam::{vec2, Vec2};
-use palette::Srgba;
-use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
-use tracing_tree::HierarchicalLayer;
-
-use violet::core::{
-    components,
-    layout::{Alignment, Direction},
-    style::{
-        colors::{
-            EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_100, JADE_DEFAULT, LION_DEFAULT,
-            REDWOOD_DEFAULT,
-        },
-        Background,
-    },
-    time::interval,
-    unit::Unit,
-    widget::SliderWithLabel,
-    widget::{List, Rectangle, SignalWidget, Stack, Text, WidgetExt},
-    Edges, Scope, StreamEffect, Widget, WidgetCollection,
+use glam::Vec2;
+use tracing_subscriber::{
+    filter::LevelFilter, fmt::format::Pretty, layer::SubscriberExt, util::SubscriberInitExt, Layer,
 };
-use violet_core::{components::size, style::colors::DARK_CYAN_DEFAULT, text::Wrap};
+use tracing_web::{performance_layer, MakeWebConsoleWriter};
+use violet::{
+    core::{
+        components,
+        layout::{Alignment, Direction},
+        style::{
+            colors::{
+                EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_200, JADE_DEFAULT, LION_DEFAULT,
+                REDWOOD_DEFAULT,
+            },
+            Background,
+        },
+        text::Wrap,
+        unit::Unit,
+        widget::{List, Rectangle, SignalWidget, SliderWithLabel, Stack, Text, WidgetExt},
+        Edges, Scope, Widget, WidgetCollection,
+    },
+    flax::components::name,
+    futures_signals::signal::{Mutable, SignalExt},
+    glam::vec2,
+    palette::Srgba,
+};
+use wasm_bindgen::prelude::*;
 
-const MARGIN: Edges = Edges::even(8.0);
-const MARGIN_SM: Edges = Edges::even(4.0);
+#[wasm_bindgen]
+pub async fn run() {
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .without_time()
+        .with_writer(MakeWebConsoleWriter::new())
+        .with_filter(LevelFilter::INFO);
 
-fn label(text: impl Into<String>) -> Stack<Text> {
-    Stack::new(Text::new(text.into()))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
-        .with_background(Background::new(EERIE_BLACK_400))
-}
+    let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
 
-fn row<W: WidgetCollection>(widgets: W) -> List<W> {
-    List::new(widgets).with_direction(Direction::Horizontal)
-}
-
-fn column<W: WidgetCollection>(widgets: W) -> List<W> {
-    List::new(widgets).with_direction(Direction::Vertical)
-}
-
-fn centered<W>(widget: W) -> Stack<W> {
-    Stack::new(widget)
-        .with_horizontal_alignment(Alignment::Center)
-        .with_vertical_alignment(Alignment::Center)
-}
-
-fn card<W>(widget: W) -> Stack<W> {
-    Stack::new(widget)
-        .with_background(Background::new(EERIE_BLACK_400))
-        .with_padding(MARGIN)
-        .with_margin(MARGIN)
-}
-
-pub fn main() -> anyhow::Result<()> {
-    registry()
-        .with(
-            HierarchicalLayer::default()
-                .with_deferred_spans(true)
-                .with_span_retrace(true)
-                .with_indent_lines(true)
-                .with_indent_amount(4),
-        )
-        .with(EnvFilter::from_default_env())
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(perf_layer)
         .init();
 
-    violet_wgpu::App::new().run(MainApp)
+    console_error_panic_hook::set_once();
+
+    violet::wgpu::App::new().run(MainApp).unwrap();
 }
 
 struct Vec2Editor {
@@ -144,16 +118,11 @@ struct FlowSizing {
 
 impl Widget for FlowSizing {
     fn mount(self, scope: &mut Scope<'_>) {
-        let bg = Background::new(JADE_100);
+        let bg = Background::new(JADE_200);
 
         let content = (
             SizedBox::new(JADE_DEFAULT, Unit::px(self.size)).with_name("EMERALD"),
             SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
-            SizedBox::new(
-                DARK_CYAN_DEFAULT,
-                Unit::rel2(0.1, 0.0) + Unit::px2(0.0, 50.0),
-            )
-            .with_name("DARK_CYAN"),
             AnimatedSize,
         );
 
@@ -244,3 +213,33 @@ impl Widget for AnimatedSize {
         Rectangle::new(LION_DEFAULT).mount(scope)
     }
 }
+fn label(text: impl Into<String>) -> Stack<Text> {
+    Stack::new(Text::new(text.into()))
+        .with_padding(MARGIN_SM)
+        .with_margin(MARGIN_SM)
+        .with_background(Background::new(EERIE_BLACK_400))
+}
+
+fn row<W: WidgetCollection>(widgets: W) -> List<W> {
+    List::new(widgets).with_direction(Direction::Horizontal)
+}
+
+fn column<W: WidgetCollection>(widgets: W) -> List<W> {
+    List::new(widgets).with_direction(Direction::Vertical)
+}
+
+fn centered<W>(widget: W) -> Stack<W> {
+    Stack::new(widget)
+        .with_horizontal_alignment(Alignment::Center)
+        .with_vertical_alignment(Alignment::Center)
+}
+
+fn card<W>(widget: W) -> Stack<W> {
+    Stack::new(widget)
+        .with_background(Background::new(EERIE_BLACK_400))
+        .with_padding(MARGIN)
+        .with_margin(MARGIN)
+}
+
+const MARGIN: Edges = Edges::even(8.0);
+const MARGIN_SM: Edges = Edges::even(4.0);

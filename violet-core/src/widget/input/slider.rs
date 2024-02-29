@@ -4,7 +4,7 @@ use futures_signals::{
     map_ref,
     signal::{Mutable, MutableSignalRef, SignalExt},
 };
-use glam::{IVec2, Vec2};
+use glam::{vec2, IVec2, Vec2};
 use palette::Srgba;
 use winit::event::ElementState;
 
@@ -15,7 +15,7 @@ use crate::{
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
-    widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, Signal, Stack, Text},
+    widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, SignalWidget, Stack, Text},
     Edges, Scope, StreamEffect, Widget,
 };
 
@@ -33,7 +33,7 @@ impl Default for SliderStyle {
             track_color: interactive_inactive(),
             handle_color: interactive_active(),
             track_size: Unit::px2i(64, 1),
-            handle_size: Unit::px2i(1, 5),
+            handle_size: Unit::px2i(1, 4),
         }
     }
 }
@@ -150,7 +150,7 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
         Stack::new(handle)
             .with_vertical_alignment(Alignment::Center)
             .with_style(ContainerStyle {
-                margin: Edges::even(10.0),
+                margin: Edges::even(5.0),
                 ..Default::default()
             })
             .mount(scope)
@@ -191,7 +191,7 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for SliderHandle<V, T> {
         }));
 
         Positioned::new(
-            BoxSized::new(Rectangle::new(self.handle_color)).with_size(self.handle_size),
+            BoxSized::new(Rectangle::new(self.handle_color)).with_min_size(self.handle_size),
         )
         .with_anchor(Unit::rel2(0.5, 0.0))
         .mount(scope)
@@ -276,7 +276,7 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for SliderWithLabel<V, T> 
     fn mount(self, scope: &mut Scope<'_>) {
         let lower = self.slider.lower;
         let label =
-            Signal(self.slider.value.signal_ref(lower).map(|v| {
+            SignalWidget(self.slider.value.signal_ref(lower).map(|v| {
                 Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
             }));
 

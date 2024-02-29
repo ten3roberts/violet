@@ -1,11 +1,11 @@
 use std::{
     pin::Pin,
     task::{Context, Poll},
-    time::{Duration, Instant},
 };
 
 use futures::{ready, Future, Stream};
 use pin_project::pin_project;
+use web_time::{Duration, Instant};
 
 use crate::time::{Sleep, TimersHandle, GLOBAL_TIMER};
 

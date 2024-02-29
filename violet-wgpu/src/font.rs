@@ -155,6 +155,7 @@ impl FontAtlas {
                 usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
                 view_formats: &[],
             },
+            wgpu::util::TextureDataOrder::LayerMajor,
             &image,
         );
 
