@@ -6,7 +6,7 @@ use flax::{
     components::child_of,
     entity_ids,
     fetch::{entity_refs, nth_relation, EntityRefs, NthRelation},
-    CommandBuffer, Component, EntityRef, Fetch, Query, QueryBorrow, World,
+    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, World,
 };
 use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
@@ -16,9 +16,12 @@ use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, T
 
 use violet_core::{
     components::{children, draw_shape},
+    layout::cache::LayoutUpdate,
     stored::{self, Store},
     Frame,
 };
+
+use crate::debug_renderer::DebugRenderer;
 
 use super::{
     components::{draw_cmd, object_data},
@@ -112,6 +115,8 @@ pub struct WidgetRenderer {
 
     rect_renderer: RectRenderer,
     text_renderer: TextRenderer,
+    debug_renderer: DebugRenderer,
+
     object_bind_group_layout: BindGroupLayout,
 }
 
@@ -121,6 +126,7 @@ impl WidgetRenderer {
         ctx: &mut RendererContext,
         text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
     ) -> Self {
         let object_bind_group_layout =
             BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
@@ -157,6 +163,14 @@ impl WidgetRenderer {
                 &object_bind_group_layout,
                 &mut store,
             ),
+            debug_renderer: DebugRenderer::new(
+                ctx,
+                frame,
+                color_format,
+                &object_bind_group_layout,
+                &mut store,
+                layout_changes_rx,
+            ),
             store,
             register_objects,
             object_bind_group_layout,
@@ -182,6 +196,7 @@ impl WidgetRenderer {
         self.text_renderer
             .update_meshes(ctx, frame, &mut self.store);
         self.text_renderer.update(&ctx.gpu, frame);
+        self.debug_renderer.update(frame);
 
         let query = DrawQuery::new();
 
@@ -195,12 +210,19 @@ impl WidgetRenderer {
         let commands = RendererIter {
             world: &frame.world,
             queue: roots,
-        };
+        }
+        .filter_map(|entity| {
+            let mut query = entity.query(&query);
+            let item = query.get()?;
+
+            Some((item.draw_cmd.clone(), *item.object_data))
+        })
+        .chain(self.debug_renderer.draw_commands().iter().cloned());
 
         self.commands.clear();
         self.object_data.clear();
 
-        collect_draw_commands(commands, &mut self.object_data, &query, &mut self.commands);
+        collect_draw_commands(commands, &mut self.object_data, &mut self.commands);
 
         let num_chunks = self.object_data.len().div_ceil(CHUNK_SIZE);
 
@@ -250,25 +272,17 @@ impl WidgetRenderer {
 }
 
 fn collect_draw_commands<'a>(
-    entities: impl Iterator<Item = EntityRef<'a>>,
+    entities: impl Iterator<Item = (DrawCommand, ObjectData)>,
     objects: &mut Vec<ObjectData>,
-    query: &DrawQuery,
     draw_cmds: &mut Vec<(usize, InstancedDrawCommand)>,
 ) {
-    let chunks = entities
-        .filter_map(|entity| {
-            let mut query = entity.query(&query);
-            let item = query.get()?;
-            objects.push(*item.object_data);
-
-            Some(item.draw_cmd.clone())
-        })
-        .chunks(CHUNK_SIZE);
+    let chunks = entities.chunks(CHUNK_SIZE);
 
     for (chunk_index, chunk) in (&chunks).into_iter().enumerate() {
         let iter = chunk
             .enumerate()
-            .map(|(i, draw_cmd)| {
+            .map(|(i, (draw_cmd, object))| {
+                objects.push(object);
                 // let first_instance = instance_index as u32;
                 // instance_index += 1;
                 // objects.push(*item.object_data);

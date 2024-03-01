@@ -138,7 +138,7 @@ impl App {
             {
                 let window = window.clone();
                 async move {
-                    violet_core::time::sleep(Duration::from_secs(2)).await;
+                    // violet_core::time::sleep(Duration::from_secs(2)).await;
                     let gpu = Gpu::with_surface(window).await;
                     gpu_tx.send(gpu).ok();
                 }
@@ -148,8 +148,10 @@ impl App {
 
         let mut window_renderer = None;
 
+        let (layout_changes_tx, layout_changes_rx) = flume::unbounded();
+
         let mut schedule = Schedule::new()
-            .with_system(templating_system(root))
+            .with_system(templating_system(root, layout_changes_tx))
             .flush()
             .with_system(hydrate_text())
             .flush()
@@ -163,10 +165,9 @@ impl App {
         let start_time = Instant::now();
         let mut cur_time = start_time;
 
-        // let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
-        // let _puffin_server = puffin_http::Server::new(&server_addr).unwrap();
-        // eprintln!("Run this to view profiling data:  puffin_viewer {server_addr}");
-        // puffin::set_scopes_on(true);
+        #[cfg(not(target_arch = "wasm32"))]
+        let _puffin_server = setup_puffin();
+
         let mut minimized = true;
 
         event_loop.run(move |event, ctl| match event {
@@ -175,7 +176,13 @@ impl App {
 
                 if let Some((gpu, surface)) = gpu_rx.try_recv().ok().flatten() {
                     tracing::info!("created gpu");
-                    let mut w = WindowRenderer::new(&mut frame, gpu, text_system.clone(), surface);
+                    let mut w = WindowRenderer::new(
+                        &mut frame,
+                        gpu,
+                        text_system.clone(),
+                        surface,
+                        layout_changes_rx.clone(),
+                    );
                     w.resize(window_size);
                     window_renderer = Some(w);
                 }
@@ -298,6 +305,15 @@ impl App {
 
         Ok(())
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn setup_puffin() -> puffin_http::Server {
+    let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
+    let server = puffin_http::Server::new(&server_addr).unwrap();
+    tracing::info!("Puffin running at {server_addr}");
+    puffin::set_scopes_on(true);
+    server
 }
 
 impl Default for App {

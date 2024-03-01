@@ -1,10 +1,21 @@
+use std::sync::Arc;
+
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
-use crate::{components, layout::query_size, Edges, Rect};
+use crate::{
+    components,
+    layout::{
+        cache::{layout_cache, CachedValue, QueryKey},
+        query_size,
+    },
+    Edges, Rect,
+};
 
-use super::{resolve_pos, update_subtree, Block, Direction, LayoutLimits, Sizing};
+use super::{
+    cache::LayoutCache, resolve_pos, update_subtree, Block, Direction, LayoutLimits, Sizing,
+};
 
 #[derive(Debug, Clone)]
 struct MarginCursor {
@@ -146,10 +157,11 @@ impl Alignment {
     }
 }
 
-pub(crate) struct Row<'a> {
+#[derive(Debug, Clone)]
+pub(crate) struct Row {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
-    pub(crate) blocks: Vec<(EntityRef<'a>, Sizing)>,
+    pub(crate) blocks: Arc<Vec<(Entity, Sizing)>>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -169,6 +181,7 @@ impl FlowLayout {
         &self,
         world: &World,
         entity: &EntityRef,
+        cache: &mut LayoutCache,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
@@ -178,7 +191,7 @@ impl FlowLayout {
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
         // the direction of this axis.
-        let row = self.query_row(world, children, content_area, limits, self.direction);
+        let row = self.query_row(world, cache, children, content_area, limits);
 
         // tracing::info!(?row.margin, "row margins to be contained");
         self.distribute_children(world, entity, &row, content_area, limits)
@@ -188,7 +201,7 @@ impl FlowLayout {
         &self,
         world: &World,
         entity: &EntityRef,
-        row: &Row<'_>,
+        row: &Row,
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
@@ -248,7 +261,8 @@ impl FlowLayout {
         let blocks = row
             .blocks
             .iter()
-            .map(|(entity, sizing)| {
+            .map(|(id, sizing)| {
+                let entity = world.entity(*id).expect("Invalid child");
                 let _span = tracing::debug_span!("block", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
@@ -272,16 +286,6 @@ impl FlowLayout {
                 };
 
                 let given_size = block_min_size + target_inner_size * ratio;
-                tracing::debug!(
-                    remaining,
-                    distribute_size,
-                    ratio,
-                    given_size,
-                    target_inner_size,
-                    block_min_size,
-                    "block"
-                );
-
                 sum += ratio;
 
                 let axis_sizing = given_size * axis;
@@ -318,7 +322,7 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = update_subtree(world, entity, content_area.size(), child_limits);
+                let block = update_subtree(world, &entity, content_area.size(), child_limits);
 
                 tracing::debug!(?block, "updated subtree");
 
@@ -392,7 +396,7 @@ impl FlowLayout {
     fn distribute_query(
         &self,
         world: &World,
-        row: &Row<'_>,
+        row: &Row,
         content_area: Rect,
         limits: LayoutLimits,
         squeeze: Direction,
@@ -454,7 +458,8 @@ impl FlowLayout {
         row
             .blocks
             .iter()
-            .for_each(|(entity, sizing)| {
+            .for_each(|(id, sizing)| {
+                let entity = world.entity(*id).expect("Invalid child");
                 let _span = tracing::debug_span!("block", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
@@ -521,7 +526,7 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = query_size(world, entity, content_area.size(), child_limits, squeeze);
+                let block = query_size(world, &entity, content_area.size(), child_limits, squeeze);
 
                 tracing::debug!(min=%block.min.size(), preferred=%block.preferred.size(), ?child_limits, "query");
 
@@ -547,15 +552,23 @@ impl FlowLayout {
         }
     }
 
-    pub(crate) fn query_row<'a>(
+    pub(crate) fn query_row(
         &self,
-        world: &'a World,
+        world: &World,
+        cache: &mut LayoutCache,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
-        squeeze: Direction,
-    ) -> Row<'a> {
+    ) -> Row {
         puffin::profile_function!();
+        let key = QueryKey::new(content_area.size(), limits, self.direction);
+        if let Some(cache) = cache.query_row.get(&key) {
+            if cache.is_valid(limits, content_area.size()) {
+                return cache.value.clone();
+            }
+            // tracing::info!("cache is no longer valid");
+        }
+
         // let available_size = inner_rect.size();
 
         // Start at the corner of the inner rect
@@ -576,7 +589,7 @@ impl FlowLayout {
                 let entity = world.entity(child).expect("Invalid child");
 
                 let child_margin = if self.contain_margins {
-                    query_size(world, &entity, content_area.size(), limits, squeeze).margin
+                    query_size(world, &entity, content_area.size(), limits, self.direction).margin
                 } else {
                     Edges::ZERO
                 };
@@ -590,7 +603,7 @@ impl FlowLayout {
                         // max_size: limits.max_size,
                         max_size: limits.max_size - child_margin.size(),
                     },
-                    squeeze,
+                    self.direction,
                 );
 
                 min_cursor.put(&Block::new(sizing.min, sizing.margin));
@@ -599,41 +612,42 @@ impl FlowLayout {
                 // NOTE: cross size is guaranteed to be fulfilled by the parent
                 max_cross_size = max_cross_size.max(sizing.preferred.size().dot(cross_axis));
 
-                (entity, sizing)
+                (entity.id(), sizing)
             })
             .collect_vec();
 
         let preferred = preferred_cursor.finish();
         let min = min_cursor.finish();
-        // assert!(
-        //     preferred.size().x <= content_area.size().x
-        //         && preferred.size().x <= content_area.size().y,
-        //     "preferred size exceeded content area, preferred: {:?} content: {:?}",
-        //     preferred.size(),
-        //     content_area.size()
-        // );
 
-        Row {
+        let row = Row {
             min,
             preferred,
-            blocks,
-        }
+            blocks: Arc::new(blocks),
+        };
+
+        cache.insert_query_row(
+            key,
+            CachedValue::new(limits, content_area.size(), row.clone()),
+        );
+        row
     }
 
     pub(crate) fn query_size(
         &self,
         world: &World,
+        cache: &mut LayoutCache,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
-        squeeze: Direction,
+        direction: Direction,
     ) -> Sizing {
-        puffin::profile_function!();
-        let _span =
-            tracing::debug_span!("Flow::query_size", ?limits, flow=?self, ?squeeze).entered();
-        let row = self.query_row(world, children, content_area, limits, self.direction);
+        puffin::profile_function!(format!("{direction:?}"));
+        // let _span =
+        //     tracing::debug_span!("Flow::query_size", ?limits, flow=?self, ?direction).entered();
 
-        let block = self.distribute_query(world, &row, content_area, limits, squeeze);
+        let row = self.query_row(world, cache, children, content_area, limits);
+
+        let block = self.distribute_query(world, &row, content_area, limits, direction);
         tracing::debug!(?self.direction, ?block, "query");
 
         block

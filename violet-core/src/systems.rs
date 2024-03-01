@@ -11,6 +11,7 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
+    sink::Sink,
     BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query,
     QueryBorrow, System, World,
 };
@@ -21,7 +22,7 @@ use crate::{
         self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
     },
     layout::{
-        cache::{invalidate_widget, layout_cache, LayoutCache},
+        cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdate},
         update_subtree, LayoutLimits,
     },
     Rect,
@@ -39,7 +40,10 @@ pub fn hydrate_text() -> BoxedSystem {
         .boxed()
 }
 
-pub fn templating_system(root: Entity) -> BoxedSystem {
+pub fn templating_system(
+    root: Entity,
+    layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)>,
+) -> BoxedSystem {
     let query = Query::new(entity_ids())
         .filter(Or((
             screen_position().without(),
@@ -52,17 +56,26 @@ pub fn templating_system(root: Entity) -> BoxedSystem {
     System::builder()
         .with_query(query)
         .with_cmd_mut()
-        .build(|mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
-            for id in &mut query {
-                tracing::debug!(%id, "incomplete widget");
+        .build(
+            move |mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
+                for id in &mut query {
+                    tracing::debug!(%id, "incomplete widget");
 
-                cmd.set_missing(id, screen_position(), Vec2::ZERO)
-                    .set_missing(id, local_position(), Vec2::ZERO)
-                    .set_missing(id, screen_rect(), Rect::default())
-                    .set_missing(id, layout_cache(), LayoutCache::new())
-                    .set_missing(id, rect(), Rect::default());
-            }
-        })
+                    let layout_changes_tx = layout_changes_tx.clone();
+                    cmd.set_missing(id, screen_position(), Vec2::ZERO)
+                        .set_missing(id, local_position(), Vec2::ZERO)
+                        .set_missing(id, screen_rect(), Rect::default())
+                        .set_missing(
+                            id,
+                            layout_cache(),
+                            LayoutCache::new(Some(Box::new(move |layout| {
+                                layout_changes_tx.send((id, layout)).ok();
+                            }))),
+                        )
+                        .set_missing(id, rect(), Rect::default());
+                }
+            },
+        )
         .boxed()
 }
 

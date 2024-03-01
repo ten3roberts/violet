@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use flax::Entity;
 use glam::Mat4;
 use parking_lot::Mutex;
 use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
 use winit::dpi::PhysicalSize;
 
-use violet_core::Frame;
+use violet_core::{layout::cache::LayoutUpdate, Frame};
 
 use super::{
     graphics::{Gpu, Surface},
@@ -29,11 +30,17 @@ impl WindowRenderer {
         gpu: Gpu,
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
     ) -> Self {
         let mut ctx = RendererContext::new(gpu);
 
-        let widget_renderer =
-            WidgetRenderer::new(frame, &mut ctx, text_system, surface.surface_format());
+        let widget_renderer = WidgetRenderer::new(
+            frame,
+            &mut ctx,
+            text_system,
+            surface.surface_format(),
+            layout_changes_rx,
+        );
 
         Self {
             surface,

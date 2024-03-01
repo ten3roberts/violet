@@ -1,4 +1,4 @@
-pub(crate) mod cache;
+pub mod cache;
 mod flow;
 mod stack;
 
@@ -9,14 +9,14 @@ use crate::{
     components::{
         self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding,
     },
-    layout::cache::CachedQuery,
+    layout::cache::CachedValue,
     Edges, Rect,
 };
 
 pub use flow::{Alignment, FlowLayout};
 pub use stack::StackLayout;
 
-use self::cache::{layout_cache, CachedLayout, QueryKey};
+use self::cache::{layout_cache, LayoutCache, QueryKey};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Ord, Eq)]
 pub enum Direction {
@@ -63,19 +63,22 @@ impl Layout {
         &self,
         world: &World,
         entity: &EntityRef,
+        cache: &mut LayoutCache,
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
     ) -> Block {
         match self {
             Layout::Stack(v) => v.apply(world, entity, children, content_area, limits),
-            Layout::Flow(v) => v.apply(world, entity, children, content_area, limits),
+            Layout::Flow(v) => v.apply(world, entity, cache, children, content_area, limits),
         }
     }
 
     pub(crate) fn query_size(
         &self,
         world: &World,
+        entity: &EntityRef,
+        cache: &mut LayoutCache,
         children: &[Entity],
         inner_rect: Rect,
         limits: LayoutLimits,
@@ -83,7 +86,7 @@ impl Layout {
     ) -> Sizing {
         match self {
             Layout::Stack(v) => v.query_size(world, children, inner_rect, limits, squeeze),
-            Layout::Flow(v) => v.query_size(world, children, inner_rect, limits, squeeze),
+            Layout::Flow(v) => v.query_size(world, cache, children, inner_rect, limits, squeeze),
         }
     }
 }
@@ -214,9 +217,9 @@ pub(crate) fn query_size(
     if let Some(cache) = cache.query.get(&cache_key) {
         if cache.is_valid(limits, content_area) {
             let _span = tracing::info_span!("cached").entered();
-            validate_sizing(entity, &cache.sizing, limits);
+            validate_sizing(entity, &cache.value, limits);
             tracing::debug!(%entity, "found valid cached query");
-            return cache.sizing;
+            return cache.value;
         }
     }
 
@@ -231,6 +234,8 @@ pub(crate) fn query_size(
     let sizing = if let Some(layout) = layout {
         let mut sizing = layout.query_size(
             world,
+            entity,
+            cache,
             children,
             Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
@@ -267,10 +272,7 @@ pub(crate) fn query_size(
 
     validate_sizing(entity, &sizing, limits);
 
-    cache.query.put(
-        cache_key,
-        CachedQuery::new(limits.min_size, limits.max_size, content_area, sizing),
-    );
+    cache.insert_query(cache_key, CachedValue::new(limits, content_area, sizing));
 
     sizing
 }
@@ -316,8 +318,8 @@ pub(crate) fn update_subtree(
     if let Some(cache) = cache.layout.as_ref() {
         if cache.is_valid(limits, content_area) {
             tracing::debug!(%entity, ?cache, "found valid cached layout");
-            validate_block(entity, &cache.block, limits);
-            return cache.block;
+            validate_block(entity, &cache.value, limits);
+            return cache.value;
         }
     }
 
@@ -334,6 +336,7 @@ pub(crate) fn update_subtree(
         let mut block = layout.apply(
             world,
             entity,
+            cache,
             children,
             Rect::from_size(content_area).inset(&padding),
             LayoutLimits {
@@ -378,12 +381,7 @@ pub(crate) fn update_subtree(
 
     validate_block(entity, &block, limits);
 
-    cache.layout = Some(CachedLayout::new(
-        limits.min_size,
-        limits.max_size,
-        content_area,
-        block,
-    ));
+    cache.insert_layout(CachedValue::new(limits, content_area, block));
 
     block
 }
