@@ -18,17 +18,18 @@ use violet_core::{
     Frame, Rect,
 };
 
-use super::{
+use crate::{
     components::{draw_cmd, object_data},
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-    renderer::RendererContext,
-    widget_renderer::{srgba_to_vec4, DrawCommand, ObjectData, RendererStore},
+    renderer::{srgba_to_vec4, RendererContext},
     Gpu,
 };
+
+use super::{DrawCommand, ObjectData, RendererStore};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ImageFromColor(pub [u8; 4]);
@@ -152,7 +153,7 @@ impl RectRenderer {
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
-                source: include_str!("../../assets/shaders/solid.wgsl"),
+                source: include_str!("../../../assets/shaders/solid.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
                 layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
@@ -172,6 +173,7 @@ impl RectRenderer {
     }
 
     pub fn build_commands(&mut self, gpu: &Gpu, frame: &mut Frame, store: &mut RendererStore) {
+        puffin::profile_function!();
         let mut cmd = CommandBuffer::new();
         self.rect_query
             .borrow(&frame.world)
@@ -215,6 +217,7 @@ impl RectRenderer {
     }
 
     pub fn update(&mut self, _: &Gpu, frame: &Frame) {
+        puffin::profile_function!();
         let _span = tracing::debug_span!("RectRenderer::update").entered();
         self.object_query
             .borrow(&frame.world)

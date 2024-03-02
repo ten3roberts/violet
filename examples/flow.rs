@@ -38,6 +38,7 @@ use violet_core::{
     widget::{BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, SliderWithLabel},
     Edges, Rect, WidgetCollection,
 };
+use violet_wgpu::renderer::RendererConfig;
 
 const MARGIN: Edges = Edges::even(8.0);
 const MARGIN_SM: Edges = Edges::even(4.0);
@@ -83,7 +84,9 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new().run(MainApp)
+    violet_wgpu::App::new()
+        .with_renderer_config(RendererConfig { debug_mode: false })
+        .run(MainApp)
 }
 
 struct MainApp;

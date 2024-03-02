@@ -9,16 +9,18 @@ use flax::{
 };
 use parking_lot::Mutex;
 
+use puffin::profile_scope;
 use violet_core::{
     components::{font_size, layout_glyphs, rect, size_resolver, text, text_wrap},
     text::{LayoutGlyphs, TextSegment},
     Rect,
 };
 
+use crate::text::TextSystem;
+
 use super::{
     components::text_buffer_state,
     text::{TextBufferState, TextSizeResolver},
-    text_renderer::TextSystem,
 };
 
 #[derive(Fetch)]
@@ -52,6 +54,7 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                 <TextBufferQuery as TransformFetch<Modified>>::Output,
                 _,
             >| {
+                puffin::profile_scope!("update_text_buffers");
                 let text_system = &mut *text_system.lock();
                 query.iter().for_each(|item| {
                     let buffer = &mut item.state.buffer;
@@ -83,7 +86,8 @@ pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> Boxe
         .with_query(Query::new((entity_ids(), text())).without(size_resolver()))
         .build(
             move |cmd: &mut CommandBuffer,
-                  mut query: QueryBorrow<'_, (EntityIds, Component<Vec<TextSegment>>), _>| {
+            mut query: QueryBorrow<'_, (EntityIds, Component<Vec<TextSegment>>), _>| {
+                profile_scope!("register_text_buffers");
                 let mut text_system_ref = text_system.lock();
                 for (id, _) in &mut query {
                     let state = TextBufferState::new(&mut text_system_ref.font_system);
@@ -91,15 +95,15 @@ pub(crate) fn register_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> Boxe
                     let resolver = TextSizeResolver::new(text_system.clone());
 
                     cmd.set(id, text_buffer_state(), state)
-                       .set(id, layout_glyphs(), LayoutGlyphs::default())
-                       .set(
+                        .set(id, layout_glyphs(), LayoutGlyphs::default())
+                        .set(
                             id,
                             size_resolver(),
                             Box::new(resolver),
-                       );
+                        );
 
                 }
             },
         )
-        .boxed()
+            .boxed()
 }

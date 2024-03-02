@@ -229,7 +229,7 @@ pub(crate) fn query_size(
     }
 
     // Check if cache is valid
-    if let Some(cache) = cache.query[direction as usize].as_ref() {
+    if let Some(cache) = &cache.query[direction as usize] {
         if validate_cached_query(cache, limits, content_area) {
             // if cache.is_valid(limits, content_area) {
             let _span = tracing::trace_span!("cached").entered();
@@ -333,7 +333,7 @@ pub(crate) fn update_subtree(
 
     // Check if cache is still valid
 
-    if let Some(cache) = cache.layout.as_ref() {
+    if let Some(cache) = &cache.layout {
         if validate_cached_layout(cache, limits, content_area) {
             tracing::debug!(%entity, ?cache, "found valid cached layout");
             validate_block(entity, &cache.value, limits);

@@ -629,7 +629,7 @@ dependencies = [
 [[package]]
 name = "flax"
 version = "0.6.2"
-source = "git+https://github.com/ten3roberts/flax#ea4ec8eb79f9f8178986c574dc9ad6236a5fee16"
+source = "git+https://github.com/ten3roberts/flax#8ed74b991d529f0108687c870df8b11827b25b1f"
 dependencies = [
  "anyhow",
  "atomic_refcell",
@@ -638,6 +638,7 @@ dependencies = [
  "flume",
  "itertools 0.11.0",
  "once_cell",
+ "puffin",
  "rayon",
  "smallvec",
  "tynm",
@@ -646,7 +647,7 @@ dependencies = [
 [[package]]
 name = "flax-derive"
 version = "0.6.0"
-source = "git+https://github.com/ten3roberts/flax#ea4ec8eb79f9f8178986c574dc9ad6236a5fee16"
+source = "git+https://github.com/ten3roberts/flax#8ed74b991d529f0108687c870df8b11827b25b1f"
 dependencies = [
  "itertools 0.11.0",
  "proc-macro-crate",

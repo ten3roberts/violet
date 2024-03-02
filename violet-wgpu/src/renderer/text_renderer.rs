@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cosmic_text::{fontdb::Source, Buffer, CacheKey, FontSystem, Placement, SwashCache};
+use cosmic_text::{Buffer, CacheKey, Placement};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -24,53 +24,20 @@ use violet_core::{
     Frame, Rect,
 };
 
-use crate::{
-    components, font::FontAtlas, graphics::BindGroupBuilder, widget_renderer::DrawCommand,
-};
+use crate::{components, font::FontAtlas, graphics::BindGroupBuilder, text::TextSystem};
 
-use super::{
+use crate::{
     components::{draw_cmd, object_data, text_buffer_state, text_mesh},
     font::GlyphLocation,
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
+    renderer::srgba_to_vec4,
     renderer::RendererContext,
     text::TextBufferState,
-    widget_renderer::{srgba_to_vec4, ObjectData, RendererStore},
     Gpu,
 };
 
-static INTER_FONT: &[u8] =
-    include_bytes!("../../assets/fonts/Inter/Inter-VariableFont_slnt,wght.ttf");
-
-pub struct TextSystem {
-    pub(crate) font_system: FontSystem,
-    pub(crate) swash_cache: SwashCache,
-}
-
-impl TextSystem {
-    pub fn new() -> Self {
-        Self {
-            font_system: FontSystem::new(),
-            swash_cache: SwashCache::new(),
-        }
-    }
-
-    pub fn new_with_defaults() -> Self {
-        let sources = [Source::Binary(Arc::new(INTER_FONT.to_vec()))];
-        let font_system = FontSystem::new_with_fonts(sources);
-
-        Self {
-            font_system,
-            swash_cache: SwashCache::new(),
-        }
-    }
-}
-
-impl Default for TextSystem {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+use super::{DrawCommand, ObjectData, RendererStore};
 
 #[derive(Fetch)]
 struct ObjectQuery {
@@ -131,6 +98,7 @@ impl FontRasterizer {
         new_glyphs: &[CacheKey],
         store: &mut RendererStore,
     ) -> anyhow::Result<()> {
+        puffin::profile_function!();
         let glyphs = self
             .rasterized
             .atlas
@@ -179,7 +147,7 @@ impl MeshGenerator {
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
-                source: include_str!("../../assets/shaders/text.wgsl"),
+                source: include_str!("../../../assets/shaders/text.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
                 layouts: &[&ctx.globals_layout, object_layout, &text_layout],
@@ -211,6 +179,7 @@ impl MeshGenerator {
         mesh: &mut Arc<MeshHandle>,
         store: &mut RendererStore,
     ) -> u32 {
+        puffin::profile_function!();
         // let rasterized = self
         //     .rasterizer
         //     .get(ctx, assets, font.clone(), font_size, text);
@@ -270,15 +239,13 @@ impl MeshGenerator {
 
             if missing.is_empty() {
                 break;
-            } else {
-                tracing::debug!(?missing, "Adding missing glyphs");
-                vertices.clear();
-                self.rasterizer
-                    .add_glyphs(assets, ctx, text_system, &missing, store)
-                    .unwrap();
-
-                missing.clear();
             }
+            tracing::debug!(?missing, "Adding missing glyphs");
+            vertices.clear();
+            self.rasterizer
+                .add_glyphs(assets, ctx, text_system, &missing, store)
+                .unwrap();
+            missing.clear();
         }
         let glyph_count = vertices.len() / 4;
 
@@ -375,6 +342,7 @@ impl TextRenderer {
         frame: &mut Frame,
         store: &mut RendererStore,
     ) {
+        puffin::profile_function!();
         let mut cmd = CommandBuffer::new();
 
         let text_system = &mut *self.text_system.lock();
@@ -436,6 +404,7 @@ impl TextRenderer {
     }
 
     pub fn update(&mut self, _: &Gpu, frame: &Frame) {
+        puffin::profile_function!();
         self.object_query
             .borrow(&frame.world)
             .iter()

@@ -33,6 +33,7 @@ pub fn hydrate_text() -> BoxedSystem {
         .with_cmd_mut()
         .with_query(Query::new(entity_ids()).with(text()))
         .build(|cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
+            puffin::profile_scope!("hydrate_text");
             query.for_each(|id| {
                 cmd.set_missing(id, layout_bounds(), Vec2::ONE * 100.0);
             })
@@ -58,6 +59,7 @@ pub fn templating_system(
         .with_cmd_mut()
         .build(
             move |mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
+                puffin::profile_scope!("templating_system");
                 for id in &mut query {
                     tracing::debug!(%id, "incomplete widget");
 
@@ -106,6 +108,7 @@ pub fn invalidate_cached_layout_system(world: &mut World) -> BoxedSystem {
     System::builder()
         .with_world_mut()
         .build(move |world: &mut World| {
+            puffin::profile_scope!("invalidate_cached_layout_system");
             for id in dirty.borrow_mut().drain() {
                 if world.is_alive(id) {
                     invalidate_widget(world, id);
@@ -146,10 +149,12 @@ impl EventSubscriber for QueryInvalidator {
 }
 /// Updates the layout for entities using the given constraints
 pub fn layout_system() -> BoxedSystem {
+    puffin::profile_function!();
     System::builder()
         .with_world()
         .with_query(Query::new((rect(), children())).without_relation(child_of))
         .build(move |world: &World, mut roots: QueryBorrow<_, _>| {
+            puffin::profile_scope!("layout_system");
             (&mut roots)
                 .into_iter()
                 .for_each(|(canvas_rect, children): (&Rect, &Vec<_>)| {
@@ -175,6 +180,7 @@ pub fn layout_system() -> BoxedSystem {
 
 /// Updates the apparent screen position of entities based on the hierarchy
 pub fn transform_system() -> BoxedSystem {
+    puffin::profile_function!();
     System::builder()
         .with_query(
             Query::new((
@@ -186,6 +192,7 @@ pub fn transform_system() -> BoxedSystem {
             .with_strategy(Dfs::new(child_of)),
         )
         .build(|mut query: DfsBorrow<_>| {
+            puffin::profile_scope!("transform_system");
             query.traverse(
                 &Vec2::ZERO,
                 |(pos, screen_rect, rect, local_pos): (&mut Vec2, &mut Rect, &Rect, &Vec2),

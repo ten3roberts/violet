@@ -2,7 +2,6 @@ use futures::channel::oneshot;
 use std::sync::Arc;
 use web_time::{Duration, Instant};
 
-use anyhow::anyhow;
 use flax::{components::name, Entity, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
@@ -25,14 +24,14 @@ use violet_core::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    Frame, FutureEffect, Rect, Scope, Widget,
+    to_owned, Frame, FutureEffect, Rect, Scope, Widget,
 };
 
 use crate::{
-    graphics::{Gpu, Surface},
+    graphics::Gpu,
+    renderer::{RendererConfig, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
-    text_renderer::TextSystem,
-    window_renderer::WindowRenderer,
+    text::TextSystem,
 };
 
 pub struct Canvas<W> {
@@ -60,11 +59,21 @@ impl<W: Widget> Widget for Canvas<W> {
     }
 }
 
-pub struct App {}
+pub struct App {
+    renderer_config: RendererConfig,
+}
 
 impl App {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            renderer_config: Default::default(),
+        }
+    }
+
+    /// Set the renderer config
+    pub fn with_renderer_config(mut self, renderer_config: RendererConfig) -> Self {
+        self.renderer_config = renderer_config;
+        self
     }
 
     pub fn run(self, root: impl Widget) -> anyhow::Result<()> {
@@ -131,24 +140,28 @@ impl App {
         let window = Arc::new(window);
 
         // TODO: async within violet's executor
-        let (gpu_tx, mut gpu_rx) = oneshot::channel();
+        let (renderer_tx, mut renderer_rx) = oneshot::channel();
 
         let text_system = Arc::new(Mutex::new(TextSystem::new_with_defaults()));
-        frame.spawn(FutureEffect::new(
-            {
-                let window = window.clone();
-                async move {
-                    // violet_core::time::sleep(Duration::from_secs(2)).await;
-                    let gpu = Gpu::with_surface(window).await;
-                    gpu_tx.send(gpu).ok();
-                }
-            },
-            |_: &mut Frame, _| {},
-        ));
-
-        let mut window_renderer = None;
-
         let (layout_changes_tx, layout_changes_rx) = flume::unbounded();
+
+        frame.spawn(FutureEffect::new(Gpu::with_surface(window.clone()), {
+            to_owned![text_system];
+            move |frame: &mut Frame, (gpu, surface)| {
+                renderer_tx
+                    .send(WindowRenderer::new(
+                        frame,
+                        gpu,
+                        text_system.clone(),
+                        surface,
+                        layout_changes_rx.clone(),
+                        self.renderer_config,
+                    ))
+                    .ok();
+            }
+        }));
+
+        let mut renderer = None;
 
         let mut schedule = Schedule::new()
             .with_system(templating_system(root, layout_changes_tx))
@@ -174,17 +187,9 @@ impl App {
             Event::AboutToWait => {
                 puffin::profile_scope!("AboutToWait");
 
-                if let Some((gpu, surface)) = gpu_rx.try_recv().ok().flatten() {
-                    tracing::info!("created gpu");
-                    let mut w = WindowRenderer::new(
-                        &mut frame,
-                        gpu,
-                        text_system.clone(),
-                        surface,
-                        layout_changes_rx.clone(),
-                    );
-                    w.resize(window_size);
-                    window_renderer = Some(w);
+                if let Some(mut window_renderer) = renderer_rx.try_recv().ok().flatten() {
+                    window_renderer.resize(window_size);
+                    renderer = Some(window_renderer);
                 }
 
                 if minimized {
@@ -194,7 +199,6 @@ impl App {
                 let new_time = Instant::now();
 
                 let frame_time = new_time.duration_since(cur_time);
-                let delta_time = frame_time.as_secs_f32();
 
                 cur_time = new_time;
 
@@ -211,12 +215,12 @@ impl App {
 
                 {
                     puffin::profile_scope!("Schedule");
-                    schedule.execute_seq(&mut frame.world).unwrap();
+                    schedule.execute_par(&mut frame.world).unwrap();
                 }
 
-                if let Some(window_renderer) = &mut window_renderer {
+                if let Some(renderer) = &mut renderer {
                     puffin::profile_scope!("Draw");
-                    if let Err(err) = window_renderer.draw(&mut frame) {
+                    if let Err(err) = renderer.draw(&mut frame) {
                         tracing::error!("Failed to draw to window: {err:?}");
                     }
                 }
@@ -231,8 +235,8 @@ impl App {
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::RedrawRequested => {
                     puffin::profile_scope!("RedrawRequested");
-                    if let Some(window_renderer) = &mut window_renderer {
-                        if let Err(err) = window_renderer.draw(&mut frame) {
+                    if let Some(renderer) = &mut renderer {
+                        if let Err(err) = renderer.draw(&mut frame) {
                             tracing::error!("Failed to draw to window: {err:?}");
                         }
                     }
@@ -254,8 +258,7 @@ impl App {
                         },
                     ..
                 } => {
-                    puffin::profile_scope!("KeyboardInput");
-
+                    puffin::profile_scope!("CharInput");
                     input_state.on_char_input(&mut frame, text.as_str());
                 }
                 WindowEvent::KeyboardInput {
@@ -267,8 +270,7 @@ impl App {
                         },
                     ..
                 } => {
-                    puffin::profile_scope!("KeyboardInput");
-
+                    puffin::profile_scope!("KeyboardInput", format!("{keycode:?}"));
                     input_state.on_keyboard_input(&mut frame, state, keycode)
                 }
                 WindowEvent::CursorMoved { position, .. } => {
@@ -294,8 +296,8 @@ impl App {
                         )
                         .unwrap();
 
-                    if let Some(window_renderer) = &mut window_renderer {
-                        window_renderer.resize(size);
+                    if let Some(renderer) = &mut renderer {
+                        renderer.resize(size);
                     }
                 }
                 WindowEvent::CloseRequested => {

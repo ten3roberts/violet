@@ -8,7 +8,7 @@ use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, Textu
 
 use violet_core::assets::AssetCache;
 
-use super::{graphics::texture::Texture, text_renderer::TextSystem, Gpu};
+use crate::{graphics::texture::Texture, text::TextSystem, Gpu};
 
 /// A glyphs location in the text atlas
 #[derive(Copy, Clone)]
@@ -102,9 +102,9 @@ impl FontAtlas {
                 let v = loop {
                     if let Some(v) = atlas.allocate(requested_size) {
                         break v;
-                    } else {
-                        atlas.grow(atlas.size() * 2)
                     }
+
+                    atlas.grow(atlas.size() * 2)
                 };
 
                 let min = uvec2(

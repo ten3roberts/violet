@@ -9,19 +9,16 @@ use winit::dpi::PhysicalSize;
 
 use violet_core::{layout::cache::LayoutUpdate, Frame};
 
-use super::{
-    graphics::{Gpu, Surface},
-    renderer::RendererContext,
-    text_renderer::TextSystem,
-    widget_renderer::WidgetRenderer,
-};
+use crate::{graphics::Surface, text::TextSystem, Gpu};
+
+use super::{MainRenderer, RendererConfig, RendererContext};
 
 /// Renders to a window surface
 pub struct WindowRenderer {
     surface: Surface,
 
     ctx: RendererContext,
-    widget_renderer: WidgetRenderer,
+    widget_renderer: MainRenderer,
 }
 
 impl WindowRenderer {
@@ -31,15 +28,17 @@ impl WindowRenderer {
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
         layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
+        config: RendererConfig,
     ) -> Self {
         let mut ctx = RendererContext::new(gpu);
 
-        let widget_renderer = WidgetRenderer::new(
+        let widget_renderer = MainRenderer::new(
             frame,
             &mut ctx,
             text_system,
             surface.surface_format(),
             layout_changes_rx,
+            config,
         );
 
         Self {

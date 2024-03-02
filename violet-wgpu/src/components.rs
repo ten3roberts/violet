@@ -4,7 +4,7 @@ use flax::component;
 
 use crate::{
     graphics::texture::Texture,
-    widget_renderer::{DrawCommand, ObjectData},
+    renderer::{DrawCommand, ObjectData},
     text::TextBufferState,
 };
 

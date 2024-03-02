@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use cosmic_text::{Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping};
+use cosmic_text::{
+    fontdb::Source, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
+};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
@@ -13,7 +15,39 @@ use violet_core::{
     Rect,
 };
 
-use super::{components::text_buffer_state, text_renderer::TextSystem};
+use super::components::text_buffer_state;
+
+static INTER_FONT: &[u8] =
+    include_bytes!("../../assets/fonts/Inter/Inter-VariableFont_slnt,wght.ttf");
+pub struct TextSystem {
+    pub(crate) font_system: FontSystem,
+    pub(crate) swash_cache: SwashCache,
+}
+
+impl TextSystem {
+    pub fn new() -> Self {
+        Self {
+            font_system: FontSystem::new(),
+            swash_cache: SwashCache::new(),
+        }
+    }
+
+    pub fn new_with_defaults() -> Self {
+        let sources = [Source::Binary(Arc::new(INTER_FONT.to_vec()))];
+        let font_system = FontSystem::new_with_fonts(sources);
+
+        Self {
+            font_system,
+            swash_cache: SwashCache::new(),
+        }
+    }
+}
+
+impl Default for TextSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 pub struct TextSizeResolver {
     text_system: Arc<Mutex<TextSystem>>,

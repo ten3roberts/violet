@@ -1,13 +1,9 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use flax::Entity;
 use glam::{vec2, vec3, vec4, Mat4, Quat, Vec4};
 use image::DynamicImage;
 use itertools::Itertools;
-use palette::{num::Powi, Hsva, IntoColor};
 use violet_core::{
     assets::Asset,
     components::screen_rect,
@@ -23,9 +19,12 @@ use crate::{
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-    rect_renderer::ImageFromColor,
     renderer::RendererContext,
-    widget_renderer::{srgba_to_vec4, DrawCommand, ObjectData, RendererStore},
+};
+
+use super::{
+    rect_renderer::ImageFromColor,
+    {DrawCommand, ObjectData, RendererStore},
 };
 
 pub struct DebugRenderer {
@@ -91,7 +90,7 @@ impl DebugRenderer {
             &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
-                source: include_str!("../../assets/shaders/debug_indicator.wgsl"),
+                source: include_str!("../../../assets/shaders/debug_indicator.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
                 layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],

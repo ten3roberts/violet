@@ -73,7 +73,7 @@ violet-core = { path = "violet-core" }
 glam.workspace = true
 palette.workspace = true
 futures-signals.workspace = true
-flax.workspace = true
+flax = { workspace = true, features = ["puffin"] }
 
 [dev-dependencies]
 anyhow.workspace = true
