@@ -6,25 +6,6 @@ use lru::LruCache;
 
 use super::{flow::Row, Block, Direction, LayoutLimits, Sizing};
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone)]
-pub(crate) struct QueryKey {
-    min_size: IVec2,
-    max_size: IVec2,
-    content_area: IVec2,
-    direction: Direction,
-}
-
-impl QueryKey {
-    pub fn new(content_area: Vec2, limits: LayoutLimits, direction: Direction) -> Self {
-        Self {
-            min_size: limits.min_size.as_ivec2(),
-            max_size: limits.max_size.as_ivec2(),
-            content_area: content_area.as_ivec2(),
-            direction,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct CachedValue<T> {
     pub(crate) limits: LayoutLimits,
@@ -58,8 +39,8 @@ pub enum LayoutUpdate {
 }
 
 pub struct LayoutCache {
-    pub(crate) query: LruCache<QueryKey, CachedValue<Sizing>>,
-    pub(crate) query_row: LruCache<QueryKey, CachedValue<Row>>,
+    pub(crate) query: [Option<CachedValue<Sizing>>; 2],
+    pub(crate) query_row: Option<CachedValue<Row>>,
     pub(crate) layout: Option<CachedValue<Block>>,
     on_invalidated: Option<Box<dyn Fn(LayoutUpdate) + Send + Sync>>,
 }
@@ -67,8 +48,8 @@ pub struct LayoutCache {
 impl LayoutCache {
     pub fn new(on_invalidated: Option<Box<dyn Fn(LayoutUpdate) + Send + Sync>>) -> Self {
         Self {
-            query: LruCache::new(NonZeroUsize::new(64).unwrap()),
-            query_row: LruCache::new(NonZeroUsize::new(64).unwrap()),
+            query: Default::default(),
+            query_row: None,
             layout: None,
             on_invalidated,
         }
@@ -79,20 +60,20 @@ impl LayoutCache {
             f(LayoutUpdate::Explicit)
         }
 
-        self.query.clear();
-        self.query_row.clear();
+        self.query = Default::default();
+        self.query_row = None;
         self.layout = None;
     }
 
-    pub(crate) fn insert_query(&mut self, key: QueryKey, value: CachedValue<Sizing>) {
-        self.query.put(key, value);
+    pub(crate) fn insert_query(&mut self, direction: Direction, value: CachedValue<Sizing>) {
+        self.query[direction as usize] = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
             f(LayoutUpdate::SizeQueryUpdate)
         }
     }
 
-    pub(crate) fn insert_query_row(&mut self, key: QueryKey, value: CachedValue<Row>) {
-        self.query_row.put(key, value);
+    pub(crate) fn insert_query_row(&mut self, value: CachedValue<Row>) {
+        self.query_row = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
             f(LayoutUpdate::SizeQueryUpdate)
         }
@@ -119,6 +100,72 @@ pub(crate) fn invalidate_widget(world: &World, id: Entity) {
     if let Some((parent, &())) = parent {
         invalidate_widget(world, parent);
     }
+}
+
+pub(crate) fn validate_cached_query(
+    cache: &CachedValue<Sizing>,
+    limits: LayoutLimits,
+    content_area: Vec2,
+) -> bool {
+    let value = &cache.value;
+
+    let min_size = value.min.size();
+    let preferred_size = value.preferred.size();
+
+    tracing::debug!( ?preferred_size, %cache.limits.max_size, %limits.max_size, "validate_cached_query");
+
+    min_size.x >= limits.min_size.x - TOLERANCE
+        && min_size.y >= limits.min_size.y - TOLERANCE
+        // Min may be larger than preferred for the orthogonal optimization direction
+        && min_size.x <= limits.max_size.x + TOLERANCE
+        && min_size.y <= limits.max_size.y + TOLERANCE
+        && preferred_size.x <= limits.max_size.x + TOLERANCE
+        && preferred_size.y <= limits.max_size.y + TOLERANCE
+        && ((cache.limits.max_size - preferred_size).abs().min_element() > TOLERANCE || cache.limits.max_size.abs_diff_eq(limits.max_size, TOLERANCE))
+        && cache.content_area.abs_diff_eq(content_area, TOLERANCE)
+}
+
+pub(crate) fn validate_cached_layout(
+    cache: &CachedValue<Block>,
+    limits: LayoutLimits,
+    content_area: Vec2,
+) -> bool {
+    let value = &cache.value;
+
+    let size = value.rect.size();
+
+    tracing::debug!( ?size, %cache.limits.max_size, %limits.max_size, "validate_cached_layout");
+
+    size.x >= limits.min_size.x - TOLERANCE
+        && size.y >= limits.min_size.y - TOLERANCE
+        // Min may be larger than preferred for the orthogonal optimization direction
+        && size.x <= limits.max_size.x + TOLERANCE
+        && size.y <= limits.max_size.y + TOLERANCE
+        // && ((cache.limits.max_size - size).abs().min_element() > TOLERANCE || cache.limits.max_size.abs_diff_eq(limits.max_size, TOLERANCE))
+        && cache.content_area.abs_diff_eq(content_area, TOLERANCE)
+}
+
+pub(crate) fn validate_cached_row(
+    cache: &CachedValue<Row>,
+    limits: LayoutLimits,
+    content_area: Vec2,
+) -> bool {
+    let value = &cache.value;
+
+    let min_size = value.min.size();
+    let preferred_size = value.preferred.size();
+
+    tracing::debug!( ?preferred_size, %cache.limits.max_size, %limits.max_size, "validate_cached_row");
+
+    min_size.x >= limits.min_size.x - TOLERANCE
+        && min_size.y >= limits.min_size.y - TOLERANCE
+        // Min may be larger than preferred for the orthogonal optimization direction
+        && min_size.x <= limits.max_size.x + TOLERANCE
+        && min_size.y <= limits.max_size.y + TOLERANCE
+        && preferred_size.x <= limits.max_size.x + TOLERANCE
+        && preferred_size.y <= limits.max_size.y + TOLERANCE
+        && ((cache.limits.max_size - preferred_size).abs().min_element() > TOLERANCE || cache.limits.max_size.abs_diff_eq(limits.max_size, TOLERANCE))
+        && cache.content_area.abs_diff_eq(content_area, TOLERANCE)
 }
 
 component! {

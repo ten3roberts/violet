@@ -7,7 +7,7 @@ use itertools::Itertools;
 use crate::{
     components,
     layout::{
-        cache::{layout_cache, CachedValue, QueryKey},
+        cache::{layout_cache, validate_cached_row, CachedValue},
         query_size,
     },
     Edges, Rect,
@@ -561,11 +561,13 @@ impl FlowLayout {
         limits: LayoutLimits,
     ) -> Row {
         puffin::profile_function!();
-        let key = QueryKey::new(content_area.size(), limits, self.direction);
-        if let Some(cache) = cache.query_row.get(&key) {
-            if cache.is_valid(limits, content_area.size()) {
+        if let Some(cache) = cache.query_row.as_ref() {
+            if validate_cached_row(cache, limits, content_area.size()) {
                 return cache.value.clone();
             }
+            // if cache.is_valid(limits, content_area.size()) {
+            // return cache.value.clone();
+            // }
             // tracing::info!("cache is no longer valid");
         }
 
@@ -625,10 +627,7 @@ impl FlowLayout {
             blocks: Arc::new(blocks),
         };
 
-        cache.insert_query_row(
-            key,
-            CachedValue::new(limits, content_area.size(), row.clone()),
-        );
+        cache.insert_query_row(CachedValue::new(limits, content_area.size(), row.clone()));
         row
     }
 

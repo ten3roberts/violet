@@ -114,30 +114,24 @@ impl DebugRenderer {
         self.layout_changes.extend(
             self.layout_changes_rx
                 .try_iter()
-                .map(|(entity, layout)| ((entity, layout), 60)),
+                .map(|(entity, layout)| ((entity, layout), 30)),
         );
 
         self.objects.clear();
 
-        let mut index = 0;
-        self.layout_changes.retain(|(id, layout), lifetime| {
-            *lifetime -= 1;
-
-            *lifetime > 0 && frame.world.has(*id, screen_rect())
-        });
         let groups = self.layout_changes.iter().group_by(|v| v.0 .0);
 
         let objects = groups.into_iter().filter_map(|(id, group)| {
             let color: Vec4 = group
                 .map(|((_, update), lifetime)| {
-                    let opacity = *lifetime as f32 / 60.0;
+                    let opacity = (*lifetime) as f32 / 30.0;
                     indicator_color(update) * vec4(1.0, 1.0, 1.0, opacity.powi(8))
                 })
                 .sum();
 
             let entity = frame.world.entity(id).ok()?;
 
-            let screen_rect = entity.get(screen_rect()).ok()?;
+            let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
 
             let model_matrix = Mat4::from_scale_rotation_translation(
                 screen_rect.size().extend(1.0),
@@ -163,6 +157,12 @@ impl DebugRenderer {
 
         self.objects.clear();
         self.objects.extend(objects);
+
+        self.layout_changes.retain(|_, lifetime| {
+            *lifetime -= 1;
+
+            *lifetime > 0
+        });
     }
 
     pub fn draw_commands(&self) -> &[(DrawCommand, ObjectData)] {

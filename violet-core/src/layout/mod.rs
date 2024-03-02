@@ -2,6 +2,8 @@ pub mod cache;
 mod flow;
 mod stack;
 
+use std::fmt::{Display, Formatter};
+
 use flax::{Entity, EntityRef, FetchExt, World};
 use glam::{vec2, Vec2};
 
@@ -9,14 +11,14 @@ use crate::{
     components::{
         self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding,
     },
-    layout::cache::CachedValue,
+    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
     Edges, Rect,
 };
 
 pub use flow::{Alignment, FlowLayout};
 pub use stack::StackLayout;
 
-use self::cache::{layout_cache, LayoutCache, QueryKey};
+use self::cache::{layout_cache, LayoutCache};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Ord, Eq)]
 pub enum Direction {
@@ -96,6 +98,18 @@ pub struct Sizing {
     min: Rect,
     preferred: Rect,
     margin: Edges,
+}
+
+impl Display for Sizing {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "min: {}, preferred: {}, margin: {}",
+            self.min.size(),
+            self.preferred.size(),
+            self.margin
+        )
+    }
 }
 
 /// Constraints for a child widget passed down from the parent.
@@ -191,7 +205,9 @@ pub(crate) fn query_size(
     puffin::profile_function!(format!("{entity}"));
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
-    let _span = tracing::info_span!("query_size", %entity, ?limits, %content_area).entered();
+    let _span =
+        tracing::debug_span!("query_size", name=entity.name().as_deref(), ?limits, %content_area)
+            .entered();
 
     let query = (
         layout_cache().as_mut(),
@@ -213,13 +229,14 @@ pub(crate) fn query_size(
     }
 
     // Check if cache is valid
-    let cache_key = QueryKey::new(content_area, limits, direction);
-    if let Some(cache) = cache.query.get(&cache_key) {
-        if cache.is_valid(limits, content_area) {
-            let _span = tracing::info_span!("cached").entered();
+    if let Some(cache) = cache.query[direction as usize].as_ref() {
+        if validate_cached_query(cache, limits, content_area) {
+            // if cache.is_valid(limits, content_area) {
+            let _span = tracing::trace_span!("cached").entered();
             validate_sizing(entity, &cache.value, limits);
             tracing::debug!(%entity, "found valid cached query");
             return cache.value;
+            // }
         }
     }
 
@@ -272,7 +289,8 @@ pub(crate) fn query_size(
 
     validate_sizing(entity, &sizing, limits);
 
-    cache.insert_query(cache_key, CachedValue::new(limits, content_area, sizing));
+    tracing::debug!(%sizing);
+    cache.insert_query(direction, CachedValue::new(limits, content_area, sizing));
 
     sizing
 }
@@ -316,7 +334,7 @@ pub(crate) fn update_subtree(
     // Check if cache is still valid
 
     if let Some(cache) = cache.layout.as_ref() {
-        if cache.is_valid(limits, content_area) {
+        if validate_cached_layout(cache, limits, content_area) {
             tracing::debug!(%entity, ?cache, "found valid cached layout");
             validate_block(entity, &cache.value, limits);
             return cache.value;

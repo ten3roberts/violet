@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use glam::{vec2, Vec2};
 
 /// Spacing between a outer and inner bounds
@@ -164,7 +166,7 @@ impl Rect {
     pub fn align_to_grid(&self) -> Self {
         Self {
             min: self.min.floor(),
-            max: self.max.floor(),
+            max: self.max.ceil(),
         }
     }
 
@@ -250,5 +252,14 @@ impl Rect {
         let max = self.max.min(mask.max);
 
         Rect { min, max }
+    }
+}
+
+impl Display for Edges {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "({},{},{},{})",
+            self.left, self.right, self.top, self.bottom
+        ))
     }
 }

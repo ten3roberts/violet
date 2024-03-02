@@ -202,13 +202,20 @@ impl App {
 
                 stats.record_frame(frame_time);
 
-                ex.tick(&mut frame);
+                {
+                    puffin::profile_scope!("Tick");
+                    ex.tick(&mut frame);
+                }
 
                 update_animations(&mut frame, cur_time - start_time);
 
-                schedule.execute_seq(&mut frame.world).unwrap();
+                {
+                    puffin::profile_scope!("Schedule");
+                    schedule.execute_seq(&mut frame.world).unwrap();
+                }
 
                 if let Some(window_renderer) = &mut window_renderer {
+                    puffin::profile_scope!("Draw");
                     if let Err(err) = window_renderer.draw(&mut frame) {
                         tracing::error!("Failed to draw to window: {err:?}");
                     }
