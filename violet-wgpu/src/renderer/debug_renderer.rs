@@ -1,13 +1,14 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use flax::Entity;
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec4};
+use flax::{fetch::entity_refs, Entity, Query};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec3, Vec4};
 use image::DynamicImage;
 use itertools::Itertools;
+use palette::bool_mask::Select;
 use violet_core::{
     assets::Asset,
     components::screen_rect,
-    layout::cache::LayoutUpdate,
+    layout::cache::{layout_cache, LayoutUpdate},
     stored::{self, Handle},
     Frame,
 };
@@ -118,41 +119,98 @@ impl DebugRenderer {
 
         self.objects.clear();
 
+        let mut query = Query::new((entity_refs(), layout_cache()));
+        let mut query = query.borrow(&frame.world);
+
+        let clamped_indicators = query.iter().filter_map(|(entity, v)| {
+            let clamped_query_vertical =
+                if v.query()[0].as_ref().is_some_and(|v| v.value.hints.clamped) {
+                    vec3(0.5, 0.0, 0.0)
+                } else {
+                    Vec3::ZERO
+                };
+
+            let clamped_query_horizontal =
+                if v.query()[1].as_ref().is_some_and(|v| v.value.hints.clamped) {
+                    vec3(0.0, 0.5, 0.0)
+                } else {
+                    Vec3::ZERO
+                };
+
+            let clamped_layout = if v.layout().map(|v| v.value.clamped).unwrap_or(false) {
+                vec3(0.0, 0.0, 0.5)
+            } else {
+                Vec3::ZERO
+            };
+
+            let color: Vec3 = [
+                clamped_query_vertical,
+                clamped_query_horizontal,
+                clamped_layout,
+            ]
+            .into_iter()
+            .sum();
+
+            if color == Vec3::ZERO {
+                None
+            } else {
+                Some((entity, color.extend(1.0)))
+            }
+        });
+
+        let mut query = Query::new((entity_refs(), layout_cache()));
+        let mut query = query.borrow(&frame.world);
+
+        // let fixed_indicators = query.iter().filter_map(|(entity, v)| {
+        //     let color = if v.fixed_size() {
+        //         vec4(1.0, 1.0, 0.0, 1.0)
+        //     } else {
+        //         return None;
+        //     };
+
+        //     Some((entity, color))
+        // });
+
         let groups = self.layout_changes.iter().group_by(|v| v.0 .0);
 
         let objects = groups.into_iter().filter_map(|(id, group)| {
             let color: Vec4 = group
                 .map(|((_, update), lifetime)| {
                     let opacity = (*lifetime) as f32 / 30.0;
-                    indicator_color(update) * vec4(1.0, 1.0, 1.0, opacity.powi(8))
+                    indicator_color(update) * vec4(1.0, 1.0, 1.0, opacity.powi(8) * 0.5)
                 })
                 .sum();
-
             let entity = frame.world.entity(id).ok()?;
 
-            let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
-
-            let model_matrix = Mat4::from_scale_rotation_translation(
-                screen_rect.size().extend(1.0),
-                Quat::IDENTITY,
-                screen_rect.pos().extend(0.2),
-            );
-
-            let object_data = ObjectData {
-                model_matrix,
-                color,
-            };
-
-            Some((
-                DrawCommand {
-                    shader: self.shader.clone(),
-                    bind_group: self.bind_group.clone(),
-                    mesh: self.mesh.clone(),
-                    index_count: 6,
-                },
-                object_data,
-            ))
+            Some((entity, color))
         });
+
+        let objects = clamped_indicators
+            .chain(objects)
+            .filter_map(|(entity, color)| {
+                let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
+
+                let model_matrix = Mat4::from_scale_rotation_translation(
+                    screen_rect.size().extend(1.0),
+                    Quat::IDENTITY,
+                    screen_rect.pos().extend(0.2),
+                );
+
+                let object_data = ObjectData {
+                    model_matrix,
+                    color,
+                };
+
+                Some((
+                    DrawCommand {
+                        shader: self.shader.clone(),
+                        bind_group: self.bind_group.clone(),
+                        mesh: self.mesh.clone(),
+                        index_count: 6,
+                    },
+                    object_data,
+                ))
+            });
 
         self.objects.clear();
         self.objects.extend(objects);

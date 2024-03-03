@@ -11,7 +11,7 @@ use crate::{
     components::{
         self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding,
     },
-    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
+    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue, LAYOUT_TOLERANCE},
     Edges, Rect,
 };
 
@@ -98,6 +98,7 @@ pub struct Sizing {
     min: Rect,
     preferred: Rect,
     margin: Edges,
+    pub hints: SizingHints,
 }
 
 impl Display for Sizing {
@@ -123,14 +124,42 @@ pub struct LayoutLimits {
 
 /// A block is a rectangle and surrounding support such as margin
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct Block {
+pub struct Block {
     pub(crate) rect: Rect,
     pub(crate) margin: Edges,
+    /// See: [Sizing::clamped]
+    pub clamped: bool,
 }
 
 impl Block {
-    pub(crate) fn new(rect: Rect, margin: Edges) -> Self {
-        Self { rect, margin }
+    pub(crate) fn new(rect: Rect, margin: Edges, clamped: bool) -> Self {
+        Self {
+            rect,
+            margin,
+            clamped,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SizingHints {
+    /// Size does not depend on the size of the parent
+    pub clamped: bool,
+    /// The widget size is clamped given the provided size limits, and could be larger.
+    ///
+    /// If this is true, giving *more* space to a widget may cause it to grow.
+    ///
+    /// This is used for an optimization to avoid invalidating the layout when the available size
+    /// increases
+    pub fixed_size: bool,
+}
+
+impl SizingHints {
+    pub fn combine(self, other: Self) -> Self {
+        Self {
+            clamped: self.clamped || other.clamped,
+            fixed_size: self.fixed_size && other.fixed_size,
+        }
     }
 }
 
@@ -222,10 +251,14 @@ pub(crate) fn query_size(
     let mut query = entity.query(&query);
     let (cache, &margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
 
-    limits.min_size = limits.min_size.max(min_size.resolve(content_area));
+    let fixed_boundary_size = min_size.is_fixed() && max_size.map(|v| v.is_fixed()).unwrap_or(true);
+
+    let min_size = min_size.resolve(content_area);
+    let max_size = max_size.map(|v| v.resolve(content_area));
+    limits.min_size = limits.min_size.max(min_size);
 
     if let Some(max_size) = max_size {
-        limits.max_size = limits.max_size.min(max_size.resolve(content_area));
+        limits.max_size = limits.max_size.min(max_size);
     }
 
     // Check if cache is valid
@@ -248,7 +281,7 @@ pub(crate) fn query_size(
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
     // Flow
-    let sizing = if let Some(layout) = layout {
+    let mut sizing = if let Some(layout) = layout {
         let mut sizing = layout.query_size(
             world,
             entity,
@@ -275,7 +308,8 @@ pub(crate) fn query_size(
         sizing
     } else {
         // Leaf
-        let (min_size, preferred_size) = query_constraints(entity, content_area, limits, direction);
+        let (min_size, preferred_size, hints) =
+            query_constraints(entity, content_area, limits, direction);
 
         let min_offset = resolve_pos(entity, content_area, min_size);
         let preferred_offset = resolve_pos(entity, content_area, preferred_size);
@@ -284,13 +318,29 @@ pub(crate) fn query_size(
             min: Rect::from_size_pos(min_size, min_offset),
             preferred: Rect::from_size_pos(preferred_size, preferred_offset),
             margin,
+            hints: SizingHints {
+                fixed_size: fixed_boundary_size && hints.fixed_size,
+                clamped: hints.clamped,
+            },
         }
     };
+
+    // Widget size is limited by itself and is not affected by the size of the parent
+    if let Some(max_size) = max_size {
+        if sizing
+            .preferred
+            .size()
+            .abs_diff_eq(max_size, LAYOUT_TOLERANCE)
+        {
+            sizing.hints.clamped = false;
+        }
+    }
 
     validate_sizing(entity, &sizing, limits);
 
     tracing::debug!(%sizing);
     cache.insert_query(direction, CachedValue::new(limits, content_area, sizing));
+    cache.fixed_size = sizing.hints.fixed_size;
 
     sizing
 }
@@ -324,20 +374,22 @@ pub(crate) fn update_subtree(
 
     let mut query = entity.query(&query);
     let (cache, &margin, &padding, min_size, max_size, children, layout) = query.get().unwrap();
+    let min_size = min_size.resolve(content_area);
+    let max_size = max_size.map(|v| v.resolve(content_area));
 
-    limits.min_size = limits.min_size.max(min_size.resolve(content_area));
+    limits.min_size = limits.min_size.max(min_size);
 
     if let Some(max_size) = max_size {
-        limits.max_size = limits.max_size.min(max_size.resolve(content_area));
+        limits.max_size = limits.max_size.min(max_size);
     }
 
     // Check if cache is still valid
 
-    if let Some(cache) = &cache.layout {
-        if validate_cached_layout(cache, limits, content_area) {
-            tracing::debug!(%entity, ?cache, "found valid cached layout");
-            validate_block(entity, &cache.value, limits);
-            return cache.value;
+    if let Some(value) = &cache.layout {
+        if validate_cached_layout(value, limits, content_area, cache.fixed_size) {
+            tracing::debug!(%entity, ?value, "found valid cached layout");
+            validate_block(entity, &value.value, limits);
+            return value.value;
         }
     }
 
@@ -350,7 +402,7 @@ pub(crate) fn update_subtree(
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    let block = if let Some(layout) = layout {
+    let mut block = if let Some(layout) = layout {
         let mut block = layout.apply(
             world,
             entity,
@@ -380,7 +432,7 @@ pub(crate) fn update_subtree(
         block
     } else {
         assert_eq!(children, [], "Widget with children must have a layout");
-        let size = apply_constraints(entity, content_area, limits);
+        let (size, clamped) = apply_constraints(entity, content_area, limits);
 
         if size.x > limits.max_size.x || size.y > limits.max_size.y {
             tracing::error!(
@@ -394,8 +446,19 @@ pub(crate) fn update_subtree(
 
         entity.update_dedup(components::layout_bounds(), size);
 
-        Block { rect, margin }
+        Block {
+            rect,
+            margin,
+            clamped,
+        }
     };
+
+    // Widget size is limited by itself and is not affected by the size of the parent
+    if let Some(max_size) = max_size {
+        if block.rect.size().abs_diff_eq(max_size, LAYOUT_TOLERANCE) {
+            block.clamped = false;
+        }
+    }
 
     validate_block(entity, &block, limits);
 
@@ -417,17 +480,23 @@ pub trait SizeResolver: Send + Sync {
         content_area: Vec2,
         limits: LayoutLimits,
         optimize: Direction,
-    ) -> (Vec2, Vec2);
+    ) -> (Vec2, Vec2, SizingHints);
 
     /// Uses the current constraints to determine the size of the widget
-    fn apply(&mut self, entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> Vec2;
+    fn apply(
+        &mut self,
+        entity: &EntityRef,
+        content_area: Vec2,
+        limits: LayoutLimits,
+    ) -> (Vec2, bool);
 }
 
-fn resolve_base_size(entity: &EntityRef, content_area: Vec2) -> (Vec2, Constraints) {
+fn resolve_base_size(entity: &EntityRef, content_area: Vec2) -> (Vec2, Constraints, bool) {
     let query = (components::size().opt_or_default(), aspect_ratio().opt());
     let mut query = entity.query(&query);
     let (size, aspect_ratio) = query.get().unwrap();
 
+    let fixed = size.is_fixed();
     let size = size.resolve(content_area);
 
     (
@@ -435,6 +504,7 @@ fn resolve_base_size(entity: &EntityRef, content_area: Vec2) -> (Vec2, Constrain
         Constraints {
             aspect_ratio: aspect_ratio.copied(),
         },
+        fixed,
     )
 }
 
@@ -464,13 +534,15 @@ fn query_constraints(
     content_area: Vec2,
     limits: LayoutLimits,
     squeeze: Direction,
-) -> (Vec2, Vec2) {
-    let (mut size, constraints) = resolve_base_size(entity, content_area);
+) -> (Vec2, Vec2, SizingHints) {
+    let (mut size, constraints, fixed_size) = resolve_base_size(entity, content_area);
 
+    let clamped = size.x > limits.max_size.x || size.y > limits.max_size.y;
     let mut min_size = limits.min_size;
 
     if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
-        let (resolved_min, resolved_size) = resolver.query(entity, content_area, limits, squeeze);
+        let (resolved_min, resolved_size, hints) =
+            resolver.query(entity, content_area, limits, squeeze);
 
         let optimize_axis = squeeze.to_axis();
         if resolved_min.dot(optimize_axis) > resolved_size.dot(optimize_axis) {
@@ -479,26 +551,49 @@ fn query_constraints(
 
         min_size = resolved_min;
         size = resolved_size.max(size);
+
+        (
+            constraints.resolve(min_size.clamp(limits.min_size, limits.max_size)),
+            constraints.resolve(size.clamp(limits.min_size, limits.max_size)),
+            SizingHints {
+                fixed_size: fixed_size && hints.fixed_size,
+                clamped: clamped || hints.clamped,
+            },
+        )
+    } else {
+        // tracing::info!(?min_size, ?size, ?limits, "query_constraints");
+
+        (
+            constraints.resolve(min_size.clamp(limits.min_size, limits.max_size)),
+            constraints.resolve(size.clamp(limits.min_size, limits.max_size)),
+            SizingHints {
+                clamped,
+                fixed_size,
+            },
+        )
     }
-
-    // tracing::info!(?min_size, ?size, ?limits, "query_constraints");
-
-    (
-        constraints.resolve(min_size.clamp(limits.min_size, limits.max_size)),
-        constraints.resolve(size.clamp(limits.min_size, limits.max_size)),
-    )
 }
 
-fn apply_constraints(entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> Vec2 {
-    let (mut size, constraints) = resolve_base_size(entity, content_area);
+fn apply_constraints(entity: &EntityRef, content_area: Vec2, limits: LayoutLimits) -> (Vec2, bool) {
+    let (size, constraints, _) = resolve_base_size(entity, content_area);
+
+    let clamped = size.x > limits.max_size.x || size.y > limits.max_size.y;
 
     if let Ok(mut resolver) = entity.get_mut(components::size_resolver()) {
-        let resolved_size = resolver.apply(entity, content_area, limits);
+        let (resolved_size, resolved_clamped) = resolver.apply(entity, content_area, limits);
 
-        size = resolved_size.max(size);
+        let size = resolved_size.max(size);
+
+        (
+            constraints.resolve(size.clamp(limits.min_size, limits.max_size)),
+            clamped || resolved_clamped,
+        )
+    } else {
+        (
+            constraints.resolve(size.clamp(limits.min_size, limits.max_size)),
+            clamped,
+        )
     }
-
-    constraints.resolve(size.clamp(limits.min_size, limits.max_size))
 }
 
 /// Resolves a widgets position relative to its own bounds

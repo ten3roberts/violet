@@ -18,13 +18,13 @@ use violet::core::{
         },
         Background,
     },
-    time::interval,
     unit::Unit,
     widget::SliderWithLabel,
     widget::{List, Rectangle, SignalWidget, Stack, Text, WidgetExt},
-    Edges, Scope, StreamEffect, Widget, WidgetCollection,
+    Edges, Scope, Widget, WidgetCollection,
 };
-use violet_core::{components::size, style::colors::DARK_CYAN_DEFAULT, text::Wrap};
+use violet_core::{style::colors::DARK_CYAN_DEFAULT, text::Wrap};
+use violet_wgpu::renderer::RendererConfig;
 
 const MARGIN: Edges = Edges::even(8.0);
 const MARGIN_SM: Edges = Edges::even(4.0);
@@ -69,7 +69,9 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new().run(MainApp)
+    violet_wgpu::App::new()
+        .with_renderer_config(RendererConfig { debug_mode: true })
+        .run(MainApp)
 }
 
 struct Vec2Editor {
@@ -128,7 +130,7 @@ impl Widget for MainApp {
                 Vec2Editor::new(size.clone(), "width", "height"),
                 SignalWidget::new(size.signal().map(|size| label(format!("Rectangle size: {size}")))),
             ))),
-            row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height"), card(Text::new(":P").with_wrap(Wrap::None)))),
+            row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height. Another sentence for good measure to force the text to wrap"), card(Text::new(":P").with_wrap(Wrap::None)))),
             SignalWidget::new(size.signal().map(|size| FlowSizing { size })),
             // AnimatedSize,
         ))
@@ -151,10 +153,10 @@ impl Widget for FlowSizing {
             SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
             SizedBox::new(
                 DARK_CYAN_DEFAULT,
-                Unit::rel2(0.1, 0.0) + Unit::px2(0.0, 50.0),
+                Unit::rel2(0.0, 0.0) + Unit::px2(10.0, 50.0),
             )
             .with_name("DARK_CYAN"),
-            AnimatedSize,
+            // AnimatedSize,
         );
 
         column((
@@ -175,22 +177,36 @@ impl Widget for FlowSizing {
                         .with_background(bg)
                         .with_max_size(Unit::px2(100.0, 100.0)),
                 ))),
+                card(column((
+                    label("Constrained list with max size"),
+                    row(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0))
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
             )),
             row((
                 card(column((
-                    label("Unconstrained list"),
+                    label("Unconstrained stack"),
                     centered(content.clone()).with_background(bg),
                 ))),
                 card(column((
-                    label("Constrained list with min size"),
+                    label("Constrained stack with min size"),
                     centered(content.clone())
                         .with_background(bg)
                         .with_min_size(Unit::px2(100.0, 100.0)),
                 ))),
                 card(column((
-                    label("Constrained list with max size"),
+                    label("Constrained stack with max size"),
                     centered(content.clone())
                         .with_background(bg)
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained stack with max size"),
+                    centered(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0))
                         .with_max_size(Unit::px2(100.0, 100.0)),
                 ))),
             )),

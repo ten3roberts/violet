@@ -2,7 +2,11 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 
-use crate::{components, layout::query_size, Edges, Rect};
+use crate::{
+    components,
+    layout::{query_size, SizingHints},
+    Edges, Rect,
+};
 
 use super::{resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, Sizing};
 
@@ -126,6 +130,8 @@ impl StackLayout {
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(limits.min_size, content_area.min));
 
+        let mut clamped = false;
+
         let offset = resolve_pos(entity, content_area.size(), size);
         for (entity, block) in blocks {
             let block_size = block.rect.size();
@@ -143,6 +149,8 @@ impl StackLayout {
                 block.margin,
             ));
 
+            clamped = clamped || block.clamped;
+
             // entity.update_dedup(components::rect(), block.rect.translate(offset));
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), offset);
@@ -159,7 +167,7 @@ impl StackLayout {
         // rect.min += content_area.min;
         // rect.max += content_area.min;
 
-        Block::new(rect, margin)
+        Block::new(rect, margin, clamped)
     }
 
     pub(crate) fn query_size(
@@ -175,10 +183,15 @@ impl StackLayout {
         let mut min_bounds = StackableBounds::from_rect(min_rect);
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);
 
+        let mut hints = SizingHints {
+            fixed_size: true,
+            clamped: false,
+        };
+
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let query = query_size(
+            let sizing = query_size(
                 world,
                 &entity,
                 content_area.size(),
@@ -189,29 +202,21 @@ impl StackLayout {
                 squeeze,
             );
 
+            hints = hints.combine(sizing.hints);
+
             min_bounds = min_bounds.merge(&StackableBounds::new(
-                query.min.translate(content_area.min),
-                query.margin,
+                sizing.min.translate(content_area.min),
+                sizing.margin,
             ));
 
             preferred_bounds = preferred_bounds.merge(&StackableBounds::new(
-                query.preferred.translate(content_area.min),
-                query.margin,
+                sizing.preferred.translate(content_area.min),
+                sizing.margin,
             ));
         }
 
-        // min_bounds.inner = min_bounds.inner.max_size(limits.min_size);
-        // preferred_bounds.inner = preferred_bounds.inner.max_size(limits.min_size);
-
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
-
-        // tracing::info!(?min_margin, ?preferred_margin);
-
-        // if min_margin != preferred_margin {
-        //     tracing::warn!("margin discrepancy: {:?}", min_margin - preferred_margin);
-        // }
-        // tracing::info!(?min_margin, ?preferred_margin);
 
         Sizing {
             min: min_bounds
@@ -221,6 +226,7 @@ impl StackLayout {
                 .inner
                 .clamp_size(limits.min_size, limits.max_size),
             margin: min_margin.max(preferred_margin),
+            hints,
         }
     }
 }

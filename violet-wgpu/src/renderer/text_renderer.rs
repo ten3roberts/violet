@@ -359,7 +359,7 @@ impl TextRenderer {
                 {
                     let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);
 
-                    buffer.set_size(item.layout_bounds.x, item.layout_bounds.y);
+                    buffer.set_size(item.layout_bounds.x + 5.0, item.layout_bounds.y + 5.0);
 
                     buffer.shape_until_scroll(true);
                 }

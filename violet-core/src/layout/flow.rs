@@ -7,8 +7,8 @@ use itertools::Itertools;
 use crate::{
     components,
     layout::{
-        cache::{layout_cache, validate_cached_row, CachedValue},
-        query_size,
+        cache::{validate_cached_row, CachedValue},
+        query_size, SizingHints,
     },
     Edges, Rect,
 };
@@ -257,6 +257,7 @@ impl FlowLayout {
 
         let cross_size = row.preferred.size().max(limits.min_size).dot(cross_axis);
 
+        let mut clamped = false;
         // Distribute the size to the widgets and apply their layout
         let blocks = row
             .blocks
@@ -324,6 +325,7 @@ impl FlowLayout {
                 // let local_rect = widget_outer_bounds(world, &child, size);
                 let block = update_subtree(world, &entity, content_area.size(), child_limits);
 
+                clamped = clamped || block.clamped;
                 tracing::debug!(?block, "updated subtree");
 
                 // block.rect = block
@@ -390,7 +392,7 @@ impl FlowLayout {
             .direction
             .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
-        Block::new(rect, margin)
+        Block::new(rect, margin, clamped)
     }
 
     fn distribute_query(
@@ -453,6 +455,10 @@ impl FlowLayout {
         let mut sum = 0.0;
 
         let cross_size = row.preferred.size().dot(cross_axis);
+        let mut hints = SizingHints {
+            fixed_size: true,
+            clamped: false,
+        };
 
         // Distribute the size to the widgets and apply their layout
         row
@@ -526,14 +532,14 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = query_size(world, &entity, content_area.size(), child_limits, squeeze);
+                let sizing = query_size(world, &entity, content_area.size(), child_limits, squeeze);
 
-                tracing::debug!(min=%block.min.size(), preferred=%block.preferred.size(), ?child_limits, "query");
+                hints = hints.combine(sizing.hints);
 
-                // TODO: show red rect here
+                tracing::debug!(min=%sizing.min.size(), preferred=%sizing.preferred.size(), ?child_limits, "query");
 
-                min_cursor.put(&Block::new(block.min, block.margin));
-                cursor.put(&Block::new(block.preferred, block.margin));
+                min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.clamped));
+                cursor.put(&Block::new(sizing.preferred, sizing.margin, sizing.hints.clamped));
 
                 tracing::debug!(min_cursor=%min_cursor.rect().size(), cursor=%cursor.rect().size(), "cursor");
             });
@@ -549,6 +555,7 @@ impl FlowLayout {
             min: min_rect.clamp_size(limits.min_size, limits.max_size),
             preferred: rect.clamp_size(limits.min_size, limits.max_size),
             margin,
+            hints,
         }
     }
 
@@ -561,9 +568,9 @@ impl FlowLayout {
         limits: LayoutLimits,
     ) -> Row {
         puffin::profile_function!();
-        if let Some(cache) = cache.query_row.as_ref() {
-            if validate_cached_row(cache, limits, content_area.size()) {
-                return cache.value.clone();
+        if let Some(value) = cache.query_row.as_ref() {
+            if validate_cached_row(value, limits, content_area.size(), cache.fixed_size) {
+                return value.value.clone();
             }
             // if cache.is_valid(limits, content_area.size()) {
             // return cache.value.clone();
@@ -608,8 +615,12 @@ impl FlowLayout {
                     self.direction,
                 );
 
-                min_cursor.put(&Block::new(sizing.min, sizing.margin));
-                preferred_cursor.put(&Block::new(sizing.preferred, sizing.margin));
+                min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.clamped));
+                preferred_cursor.put(&Block::new(
+                    sizing.preferred,
+                    sizing.margin,
+                    sizing.hints.clamped,
+                ));
 
                 // NOTE: cross size is guaranteed to be fulfilled by the parent
                 max_cross_size = max_cross_size.max(sizing.preferred.size().dot(cross_axis));

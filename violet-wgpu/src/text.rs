@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 
 use violet_core::{
     components::font_size,
-    layout::{Direction, LayoutLimits, SizeResolver},
+    layout::{Direction, LayoutLimits, SizeResolver, SizingHints},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };
@@ -57,13 +57,12 @@ impl SizeResolver for TextSizeResolver {
     fn query(
         &mut self,
         entity: &flax::EntityRef,
-        content_area: Vec2,
+        _content_area: Vec2,
         limits: LayoutLimits,
         squeeze: Direction,
-    ) -> (glam::Vec2, glam::Vec2) {
+    ) -> (Vec2, Vec2, SizingHints) {
         puffin::profile_scope!("TextSizeResolver::query");
-        let _span =
-            tracing::debug_span!("TextSizeResolver::query", ?squeeze, ?content_area).entered();
+        let _span = tracing::debug_span!("TextSizeResolver::query", ?squeeze).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 
@@ -72,7 +71,8 @@ impl SizeResolver for TextSizeResolver {
 
         let text_system = &mut *self.text_system.lock();
 
-        let min = Self::resolve_text_size(
+        // If preferred is clamped, so is min
+        let (min, _clamped) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -82,13 +82,21 @@ impl SizeResolver for TextSizeResolver {
             },
         );
 
-        let preferred = Self::resolve_text_size(state, text_system, font_size, limits.max_size);
+        let (preferred, clamped) =
+            Self::resolve_text_size(state, text_system, font_size, limits.max_size);
         // + vec2(5.0, 5.0);
 
         if min.dot(squeeze.to_axis()) > preferred.dot(squeeze.to_axis()) {
             tracing::error!(%entity, text=?state.text(), %min, %preferred, ?squeeze, %limits.max_size, "Text wrapping failed");
         }
-        (min, preferred)
+        (
+            min,
+            preferred,
+            SizingHints {
+                clamped,
+                fixed_size: true,
+            },
+        )
     }
 
     fn apply(
@@ -96,7 +104,7 @@ impl SizeResolver for TextSizeResolver {
         entity: &flax::EntityRef,
         content_area: Vec2,
         limits: LayoutLimits,
-    ) -> Vec2 {
+    ) -> (Vec2, bool) {
         puffin::profile_scope!("TextSizeResolver::apply");
         let _span = tracing::debug_span!("TextSizeResolver::apply", ?content_area).entered();
 
@@ -107,8 +115,16 @@ impl SizeResolver for TextSizeResolver {
 
         let text_system = &mut *self.text_system.lock();
 
-        Self::resolve_text_size(state, text_system, font_size, limits.max_size)
-            .clamp(limits.min_size, limits.max_size)
+        let (size, clamped) = Self::resolve_text_size(
+            state,
+            text_system,
+            font_size,
+            // Add a little leeway, because an exact fit from the query may miss the last
+            // word/glyph
+            limits.max_size + vec2(5.0, 5.0),
+        );
+
+        (size.clamp(limits.min_size, limits.max_size), clamped)
     }
 }
 
@@ -122,7 +138,7 @@ impl TextSizeResolver {
         text_system: &mut TextSystem,
         font_size: f32,
         size: Vec2,
-    ) -> Vec2 {
+    ) -> (Vec2, bool) {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
         let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
@@ -141,7 +157,7 @@ fn glyph_bounds(glyph: &LayoutGlyph) -> (f32, f32) {
     (glyph.x, glyph.x + glyph.w)
 }
 
-fn measure(buffer: &Buffer) -> Vec2 {
+fn measure(buffer: &Buffer) -> (Vec2, bool) {
     let (width, total_lines) =
         buffer
             .layout_runs()
@@ -162,7 +178,12 @@ fn measure(buffer: &Buffer) -> Vec2 {
                 }
             });
 
-    vec2(width, total_lines as f32 * buffer.metrics().line_height)
+    // tracing::info!(?total_lines, lines = buffer.lines.len(), "measure");
+
+    (
+        vec2(width, total_lines as f32 * buffer.metrics().line_height),
+        total_lines > buffer.lines.len(),
+    )
 }
 
 pub(crate) struct TextBufferState {

@@ -31,6 +31,13 @@ impl<T: Zero> Unit<T> {
     pub fn rel(rel: T) -> Self {
         Self { px: T::ZERO, rel }
     }
+
+    pub(crate) fn is_fixed(&self) -> bool
+    where
+        T: PartialEq,
+    {
+        self.rel == T::ZERO
+    }
 }
 
 impl Unit<Vec2> {
