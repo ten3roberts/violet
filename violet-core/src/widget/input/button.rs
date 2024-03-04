@@ -7,7 +7,8 @@ use crate::{
     input::{focusable, on_focus, on_mouse_input},
     layout::Alignment,
     style::{
-        get_stylesheet, interactive_active, interactive_pressed, spacing, Background, StyleExt,
+        get_stylesheet, interactive_active, interactive_inactive, interactive_pressed, spacing,
+        Background, StyleExt,
     },
     widget::{ContainerStyle, Stack, Text},
     Edges, Frame, Scope, Widget,
@@ -24,7 +25,7 @@ pub struct ButtonStyle {
 impl Default for ButtonStyle {
     fn default() -> Self {
         Self {
-            normal_color: interactive_active(),
+            normal_color: interactive_inactive(),
             pressed_color: interactive_pressed(),
         }
     }

@@ -93,7 +93,7 @@ impl SizeResolver for TextSizeResolver {
             min,
             preferred,
             SizingHints {
-                clamped,
+                can_grow: clamped,
                 fixed_size: true,
             },
         )

@@ -74,6 +74,7 @@ glam.workspace = true
 palette.workspace = true
 futures-signals.workspace = true
 flax = { workspace = true, features = ["puffin"] }
+lru.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

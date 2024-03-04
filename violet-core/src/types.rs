@@ -253,6 +253,12 @@ impl Rect {
 
         Rect { min, max }
     }
+
+    pub(crate) fn with_size(&self, size: Vec2) -> Self {
+        let min = self.min;
+        let max = min + size;
+        Rect { min, max }
+    }
 }
 
 impl Display for Edges {

@@ -130,7 +130,7 @@ impl StackLayout {
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(limits.min_size, content_area.min));
 
-        let mut clamped = false;
+        let mut can_grow = false;
 
         let offset = resolve_pos(entity, content_area.size(), size);
         for (entity, block) in blocks {
@@ -149,14 +149,12 @@ impl StackLayout {
                 block.margin,
             ));
 
-            clamped = clamped || block.clamped;
+            can_grow = can_grow || block.can_grow;
 
             // entity.update_dedup(components::rect(), block.rect.translate(offset));
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), offset);
         }
-
-        // tracing::info!(?aligned_bounds);
 
         // aligned_bounds.inner = aligned_bounds.inner.max_size(limits.min_size);
         let rect = aligned_bounds
@@ -167,7 +165,7 @@ impl StackLayout {
         // rect.min += content_area.min;
         // rect.max += content_area.min;
 
-        Block::new(rect, margin, clamped)
+        Block::new(rect, margin, can_grow)
     }
 
     pub(crate) fn query_size(
@@ -185,7 +183,7 @@ impl StackLayout {
 
         let mut hints = SizingHints {
             fixed_size: true,
-            clamped: false,
+            can_grow: false,
         };
 
         for &child in children.iter() {

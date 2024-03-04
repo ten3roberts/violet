@@ -31,13 +31,13 @@ component! {
     /// Offset the widget from its original position
     pub offset: Unit<Vec2> => [ Debuggable ],
 
-    /// The preferred size of the widget.
+    /// Explicit widget size. This will override the intrinsic size of the widget.
     ///
-    /// The final bounds of a widget may be smaller to fit within a layout
+    /// The final size may be smaller if there is not enough space.
     pub size: Unit<Vec2> => [ Debuggable ],
 
     /// The minimum allowed size of a widget. A widgets bound will not be made any smaller even if
-    /// that implies clipping.
+    /// that implies clipping/overflow.
     pub min_size: Unit<Vec2> => [ Debuggable ],
 
     /// The maximum allowed size of the widget.
@@ -45,11 +45,12 @@ component! {
     /// This is to constrain an upper size for containers or relatively sized widgets
     pub max_size: Unit<Vec2> => [ Debuggable ],
 
+    /// Constrain the aspect ratio of a widget
+    pub aspect_ratio: f32 => [ Debuggable ],
+
     /// Sets the anchor point withing the bounds of the widget where position is applied
     pub anchor: Unit<Vec2> => [ Debuggable ],
 
-    /// Constrain the aspect ratio of a widget
-    pub aspect_ratio: f32 => [ Debuggable ],
 
     /// Manages the layout of the children
     pub layout: Layout => [ Debuggable ],

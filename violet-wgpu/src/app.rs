@@ -317,12 +317,19 @@ impl App {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn setup_puffin() -> puffin_http::Server {
+fn setup_puffin() -> Option<puffin_http::Server> {
     let server_addr = format!("127.0.0.1:{}", puffin_http::DEFAULT_PORT);
-    let server = puffin_http::Server::new(&server_addr).unwrap();
+    let server = match puffin_http::Server::new(&server_addr) {
+        Ok(server) => server,
+        Err(err) => {
+            tracing::warn!("Failed to start puffin server: {err}");
+            return None;
+        }
+    };
+
     tracing::info!("Puffin running at {server_addr}");
     puffin::set_scopes_on(true);
-    server
+    Some(server)
 }
 
 impl Default for App {

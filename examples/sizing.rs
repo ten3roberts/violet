@@ -1,5 +1,3 @@
-use std::time::{Duration, Instant};
-
 use flax::components::name;
 use futures_signals::signal::{Mutable, SignalExt};
 
@@ -10,7 +8,6 @@ use tracing_tree::HierarchicalLayer;
 
 use violet::core::{
     components,
-    layout::{Alignment, Direction},
     style::{
         colors::{
             EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_100, JADE_DEFAULT, LION_DEFAULT,
@@ -19,11 +16,15 @@ use violet::core::{
         Background,
     },
     unit::Unit,
-    widget::SliderWithLabel,
-    widget::{List, Rectangle, SignalWidget, Stack, Text, WidgetExt},
-    Edges, Scope, Widget, WidgetCollection,
+    widget::{Rectangle, SignalWidget, Stack, Text, WidgetExt},
+    Edges, Scope, Widget,
 };
-use violet_core::{style::colors::DARK_CYAN_DEFAULT, text::Wrap};
+use violet_core::{
+    style::colors::DARK_CYAN_DEFAULT,
+    text::Wrap,
+    to_owned,
+    widget::{card, centered, column, row, Slider},
+};
 use violet_wgpu::renderer::RendererConfig;
 
 const MARGIN: Edges = Edges::even(8.0);
@@ -34,27 +35,6 @@ fn label(text: impl Into<String>) -> Stack<Text> {
         .with_padding(MARGIN_SM)
         .with_margin(MARGIN_SM)
         .with_background(Background::new(EERIE_BLACK_400))
-}
-
-fn row<W: WidgetCollection>(widgets: W) -> List<W> {
-    List::new(widgets).with_direction(Direction::Horizontal)
-}
-
-fn column<W: WidgetCollection>(widgets: W) -> List<W> {
-    List::new(widgets).with_direction(Direction::Vertical)
-}
-
-fn centered<W>(widget: W) -> Stack<W> {
-    Stack::new(widget)
-        .with_horizontal_alignment(Alignment::Center)
-        .with_vertical_alignment(Alignment::Center)
-}
-
-fn card<W>(widget: W) -> Stack<W> {
-    Stack::new(widget)
-        .with_background(Background::new(EERIE_BLACK_400))
-        .with_padding(MARGIN)
-        .with_margin(MARGIN)
 }
 
 pub fn main() -> anyhow::Result<()> {
@@ -94,27 +74,25 @@ impl Widget for Vec2Editor {
     fn mount(self, scope: &mut Scope<'_>) {
         let value = self.value;
 
+        let x = Mutable::new(value.get().x);
+        let y = Mutable::new(value.get().y);
+
+        scope.spawn(x.signal().for_each({
+            to_owned![value];
+            move |x| {
+                value.lock_mut().x = x.round();
+                async {}
+            }
+        }));
+
+        scope.spawn(y.signal().for_each(move |y| {
+            value.lock_mut().y = y.round();
+            async {}
+        }));
+
         column((
-            row((
-                label(self.x_label),
-                SliderWithLabel::new_with_transform(
-                    value.clone(),
-                    0.0,
-                    200.0,
-                    |v| v.x,
-                    |v, x| v.x = x.round(),
-                ),
-            )),
-            row((
-                label(self.y_label),
-                SliderWithLabel::new_with_transform(
-                    value.clone(),
-                    0.0,
-                    200.0,
-                    |v| v.y,
-                    |v, y| v.y = y.round(),
-                ),
-            )),
+            row((label(self.x_label), Slider::new(x, 0.0, 200.0))),
+            row((label(self.y_label), Slider::new(y, 0.0, 200.0))),
         ))
         .mount(scope)
     }

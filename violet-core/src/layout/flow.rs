@@ -162,6 +162,7 @@ pub(crate) struct Row {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
     pub(crate) blocks: Arc<Vec<(Entity, Sizing)>>,
+    pub(crate) hints: SizingHints,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -257,7 +258,7 @@ impl FlowLayout {
 
         let cross_size = row.preferred.size().max(limits.min_size).dot(cross_axis);
 
-        let mut clamped = false;
+        let mut can_grow = false;
         // Distribute the size to the widgets and apply their layout
         let blocks = row
             .blocks
@@ -325,7 +326,7 @@ impl FlowLayout {
                 // let local_rect = widget_outer_bounds(world, &child, size);
                 let block = update_subtree(world, &entity, content_area.size(), child_limits);
 
-                clamped = clamped || block.clamped;
+                can_grow = can_grow || block.can_grow;
                 tracing::debug!(?block, "updated subtree");
 
                 // block.rect = block
@@ -392,7 +393,7 @@ impl FlowLayout {
             .direction
             .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
-        Block::new(rect, margin, clamped)
+        Block::new(rect, margin, can_grow)
     }
 
     fn distribute_query(
@@ -401,7 +402,7 @@ impl FlowLayout {
         row: &Row,
         content_area: Rect,
         limits: LayoutLimits,
-        squeeze: Direction,
+        direction: Direction,
     ) -> Sizing {
         puffin::profile_function!();
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
@@ -457,7 +458,7 @@ impl FlowLayout {
         let cross_size = row.preferred.size().dot(cross_axis);
         let mut hints = SizingHints {
             fixed_size: true,
-            clamped: false,
+            can_grow: false,
         };
 
         // Distribute the size to the widgets and apply their layout
@@ -531,15 +532,16 @@ impl FlowLayout {
                     }
                 };
 
-                // let local_rect = widget_outer_bounds(world, &child, size);
-                let sizing = query_size(world, &entity, content_area.size(), child_limits, squeeze);
+                // NOTE: optimize for the minimum size in the query direction, not the
+                // direction of the flow
+                let sizing = query_size(world, &entity, content_area.size(), child_limits, direction);
 
                 hints = hints.combine(sizing.hints);
 
                 tracing::debug!(min=%sizing.min.size(), preferred=%sizing.preferred.size(), ?child_limits, "query");
 
-                min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.clamped));
-                cursor.put(&Block::new(sizing.preferred, sizing.margin, sizing.hints.clamped));
+                min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.can_grow));
+                cursor.put(&Block::new(sizing.preferred, sizing.margin, sizing.hints.can_grow));
 
                 tracing::debug!(min_cursor=%min_cursor.rect().size(), cursor=%cursor.rect().size(), "cursor");
             });
@@ -569,13 +571,9 @@ impl FlowLayout {
     ) -> Row {
         puffin::profile_function!();
         if let Some(value) = cache.query_row.as_ref() {
-            if validate_cached_row(value, limits, content_area.size(), cache.fixed_size) {
+            if validate_cached_row(value, limits, content_area.size()) {
                 return value.value.clone();
             }
-            // if cache.is_valid(limits, content_area.size()) {
-            // return cache.value.clone();
-            // }
-            // tracing::info!("cache is no longer valid");
         }
 
         // let available_size = inner_rect.size();
@@ -591,6 +589,8 @@ impl FlowLayout {
             MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
 
         let mut max_cross_size = 0.0f32;
+
+        let mut hints = SizingHints::default();
 
         let blocks = children
             .iter()
@@ -615,11 +615,18 @@ impl FlowLayout {
                     self.direction,
                 );
 
-                min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.clamped));
+                hints = hints.combine(sizing.hints);
+
+                min_cursor.put(&Block::new(
+                    sizing.min,
+                    sizing.margin,
+                    sizing.hints.can_grow,
+                ));
+
                 preferred_cursor.put(&Block::new(
                     sizing.preferred,
                     sizing.margin,
-                    sizing.hints.clamped,
+                    sizing.hints.can_grow,
                 ));
 
                 // NOTE: cross size is guaranteed to be fulfilled by the parent
@@ -636,6 +643,7 @@ impl FlowLayout {
             min,
             preferred,
             blocks: Arc::new(blocks),
+            hints,
         };
 
         cache.insert_query_row(CachedValue::new(limits, content_area.size(), row.clone()));
@@ -652,14 +660,41 @@ impl FlowLayout {
         direction: Direction,
     ) -> Sizing {
         puffin::profile_function!(format!("{direction:?}"));
-        // let _span =
-        //     tracing::debug_span!("Flow::query_size", ?limits, flow=?self, ?direction).entered();
 
+        // We want to query the min/preferred size in the direction orthogonal to the flows
+        // layout
+        //
+        // For example, returning the min/preferred height of a horizontal flow layout
+        //
+        // This means that we want to return the layout with the least height, as well as
+        // height if we could take up as much space that we need within the given limits.
+        //
+        // Each child's size is of three variants:
+        //     - Uncoupled: width is independent of the height
+        //     - Coupled width: is dependent on the height (such as a fixed aspect ratio)
+        //     - Inversely coupled: width is inversely dependent on the height, such as wrapped text. Increasing the width decreases the height
+        //
+        // This means that making the flow as big as possible horizontally may either lead to a
+        // larger height (such as fixed aspect images), a smaller height (text does not need
+        // to wrap and fit on one line), no change at all (uncoupled), or a mix thereof if the
+        // children are of different types.
+        //
+        // The way to solve this is to query the min/preferred size of the children in *our*
+        // direction, and then during distribution querying we limit the allowed width to the
+        // ratio, and then query the children in the orthogonal direction to get the height to
+        // be optimized. This may lead to a situation where the children are not fully
+        // utilizing the space, but that is the tradeoff we make for a more predictable layout.
+        // This is a small compromise, but is allowed by the layout system, as layouts today
+        // can use less space in a flow than requested, such as word-wrapped text.
+        //
+        // The comprimise will lead to a solution that is not perfectly optimal, as there may
+        // exist a better solution where some widgets may get slightly more space and still
+        // fall within the max height. If anybody comes across a non-iterative solution for
+        // this, be sure to let me know :)
         let row = self.query_row(world, cache, children, content_area, limits);
 
-        let block = self.distribute_query(world, &row, content_area, limits, direction);
-        tracing::debug!(?self.direction, ?block, "query");
-
-        block
+        let sizing = self.distribute_query(world, &row, content_area, limits, direction);
+        tracing::debug!(?self.direction, ?sizing, "query");
+        sizing
     }
 }

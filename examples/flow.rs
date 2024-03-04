@@ -7,7 +7,7 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor, Oklch, Srgba};
+use palette::{Hsva, IntoColor, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -16,7 +16,7 @@ use violet::core::{
     components::{self, screen_rect},
     editor::{self, EditAction, EditorAction, TextEditor},
     input::{focusable, on_char_typed, on_keyboard_input, on_mouse_input},
-    layout::{Alignment, Direction},
+    layout::Alignment,
     style::StyleExt,
     text::{LayoutGlyphs, TextSegment},
     to_owned,
@@ -28,15 +28,14 @@ use violet_core::{
     input::{focus_sticky, ElementState, NamedKey},
     style::{
         self,
-        colors::{
-            DARK_CYAN_DEFAULT, EERIE_BLACK_300, EERIE_BLACK_400, EERIE_BLACK_600, EERIE_BLACK_900,
-            EERIE_BLACK_DEFAULT, JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
-            ULTRA_VIOLET_DEFAULT,
-        },
+        colors::{EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT},
         Background,
     },
-    widget::{BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, SliderWithLabel},
-    Edges, Rect, WidgetCollection,
+    widget::{
+        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, LabeledSlider,
+        Positioned, Slider,
+    },
+    Edges, Rect,
 };
 use violet_wgpu::renderer::RendererConfig;
 
@@ -47,21 +46,6 @@ fn label(text: impl Into<String>) -> Stack<Text> {
     Stack::new(Text::new(text.into()))
         .with_padding(MARGIN_SM)
         .with_margin(MARGIN_SM)
-}
-
-fn row<W: WidgetCollection>(widgets: W) -> List<W> {
-    List::new(widgets).with_direction(Direction::Horizontal)
-}
-
-fn column<W: WidgetCollection>(widgets: W) -> List<W> {
-    List::new(widgets).with_direction(Direction::Vertical)
-}
-
-fn card<W>(widget: W) -> Stack<W> {
-    Stack::new(widget)
-        .with_background(Background::new(EERIE_BLACK_400))
-        .with_padding(MARGIN)
-        .with_margin(MARGIN)
 }
 
 fn pill(widget: impl Widget) -> impl Widget {
@@ -114,8 +98,11 @@ impl Widget for MainApp {
             }),
             card(
                 column((
-                    BoxSized::new(Button::with_label("Button"))
-                        .with_size(Unit::rel2(0.5, 0.0) + Unit::px2(0.0, 10.0)),
+                    Button::with_label("Button"),
+                    Button::with_label("Button").with_style(ButtonStyle {
+                        normal_color: style::success_element(),
+                        ..Default::default()
+                    }),
                     Button::with_label("Warning").with_style(ButtonStyle {
                         normal_color: style::warning_element(),
                         ..Default::default()
@@ -125,27 +112,26 @@ impl Widget for MainApp {
                         ..Default::default()
                     }),
                 ))
-                .with_stretch(false),
+                .with_stretch(true),
             ),
             BoxSized::new(Rectangle::new(EERIE_BLACK_600))
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
             card(column((
                 column((
-                    row((Text::new("Size"), SliderWithLabel::new(value, 0.0, 20.0))),
-                    row((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
-                ))
-                .with_direction(Direction::Vertical),
+                    row((Text::new("Size"), LabeledSlider::new(value, 0.0, 20.0))),
+                    row((Text::new("Count"), LabeledSlider::new(count, 4, 20))),
+                )),
                 SignalWidget::new(item_list),
             ))),
             column(
                 [
-                    EERIE_BLACK_DEFAULT,
-                    PLATINUM_DEFAULT,
-                    JADE_DEFAULT,
-                    DARK_CYAN_DEFAULT,
-                    ULTRA_VIOLET_DEFAULT,
-                    LION_DEFAULT,
-                    REDWOOD_DEFAULT,
+                    // EERIE_BLACK_DEFAULT,
+                    // PLATINUM_DEFAULT,
+                    // JADE_DEFAULT,
+                    // DARK_CYAN_DEFAULT,
+                    // ULTRA_VIOLET_DEFAULT,
+                    // LION_DEFAULT,
+                    // REDWOOD_DEFAULT,
                 ]
                 .into_iter()
                 .map(|color| Tints { color })

@@ -124,20 +124,20 @@ impl DebugRenderer {
 
         let clamped_indicators = query.iter().filter_map(|(entity, v)| {
             let clamped_query_vertical =
-                if v.query()[0].as_ref().is_some_and(|v| v.value.hints.clamped) {
+                if v.query()[0].as_ref().is_some_and(|v| v.value.hints.can_grow) {
                     vec3(0.5, 0.0, 0.0)
                 } else {
                     Vec3::ZERO
                 };
 
             let clamped_query_horizontal =
-                if v.query()[1].as_ref().is_some_and(|v| v.value.hints.clamped) {
+                if v.query()[1].as_ref().is_some_and(|v| v.value.hints.can_grow) {
                     vec3(0.0, 0.5, 0.0)
                 } else {
                     Vec3::ZERO
                 };
 
-            let clamped_layout = if v.layout().map(|v| v.value.clamped).unwrap_or(false) {
+            let clamped_layout = if v.layout().map(|v| v.value.can_grow).unwrap_or(false) {
                 vec3(0.0, 0.0, 0.5)
             } else {
                 Vec3::ZERO

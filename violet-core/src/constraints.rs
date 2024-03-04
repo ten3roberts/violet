@@ -42,7 +42,7 @@ impl SizeResolver for FixedAreaConstraint {
             min * self.unit_size,
             vec2(size.x, (self.area / size.x).ceil()) * self.unit_size,
             SizingHints {
-                clamped: true,
+                can_grow: true,
                 fixed_size: false,
             },
         )

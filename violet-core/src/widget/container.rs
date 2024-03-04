@@ -6,7 +6,7 @@ use crate::{
     components::{anchor, layout, margin, max_size, min_size, offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
-    style::{Background, StyleExt},
+    style::{colors::EERIE_BLACK_400, Background, StyleExt},
     unit::Unit,
     Edges, Frame, Scope, Widget, WidgetCollection,
 };
@@ -270,4 +270,26 @@ impl<W: Widget> Widget for Movable<W> {
 
         Stack::new(self.content).mount(scope)
     }
+}
+
+pub fn row<W: WidgetCollection>(widgets: W) -> List<W> {
+    List::new(widgets).with_direction(Direction::Horizontal)
+}
+
+pub fn column<W: WidgetCollection>(widgets: W) -> List<W> {
+    List::new(widgets).with_direction(Direction::Vertical)
+}
+
+pub fn centered<W>(widget: W) -> Stack<W> {
+    Stack::new(widget)
+        .with_horizontal_alignment(Alignment::Center)
+        .with_vertical_alignment(Alignment::Center)
+}
+
+pub fn card<W>(widget: W) -> Stack<W> {
+    Stack::new(widget)
+        // TODO: semantic color and sizing increment
+        .with_background(Background::new(EERIE_BLACK_400))
+        .with_padding(Edges::even(4.0))
+        .with_margin(Edges::even(4.0))
 }

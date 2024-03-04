@@ -17,8 +17,8 @@ use crate::{
 };
 
 use self::colors::{
-    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
-    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_800, EERIE_BLACK_DEFAULT, JADE_400, JADE_600,
+    JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
 };
 
 #[macro_export]
@@ -211,7 +211,7 @@ flax::component! {
 
     /// Used for the main parts of interactive elements
     pub interactive_active: Srgba,
+    pub interactive_inactive: Srgba,
     pub interactive_hover: Srgba,
     pub interactive_pressed: Srgba,
-    pub interactive_inactive: Srgba,
 }

@@ -1,9 +1,7 @@
 use flax::{component, components::child_of, Entity, FetchExt, RelationExt, World};
 use glam::Vec2;
 
-use crate::components::{max_size, min_size};
-
-use super::{flow::Row, Block, Direction, LayoutLimits, Sizing};
+use super::{flow::Row, Block, Direction, LayoutLimits, Sizing, SizingHints};
 
 #[derive(Debug)]
 pub struct CachedValue<T> {
@@ -141,8 +139,8 @@ pub(crate) fn validate_cached_query(
         && min_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
         && preferred_size.x <= limits.max_size.x + LAYOUT_TOLERANCE
         && preferred_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && (!value.hints.clamped || cache.limits.max_size.abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE))
-    // && (value.hints.fixed_size || cache.content_area.abs_diff_eq(content_area, LAYOUT_TOLERANCE))
+        && (!value.hints.can_grow || cache.limits.max_size.abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE))
+        && (value.hints.fixed_size || cache.content_area.abs_diff_eq(content_area, LAYOUT_TOLERANCE))
 }
 
 pub(crate) fn validate_cached_layout(
@@ -163,15 +161,14 @@ pub(crate) fn validate_cached_layout(
         // Min may be larger than preferred for the orthogonal optimization direction
         && size.x <= limits.max_size.x + LAYOUT_TOLERANCE
         && size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && (!value.clamped || cache.limits.max_size.abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE))
-    && (fixed_size || cache.content_area.abs_diff_eq(content_area, LAYOUT_TOLERANCE))
+        && (!value.can_grow || cache.limits.max_size.abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE))
+        && (fixed_size || cache.content_area.abs_diff_eq(content_area, LAYOUT_TOLERANCE))
 }
 
 pub(crate) fn validate_cached_row(
     cache: &CachedValue<Row>,
     limits: LayoutLimits,
     content_area: Vec2,
-    fixed_size: bool,
 ) -> bool {
     let value = &cache.value;
 
@@ -187,8 +184,8 @@ pub(crate) fn validate_cached_row(
         && min_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
         && preferred_size.x <= limits.max_size.x + LAYOUT_TOLERANCE
         && preferred_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && ((cache.limits.max_size - preferred_size).abs().min_element() > LAYOUT_TOLERANCE || cache.limits.max_size.abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE))
-        && (fixed_size || cache.content_area.abs_diff_eq(content_area, LAYOUT_TOLERANCE))
+        && (!value.hints.can_grow || cache.limits.max_size.abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE))
+        && (value.hints.fixed_size || cache.content_area.abs_diff_eq(content_area, LAYOUT_TOLERANCE))
 }
 
 component! {

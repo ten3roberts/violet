@@ -2,9 +2,9 @@ use cosmic_text::Wrap;
 use flax::{Component, Entity, EntityRef};
 use futures_signals::{
     map_ref,
-    signal::{Mutable, MutableSignalRef, SignalExt},
+    signal::{Mutable, MutableSignal, SignalExt},
 };
-use glam::{vec2, IVec2, Vec2};
+use glam::{IVec2, Vec2};
 use palette::Srgba;
 use winit::event::ElementState;
 
@@ -15,7 +15,7 @@ use crate::{
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
-    widget::{BoxSized, ContainerStyle, List, Positioned, Rectangle, SignalWidget, Stack, Text},
+    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, SignalWidget, Stack, Text},
     Edges, Scope, StreamEffect, Widget,
 };
 
@@ -38,13 +38,12 @@ impl Default for SliderStyle {
     }
 }
 
-pub struct Slider<V, T = V> {
+pub struct Slider<V> {
     style: SliderStyle,
-    value: Mutable<T>,
+    value: Mutable<V>,
     min: V,
     max: V,
-    lower: fn(&T) -> V,
-    update: fn(&mut T, V),
+    label: bool,
 }
 
 impl<V> Slider<V> {
@@ -57,30 +56,14 @@ impl<V> Slider<V> {
             min,
             max,
             style: Default::default(),
-            lower: |v| *v,
-            update: |dst, src| {
-                *dst = src;
-            },
+            label: false,
         }
     }
-}
 
-impl<V, T> Slider<V, T> {
-    pub fn new_with_transform(
-        value: Mutable<T>,
-        min: V,
-        max: V,
-        lower: fn(&T) -> V,
-        update: fn(&mut T, V),
-    ) -> Self {
-        Self {
-            value,
-            min,
-            max,
-            style: Default::default(),
-            lower,
-            update,
-        }
+    /// Set the label visibility
+    pub fn with_label(mut self, label: bool) -> Self {
+        self.label = label;
+        self
     }
 
     /// Set the style
@@ -90,7 +73,7 @@ impl<V, T> Slider<V, T> {
     }
 }
 
-impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
+impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = get_stylesheet(scope);
 
@@ -111,21 +94,20 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
         let min = self.min.to_progress();
         let max = self.max.to_progress();
 
-        fn update<V: SliderValue, T>(
+        fn update<V: SliderValue>(
             entity: &EntityRef,
             input: CursorMove,
             min: f32,
             max: f32,
-            dst: &Mutable<T>,
-            update: fn(&mut T, V),
+            dst: &Mutable<V>,
         ) {
             let rect = entity.get_copy(rect()).unwrap();
             let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
-            update(&mut dst.lock_mut(), V::from_progress(value));
+            dst.set(V::from_progress(value));
         }
 
         let handle = SliderHandle {
-            value: self.value.signal_ref(self.lower),
+            value: self.value.signal(),
             min,
             max,
             rect_id: track,
@@ -139,26 +121,38 @@ impl<V: SliderValue, T: 'static + Send + Sync> Widget for Slider<V, T> {
                 let value = self.value.clone();
                 move |_, entity, input| {
                     if input.state == ElementState::Pressed {
-                        update(entity, input.cursor, min, max, &value, self.update);
+                        update(entity, input.cursor, min, max, &value);
                     }
                 }
             })
-            .on_event(on_cursor_move(), move |_, entity, input| {
-                update(entity, input, min, max, &self.value, self.update)
+            .on_event(on_cursor_move(), {
+                let value = self.value.clone();
+                move |_, entity, input| update(entity, input, min, max, &value)
             });
 
-        Stack::new(handle)
+        let slider = Stack::new(handle)
             .with_vertical_alignment(Alignment::Center)
             .with_style(ContainerStyle {
                 margin: Edges::even(5.0),
                 ..Default::default()
-            })
+            });
+
+        if self.label {
+            row((
+                slider,
+                SignalWidget(self.value.signal().map(|v| {
+                    Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
+                })),
+            ))
             .mount(scope)
+        } else {
+            slider.mount(scope)
+        }
     }
 }
 
-struct SliderHandle<V, T> {
-    value: MutableSignalRef<T, fn(&T) -> V>,
+struct SliderHandle<V> {
+    value: MutableSignal<V>,
     handle_color: Srgba,
     handle_size: Unit<Vec2>,
     min: f32,
@@ -166,7 +160,7 @@ struct SliderHandle<V, T> {
     rect_id: Entity,
 }
 
-impl<V: SliderValue, T: 'static + Send + Sync> Widget for SliderHandle<V, T> {
+impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
@@ -238,30 +232,18 @@ num_impl!(u64);
 num_impl!(isize);
 num_impl!(usize);
 
-pub struct SliderWithLabel<V, T = V> {
-    slider: Slider<V, T>,
+/// A slider with label displaying the value
+pub struct LabeledSlider<V> {
+    slider: Slider<V>,
 }
 
-impl<V> SliderWithLabel<V> {
+impl<V> LabeledSlider<V> {
     pub fn new(value: Mutable<V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
         Self {
             slider: Slider::new(value, min, max),
-        }
-    }
-}
-impl<V, T> SliderWithLabel<V, T> {
-    pub fn new_with_transform(
-        value: Mutable<T>,
-        min: V,
-        max: V,
-        lower: fn(&T) -> V,
-        update: fn(&mut T, V),
-    ) -> Self {
-        Self {
-            slider: Slider::new_with_transform(value, min, max, lower, update),
         }
     }
 
@@ -272,14 +254,13 @@ impl<V, T> SliderWithLabel<V, T> {
     }
 }
 
-impl<V: SliderValue, T: 'static + Send + Sync> Widget for SliderWithLabel<V, T> {
+impl<V: SliderValue> Widget for LabeledSlider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let lower = self.slider.lower;
         let label =
-            SignalWidget(self.slider.value.signal_ref(lower).map(|v| {
+            SignalWidget(self.slider.value.signal().map(|v| {
                 Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
             }));
 
-        List::new((self.slider, label)).mount(scope)
+        crate::widget::List::new((self.slider, label)).mount(scope)
     }
 }
