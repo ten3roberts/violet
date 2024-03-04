@@ -1,7 +1,8 @@
 pub mod colors;
 
 use flax::{
-    components::child_of, Entity, EntityBuilder, EntityRef, Exclusive, FetchExt, RelationExt,
+    components::child_of, Entity, EntityBuilder, EntityRef, EntityRefMut, Exclusive, FetchExt,
+    RelationExt,
 };
 use glam::{IVec2, Vec2};
 use palette::{
@@ -10,7 +11,7 @@ use palette::{
 };
 
 use crate::{
-    components::{color, draw_shape},
+    components::{color, draw_shape, max_size, min_size, size},
     shape::shape_rectangle,
     unit::Unit,
     Scope,
@@ -51,10 +52,57 @@ pub trait StyleExt {
     fn with_style(self, style: Self::Style) -> Self;
 }
 
-pub trait WidgetStyle {
-    type Resolved;
+/// Base properties for widget size
+#[derive(Debug, Clone, Default)]
+pub struct WidgetSize {
+    pub size: Option<Unit<Vec2>>,
+    pub min_size: Option<Unit<Vec2>>,
+    pub max_size: Option<Unit<Vec2>>,
+}
 
-    fn resolve_style(&self, stylesheet: &Theme) -> Self::Resolved;
+impl WidgetSize {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn mount(&self, scope: &mut Scope<'_>) {
+        scope
+            .set_opt(size(), self.size)
+            .set_opt(min_size(), self.min_size)
+            .set_opt(max_size(), self.max_size);
+    }
+}
+
+/// A widget that allows you to set its sizing properties
+pub trait SizeExt {
+    /// Set the preferred size
+    fn with_size(mut self, size: Unit<Vec2>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().size = Some(size);
+        self
+    }
+
+    /// Set the min size
+    fn with_min_size(mut self, size: Unit<Vec2>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().min_size = Some(size);
+        self
+    }
+
+    /// Set the max size
+    fn with_max_size(mut self, size: Unit<Vec2>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().max_size = Some(size);
+        self
+    }
+
+    fn size_mut(&mut self) -> &mut WidgetSize;
 }
 
 #[derive(Debug, Clone, Copy)]

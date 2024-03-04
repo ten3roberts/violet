@@ -6,7 +6,7 @@ use crate::{
     components::{anchor, layout, margin, max_size, min_size, offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
-    style::{colors::EERIE_BLACK_400, Background, StyleExt},
+    style::{colors::EERIE_BLACK_400, Background, SizeExt, StyleExt, WidgetSize},
     unit::Unit,
     Edges, Frame, Scope, Widget, WidgetCollection,
 };
@@ -40,8 +40,7 @@ pub struct Stack<W> {
 
     layout: StackLayout,
     style: ContainerStyle,
-    min_size: Option<Unit<Vec2>>,
-    max_size: Option<Unit<Vec2>>,
+    size: WidgetSize,
 }
 
 impl<W> Stack<W> {
@@ -50,8 +49,7 @@ impl<W> Stack<W> {
             items,
             layout: StackLayout::default(),
             style: Default::default(),
-            min_size: None,
-            max_size: None,
+            size: Default::default(),
         }
     }
 
@@ -81,18 +79,6 @@ impl<W> Stack<W> {
         self.style.background = Some(background);
         self
     }
-
-    /// Set the max size
-    pub fn with_max_size(mut self, max_size: Unit<Vec2>) -> Self {
-        self.max_size = Some(max_size);
-        self
-    }
-
-    /// Set the min size
-    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
-        self.min_size = Some(min_size);
-        self
-    }
 }
 
 impl<W> StyleExt for Stack<W> {
@@ -104,6 +90,12 @@ impl<W> StyleExt for Stack<W> {
     }
 }
 
+impl<W> SizeExt for Stack<W> {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
+    }
+}
+
 impl<W> Widget for Stack<W>
 where
     W: WidgetCollection,
@@ -112,11 +104,9 @@ where
         self.items.attach(scope);
 
         self.style.mount(scope);
+        self.size.mount(scope);
 
-        scope
-            .set(layout(), Layout::Stack(self.layout))
-            .set_opt(min_size(), self.min_size)
-            .set_opt(max_size(), self.max_size);
+        scope.set(layout(), Layout::Stack(self.layout));
     }
 }
 
@@ -125,8 +115,7 @@ pub struct List<W> {
     items: W,
     layout: FlowLayout,
     style: ContainerStyle,
-    min_size: Option<Unit<Vec2>>,
-    max_size: Option<Unit<Vec2>>,
+    size: WidgetSize,
 }
 
 impl<W: WidgetCollection> List<W> {
@@ -135,8 +124,7 @@ impl<W: WidgetCollection> List<W> {
             items,
             layout: FlowLayout::default(),
             style: Default::default(),
-            min_size: None,
-            max_size: None,
+            size: Default::default(),
         }
     }
 
@@ -176,18 +164,6 @@ impl<W: WidgetCollection> List<W> {
         self.style.background = Some(background);
         self
     }
-
-    /// Set the max size
-    pub fn with_max_size(mut self, max_size: Unit<Vec2>) -> Self {
-        self.max_size = Some(max_size);
-        self
-    }
-
-    /// Set the min size
-    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
-        self.min_size = Some(min_size);
-        self
-    }
 }
 
 impl<W: WidgetCollection> StyleExt for List<W> {
@@ -198,16 +174,20 @@ impl<W: WidgetCollection> StyleExt for List<W> {
     }
 }
 
+impl<W: WidgetCollection> SizeExt for List<W> {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
+    }
+}
+
 impl<W: WidgetCollection> Widget for List<W> {
     fn mount(self, scope: &mut Scope<'_>) {
-        self.style.mount(scope);
-
-        scope
-            .set(layout(), Layout::Flow(self.layout))
-            .set_opt(max_size(), self.max_size)
-            .set_opt(min_size(), self.min_size);
-
         self.items.attach(scope);
+
+        self.style.mount(scope);
+        self.size.mount(scope);
+
+        scope.set(layout(), Layout::Flow(self.layout));
     }
 }
 

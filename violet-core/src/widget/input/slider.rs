@@ -233,11 +233,11 @@ num_impl!(isize);
 num_impl!(usize);
 
 /// A slider with label displaying the value
-pub struct LabeledSlider<V> {
+pub struct SliderWithLabel<V> {
     slider: Slider<V>,
 }
 
-impl<V> LabeledSlider<V> {
+impl<V> SliderWithLabel<V> {
     pub fn new(value: Mutable<V>, min: V, max: V) -> Self
     where
         V: Copy,
@@ -254,7 +254,7 @@ impl<V> LabeledSlider<V> {
     }
 }
 
-impl<V: SliderValue> Widget for LabeledSlider<V> {
+impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let label =
             SignalWidget(self.slider.value.signal().map(|v| {

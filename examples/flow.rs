@@ -29,11 +29,12 @@ use violet_core::{
     style::{
         self,
         colors::{EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT},
-        Background,
+        Background, SizeExt,
     },
+    text::Wrap,
     widget::{
-        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, LabeledSlider,
-        Positioned, Slider,
+        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, Slider,
+        SliderWithLabel,
     },
     Edges, Rect,
 };
@@ -80,8 +81,8 @@ impl Widget for MainApp {
         let content = Mutable::new(
             "This is a multiline text that is wrapped around because it is so long".into(),
         );
-        let value = Mutable::new(1.0f32);
-        let count = Mutable::new(5);
+        let value = Mutable::new(24.0f32);
+        let count = Mutable::new(8);
 
         let scale = value.signal();
 
@@ -118,8 +119,8 @@ impl Widget for MainApp {
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
             card(column((
                 column((
-                    row((Text::new("Size"), LabeledSlider::new(value, 0.0, 20.0))),
-                    row((Text::new("Count"), LabeledSlider::new(count, 4, 20))),
+                    row((Text::new("Size"), SliderWithLabel::new(value, 20.0, 200.0))),
+                    row((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
                 )),
                 SignalWidget::new(item_list),
             ))),
@@ -181,18 +182,19 @@ impl Widget for ItemList {
         List::new(
             (0..self.count)
                 .map(|i| {
-                    let size = 10.0 + i as f32 * self.scale;
-                    BoxSized::new(
-                        Stack::new(Text::new(format!("{size}px")))
-                            .with_background(Background::new(
-                                Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
-                            ))
-                            .with_padding(MARGIN_SM)
-                            .with_margin(MARGIN_SM)
-                            .with_vertical_alignment(Alignment::Center)
-                            .with_horizontal_alignment(Alignment::Center),
-                    )
-                    .with_size(Unit::px2(size, size))
+                    let size = self.scale;
+
+                    Stack::new(Text::new(format!("{size}px")).with_wrap(Wrap::None))
+                        .with_background(Background::new(
+                            Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
+                        ))
+                        .with_padding(MARGIN_SM)
+                        .with_margin(MARGIN_SM)
+                        // .with_cross_align(Alignment::Center)
+                        .with_vertical_alignment(Alignment::Center)
+                        .with_horizontal_alignment(Alignment::Center)
+                        .with_size(Unit::px2(size, size))
+                        .with_max_size(Unit::px2(size, size))
                 })
                 .collect::<Vec<_>>(),
         )

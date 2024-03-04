@@ -95,6 +95,7 @@ impl StackLayout {
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
+        preferred_size: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let _span = tracing::info_span!("StackLayout::apply").entered();
@@ -125,10 +126,13 @@ impl StackLayout {
             .collect_vec();
 
         // The size used for alignment calculation
-        let size = bounds.size().clamp(limits.min_size, limits.max_size);
+        let size = bounds
+            .size()
+            .max(preferred_size)
+            .clamp(limits.min_size, limits.max_size);
 
         let mut aligned_bounds =
-            StackableBounds::from_rect(Rect::from_size_pos(limits.min_size, content_area.min));
+            StackableBounds::from_rect(Rect::from_size_pos(preferred_size, content_area.min));
 
         let mut can_grow = false;
 
@@ -175,6 +179,7 @@ impl StackLayout {
         content_area: Rect,
         limits: LayoutLimits,
         squeeze: Direction,
+        preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
         let min_rect = Rect::from_size_pos(limits.min_size, content_area.min);
@@ -222,6 +227,7 @@ impl StackLayout {
                 .clamp_size(limits.min_size, limits.max_size),
             preferred: preferred_bounds
                 .inner
+                .max_size(preferred_size)
                 .clamp_size(limits.min_size, limits.max_size),
             margin: min_margin.max(preferred_margin),
             hints,

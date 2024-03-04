@@ -8,7 +8,7 @@ use crate::{
         self, aspect_ratio, color, draw_shape, font_size, min_size, size, text, text_wrap,
     },
     shape,
-    style::StyleExt,
+    style::{SizeExt, StyleExt, WidgetSize},
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
@@ -18,8 +18,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Rectangle {
     color: Srgba,
-    size: Unit<Vec2>,
-    min_size: Unit<Vec2>,
+    size: WidgetSize,
 }
 
 impl Rectangle {
@@ -27,28 +26,23 @@ impl Rectangle {
         Self {
             color,
             size: Default::default(),
-            min_size: Default::default(),
         }
-    }
-
-    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
-        self.min_size = min_size;
-        self
     }
 }
 
 impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
+        self.size.mount(scope);
+
         scope
             .set(draw_shape(shape::shape_rectangle()), ())
-            .set(size(), self.size)
-            .set(min_size(), self.min_size)
             .set(color(), self.color);
+    }
+}
+
+impl SizeExt for Rectangle {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
     }
 }
 

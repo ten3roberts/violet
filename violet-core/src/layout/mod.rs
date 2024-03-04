@@ -70,10 +70,26 @@ impl Layout {
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
+        preferred_size: Vec2,
     ) -> Block {
         match self {
-            Layout::Stack(v) => v.apply(world, entity, children, content_area, limits),
-            Layout::Flow(v) => v.apply(world, entity, cache, children, content_area, limits),
+            Layout::Stack(v) => v.apply(
+                world,
+                entity,
+                children,
+                content_area,
+                limits,
+                preferred_size,
+            ),
+            Layout::Flow(v) => v.apply(
+                world,
+                entity,
+                cache,
+                children,
+                content_area,
+                limits,
+                preferred_size,
+            ),
         }
     }
 
@@ -85,10 +101,21 @@ impl Layout {
         inner_rect: Rect,
         limits: LayoutLimits,
         squeeze: Direction,
+        preferred_size: Vec2,
     ) -> Sizing {
         match self {
-            Layout::Stack(v) => v.query_size(world, children, inner_rect, limits, squeeze),
-            Layout::Flow(v) => v.query_size(world, cache, children, inner_rect, limits, squeeze),
+            Layout::Stack(v) => {
+                v.query_size(world, children, inner_rect, limits, squeeze, preferred_size)
+            }
+            Layout::Flow(v) => v.query_size(
+                world,
+                cache,
+                children,
+                inner_rect,
+                limits,
+                squeeze,
+                preferred_size,
+            ),
         }
     }
 }
@@ -292,9 +319,17 @@ pub(crate) fn query_size(
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
+    let resolved_size = size.resolve(content_area);
+    let hints = SizingHints {
+        fixed_size: fixed_boundary_size && size.is_fixed(),
+        can_grow: resolved_size.x > limits.max_size.x || resolved_size.y > limits.max_size.y,
+    };
+
+    let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
+
     // Flow
     let mut sizing = if let Some(layout) = layout {
-        let mut sizing = layout.query_size(
+        let sizing = layout.query_size(
             world,
             cache,
             children,
@@ -304,27 +339,19 @@ pub(crate) fn query_size(
                 max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
             direction,
+            resolved_size,
         );
 
-        sizing.margin = (sizing.margin - padding).max(margin);
-        sizing.min = sizing.min.pad(&padding);
-        sizing.preferred = sizing.preferred.pad(&padding);
-
-        sizing
+        Sizing {
+            margin: (sizing.margin).max(margin),
+            min: sizing.min.pad(&padding),
+            preferred: sizing.preferred.pad(&padding),
+            hints: sizing.hints.combine(hints),
+        }
     } else {
         let (instrisic_min_size, intrinsic_size, intrinsic_hints) = size_resolver
             .map(|v| v.query(entity, content_area, limits, direction))
             .unwrap_or((Vec2::ZERO, Vec2::ZERO, SizingHints::default()));
-
-        let resolved_size = size.resolve(content_area);
-        let hints = SizingHints {
-            fixed_size: fixed_boundary_size && size.is_fixed(),
-            can_grow: resolved_size.x > limits.max_size.x || resolved_size.y > limits.max_size.y,
-        };
-
-        // // Leaf
-        // let (min_size, preferred_size, hints) =
-        //     query_constraints(entity, content_area, limits, direction);
 
         let size = intrinsic_size
             .max(resolved_size)
@@ -336,7 +363,7 @@ pub(crate) fn query_size(
             min: Rect::from_size(min_size),
             preferred: Rect::from_size(size),
             margin,
-            hints: hints.combine(intrinsic_hints),
+            hints: intrinsic_hints.combine(hints),
         }
     };
 
@@ -433,6 +460,12 @@ pub(crate) fn update_subtree(
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
+    let resolved_size = size.resolve(content_area);
+
+    let can_grow = resolved_size.x > limits.max_size.x || resolved_size.y > limits.max_size.y;
+
+    let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
+
     let mut block = if let Some(layout) = layout {
         let mut block = layout.apply(
             world,
@@ -444,6 +477,7 @@ pub(crate) fn update_subtree(
                 min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                 max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
+            resolved_size,
         );
 
         block.rect = block.rect.pad(&padding);
@@ -454,17 +488,12 @@ pub(crate) fn update_subtree(
     } else {
         assert_eq!(children, [], "Widget with children must have a layout");
 
-        let (intrinsic_size, instrinsic_clamped) = size_resolver
+        let (intrinsic_size, instrinsic_can_grow) = size_resolver
             .map(|v| v.apply(entity, content_area, limits))
             .unwrap_or((Vec2::ZERO, false));
 
-        let size = size.resolve(content_area);
-
-        let can_grow =
-            size.x > limits.max_size.x || size.y > limits.max_size.y || instrinsic_clamped;
-
         let size = intrinsic_size
-            .max(size)
+            .max(resolved_size)
             .clamp(limits.min_size, limits.max_size);
 
         let rect = Rect::from_size(size);
@@ -472,7 +501,7 @@ pub(crate) fn update_subtree(
         Block {
             rect,
             margin,
-            can_grow,
+            can_grow: instrinsic_can_grow || can_grow,
         }
     };
 

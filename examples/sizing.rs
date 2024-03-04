@@ -20,7 +20,7 @@ use violet::core::{
     Edges, Scope, Widget,
 };
 use violet_core::{
-    style::colors::DARK_CYAN_DEFAULT,
+    style::{colors::DARK_CYAN_DEFAULT, SizeExt},
     text::Wrap,
     to_owned,
     widget::{card, centered, column, row, Slider},

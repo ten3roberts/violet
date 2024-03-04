@@ -250,7 +250,9 @@ impl TextBufferState {
             let mut current_offset = 0;
 
             let mut glyph_index = 0;
-            let layout = line.layout_opt().as_ref().unwrap();
+            let Some(layout) = line.layout_opt().as_ref() else {
+                continue;
+            };
 
             result.extend(layout.iter().enumerate().map(|(i, run)| {
                 let top = i as f32 * lh;

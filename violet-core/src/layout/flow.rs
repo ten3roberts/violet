@@ -186,6 +186,7 @@ impl FlowLayout {
         children: &[Entity],
         content_area: Rect,
         limits: LayoutLimits,
+        preferred_size: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let _span = tracing::debug_span!("Flow::apply", ?limits, flow=?self).entered();
@@ -195,7 +196,7 @@ impl FlowLayout {
         let row = self.query_row(world, cache, children, content_area, limits);
 
         // tracing::info!(?row.margin, "row margins to be contained");
-        self.distribute_children(world, entity, &row, content_area, limits)
+        self.distribute_children(world, entity, &row, content_area, limits, preferred_size)
     }
 
     fn distribute_children(
@@ -205,6 +206,7 @@ impl FlowLayout {
         row: &Row,
         content_area: Rect,
         limits: LayoutLimits,
+        preferred_size: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
@@ -256,7 +258,7 @@ impl FlowLayout {
         // Reset to local
         let mut sum = 0.0;
 
-        let cross_size = row.preferred.size().max(limits.min_size).dot(cross_axis);
+        let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
 
         let mut can_grow = false;
         // Distribute the size to the widgets and apply their layout
@@ -354,7 +356,7 @@ impl FlowLayout {
 
         let line = cursor.finish();
 
-        let line_size = line.size().max(limits.min_size);
+        let line_size = line.size().max(preferred_size);
 
         // Apply alignment offsets
         let start = match (self.direction, self.reverse) {
@@ -387,7 +389,10 @@ impl FlowLayout {
             entity.update_dedup(components::local_position(), pos);
         }
 
-        let rect = cursor.finish().clamp_size(limits.min_size, limits.max_size);
+        let rect = cursor
+            .finish()
+            .max_size(preferred_size)
+            .clamp_size(limits.min_size, limits.max_size);
 
         let margin = self
             .direction
@@ -403,6 +408,7 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
         direction: Direction,
+        preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
@@ -455,7 +461,7 @@ impl FlowLayout {
 
         let mut sum = 0.0;
 
-        let cross_size = row.preferred.size().dot(cross_axis);
+        let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
         let mut hints = SizingHints {
             fixed_size: true,
             can_grow: false,
@@ -547,7 +553,7 @@ impl FlowLayout {
             });
 
         let min_rect = min_cursor.finish();
-        let rect = cursor.finish();
+        let rect = cursor.finish().max_size(preferred_size);
 
         let margin = self
             .direction
@@ -658,6 +664,7 @@ impl FlowLayout {
         content_area: Rect,
         limits: LayoutLimits,
         direction: Direction,
+        preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!(format!("{direction:?}"));
 
@@ -693,7 +700,8 @@ impl FlowLayout {
         // this, be sure to let me know :)
         let row = self.query_row(world, cache, children, content_area, limits);
 
-        let sizing = self.distribute_query(world, &row, content_area, limits, direction);
+        let sizing =
+            self.distribute_query(world, &row, content_area, limits, direction, preferred_size);
         tracing::debug!(?self.direction, ?sizing, "query");
         sizing
     }

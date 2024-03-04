@@ -16,7 +16,7 @@ use violet::{
         },
         text::Wrap,
         unit::Unit,
-        widget::{List, Rectangle, SignalWidget, LabeledSlider, Stack, Text, WidgetExt},
+        widget::{List, Rectangle, SignalWidget, SliderWithLabel, Stack, Text, WidgetExt},
         Edges, Scope, Widget, WidgetCollection,
     },
     flax::components::name,
@@ -69,7 +69,7 @@ impl Widget for Vec2Editor {
         column((
             row((
                 label(self.x_label),
-                LabeledSlider::new_with_transform(
+                SliderWithLabel::new_with_transform(
                     value.clone(),
                     0.0,
                     200.0,
@@ -79,7 +79,7 @@ impl Widget for Vec2Editor {
             )),
             row((
                 label(self.y_label),
-                LabeledSlider::new_with_transform(
+                SliderWithLabel::new_with_transform(
                     value.clone(),
                     0.0,
                     200.0,
