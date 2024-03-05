@@ -296,6 +296,9 @@ pub(crate) fn query_size(
     let max_size = max_size.map(|v| v.resolve(content_area));
     limits.min_size = limits.min_size.max(min_size);
 
+    // Minimum size is *always* respected, even if that entails overflowing
+    limits.max_size = limits.max_size.max(limits.min_size);
+
     if let Some(max_size) = max_size {
         limits.max_size = limits.max_size.min(max_size);
     }
@@ -305,7 +308,7 @@ pub(crate) fn query_size(
         if validate_cached_query(cache, limits, content_area) {
             // if cache.is_valid(limits, content_area) {
             let _span = tracing::trace_span!("cached").entered();
-            validate_sizing(entity, &cache.value, limits);
+            // validate_sizing(entity, &cache.value, limits);
             tracing::debug!(%entity, "found valid cached query");
             // return cache.value;
             // }
@@ -325,6 +328,7 @@ pub(crate) fn query_size(
         can_grow: resolved_size.x > limits.max_size.x || resolved_size.y > limits.max_size.y,
     };
 
+    // Clamp max size here since we ensure it is > min_size
     let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
 
     // Flow
@@ -339,7 +343,7 @@ pub(crate) fn query_size(
                 max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
             direction,
-            resolved_size,
+            resolved_size - padding.size(),
         );
 
         Sizing {
@@ -353,11 +357,12 @@ pub(crate) fn query_size(
             .map(|v| v.query(entity, content_area, limits, direction))
             .unwrap_or((Vec2::ZERO, Vec2::ZERO, SizingHints::default()));
 
-        let size = intrinsic_size
-            .max(resolved_size)
-            .clamp(limits.min_size, limits.max_size);
+        // If intrinsic_min_size > max_size we overflow, but respect the minimum size nonetheless
+        limits.min_size = limits.min_size.max(instrisic_min_size);
 
-        let min_size = instrisic_min_size.clamp(limits.min_size, limits.max_size);
+        let size = intrinsic_size.max(resolved_size);
+
+        let min_size = instrisic_min_size.max(limits.min_size);
 
         Sizing {
             min: Rect::from_size(min_size),
@@ -391,7 +396,7 @@ pub(crate) fn query_size(
         }
     }
 
-    validate_sizing(entity, &sizing, limits);
+    // validate_sizing(entity, &sizing, limits);
 
     tracing::debug!(%sizing);
     cache.insert_query(direction, CachedValue::new(limits, content_area, sizing));
@@ -436,6 +441,7 @@ pub(crate) fn update_subtree(
     let max_size = max_size.map(|v| v.resolve(content_area));
 
     limits.min_size = limits.min_size.max(min_size);
+    limits.max_size = limits.max_size.max(limits.min_size);
 
     if let Some(max_size) = max_size {
         limits.max_size = limits.max_size.min(max_size);
@@ -446,7 +452,7 @@ pub(crate) fn update_subtree(
     if let Some(value) = &cache.layout {
         if validate_cached_layout(value, limits, content_area, cache.fixed_size) {
             tracing::debug!(%entity, ?value, "found valid cached layout");
-            validate_block(entity, &value.value, limits);
+            // validate_block(entity, &value.value, limits);
             // return value.value;
         }
     }
@@ -477,7 +483,7 @@ pub(crate) fn update_subtree(
                 min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                 max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
             },
-            resolved_size,
+            resolved_size - padding.size(),
         );
 
         block.rect = block.rect.pad(&padding);
@@ -492,9 +498,7 @@ pub(crate) fn update_subtree(
             .map(|v| v.apply(entity, content_area, limits))
             .unwrap_or((Vec2::ZERO, false));
 
-        let size = intrinsic_size
-            .max(resolved_size)
-            .clamp(limits.min_size, limits.max_size);
+        let size = intrinsic_size.max(resolved_size);
 
         let rect = Rect::from_size(size);
 
@@ -520,14 +524,14 @@ pub(crate) fn update_subtree(
         }
     }
 
-    if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
-        tracing::error!(
-            %entity, rect_size=%block.rect.size(), %limits.max_size,
-            "Widget size exceeds constraints",
-        );
-    }
+    // if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
+    //     tracing::error!(
+    //         %entity, rect_size=%block.rect.size(), %limits.max_size,
+    //         "Widget size exceeds constraints",
+    //     );
+    // }
 
-    validate_block(entity, &block, limits);
+    // validate_block(entity, &block, limits);
 
     cache.insert_layout(CachedValue::new(limits, content_area, block));
 

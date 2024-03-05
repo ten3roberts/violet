@@ -4,7 +4,7 @@ use flax::{
     components::child_of, Entity, EntityBuilder, EntityRef, EntityRefMut, Exclusive, FetchExt,
     RelationExt,
 };
-use glam::{IVec2, Vec2};
+use glam::{vec2, IVec2, Vec2};
 use palette::{
     named::{BLACK, GRAY, GREEN, LIMEGREEN, ORANGE, RED, SLATEGRAY, WHITE},
     IntoColor, Oklab, Srgba, WithAlpha,
@@ -14,7 +14,7 @@ use crate::{
     components::{color, draw_shape, max_size, min_size, size},
     shape::shape_rectangle,
     unit::Unit,
-    Scope,
+    Edges, Scope,
 };
 
 use self::colors::{
@@ -122,36 +122,68 @@ impl Background {
     }
 }
 
-/// Universal set of properties to derive default widget styles from
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Theme {
-    /// Default unit size used for spacing, margins, padding, etc.
-    pub spacing: Spacing,
-    pub colors: SemanticColors,
-}
-
 #[derive(Debug, Clone, Copy)]
-pub struct Spacing {
+pub struct SpacingConfig {
     /// The size of the default spacing unit
     pub base_scale: f32,
 }
 
-impl Default for Spacing {
+impl Default for SpacingConfig {
     fn default() -> Self {
         Self { base_scale: 4.0 }
     }
 }
 
-impl Spacing {
-    pub fn size(&self, size: usize) -> f32 {
-        self.base_scale * size as f32
+impl SpacingConfig {
+    pub fn small<T: FromSize<usize>>(&self) -> T {
+        T::from_spacing(self.base_scale, 1)
     }
 
-    pub fn resolve_unit(&self, unit: Unit<IVec2>) -> Unit<Vec2> {
-        Unit {
-            px: Vec2::new(unit.px.x as f32, unit.px.y as f32) * self.base_scale,
-            rel: Vec2::new(unit.rel.x as f32, unit.rel.y as f32) * self.base_scale,
-        }
+    pub fn medium<T: FromSize<usize>>(&self) -> T {
+        T::from_spacing(self.base_scale, 2)
+    }
+
+    pub fn large<T: FromSize<usize>>(&self) -> T {
+        T::from_spacing(self.base_scale, 4)
+    }
+
+    pub fn size<T: FromSize<S>, S>(&self, size: S) -> T {
+        T::from_spacing(self.base_scale, size)
+    }
+}
+
+/// Converts a size to a pixel value
+pub trait FromSize<S> {
+    fn from_spacing(base_scale: f32, size: S) -> Self;
+}
+
+impl<T, S> FromSize<Unit<S>> for Unit<T>
+where
+    T: FromSize<S>,
+{
+    fn from_spacing(base_scale: f32, size: Unit<S>) -> Self {
+        Unit::new(
+            T::from_spacing(base_scale, size.px),
+            T::from_spacing(base_scale, size.rel),
+        )
+    }
+}
+
+impl FromSize<IVec2> for Vec2 {
+    fn from_spacing(base_scale: f32, size: IVec2) -> Self {
+        vec2(base_scale * size.x as f32, base_scale * size.y as f32)
+    }
+}
+
+impl FromSize<usize> for f32 {
+    fn from_spacing(base_scale: f32, size: usize) -> Self {
+        base_scale * size as f32
+    }
+}
+
+impl FromSize<usize> for Edges {
+    fn from_spacing(base_scale: f32, size: usize) -> Self {
+        Edges::even(base_scale * size as f32)
     }
 }
 
@@ -224,7 +256,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(interactive_hover(), JADE_600)
         .set(interactive_pressed(), JADE_400)
         .set(interactive_inactive(), EERIE_BLACK_700)
-        .set(spacing(), Spacing { base_scale: 4.0 });
+        .set(spacing(), SpacingConfig { base_scale: 4.0 });
 
     builder
 }
@@ -255,7 +287,7 @@ flax::component! {
     pub error_surface: Srgba,
     pub error_element: Srgba,
 
-    pub spacing: Spacing,
+    pub spacing: SpacingConfig,
 
     /// Used for the main parts of interactive elements
     pub interactive_active: Srgba,

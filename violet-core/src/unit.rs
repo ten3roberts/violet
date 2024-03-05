@@ -18,6 +18,12 @@ impl<T: Zero> Default for Unit<T> {
     }
 }
 
+impl<T> Unit<T> {
+    pub fn new(px: T, rel: T) -> Self {
+        Self { px, rel }
+    }
+}
+
 impl<T: Zero> Unit<T> {
     pub const ZERO: Self = Self {
         px: T::ZERO,

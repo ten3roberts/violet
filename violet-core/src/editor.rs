@@ -89,19 +89,18 @@ pub enum CursorMove {
     SetPosition(CursorLocation),
 }
 
-pub enum EditAction {
-    InsertChar(char),
-    InsertText(String),
+pub enum EditAction<S = String> {
+    InsertText(S),
     DeleteBackwardChar,
     DeleteBackwardWord,
     InsertLine,
     DeleteLine,
 }
 
-pub enum EditorAction {
+pub enum EditorAction<S = String> {
     CursorMove(CursorMove),
-    Edit(EditAction),
-    SetText(Vec<String>),
+    Edit(EditAction<S>),
+    SetText(Vec<S>),
 }
 
 impl TextEditor {
@@ -180,7 +179,7 @@ impl TextEditor {
         }
     }
 
-    pub fn edit(&mut self, action: EditAction) {
+    pub fn edit<S: AsRef<str>>(&mut self, action: EditAction<S>) {
         if !self.past_eol() {
             assert!(
                 self.line().find_grapheme(self.cursor.col).is_some(),
@@ -188,14 +187,25 @@ impl TextEditor {
             );
         }
         match action {
-            EditAction::InsertChar(c) => {
-                let col = self.insert_column();
-                let line = &mut self.text[self.cursor.row];
-                line.insert(col, c);
-                self.cursor.col += c.len_utf8();
-            }
             EditAction::InsertText(text) => {
-                todo!()
+                let mut insert_lines = text.as_ref().lines();
+
+                if let Some(text) = insert_lines.next() {
+                    let col = self.insert_column();
+                    let line = &mut self.text[self.cursor.row];
+                    line.text.insert_str(col, text);
+                    self.cursor.col += text.graphemes(true).count();
+                }
+
+                for text in insert_lines {
+                    let current_line = &mut self.text[self.cursor.row];
+                    let mut next_line = current_line.text.split_off(self.cursor.col);
+                    next_line.insert_str(0, text);
+                    self.text
+                        .insert(self.cursor.row + 1, EditorLine::new(next_line));
+                    self.cursor.row += 1;
+                    self.cursor.col = text.graphemes(true).count();
+                }
             }
             EditAction::DeleteBackwardChar => {
                 if self.cursor.col > 0 {
@@ -271,11 +281,11 @@ impl TextEditor {
         }
     }
 
-    pub fn apply_action(&mut self, action: EditorAction) {
+    pub fn apply_action<S: AsRef<str>>(&mut self, action: EditorAction<S>) {
         match action {
             EditorAction::CursorMove(m) => self.move_cursor(m),
             EditorAction::Edit(e) => self.edit(e),
-            EditorAction::SetText(v) => self.set_text(v),
+            EditorAction::SetText(v) => self.set_text(v.iter().map(|v| v.as_ref())),
         }
     }
 
@@ -287,7 +297,11 @@ impl TextEditor {
         self.text.as_ref()
     }
 
-    pub fn set_text(&mut self, text: impl IntoIterator<Item = String>) {
+    pub fn lines_str(&self) -> impl Iterator<Item = &str> {
+        self.text.iter().map(|l| l.text.as_str())
+    }
+
+    pub fn set_text<'a>(&mut self, text: impl IntoIterator<Item = &'a str>) {
         self.text.clear();
         self.text.extend(text.into_iter().map(EditorLine::new));
 
@@ -329,4 +343,41 @@ fn find_before<T>(
     col: usize,
 ) -> Option<(usize, T)> {
     iter.rev().find(|(i, _)| *i < col)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn editor() {
+        let mut editor = TextEditor::new();
+        editor.edit(EditAction::InsertText("This is some text"));
+        assert_eq!(editor.lines_str().collect_vec(), &["This is some text"]);
+
+        editor.move_cursor(CursorMove::BackwardWord);
+        assert_eq!(editor.cursor().col, "This is some ".len());
+
+        editor.edit(EditAction::InsertText("other "));
+        assert_eq!(
+            editor.lines_str().collect_vec(),
+            &["This is some other text"]
+        );
+
+        editor.edit(EditAction::<String>::DeleteBackwardWord);
+
+        assert_eq!(editor.lines_str().collect_vec(), &["This is some text"]);
+
+        editor.edit(EditAction::InsertText(
+            "other text,\nand a new line for the previous ",
+        ));
+
+        assert_eq!(
+            editor.lines_str().collect_vec(),
+            &[
+                "This is some other text,",
+                "and a new line for the previous text"
+            ]
+        );
+    }
 }

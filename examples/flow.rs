@@ -7,7 +7,7 @@ use futures_signals::{
 
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor, Srgba};
+use palette::{num::Round, FromColor, Hsva, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -15,7 +15,7 @@ use futures::stream::StreamExt;
 use violet::core::{
     components::{self, screen_rect},
     editor::{self, EditAction, EditorAction, TextEditor},
-    input::{focusable, on_char_typed, on_keyboard_input, on_mouse_input},
+    input::{focusable, on_keyboard_input, on_mouse_input},
     layout::Alignment,
     style::StyleExt,
     text::{LayoutGlyphs, TextSegment},
@@ -25,16 +25,23 @@ use violet::core::{
     Scope, Widget,
 };
 use violet_core::{
-    input::{focus_sticky, ElementState, NamedKey},
+    input::{
+        event::ElementState,
+        focus_sticky,
+        keyboard::{Key, NamedKey},
+        KeyboardInput,
+    },
     style::{
         self,
-        colors::{EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT},
+        colors::{
+            EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT, LION_DEFAULT,
+        },
         Background, SizeExt,
     },
     text::Wrap,
     widget::{
         card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, Slider,
-        SliderWithLabel,
+        SliderWithLabel, TextInput,
     },
     Edges, Rect,
 };
@@ -120,7 +127,7 @@ impl Widget for MainApp {
             card(column((
                 column((
                     row((Text::new("Size"), SliderWithLabel::new(value, 20.0, 200.0))),
-                    row((Text::new("Count"), SliderWithLabel::new(count, 4, 20))),
+                    row((Text::new("Count"), SliderWithLabel::new(count, 1, 20))),
                 )),
                 SignalWidget::new(item_list),
             ))),
@@ -183,197 +190,32 @@ impl Widget for ItemList {
             (0..self.count)
                 .map(|i| {
                     let size = self.scale;
+                    let color: Srgba = Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color();
+                    let oklch = Oklcha::from_color(color);
 
-                    Stack::new(Text::new(format!("{size}px")).with_wrap(Wrap::None))
-                        .with_background(Background::new(
-                            Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
+                    Stack::new(
+                        Text::new(format!(
+                            "{},{},{}",
+                            oklch.l.round(),
+                            oklch.chroma.round(),
+                            oklch.hue.into_positive_degrees().round()
                         ))
-                        .with_padding(MARGIN_SM)
-                        .with_margin(MARGIN_SM)
-                        // .with_cross_align(Alignment::Center)
-                        .with_vertical_alignment(Alignment::Center)
-                        .with_horizontal_alignment(Alignment::Center)
-                        .with_size(Unit::px2(size, size))
-                        .with_max_size(Unit::px2(size, size))
+                        .with_wrap(Wrap::None),
+                    )
+                    .with_background(Background::new(
+                        Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
+                    ))
+                    .with_padding(MARGIN_SM)
+                    .with_margin(MARGIN_SM)
+                    // .with_cross_align(Alignment::Center)
+                    .with_vertical_alignment(Alignment::Center)
+                    .with_horizontal_alignment(Alignment::Center)
+                    .with_size(Unit::px2(size, size))
+                    .with_max_size(Unit::px2(size, size))
                 })
                 .collect::<Vec<_>>(),
         )
         .with_cross_align(Alignment::Center)
-        .mount(scope)
-    }
-}
-
-struct TextInput {
-    content: Mutable<String>,
-}
-
-impl TextInput {
-    fn new(content: Mutable<String>) -> Self {
-        Self { content }
-    }
-}
-
-impl Widget for TextInput {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let (tx, rx) = flume::unbounded();
-
-        let content = self.content.clone();
-
-        let mut editor = TextEditor::new();
-
-        let layout_glyphs = Mutable::new(None);
-        let text_bounds: Mutable<Option<Rect>> = Mutable::new(None);
-
-        editor.set_text(content.lock_mut().split('\n').map(ToOwned::to_owned));
-        editor.set_cursor_at_end();
-
-        let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(NoOp) as Box<dyn Widget>);
-
-        scope.spawn({
-            let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream();
-            async move {
-                let mut rx = rx.into_stream();
-
-                let mut glyphs: LayoutGlyphs;
-
-                let mut cursor_pos = Vec2::ZERO;
-
-                loop {
-                    tokio::select! {
-                        Some(action) = rx.next() => {
-
-                            editor.apply_action(action);
-
-                            let mut c = content.lock_mut();
-                            c.clear();
-                            for line in editor.lines() {
-                                c.push_str(line.text());
-                                c.push('\n');
-                            }
-                        }
-                        Some(Some(new_glyphs)) = layout_glyphs.next() => {
-                            glyphs = new_glyphs;
-                            tracing::info!("{:?}", glyphs.lines().iter().map(|v| v.glyphs.len()).collect_vec());
-
-                            if let Some(loc) = glyphs.to_glyph_boundary(editor.cursor()) {
-                                cursor_pos = loc;
-                            } else if editor.past_eol() {
-                                cursor_pos = glyphs
-                                    .find_lines_indices(editor.cursor().row)
-                                    .last()
-                                    .map(|(ln, line)| {
-                                        vec2(line.bounds.max.x, ln as f32 * glyphs.line_height())
-                                    })
-                                    .unwrap_or_default();
-                            } else {
-                                cursor_pos = Vec2::ZERO;
-                            }
-                        }
-                        else => break,
-                    }
-
-                    editor_props_tx
-                        .send(Box::new(Stack::new(
-                                    (
-                                        Positioned::new(BoxSized::new(Rectangle::new(JADE_DEFAULT))
-                                        .with_size(Unit::px2(2.0, 18.0)))
-                                        .with_offset(Unit::px(cursor_pos)),
-                                    )
-                        )))
-                        .ok();
-                }
-            }
-        });
-
-        scope
-            .set(focusable(), ())
-            .set(focus_sticky(), ())
-            .on_event(on_mouse_input(), {
-                to_owned![layout_glyphs, text_bounds, tx];
-                move |_, _, input| {
-                    let glyphs = layout_glyphs.lock_ref();
-
-                    if let (Some(glyphs), Some(text_bounds)) = (&*glyphs, &*text_bounds.lock_ref())
-                    {
-                        if input.state == ElementState::Pressed {
-                            let text_pos = input.cursor.absolute_pos - text_bounds.min;
-                            if let Some(hit) = glyphs.hit(text_pos) {
-                                tracing::info!(?hit, "hit");
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::SetPosition(
-                                    hit,
-                                )))
-                                .ok();
-                            }
-
-                            tracing::info!(?input, "click");
-                        }
-                    }
-                }
-            })
-            .on_event(on_char_typed(), {
-                to_owned![tx];
-                move |_, _, text| {
-                    tx.send(EditorAction::Edit(EditAction::InsertText(text.to_string())))
-                        .ok();
-                }
-            })
-            .on_event(on_keyboard_input(), {
-                to_owned![tx];
-                move |_, _, input| {
-                    let ctrl = input.modifiers.control_key();
-                    if input.state == ElementState::Pressed {
-                        match input.keycode {
-                            NamedKey::Backspace if ctrl => {
-                                tx.send(EditorAction::Edit(EditAction::DeleteBackwardWord))
-                                    .ok();
-                            }
-                            NamedKey::Backspace => {
-                                tx.send(EditorAction::Edit(EditAction::DeleteBackwardChar))
-                                    .ok();
-                            }
-                            NamedKey::Enter => {
-                                tx.send(EditorAction::Edit(EditAction::InsertLine)).ok();
-                            }
-                            NamedKey::ArrowLeft if ctrl => {
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::BackwardWord))
-                                    .ok();
-                            }
-                            NamedKey::ArrowRight if ctrl => {
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::ForwardWord))
-                                    .ok();
-                            }
-                            NamedKey::ArrowLeft => {
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::Left))
-                                    .ok();
-                            }
-                            NamedKey::ArrowRight => {
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::Right))
-                                    .ok();
-                            }
-                            NamedKey::ArrowUp => {
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::Up))
-                                    .ok();
-                            }
-                            NamedKey::ArrowDown => {
-                                tx.send(EditorAction::CursorMove(editor::CursorMove::Down))
-                                    .ok();
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            });
-
-        pill(Stack::new((
-            SignalWidget(self.content.signal_cloned().map(move |v| {
-                to_owned![text_bounds];
-                Text::rich([TextSegment::new(v)])
-                    .with_font_size(18.0)
-                    .monitor_signal(components::layout_glyphs(), layout_glyphs.clone())
-                    .monitor_signal(screen_rect(), text_bounds.clone())
-            })),
-            SignalWidget(editor_props_rx),
-        )))
         .mount(scope)
     }
 }

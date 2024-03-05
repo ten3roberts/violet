@@ -126,10 +126,8 @@ impl StackLayout {
             .collect_vec();
 
         // The size used for alignment calculation
-        let size = bounds
-            .size()
-            .max(preferred_size)
-            .clamp(limits.min_size, limits.max_size);
+        let size = bounds.size().max(preferred_size);
+        // .clamp(limits.min_size, limits.max_size);
 
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(preferred_size, content_area.min));
@@ -161,9 +159,8 @@ impl StackLayout {
         }
 
         // aligned_bounds.inner = aligned_bounds.inner.max_size(limits.min_size);
-        let rect = aligned_bounds
-            .inner
-            .clamp_size(limits.min_size, limits.max_size);
+        let rect = aligned_bounds.inner.max_size(limits.min_size);
+
         let margin = aligned_bounds.margin();
 
         // rect.min += content_area.min;
@@ -222,13 +219,10 @@ impl StackLayout {
         let preferred_margin = preferred_bounds.margin();
 
         Sizing {
-            min: min_bounds
-                .inner
-                .clamp_size(limits.min_size, limits.max_size),
-            preferred: preferred_bounds
-                .inner
-                .max_size(preferred_size)
-                .clamp_size(limits.min_size, limits.max_size),
+            min: min_bounds.inner.max_size(limits.min_size),
+            // .clamp_size(limits.min_size, limits.max_size),
+            preferred: preferred_bounds.inner.max_size(preferred_size),
+            // .clamp_size(limits.min_size, limits.max_size),
             margin: min_margin.max(preferred_margin),
             hints,
         }

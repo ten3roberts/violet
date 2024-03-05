@@ -5,9 +5,10 @@ use flax::{
 use glam::Vec2;
 
 /// NOTE: maybe redefine these types ourselves
-pub use winit::{
-    event::{ElementState, MouseButton},
-    keyboard::{ModifiersState, NamedKey},
+pub use winit::{event, keyboard};
+use winit::{
+    event::{ElementState, KeyEvent, MouseButton},
+    keyboard::ModifiersState,
 };
 
 use crate::{
@@ -142,7 +143,7 @@ impl InputState {
         self.modifiers = modifiers;
     }
 
-    pub fn on_keyboard_input(&mut self, frame: &mut Frame, state: ElementState, keycode: NamedKey) {
+    pub fn on_keyboard_input(&mut self, frame: &mut Frame, event: KeyEvent) {
         if let Some(cur) = &self.focused {
             tracing::info!(?cur, "sending keyboard input event");
             let entity = frame.world.entity(cur.id).unwrap();
@@ -153,21 +154,9 @@ impl InputState {
                     &entity,
                     KeyboardInput {
                         modifiers: self.modifiers,
-                        state,
-                        keycode,
+                        event,
                     },
                 );
-            }
-        }
-    }
-
-    pub fn on_char_input(&mut self, frame: &mut Frame, input: &str) {
-        if let Some(cur) = &self.focused {
-            tracing::info!(?input, "input char");
-            let entity = frame.world.entity(cur.id).unwrap();
-
-            if let Ok(mut on_input) = entity.get_mut(on_char_typed()) {
-                on_input(frame, &entity, input);
             }
         }
     }
@@ -221,17 +210,11 @@ pub struct CursorMove {
 
 pub struct KeyboardInput {
     pub modifiers: ModifiersState,
-    pub state: ElementState,
 
-    /// Identifies the semantic meaning of the key
-    ///
-    /// Use when the semantics of the key are more important than the physical location of the key, such as when
-    /// implementing appropriate behavior for "page up."
-    pub keycode: NamedKey,
+    pub event: KeyEvent,
 }
 
 pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&Frame, &EntityRef, T)>;
-pub type TextHandler = Box<dyn Send + Sync + FnMut(&Frame, &EntityRef, &str)>;
 
 component! {
     pub focus_sticky: (),
@@ -240,5 +223,4 @@ component! {
     pub on_cursor_move: InputEventHandler<CursorMove>,
     pub on_mouse_input: InputEventHandler<MouseInput>,
     pub on_keyboard_input: InputEventHandler<KeyboardInput>,
-    pub on_char_typed: TextHandler,
 }

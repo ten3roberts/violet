@@ -165,8 +165,8 @@ impl Rect {
     #[must_use]
     pub fn align_to_grid(&self) -> Self {
         Self {
-            min: self.min.floor(),
-            max: self.max.ceil(),
+            min: self.min.round(),
+            max: self.max.round(),
         }
     }
 

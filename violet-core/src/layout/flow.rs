@@ -392,7 +392,7 @@ impl FlowLayout {
         let rect = cursor
             .finish()
             .max_size(preferred_size)
-            .clamp_size(limits.min_size, limits.max_size);
+            .max_size(limits.min_size);
 
         let margin = self
             .direction
@@ -560,8 +560,8 @@ impl FlowLayout {
             .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
         Sizing {
-            min: min_rect.clamp_size(limits.min_size, limits.max_size),
-            preferred: rect.clamp_size(limits.min_size, limits.max_size),
+            min: min_rect.max_size(limits.min_size),
+            preferred: rect.max_size(limits.min_size),
             margin,
             hints,
         }

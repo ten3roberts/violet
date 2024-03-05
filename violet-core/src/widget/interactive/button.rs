@@ -77,8 +77,8 @@ impl<W: Widget> Widget for Button<W> {
         let stylesheet = get_stylesheet(scope);
 
         let spacing = stylesheet.get_copy(spacing()).unwrap_or_default();
-        let margin = Edges::even(spacing.size(2));
-        let padding = Edges::even(spacing.size(2));
+        let margin = spacing.medium();
+        let padding = spacing.medium();
 
         let pressed_color = stylesheet
             .get_copy(self.style.pressed_color)

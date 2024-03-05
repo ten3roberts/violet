@@ -12,7 +12,7 @@ use violet::{
                 EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_200, JADE_DEFAULT, LION_DEFAULT,
                 REDWOOD_DEFAULT,
             },
-            Background,
+            Background, SizeExt,
         },
         text::Wrap,
         unit::Unit,

@@ -25,6 +25,7 @@ documentation = "https://docs.rs/violet"
 [workspace.dependencies]
 flax = { git = "https://github.com/ten3roberts/flax", version = "0.6.0", features = [
     "derive",
+    "puffin",
 ] }
 
 atomic_refcell = "0.1"
@@ -73,7 +74,7 @@ violet-core = { path = "violet-core" }
 glam.workspace = true
 palette.workspace = true
 futures-signals.workspace = true
-flax = { workspace = true, features = ["puffin"] }
+flax.workspace = true
 lru.workspace = true
 
 [dev-dependencies]

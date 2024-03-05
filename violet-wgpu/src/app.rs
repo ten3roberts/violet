@@ -215,7 +215,7 @@ impl App {
 
                 {
                     puffin::profile_scope!("Schedule");
-                    schedule.execute_par(&mut frame.world).unwrap();
+                    schedule.execute_seq(&mut frame.world).unwrap();
                 }
 
                 if let Some(renderer) = &mut renderer {
@@ -249,29 +249,9 @@ impl App {
                     puffin::profile_scope!("ModifiersChanged");
                     input_state.on_modifiers_change(modifiers.state());
                 }
-                WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            state: ElementState::Pressed,
-                            text: Some(text),
-                            ..
-                        },
-                    ..
-                } => {
-                    puffin::profile_scope!("CharInput");
-                    input_state.on_char_input(&mut frame, text.as_str());
-                }
-                WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            state,
-                            logical_key: Key::Named(keycode),
-                            ..
-                        },
-                    ..
-                } => {
-                    puffin::profile_scope!("KeyboardInput", format!("{keycode:?}"));
-                    input_state.on_keyboard_input(&mut frame, state, keycode)
+                WindowEvent::KeyboardInput { event, .. } => {
+                    puffin::profile_scope!("KeyboardInput", format!("{event:?}"));
+                    input_state.on_keyboard_input(&mut frame, event)
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     puffin::profile_scope!("CursorMoved");

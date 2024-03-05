@@ -2,6 +2,7 @@ use wgpu::{TextureView, TextureViewDescriptor};
 
 use super::Gpu;
 
+/// Higher level wrapper around wgpu::Texture
 pub struct Texture {
     texture: wgpu::Texture,
 }

@@ -59,10 +59,10 @@ impl SizeResolver for TextSizeResolver {
         entity: &flax::EntityRef,
         _content_area: Vec2,
         limits: LayoutLimits,
-        squeeze: Direction,
+        direction: Direction,
     ) -> (Vec2, Vec2, SizingHints) {
         puffin::profile_scope!("TextSizeResolver::query");
-        let _span = tracing::debug_span!("TextSizeResolver::query", ?squeeze).entered();
+        let _span = tracing::debug_span!("TextSizeResolver::query", ?direction).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 
@@ -71,23 +71,29 @@ impl SizeResolver for TextSizeResolver {
 
         let text_system = &mut *self.text_system.lock();
 
+        let line_height = state.buffer.metrics().line_height;
+
         // If preferred is clamped, so is min
         let (min, _clamped) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
-            match squeeze {
-                Direction::Horizontal => vec2(1.0, limits.max_size.y),
-                Direction::Vertical => vec2(limits.max_size.x, f32::MAX),
+            match direction {
+                Direction::Horizontal => vec2(1.0, limits.max_size.y.max(line_height)),
+                Direction::Vertical => vec2(limits.max_size.x, limits.max_size.y.max(line_height)),
             },
         );
 
-        let (preferred, clamped) =
-            Self::resolve_text_size(state, text_system, font_size, limits.max_size);
+        let (preferred, clamped) = Self::resolve_text_size(
+            state,
+            text_system,
+            font_size,
+            limits.max_size.max(vec2(1.0, line_height)),
+        );
         // + vec2(5.0, 5.0);
 
-        if min.dot(squeeze.to_axis()) > preferred.dot(squeeze.to_axis()) {
-            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?squeeze, %limits.max_size, "Text wrapping failed");
+        if min.dot(direction.to_axis()) > preferred.dot(direction.to_axis()) {
+            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?direction, %limits.max_size, "Text wrapping failed");
         }
         (
             min,
@@ -114,6 +120,7 @@ impl SizeResolver for TextSizeResolver {
         let (state, &font_size) = query.get().unwrap();
 
         let text_system = &mut *self.text_system.lock();
+        let line_height = state.buffer.metrics().line_height;
 
         let (size, clamped) = Self::resolve_text_size(
             state,
@@ -121,10 +128,14 @@ impl SizeResolver for TextSizeResolver {
             font_size,
             // Add a little leeway, because an exact fit from the query may miss the last
             // word/glyph
-            limits.max_size + vec2(5.0, 5.0),
+            limits.max_size.max(vec2(0.0, line_height)) + vec2(5.0, 5.0),
         );
 
-        (size.clamp(limits.min_size, limits.max_size), clamped)
+        if size.x > limits.max_size.x || size.y > limits.max_size.y {
+            // tracing::error!(%entity, text=?state.text(), %size, %limits.max_size, "Text overflowed");
+        }
+
+        (size, clamped)
     }
 }
 

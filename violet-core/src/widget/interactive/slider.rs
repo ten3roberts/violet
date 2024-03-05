@@ -86,8 +86,8 @@ impl<V: SliderValue> Widget for Slider<V> {
 
         let spacing = stylesheet.get_copy(spacing()).unwrap_or_default();
 
-        let handle_size = spacing.resolve_unit(self.style.handle_size);
-        let track_size = spacing.resolve_unit(self.style.track_size);
+        let handle_size = spacing.size(self.style.handle_size);
+        let track_size = spacing.size(self.style.track_size);
 
         let track = scope.attach(BoxSized::new(Rectangle::new(track_color)).with_size(track_size));
 

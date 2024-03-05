@@ -20,19 +20,6 @@ impl<T> CachedValue<T> {
             value,
         }
     }
-
-    pub(crate) fn is_valid(&self, limits: LayoutLimits, content_area: Vec2) -> bool {
-        self.limits
-            .min_size
-            .abs_diff_eq(limits.min_size, LAYOUT_TOLERANCE)
-            && self
-                .limits
-                .max_size
-                .abs_diff_eq(limits.max_size, LAYOUT_TOLERANCE)
-            && self
-                .content_area
-                .abs_diff_eq(content_area, LAYOUT_TOLERANCE)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
