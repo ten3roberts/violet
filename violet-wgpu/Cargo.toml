@@ -1,0 +1,34 @@
+[package]
+name = "violet-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+violet-core = { path = "../violet-core" }
+
+flax.workspace = true
+
+wgpu.workspace = true
+winit.workspace = true
+
+tracing.workspace = true
+cosmic-text.workspace = true
+guillotiere.workspace = true
+bytemuck.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+parking_lot.workspace = true
+image.workspace = true
+futures.workspace = true
+palette.workspace = true
+itertools.workspace = true
+puffin.workspace = true
+puffin_http.workspace = true
+web-time.workspace = true
+flume.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys.workspace = true
+wasm-bindgen.workspace = true

@@ -1,0 +1,240 @@
+use flax::components::name;
+use futures_signals::signal::{Mutable, SignalExt};
+
+use glam::{vec2, Vec2};
+use palette::Srgba;
+use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
+use tracing_tree::HierarchicalLayer;
+
+use violet::core::{
+    components,
+    style::{
+        colors::{
+            EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_100, JADE_DEFAULT, LION_DEFAULT,
+            REDWOOD_DEFAULT,
+        },
+        Background,
+    },
+    unit::Unit,
+    widget::{Rectangle, SignalWidget, Stack, Text, WidgetExt},
+    Edges, Scope, Widget,
+};
+use violet_core::{
+    style::{colors::DARK_CYAN_DEFAULT, SizeExt},
+    text::Wrap,
+    to_owned,
+    widget::{card, centered, column, row, Slider},
+};
+use violet_wgpu::renderer::RendererConfig;
+
+const MARGIN: Edges = Edges::even(8.0);
+const MARGIN_SM: Edges = Edges::even(4.0);
+
+fn label(text: impl Into<String>) -> Stack<Text> {
+    Stack::new(Text::new(text.into()))
+        .with_padding(MARGIN_SM)
+        .with_margin(MARGIN_SM)
+        .with_background(Background::new(EERIE_BLACK_400))
+}
+
+pub fn main() -> anyhow::Result<()> {
+    registry()
+        .with(
+            HierarchicalLayer::default()
+                .with_deferred_spans(true)
+                .with_span_retrace(true)
+                .with_indent_lines(true)
+                .with_indent_amount(4),
+        )
+        .with(EnvFilter::from_default_env())
+        .init();
+
+    violet_wgpu::App::new()
+        .with_renderer_config(RendererConfig { debug_mode: true })
+        .run(MainApp)
+}
+
+struct Vec2Editor {
+    value: Mutable<Vec2>,
+    x_label: String,
+    y_label: String,
+}
+
+impl Vec2Editor {
+    fn new(value: Mutable<Vec2>, x_label: impl Into<String>, y_label: impl Into<String>) -> Self {
+        Self {
+            value,
+            x_label: x_label.into(),
+            y_label: y_label.into(),
+        }
+    }
+}
+
+impl Widget for Vec2Editor {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let value = self.value;
+
+        let x = Mutable::new(value.get().x);
+        let y = Mutable::new(value.get().y);
+
+        scope.spawn(x.signal().for_each({
+            to_owned![value];
+            move |x| {
+                value.lock_mut().x = x.round();
+                async {}
+            }
+        }));
+
+        scope.spawn(y.signal().for_each(move |y| {
+            value.lock_mut().y = y.round();
+            async {}
+        }));
+
+        column((
+            row((label(self.x_label), Slider::new(x, 0.0, 200.0))),
+            row((label(self.y_label), Slider::new(y, 0.0, 200.0))),
+        ))
+        .mount(scope)
+    }
+}
+struct MainApp;
+
+impl Widget for MainApp {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let size = Mutable::new(vec2(100.0, 100.0));
+
+        column((
+            card(column((
+                Vec2Editor::new(size.clone(), "width", "height"),
+                SignalWidget::new(size.signal().map(|size| label(format!("Rectangle size: {size}")))),
+            ))),
+            row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height. Another sentence for good measure to force the text to wrap"), card(Text::new(":P").with_wrap(Wrap::None)))),
+            SignalWidget::new(size.signal().map(|size| FlowSizing { size })),
+            // AnimatedSize,
+        ))
+        .contain_margins(true)
+        .with_background(Background::new(EERIE_BLACK_DEFAULT))
+        .mount(scope)
+    }
+}
+
+struct FlowSizing {
+    size: Vec2,
+}
+
+impl Widget for FlowSizing {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let bg = Background::new(JADE_100);
+
+        let content = (
+            SizedBox::new(JADE_DEFAULT, Unit::px(self.size)).with_name("EMERALD"),
+            SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
+            SizedBox::new(
+                DARK_CYAN_DEFAULT,
+                Unit::rel2(0.0, 0.0) + Unit::px2(10.0, 50.0),
+            )
+            .with_name("DARK_CYAN"),
+            // AnimatedSize,
+        );
+
+        column((
+            row((
+                card(column((
+                    label("Unconstrained list"),
+                    row(content.clone()).with_background(bg),
+                ))),
+                card(column((
+                    label("Constrained list with min size"),
+                    row(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained list with max size"),
+                    row(content.clone())
+                        .with_background(bg)
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained list with max size"),
+                    row(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0))
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+            )),
+            row((
+                card(column((
+                    label("Unconstrained stack"),
+                    centered(content.clone()).with_background(bg),
+                ))),
+                card(column((
+                    label("Constrained stack with min size"),
+                    centered(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained stack with max size"),
+                    centered(content.clone())
+                        .with_background(bg)
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+                card(column((
+                    label("Constrained stack with max size"),
+                    centered(content.clone())
+                        .with_background(bg)
+                        .with_min_size(Unit::px2(100.0, 100.0))
+                        .with_max_size(Unit::px2(100.0, 100.0)),
+                ))),
+            )),
+        ))
+        .mount(scope)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SizedBox {
+    color: Srgba,
+    size: Unit<Vec2>,
+}
+
+impl SizedBox {
+    fn new(color: Srgba, size: Unit<Vec2>) -> Self {
+        Self { color, size }
+    }
+}
+
+impl Widget for SizedBox {
+    fn mount(self, scope: &mut Scope<'_>) {
+        // Stack::new((
+        Rectangle::new(self.color)
+            .with_size(self.size)
+            //     column((
+            //         Text::new(format!("{}", self.size.px)),
+            //         Text::new(format!("{}", self.size.rel)),
+            //     )),
+            // ))
+            .mount(scope)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AnimatedSize;
+
+impl Widget for AnimatedSize {
+    fn mount(self, scope: &mut Scope<'_>) {
+        scope.set(name(), "AnimatedBox".into());
+        scope.set(
+            components::on_animation_frame(),
+            Box::new(move |_, entity, t| {
+                let t = t.as_secs_f32();
+
+                let size = vec2(t.sin() * 50.0, (t * 2.5).cos() * 50.0) + vec2(100.0, 100.0);
+                entity.update_dedup(components::size(), Unit::px(size));
+            }),
+        );
+
+        Rectangle::new(LION_DEFAULT).mount(scope)
+    }
+}

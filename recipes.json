@@ -6,17 +6,23 @@
         "cmd": "cargo run --package violet --example basic"
     },
     "debug basic": {
-        "cmd": [
-            "cargo",
-            "build",
-            "--package",
-            "violet",
-            "--example",
-            "basic"
-        ],
+        "cmd": "cargo build --package violet --example basic",
         "components": {
             "dap": {
                 "program": "./target/debug/examples/basic",
+                "adapter": "rust"
+            }
+        },
+        "env": {
+            "RUST_BACKTRACE": "1",
+            "RUST_LOG": "violet=debug,wgpu=warn,info"
+        }
+    },
+    "debug flow": {
+        "cmd": "cargo build --example flow",
+        "components": {
+            "dap": {
+                "program": "./target/debug/examples/flow",
                 "adapter": "rust"
             }
         },
@@ -38,7 +44,16 @@
             "cargo",
             "nextest",
             "run",
-            "--all-features"
+            "--all-features",
+            "--workspace"
         ]
+    },
+    "build web": {
+        "cmd": "wasm-pack build --target web",
+        "cwd": "./violet-web-example/"
+    },
+    "host": {
+        "cmd": "python3 -m http.server 8080",
+        "cwd": "./violet-web-example/"
     }
 }

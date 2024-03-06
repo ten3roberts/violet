@@ -1,5 +1,5 @@
 use flax::{components::name, FetchExt, Query};
-use futures_signals::signal::{Mutable, SignalExt};
+use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::{Hsva, IntoColor, Srgba};
@@ -8,17 +8,20 @@ use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
-use violet::{
-    components::{self, layout, rect, size, text, Edges},
-    layout::{CrossAlign, Direction},
+use violet::core::{
+    components::{self, rect, size, text},
+    layout::{Alignment, Direction},
     style::StyleExt,
     text::{FontFamily, Style, TextSegment, Weight, Wrap},
     time::interval,
     unit::Unit,
-    widget::{
-        Button, ContainerExt, Image, List, Rectangle, Signal, Stack, StreamWidget, Text, WidgetExt,
-    },
-    App, Scope, StreamEffect, Widget,
+    widget::{Button, Image, List, Rectangle, Stack, Text, WidgetExt},
+    Scope, StreamEffect, Widget,
+};
+use violet_core::{
+    style::Background,
+    widget::{BoxSized, ContainerStyle},
+    Edges,
 };
 
 struct MainApp;
@@ -31,7 +34,7 @@ macro_rules! srgba {
     }};
 }
 
-const MARGIN: Edges = Edges::even(15.0);
+const MARGIN: Edges = Edges::even(10.0);
 const MARGIN_SM: Edges = Edges::even(5.0);
 
 pub const EERIE_BLACK: Srgba = srgba!("#222525");
@@ -45,97 +48,6 @@ pub const EMERALD: Srgba = srgba!("#50c878");
 pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
 
-struct Sized<W> {
-    min_size: Unit<Vec2>,
-    size: Unit<Vec2>,
-    widget: W,
-}
-
-impl<W> Sized<W> {
-    pub fn new(widget: W) -> Self {
-        Self {
-            min_size: Unit::ZERO,
-            size: Unit::ZERO,
-            widget,
-        }
-    }
-
-    /// Sets the preferred size of a widget
-    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
-        self.size = size;
-        self
-    }
-
-    /// Sets the minimum size of a widget
-    pub fn with_min_size(mut self, size: Unit<Vec2>) -> Self {
-        self.min_size = size;
-        self
-    }
-}
-
-impl<W> Widget for Sized<W>
-where
-    W: Widget,
-{
-    fn mount(self, scope: &mut Scope<'_>) {
-        self.widget.mount(scope);
-
-        scope.set(components::size(), self.size);
-        scope.set(components::min_size(), self.min_size);
-    }
-}
-
-struct Positioned<W> {
-    offset: Unit<Vec2>,
-    anchor: Unit<Vec2>,
-    widget: W,
-}
-
-impl<W> Positioned<W> {
-    pub fn new(widget: W) -> Self {
-        Self {
-            offset: Unit::ZERO,
-            anchor: Unit::ZERO,
-            widget,
-        }
-    }
-
-    /// Sets the anchor point of the widget
-    pub fn with_anchor(mut self, anchor: Unit<Vec2>) -> Self {
-        self.anchor = anchor;
-        self
-    }
-
-    /// Offsets the widget relative to its original position
-    pub fn with_offset(mut self, offset: Unit<Vec2>) -> Self {
-        self.offset = offset;
-        self
-    }
-}
-
-impl<W> Widget for Positioned<W>
-where
-    W: Widget,
-{
-    fn mount(self, scope: &mut Scope<'_>) {
-        self.widget.mount(scope);
-
-        scope.set(components::anchor(), self.anchor);
-        scope.set(components::offset(), self.offset);
-    }
-}
-
-// impl<K> Asset<DynamicImage> for K
-// where
-//     K: AssetKey<Bytes>,
-// {
-//     type Error = K::Error;
-
-//     fn load(self, _: &violet::assets::AssetCache) -> Result<DynamicImage, ImageError> {
-//         image::load_from_memory(&self.0)
-//     }
-// }
-
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
         scope
@@ -143,103 +55,95 @@ impl Widget for MainApp {
             .set(size(), Unit::rel(vec2(1.0, 1.0)));
 
         List::new((
-            List::new(
-                (0..4)
-                    .map(|i| {
-                        let size = vec2(50.0, 50.0);
-
-                        Rectangle::new(Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color())
-                            .with_min_size(Unit::px(size))
-                            .with_size(Unit::px(size * vec2(2.0, 1.0)))
-                    })
-                    .collect_vec(),
-            ),
+            LayoutFlexTest,
             LayoutTest {
                 contain_margins: true,
-                depth: 2,
             }
             .with_name("LayoutText 3"),
             LayoutTest {
                 contain_margins: false,
-                depth: 2,
             }
             .with_name("LayoutText 2"),
             List::new(
                 (1..=4)
                     .map(|i| {
                         let size = Vec2::splat(128.0 / i as f32);
-                        Image::new("./assets/images/statue.jpg")
-                            .with_min_size(Unit::px(size))
-                            .with_size(Unit::px(size))
-                            .with_margin(MARGIN)
+                        Stack::new(
+                            BoxSized::new(Image::new("./assets/images/statue.jpg"))
+                                .with_min_size(Unit::px(size))
+                                .with_aspect_ratio(1.0),
+                        )
+                        .with_style(ContainerStyle {
+                            margin: MARGIN,
+                            ..Default::default()
+                        })
                     })
                     .collect_vec(),
             )
             .with_name("Images"),
-            Stack::new((
-                Rectangle::new(EMERALD).with_size(Unit::px(vec2(100.0, 20.0))),
+            Stack::new((Text::rich([
+                TextSegment::new("Violet").with_color(VIOLET),
+                TextSegment::new(" now has support for "),
+                TextSegment::new("rich ").with_style(Style::Italic),
+                TextSegment::new("text. I wanted to "),
+                TextSegment::new("emphasize").with_style(Style::Italic),
+                TextSegment::new(" that, "),
+                TextSegment::new("(and put something in bold)")
+                    .with_family("Inter")
+                    .with_weight(Weight::BOLD),
+                TextSegment::new(", and").with_style(Style::Italic),
+                TextSegment::new(" also show off the different font loadings: \n"),
+                TextSegment::new("Monospace:")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                    .with_color(TEAL),
+                TextSegment::new("\n\nfn main() { \n    println!(")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+                TextSegment::new("\"Hello, world!\"")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
+                    .with_color(BRONZE)
+                    .with_style(Style::Italic),
+                TextSegment::new("); \n}")
+                    .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
+            ])
+            .with_font_size(18.0),))
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK)),
+                padding: MARGIN,
+                margin: MARGIN,
+            }),
+            Stack::new(
                 Text::rich([
-                    TextSegment::new("Violet").with_color(VIOLET),
-                    TextSegment::new(" now has support for "),
-                    TextSegment::new("rich ").with_style(Style::Italic),
-                    TextSegment::new("text. I wanted to "),
-                    TextSegment::new("emphasize").with_style(Style::Italic),
-                    TextSegment::new(" that, "),
-                    TextSegment::new("(and put something in bold)")
-                        .with_family("Inter")
-                        .with_weight(Weight::BOLD),
-                    TextSegment::new(", and").with_style(Style::Italic),
-                    TextSegment::new(" also show off the different font loadings: \n"),
-                    TextSegment::new("Monospace:")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                        .with_color(TEAL),
-                    TextSegment::new("\n\nfn main() { \n    println!(")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
-                    TextSegment::new("\"Hello, world!\"")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                        .with_color(BRONZE)
+                    TextSegment::new("The quick brown fox 🦊 jumps over the lazy dog 🐕")
                         .with_style(Style::Italic),
-                    TextSegment::new("); \n}")
-                        .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
                 ])
-                .with_font_size(28.0)
-                .with_margin(MARGIN),
-            ))
-            .with_vertical_alignment(CrossAlign::End)
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_padding(MARGIN)
-            .with_margin(MARGIN),
-            Stack::new((Text::rich([TextSegment::new(
-                "The quick brown fox 🦊 jumps over the lazy dog 🐕",
+                .with_wrap(Wrap::Word)
+                // .with_family("Inter")
+                .with_font_size(18.0),
             )
-            .with_style(cosmic_text::Style::Italic)])
-            .with_wrap(Wrap::Glyph)
-            // .with_family("Inter")
-            .with_font_size(32.0)
-            .with_margin(MARGIN),))
-            .with_background(Rectangle::new(EERIE_BLACK))
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK)),
+                padding: MARGIN,
+                margin: MARGIN,
+            }),
+            Stack::new((
+                BoxSized::new(Rectangle::new(CHILI_RED))
+                    .with_min_size(Unit::px(vec2(100.0, 30.0)))
+                    .with_size(Unit::px(vec2(50.0, 30.0))),
+                BoxSized::new(Rectangle::new(TEAL))
+                    .with_min_size(Unit::px(vec2(200.0, 10.0)))
+                    .with_size(Unit::px(vec2(50.0, 10.0))),
+                Text::new("This is some text").with_font_size(16.0),
+            ))
+            .with_vertical_alignment(Alignment::Center)
+            .with_horizontal_alignment(Alignment::Center)
+            .with_background(Background::new(EERIE_BLACK_300))
             .with_padding(MARGIN)
             .with_margin(MARGIN),
-            Stack::new((
-                Rectangle::new(CHILI_RED)
-                    .with_min_size(Unit::px(vec2(100.0, 30.0)))
-                    .with_size(Unit::px(vec2(100.0, 30.0))),
-                Rectangle::new(TEAL)
-                    .with_min_size(Unit::px(vec2(200.0, 10.0)))
-                    .with_size(Unit::px(vec2(100.0, 10.0)))
-                    .with_margin(MARGIN),
-                Text::new("This is some text")
-                    .with_font_size(16.0)
-                    .with_margin(MARGIN),
-                // Rectangle::n#ew(EERIE_BLACK).with_size(Unit::rel(vec2(1.0, 1.0))),
-            ))
-            .with_background(Rectangle::new(EERIE_BLACK))
-            .with_margin(MARGIN),
-            // Text::new("Foo"),
-            // DisplayWorld,
-            // Rectangle::new(CHILI_RED).with_size(Unit::px(vec2(100.0, 10.0))),
         ))
-        .with_background(Rectangle::new(EERIE_BLACK_600))
+        .with_style(ContainerStyle {
+            background: Some(Background::new(EERIE_BLACK_600)),
+            ..Default::default()
+        })
         .contain_margins(true)
         .with_direction(Direction::Vertical)
         .mount(scope);
@@ -250,7 +154,7 @@ struct DisplayWorld;
 
 impl Widget for DisplayWorld {
     fn mount(self, scope: &mut Scope<'_>) {
-        scope.spawn(StreamEffect::new(
+        scope.spawn_effect(StreamEffect::new(
             interval(Duration::from_secs(1)),
             |scope: &mut Scope<'_>, _| {
                 let world = &scope.frame().world;
@@ -269,7 +173,7 @@ impl Widget for DisplayWorld {
 
         Text::new("")
             .with_font_size(12.0)
-            .with_margin(MARGIN)
+            // .with_margin(MARGIN)
             .mount(scope);
     }
 }
@@ -278,41 +182,53 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        // Text::new("This is an overlaid text")
-        //     .with_color(EMERALD)
-        //     .mount(scope)
         Stack::new((Text::new("This is an overlaid text").with_color(EMERALD),))
-            .with_background(Rectangle::new(EERIE_BLACK_300))
-            .with_padding(MARGIN)
-            .with_margin(MARGIN)
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK_300)),
+                padding: MARGIN,
+                margin: MARGIN,
+            })
             .mount(scope)
+    }
+}
+
+struct LayoutFlexTest;
+
+impl Widget for LayoutFlexTest {
+    fn mount(self, scope: &mut Scope<'_>) {
+        List::new(
+            (0..8)
+                .map(|i| {
+                    let size = vec2(100.0, 20.0);
+
+                    Stack::new(
+                        BoxSized::new(Rectangle::new(
+                            Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color(),
+                        ))
+                        .with_min_size(Unit::px(size))
+                        .with_size(Unit::px(size * vec2(i as f32, 1.0))),
+                    )
+                    .with_style(ContainerStyle {
+                        margin: MARGIN,
+                        ..Default::default()
+                    })
+                })
+                .collect_vec(),
+        )
+        .mount(scope)
     }
 }
 
 struct LayoutTest {
     contain_margins: bool,
-    depth: usize,
 }
 
 impl Widget for LayoutTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        let row_2 = List::new((
-            Rectangle::new(BRONZE)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(100.0, 20.0))),
-            Rectangle::new(EMERALD)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(20.0, 20.0))),
-        ))
-        .with_direction(Direction::Vertical)
-        .contain_margins(self.contain_margins)
-        .with_background(Rectangle::new(EERIE_BLACK_300))
-        .with_margin(MARGIN);
-
         let click_count = Mutable::new(0);
 
         let row_1 = List::new((
-            Button::new(List::new((
+            Button::new(List::new(
                 Stack::new(
                     Text::rich([
                         TextSegment::new("This is "),
@@ -320,65 +236,55 @@ impl Widget for LayoutTest {
                             .with_style(Style::Italic)
                             .with_color(BRONZE),
                     ])
-                    .with_font_size(32.0)
+                    .with_font_size(16.0)
                     .with_wrap(Wrap::None),
                 )
-                .with_background(Rectangle::new(EERIE_BLACK))
-                .with_padding(MARGIN_SM),
-                if self.depth > 0 {
-                    Some(Self {
-                        contain_margins: true,
-                        depth: self.depth - 1,
-                    })
-                } else {
-                    None
-                },
-            )))
+                .with_style(ContainerStyle {
+                    background: Some(Background::new(EERIE_BLACK)),
+                    padding: MARGIN_SM,
+                    margin: MARGIN_SM,
+                }),
+            ))
             .on_press({
                 let click_count = click_count.clone();
                 move |_, _| {
                     *click_count.lock_mut() += 1;
                 }
-            })
-            .with_background(Image::new("./assets/images/statue.jpg"))
-            .with_background_color(Srgba::new(1.0, 1.0, 1.0, 1.0))
-            .with_pressed_color(EERIE_BLACK)
-            .with_padding(MARGIN)
-            .with_margin(MARGIN)
-            .with_size(Unit::px(vec2(800.0, 50.0))),
-            row_2,
+            }),
+            // row_2,
             StackTest {},
-            Button::new(Text::new("Nope, don't you dare").with_color(CHILI_RED))
-                .on_press({
-                    let click_count = click_count.clone();
-                    move |_, _| {
-                        *click_count.lock_mut() -= 1;
-                    }
-                })
-                .with_padding(MARGIN_SM)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(200.0, 50.0))),
-            Text::new("Inline text, wrapping to fit").with_margin(MARGIN),
-            Rectangle::new(EMERALD)
-                .with_margin(MARGIN)
-                .with_size(Unit::px(vec2(10.0, 80.0))),
-            Signal(
-                click_count
-                    .signal()
-                    .map(|v| Text::new(format!("Clicked {} times", v))),
-            )
-            .with_margin(MARGIN),
+            // Button::new(Text::new("Nope, don't you dare").with_color(CHILI_RED)).on_press({
+            //     let click_count = click_count.clone();
+            //     move |_, _| {
+            //         *click_count.lock_mut() -= 1;
+            //     }
+            // }),
+            // Text::new("Inline text, wrapping to fit"),
+            // BoxSized::new(Rectangle::new(EMERALD))
+            //     .with_margin(MARGIN)
+            //     .with_size(Unit::px(vec2(10.0, 80.0))),
+            // Signal(
+            //     click_count
+            //         .signal()
+            //         .map(|v| Text::new(format!("Clicked {} times", v))),
+            // ),
         ))
         .contain_margins(self.contain_margins)
-        .with_cross_align(CrossAlign::Center)
-        .with_background(Rectangle::new(EERIE_BLACK))
-        .with_margin(MARGIN);
-
+        .with_cross_align(Alignment::Center)
+        .with_style(ContainerStyle {
+            background: Some(Background::new(EERIE_BLACK)),
+            padding: MARGIN,
+            margin: MARGIN,
+        });
         // row_1.mount(scope);
 
         List::new((row_1,))
             .contain_margins(self.contain_margins)
-            .with_background(Rectangle::new(EERIE_BLACK_300))
+            .with_style(ContainerStyle {
+                background: Some(Background::new(EERIE_BLACK_300)),
+                padding: MARGIN,
+                margin: MARGIN,
+            })
             .mount(scope);
     }
 }
@@ -394,5 +300,5 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    App::new().run(MainApp)
+    violet_wgpu::App::new().run(MainApp)
 }

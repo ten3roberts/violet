@@ -1,0 +1,96 @@
+use std::time::Duration;
+
+use flax::{component, Debuggable, Entity, EntityRef, Exclusive};
+use glam::Vec2;
+use image::DynamicImage;
+use palette::Srgba;
+
+use crate::{
+    assets::Asset,
+    layout::{Layout, SizeResolver},
+    text::{LayoutGlyphs, TextSegment, Wrap},
+    unit::Unit,
+    Edges, Frame, Rect,
+};
+
+component! {
+    /// Ordered list of children for an entity
+    pub children: Vec<Entity> => [ Debuggable ],
+    // pub child_of(parent): Entity => [ Debuggable ],
+
+    /// Defines the outer bounds of a widget relative to its position
+    pub rect: Rect => [ Debuggable ],
+    pub screen_rect: Rect => [ Debuggable ],
+
+    /// Position relative to parent
+    pub local_position: Vec2 => [ Debuggable ],
+
+    /// Specifies in screen space where the widget rect upper left corner is
+    pub screen_position: Vec2 => [ Debuggable ],
+
+    /// Offset the widget from its original position
+    pub offset: Unit<Vec2> => [ Debuggable ],
+
+    /// Explicit widget size. This will override the intrinsic size of the widget.
+    ///
+    /// The final size may be smaller if there is not enough space.
+    pub size: Unit<Vec2> => [ Debuggable ],
+
+    /// The minimum allowed size of a widget. A widgets bound will not be made any smaller even if
+    /// that implies clipping/overflow.
+    pub min_size: Unit<Vec2> => [ Debuggable ],
+
+    /// The maximum allowed size of the widget.
+    ///
+    /// This is to constrain an upper size for containers or relatively sized widgets
+    pub max_size: Unit<Vec2> => [ Debuggable ],
+
+    /// Constrain the aspect ratio of a widget
+    pub aspect_ratio: f32 => [ Debuggable ],
+
+    /// Sets the anchor point withing the bounds of the widget where position is applied
+    pub anchor: Unit<Vec2> => [ Debuggable ],
+
+
+    /// Manages the layout of the children
+    pub layout: Layout => [ Debuggable ],
+
+    /// Spacing between a outer and inner bounds
+    ///
+    /// Only applicable for containers
+    pub padding: Edges => [ Debuggable ],
+    /// Spacing between the item outer bounds and another items outer bounds
+    ///
+    /// Margins will be merged
+    ///
+    /// A margin is in essence a minimum allowed distance to another items bounds
+    pub margin: Edges => [ Debuggable ],
+
+    pub text: Vec<TextSegment> => [ ],
+    pub text_wrap: Wrap => [ Debuggable ],
+    pub font_size: f32 => [ Debuggable ],
+
+    /// To retain consistent text wrapping between size query and the snug fitted rect the bounds
+    /// of the size query are stored and used instead of the snug-fitted rect which will cause a
+    /// different wrapping, and therefore final size.
+    pub layout_bounds: Vec2 => [ Debuggable ],
+
+    /// The color of the widget
+    pub color: Srgba => [ Debuggable ],
+
+    /// The widget will be rendered as a filled rectange coverings its bounds
+    pub image: Asset<DynamicImage> => [ Debuggable ],
+
+    pub draw_shape(variant): () => [ Debuggable, Exclusive ],
+
+    pub size_resolver: Box<dyn SizeResolver>,
+
+    /// If present, contains information about the laid out text
+    pub layout_glyphs: LayoutGlyphs,
+
+    pub(crate) atoms,
+
+    pub on_animation_frame: OnAnimationFrame,
+}
+
+pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration) + Send + Sync>;
