@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 use futures::{stream::BoxStream, Stream, StreamExt};
 use futures_signals::signal::{Mutable, MutableSignalRef, SignalExt, SignalStream};
@@ -7,11 +7,11 @@ use futures_signals::signal::{Mutable, MutableSignalRef, SignalExt, SignalStream
 ///
 /// This can be used to "map" signals to other signals and composing and decomposing larger state
 /// into smaller parts for reactivity
-pub trait Project<U> {
+pub trait ProjectRef<U> {
     fn project<V, F: FnOnce(&U) -> V>(&self, f: F) -> V;
 }
 
-pub trait ProjectDyn<U> {
+pub trait ProjectOwned<U> {
     fn project_copy(&self) -> U
     where
         U: Copy;
@@ -21,9 +21,9 @@ pub trait ProjectDyn<U> {
         U: Clone;
 }
 
-impl<T, U> ProjectDyn<U> for T
+impl<T, U> ProjectOwned<U> for T
 where
-    T: Project<U>,
+    T: ProjectRef<U>,
 {
     fn project_copy(&self) -> U
     where
@@ -40,56 +40,57 @@ where
     }
 }
 
-pub trait ProjectMut<U>: Project<U> {
+/// Ability to project a mutable reference to a type `U`.
+pub trait ProjectMut<U>: ProjectRef<U> {
     fn project_mut<V, F: FnOnce(&mut U) -> V>(&self, f: F) -> V
     where
         Self: Sized;
 }
 
-pub trait ProjectMutDyn<U>: ProjectDyn<U> {
-    fn replace(&self, value: U);
+/// Ability to receive a type of `U`
+pub trait ProjectSink<U> {
+    fn project_send(&self, value: U);
 }
 
-impl<U, T> ProjectMutDyn<U> for T
-where
-    T: Sized + ProjectMut<U>,
-{
-    fn replace(&self, value: U) {
-        self.project_mut(|v| *v = value);
-    }
-}
+// impl<U, T> ProjectSink<U> for T
+// where
+//     T: Sized + ProjectMut<U>,
+// {
+//     fn project_send(&self, value: U) {
+//         self.project_mut(|v| *v = value);
+//     }
+// }
 
-/// A trait to project an arbitrary type into a stream of type `U`.
-pub trait ProjectStream<U>: Project<U> {
-    type Stream<F: Send + Sync + FnMut(&U) -> V, V>: Stream<Item = V> + Send + Sync;
-    fn project_stream<F: 'static + Send + Sync + FnMut(&U) -> V, V: 'static>(
+/// A trait to produce a stream projection of a type `U`.
+pub trait ProjectStream<U> {
+    fn project_stream<F: 'static + Send + FnMut(&U) -> V, V: 'static>(
         &self,
         func: F,
-    ) -> Self::Stream<F, V>;
+    ) -> impl 'static + Send + Stream<Item = V>;
 }
 
-pub trait ProjectStreamDyn<U>: ProjectDyn<U> {
-    fn project_stream_copy(&self) -> BoxStream<U>
+pub trait ProjectStreamOwned<U> {
+    fn project_stream_copy(&self) -> BoxStream<'static, U>
     where
         U: 'static + Copy;
 
-    fn project_stream_clone(&self) -> BoxStream<U>
+    fn project_stream_clone(&self) -> BoxStream<'static, U>
     where
         U: 'static + Clone;
 }
 
-impl<U, T> ProjectStreamDyn<U> for T
+impl<U, T> ProjectStreamOwned<U> for T
 where
-    T: Send + Sync + ProjectStream<U>,
+    T: Send + ProjectStream<U>,
 {
-    fn project_stream_copy(&self) -> BoxStream<U>
+    fn project_stream_copy(&self) -> BoxStream<'static, U>
     where
         U: 'static + Copy,
     {
         Box::pin(self.project_stream(|v: &U| *v))
     }
 
-    fn project_stream_clone(&self) -> BoxStream<U>
+    fn project_stream_clone(&self) -> BoxStream<'static, U>
     where
         U: 'static + Clone,
     {
@@ -97,11 +98,17 @@ where
     }
 }
 
-pub trait ProjectStreamDynMut<U>: ProjectMutDyn<U> + ProjectStreamDyn<U> {}
+/// Supertrait for types that support both sending and receiving a type `U`.
+pub trait ProjectDuplex<U>: ProjectSink<U> + ProjectStreamOwned<U> {}
 
-impl<U, T> ProjectStreamDynMut<U> for T where T: ProjectMutDyn<U> + ProjectStreamDyn<U> {}
+/// Supertrait which support mutable and reference projection and streaming of a type `U`.
+///
+/// This is the most general trait, and is useful for composing and decomposing state.
+pub trait ProjectState<U>: ProjectMut<U> + ProjectStream<U> {}
 
-impl<T> Project<T> for Mutable<T> {
+impl<U, T> ProjectDuplex<U> for T where T: ProjectSink<U> + ProjectStreamOwned<U> {}
+
+impl<T> ProjectRef<T> for Mutable<T> {
     fn project<V, F: FnOnce(&T) -> V>(&self, f: F) -> V {
         f(&self.lock_ref())
     }
@@ -113,13 +120,20 @@ impl<T> ProjectMut<T> for Mutable<T> {
     }
 }
 
+impl<T> ProjectSink<T> for Mutable<T> {
+    fn project_send(&self, value: T) {
+        self.set(value);
+    }
+}
+
 impl<T> ProjectStream<T> for Mutable<T>
 where
-    T: Send + Sync,
+    T: 'static + Send + Sync,
 {
-    type Stream<F: Send + Sync + FnMut(&T) -> V, V> = SignalStream<MutableSignalRef<T, F>>;
-
-    fn project_stream<F: Send + Sync + FnMut(&T) -> V, V>(&self, func: F) -> Self::Stream<F, V> {
+    fn project_stream<F: 'static + Send + FnMut(&T) -> V, V: 'static>(
+        &self,
+        func: F,
+    ) -> impl 'static + Send + Stream<Item = V> {
         self.signal_ref(func).to_stream()
     }
 }
@@ -131,14 +145,14 @@ where
 ///
 /// Please, for your own sanity, don't name this type yourself. It's a mouthful, compose and box it
 /// like an iterator or stream.
-pub struct Mapped<C, T, U, F, G> {
+pub struct MappedState<C, T, U, F, G> {
     inner: C,
     project: Arc<F>,
     project_mut: G,
     _marker: std::marker::PhantomData<(T, U)>,
 }
 
-impl<C: Project<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> Mapped<C, T, U, F, G> {
+impl<C: ProjectRef<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> MappedState<C, T, U, F, G> {
     pub fn new(inner: C, project: F, project_mut: G) -> Self {
         Self {
             inner,
@@ -157,14 +171,14 @@ impl<C: Project<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> Mapped<C, T,
 
     pub fn get_cloned(&self) -> U
     where
-        U: Copy,
+        U: Clone,
     {
         self.project(|v| v.clone())
     }
 }
 
-impl<C: Project<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> Project<U>
-    for Mapped<C, T, U, F, G>
+impl<C: ProjectRef<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> ProjectRef<U>
+    for MappedState<C, T, U, F, G>
 {
     fn project<V, H: FnOnce(&U) -> V>(&self, f: H) -> V {
         self.inner.project(|v| f((self.project)(v)))
@@ -172,30 +186,35 @@ impl<C: Project<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> Project<U>
 }
 
 impl<C: ProjectMut<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> ProjectMut<U>
-    for Mapped<C, T, U, F, G>
+    for MappedState<C, T, U, F, G>
 {
     fn project_mut<V, H: FnOnce(&mut U) -> V>(&self, f: H) -> V {
         self.inner.project_mut(|v| f((self.project_mut)(v)))
     }
 }
+
+impl<C: ProjectMut<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> ProjectSink<U>
+    for MappedState<C, T, U, F, G>
+{
+    fn project_send(&self, value: U) {
+        self.project_mut(|v| *v = value);
+    }
+}
+
 impl<C: ProjectStream<T>, T, U, F: Fn(&T) -> &U, G: Fn(&mut T) -> &mut U> ProjectStream<U>
-    for Mapped<C, T, U, F, G>
+    for MappedState<C, T, U, F, G>
 where
     T: 'static + Send + Sync,
-    U: 'static + Copy + Send + Sync,
+    U: 'static + Copy + Send,
     F: 'static + Send + Sync + Fn(&T) -> &U,
 {
-    type Stream<H: Send + Sync + FnMut(&U) -> V, V> =
-        C::Stream<Box<dyn Send + Sync + FnMut(&T) -> V>, V>;
-
-    fn project_stream<H: 'static + Send + Sync + FnMut(&U) -> V, V: 'static>(
+    fn project_stream<H: 'static + Send + FnMut(&U) -> V, V: 'static>(
         &self,
         mut func: H,
-    ) -> Self::Stream<H, V> {
+    ) -> impl Stream<Item = V> + 'static {
         let p = self.project.clone();
 
-        let func =
-            Box::new(move |v: &T| -> V { func(p(v)) }) as Box<dyn Send + Sync + FnMut(&T) -> V>;
+        let func = Box::new(move |v: &T| -> V { func(p(v)) }) as Box<dyn Send + FnMut(&T) -> V>;
 
         self.inner.project_stream(func)
     }
@@ -218,35 +237,59 @@ where
 //     }
 // }
 
-impl<T, U> Project<U> for Arc<T>
-where
-    T: Project<U>,
-{
-    fn project<V, F: FnOnce(&U) -> V>(&self, f: F) -> V {
-        (**self).project(f)
-    }
+macro_rules! impl_container {
+    ($ty: ident) => {
+        impl<T, U> ProjectRef<U> for $ty<T>
+        where
+            T: ProjectRef<U>,
+        {
+            fn project<V, F: FnOnce(&U) -> V>(&self, f: F) -> V {
+                (**self).project(f)
+            }
+        }
+
+        impl<T, U> ProjectMut<U> for $ty<T>
+        where
+            T: ProjectMut<U>,
+        {
+            fn project_mut<V, F: FnOnce(&mut U) -> V>(&self, f: F) -> V {
+                (**self).project_mut(f)
+            }
+        }
+
+        impl<T, U> ProjectStream<U> for $ty<T>
+        where
+            T: ProjectStream<U>,
+        {
+            fn project_stream<F: 'static + Send + FnMut(&U) -> V, V: 'static>(
+                &self,
+                func: F,
+            ) -> impl Stream<Item = V> + 'static {
+                (**self).project_stream(func)
+            }
+        }
+    };
 }
 
-impl<T, U> ProjectMut<U> for Arc<T>
-where
-    T: ProjectMut<U>,
-{
-    fn project_mut<V, F: FnOnce(&mut U) -> V>(&self, f: F) -> V {
-        (**self).project_mut(f)
-    }
-}
+impl_container!(Box);
+impl_container!(Arc);
+impl_container!(Rc);
 
-impl<T, U> ProjectStream<U> for Arc<T>
+impl<T> ProjectStream<T> for flume::Receiver<T>
 where
-    T: ProjectStream<U>,
+    T: 'static + Send + Sync,
 {
-    type Stream<F: Send + Sync + FnMut(&U) -> V, V> = T::Stream<F, V>;
-
-    fn project_stream<F: 'static + Send + Sync + FnMut(&U) -> V, V: 'static>(
+    fn project_stream<F: 'static + Send + FnMut(&T) -> V, V: 'static>(
         &self,
-        func: F,
-    ) -> Self::Stream<F, V> {
-        (**self).project_stream(func)
+        mut func: F,
+    ) -> impl 'static + Send + Stream<Item = V> {
+        self.clone().into_stream().map(move |v| func(&v))
+    }
+}
+
+impl<T> ProjectSink<T> for flume::Sender<T> {
+    fn project_send(&self, value: T) {
+        self.send(value).unwrap();
     }
 }
 
@@ -260,7 +303,7 @@ mod tests {
     async fn mapped_mutable() {
         let state = Mutable::new((1, 2));
 
-        let a = Mapped::new(state.clone(), |v| &v.0, |v| &mut v.0);
+        let a = MappedState::new(state.clone(), |v| &v.0, |v| &mut v.0);
 
         assert_eq!(a.get(), 1);
 
@@ -274,20 +317,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mapped_mutable_dyn() {
+    async fn project_duplex() {
         let state = Mutable::new((1, 2));
 
-        let a = Mapped::new(state.clone(), |v| &v.0, |v| &mut v.0);
+        let a = MappedState::new(state.clone(), |v| &v.0, |v| &mut v.0);
 
-        let a = Box::new(a) as Box<dyn ProjectStreamDynMut<i32>>;
-
-        assert_eq!(a.project_copy(), 1);
+        let a = Box::new(a) as Box<dyn ProjectDuplex<i32>>;
 
         let mut stream1 = a.project_stream_copy();
         let mut stream2 = a.project_stream_clone();
 
         assert_eq!(stream1.next().await, Some(1));
-        a.replace(2);
+        a.project_send(2);
         assert_eq!(stream1.next().await, Some(2));
         assert_eq!(stream2.next().await, Some(2));
     }

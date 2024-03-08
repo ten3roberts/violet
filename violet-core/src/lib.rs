@@ -9,7 +9,7 @@ pub mod executor;
 mod frame;
 pub mod input;
 pub mod layout;
-mod project;
+pub mod project;
 mod scope;
 pub mod shape;
 mod sink;

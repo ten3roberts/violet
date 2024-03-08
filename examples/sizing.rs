@@ -20,14 +20,13 @@ use violet::core::{
     Edges, Scope, Widget,
 };
 use violet_core::{
+    project::MappedState,
     style::{colors::DARK_CYAN_DEFAULT, SizeExt},
     text::Wrap,
-    to_owned,
     widget::{card, centered, column, row, Slider},
 };
 use violet_wgpu::renderer::RendererConfig;
 
-const MARGIN: Edges = Edges::even(8.0);
 const MARGIN_SM: Edges = Edges::even(4.0);
 
 fn label(text: impl Into<String>) -> Stack<Text> {
@@ -74,21 +73,8 @@ impl Widget for Vec2Editor {
     fn mount(self, scope: &mut Scope<'_>) {
         let value = self.value;
 
-        let x = Mutable::new(value.get().x);
-        let y = Mutable::new(value.get().y);
-
-        scope.spawn(x.signal().for_each({
-            to_owned![value];
-            move |x| {
-                value.lock_mut().x = x.round();
-                async {}
-            }
-        }));
-
-        scope.spawn(y.signal().for_each(move |y| {
-            value.lock_mut().y = y.round();
-            async {}
-        }));
+        let x = MappedState::new(value.clone(), |v| &v.x, |v| &mut v.x);
+        let y = MappedState::new(value.clone(), |v| &v.y, |v| &mut v.y);
 
         column((
             row((label(self.x_label), Slider::new(x, 0.0, 200.0))),

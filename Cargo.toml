@@ -33,6 +33,7 @@ futures-signals = "0.3"
 itertools = "0.12"
 glam = { version = "0.24", features = ["bytemuck"] }
 futures = "0.3"
+futures-concurrency = "7.0"
 flume = "0.11"
 parking_lot = "0.12"
 slotmap = "1.0"
@@ -44,7 +45,7 @@ tokio = { version = "1.0", default-features = false, features = ["macros", "rt"]
 
 bytemuck = { version = "1.13", features = ["derive"] }
 winit = "0.29"
-wgpu = { version = "0.19", default-features = false, features = ["dx12", "fragile-send-sync-non-atomic-wasm", "webgl", "wgsl"] }
+wgpu = { version = "0.19", default-features = false, features = ["fragile-send-sync-non-atomic-wasm", "webgl", "wgsl"] }
 palette = { version = "0.7", features = ["serializing"] }
 dashmap = "5.4"
 image = { version = "0.24", default_features = false, features = ["png", "jpeg"] }

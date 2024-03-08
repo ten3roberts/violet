@@ -11,9 +11,9 @@ pub use future::{SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use interactive::{button::*, input::*, slider::*};
 
-/// Represents a widget in the UI tree which can mount itself into the frame.
+/// A widget is a description of a part of the Ui with the capability to mount itself into the world.
 ///
-/// Is inert before mounting
+/// This trait rarely required Send nor Sync, or a static lifetime as it does remain in the world after it is mounted.
 pub trait Widget: BoxedWidget {
     /// Mount the widget into the world, returning a handle to refer to it
     fn mount(self, scope: &mut Scope<'_>);

@@ -1,9 +1,9 @@
+use std::sync::Arc;
+
 use cosmic_text::Wrap;
 use flax::{Component, Entity, EntityRef};
-use futures_signals::{
-    map_ref,
-    signal::{Mutable, MutableSignal, SignalExt},
-};
+use futures::{stream::BoxStream, StreamExt};
+use futures_signals::signal::Mutable;
 use glam::{IVec2, Vec2};
 use palette::Srgba;
 use winit::event::ElementState;
@@ -12,10 +12,12 @@ use crate::{
     components::{offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
+    project::{ProjectDuplex, ProjectStreamOwned},
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
-    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, SignalWidget, Stack, Text},
+    utils::zip_latest_clone,
+    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
     Edges, Scope, StreamEffect, Widget,
 };
 
@@ -40,19 +42,19 @@ impl Default for SliderStyle {
 
 pub struct Slider<V> {
     style: SliderStyle,
-    value: Mutable<V>,
+    value: Arc<dyn Send + Sync + ProjectDuplex<V>>,
     min: V,
     max: V,
     label: bool,
 }
 
 impl<V> Slider<V> {
-    pub fn new(value: Mutable<V>, min: V, max: V) -> Self
+    pub fn new(value: impl 'static + Send + Sync + ProjectDuplex<V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
         Self {
-            value,
+            value: Arc::new(value),
             min,
             max,
             style: Default::default(),
@@ -99,15 +101,15 @@ impl<V: SliderValue> Widget for Slider<V> {
             input: CursorMove,
             min: f32,
             max: f32,
-            dst: &Mutable<V>,
+            dst: &dyn ProjectDuplex<V>,
         ) {
             let rect = entity.get_copy(rect()).unwrap();
             let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
-            dst.set(V::from_progress(value));
+            dst.project_send(V::from_progress(value));
         }
 
         let handle = SliderHandle {
-            value: self.value.signal(),
+            value: self.value.project_stream_copy(),
             min,
             max,
             rect_id: track,
@@ -121,13 +123,13 @@ impl<V: SliderValue> Widget for Slider<V> {
                 let value = self.value.clone();
                 move |_, entity, input| {
                     if input.state == ElementState::Pressed {
-                        update(entity, input.cursor, min, max, &value);
+                        update(entity, input.cursor, min, max, &*value);
                     }
                 }
             })
             .on_event(on_cursor_move(), {
                 let value = self.value.clone();
-                move |_, entity, input| update(entity, input, min, max, &value)
+                move |_, entity, input| update(entity, input, min, max, &*value)
             });
 
         let slider = Stack::new(handle)
@@ -140,7 +142,7 @@ impl<V: SliderValue> Widget for Slider<V> {
         if self.label {
             row((
                 slider,
-                SignalWidget(self.value.signal().map(|v| {
+                StreamWidget(self.value.project_stream_copy().map(|v| {
                     Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
                 })),
             ))
@@ -152,7 +154,7 @@ impl<V: SliderValue> Widget for Slider<V> {
 }
 
 struct SliderHandle<V> {
-    value: MutableSignal<V>,
+    value: BoxStream<'static, V>,
     handle_color: Srgba,
     handle_size: Unit<Vec2>,
     min: f32,
@@ -164,20 +166,17 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
-        let update_signal = map_ref! {
-            let value = self.value,
-            let size = rect_size.signal() =>
-                (value.to_progress(), *size)
-        };
+        let update = zip_latest_clone(self.value, rect_size.project_stream_copy());
 
         scope.frame_mut().monitor(self.rect_id, rect(), move |v| {
             rect_size.set(v.map(|v| v.size()));
         });
 
-        scope.spawn_effect(StreamEffect::new(update_signal.to_stream(), {
-            move |scope: &mut Scope<'_>, (value, size): (f32, Option<Vec2>)| {
+        scope.spawn_effect(StreamEffect::new(update, {
+            move |scope: &mut Scope<'_>, (value, size): (V, Option<Vec2>)| {
+                tracing::info!(value = value.to_progress(), ?size, "update");
                 if let Some(size) = size {
-                    let pos = (value - self.min) * size.x / (self.max - self.min);
+                    let pos = (value.to_progress() - self.min) * size.x / (self.max - self.min);
 
                     scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
                 }
@@ -238,7 +237,7 @@ pub struct SliderWithLabel<V> {
 }
 
 impl<V> SliderWithLabel<V> {
-    pub fn new(value: Mutable<V>, min: V, max: V) -> Self
+    pub fn new(value: impl 'static + Send + Sync + ProjectDuplex<V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
@@ -257,7 +256,7 @@ impl<V> SliderWithLabel<V> {
 impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let label =
-            SignalWidget(self.slider.value.signal().map(|v| {
+            StreamWidget(self.slider.value.project_stream_copy().map(|v| {
                 Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
             }));
 
