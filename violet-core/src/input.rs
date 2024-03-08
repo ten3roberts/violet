@@ -1,6 +1,8 @@
+use std::str::FromStr;
+
 use flax::{
     component, components::child_of, entity_ids, fetch::Satisfied, filter::All, Component, Entity,
-    EntityIds, EntityRef, Fetch, FetchExt, Query, Topo,
+    EntityIds, EntityRef, Fetch, FetchExt, Mutable, Query, Topo,
 };
 use glam::Vec2;
 

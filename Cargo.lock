@@ -2498,6 +2498,7 @@ dependencies = [
  "serde",
  "slab",
  "slotmap",
+ "tokio",
  "tracing",
  "tynm",
  "unicode-segmentation",

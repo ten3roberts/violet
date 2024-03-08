@@ -231,3 +231,7 @@ fn handle_input(input: KeyboardInput) -> Option<EditorAction> {
 
     None
 }
+
+struct InputField<T> {
+    value: Mutable<T>,
+}
