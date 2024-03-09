@@ -7,7 +7,6 @@ use futures_signals::signal::{self, Mutable, SignalExt};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
-use tracing::info;
 use winit::{
     event::ElementState,
     keyboard::{Key, NamedKey},
@@ -90,6 +89,7 @@ impl Widget for TextInput {
 
         let content = self.content.clone();
 
+        let mut text_content = Mutable::new(String::new());
         let mut editor = TextEditor::new();
 
         let layout_glyphs = Mutable::new(None);
@@ -123,6 +123,10 @@ impl Widget for TextInput {
                             if let Some(action) = action {
 
                                 editor.apply_action(action);
+
+                                let mut text = text_content.lock_mut();
+                                #[allow(unstable_name_collisions)]
+                                text.extend(editor.lines().iter().map(|v| v.text()).intersperse("\n"));
 
                                 content.project_send(editor.lines().iter().map(|v| v.text()).join("\n"));
                             }

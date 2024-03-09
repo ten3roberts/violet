@@ -277,32 +277,33 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithInput<
     where
         V: Copy,
     {
-        let value = Arc::new(value);
-        let text_value = TextInput::new(MappedDuplex::new(
-            value.clone(),
-            move |v| format!("{v}"),
-            move |v| {
-                let v = v.parse::<V>().unwrap_or_default();
-                if v < min {
-                    min
-                } else if v > max {
-                    max
-                } else {
-                    v
-                }
-            },
-        ));
+        todo!()
+        // let value = Arc::new(value);
+        // let text_value = TextInput::new(MappedDuplex::new(
+        //     value.clone(),
+        //     move |v| format!("{v}"),
+        //     move |v| {
+        //         let v = v.parse::<V>().unwrap_or_default();
+        //         if v < min {
+        //             min
+        //         } else if v > max {
+        //             max
+        //         } else {
+        //             v
+        //         }
+        //     },
+        // ));
 
-        Self {
-            text_value,
-            slider: Slider {
-                style: Default::default(),
-                value,
-                min,
-                max,
-                label: false,
-            },
-        }
+        // Self {
+        //     text_value,
+        //     slider: Slider {
+        //         style: Default::default(),
+        //         value,
+        //         min,
+        //         max,
+        //         label: false,
+        //     },
+        // }
     }
 
     /// Set the style
