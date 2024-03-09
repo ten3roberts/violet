@@ -147,7 +147,7 @@ impl InputState {
 
     pub fn on_keyboard_input(&mut self, frame: &mut Frame, event: KeyEvent) {
         if let Some(cur) = &self.focused {
-            tracing::info!(?cur, "sending keyboard input event");
+            tracing::debug!(?cur, "sending keyboard input event");
             let entity = frame.world.entity(cur.id).unwrap();
 
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {

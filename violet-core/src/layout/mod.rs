@@ -310,7 +310,7 @@ pub(crate) fn query_size(
             let _span = tracing::trace_span!("cached").entered();
             // validate_sizing(entity, &cache.value, limits);
             tracing::debug!(%entity, "found valid cached query");
-            // return cache.value;
+            return cache.value;
             // }
         }
     }
@@ -453,7 +453,7 @@ pub(crate) fn update_subtree(
         if validate_cached_layout(value, limits, content_area, cache.fixed_size) {
             tracing::debug!(%entity, ?value, "found valid cached layout");
             // validate_block(entity, &value.value, limits);
-            // return value.value;
+            return value.value;
         }
     }
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Display, str::FromStr, sync::Arc};
 
 use cosmic_text::Wrap;
 use flax::{Component, Entity, EntityRef};
@@ -10,9 +10,10 @@ use winit::event::ElementState;
 
 use crate::{
     components::{offset, rect},
+    editor::TextEditor,
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
-    project::{ProjectDuplex, ProjectStreamOwned},
+    project::{MappedDuplex, ProjectDuplex, ProjectStreamOwned},
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     unit::Unit,
@@ -20,6 +21,8 @@ use crate::{
     widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
     Edges, Scope, StreamEffect, Widget,
 };
+
+use super::input::{InputField, TextInput};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {
@@ -109,7 +112,7 @@ impl<V: SliderValue> Widget for Slider<V> {
         }
 
         let handle = SliderHandle {
-            value: self.value.project_stream_copy(),
+            value: self.value.project_stream_owned(),
             min,
             max,
             rect_id: track,
@@ -142,7 +145,7 @@ impl<V: SliderValue> Widget for Slider<V> {
         if self.label {
             row((
                 slider,
-                StreamWidget(self.value.project_stream_copy().map(|v| {
+                StreamWidget(self.value.project_stream_owned().map(|v| {
                     Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
                 })),
             ))
@@ -166,7 +169,7 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
-        let update = zip_latest_clone(self.value, rect_size.project_stream_copy());
+        let update = zip_latest_clone(self.value, rect_size.project_stream_owned());
 
         scope.frame_mut().monitor(self.rect_id, rect(), move |v| {
             rect_size.set(v.map(|v| v.size()));
@@ -174,7 +177,6 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
 
         scope.spawn_effect(StreamEffect::new(update, {
             move |scope: &mut Scope<'_>, (value, size): (V, Option<Vec2>)| {
-                tracing::info!(value = value.to_progress(), ?size, "update");
                 if let Some(size) = size {
                     let pos = (value.to_progress() - self.min) * size.x / (self.max - self.min);
 
@@ -256,10 +258,62 @@ impl<V> SliderWithLabel<V> {
 impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let label =
-            StreamWidget(self.slider.value.project_stream_copy().map(|v| {
+            StreamWidget(self.slider.value.project_stream_owned().map(|v| {
                 Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
             }));
 
         crate::widget::List::new((self.slider, label)).mount(scope)
+    }
+}
+
+/// A slider with label displaying the value
+pub struct SliderWithInput<V> {
+    text_value: TextInput,
+    slider: Slider<V>,
+}
+
+impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithInput<V> {
+    pub fn new(value: impl 'static + Send + Sync + ProjectDuplex<V>, min: V, max: V) -> Self
+    where
+        V: Copy,
+    {
+        let value = Arc::new(value);
+        let text_value = TextInput::new(MappedDuplex::new(
+            value.clone(),
+            move |v| format!("{v}"),
+            move |v| {
+                let v = v.parse::<V>().unwrap_or_default();
+                if v < min {
+                    min
+                } else if v > max {
+                    max
+                } else {
+                    v
+                }
+            },
+        ));
+
+        Self {
+            text_value,
+            slider: Slider {
+                style: Default::default(),
+                value,
+                min,
+                max,
+                label: false,
+            },
+        }
+    }
+
+    /// Set the style
+    pub fn with_style(mut self, style: SliderStyle) -> Self {
+        self.slider = self.slider.with_style(style);
+        self
+    }
+}
+
+impl<V: SliderValue> Widget for SliderWithInput<V> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        row((self.slider, self.text_value)).mount(scope)
     }
 }

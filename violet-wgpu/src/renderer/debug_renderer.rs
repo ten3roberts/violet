@@ -122,41 +122,41 @@ impl DebugRenderer {
         let mut query = Query::new((entity_refs(), layout_cache()));
         let mut query = query.borrow(&frame.world);
 
-        let clamped_indicators = query.iter().filter_map(|(entity, v)| {
-            let clamped_query_vertical =
-                if v.query()[0].as_ref().is_some_and(|v| v.value.hints.can_grow) {
-                    vec3(0.5, 0.0, 0.0)
-                } else {
-                    Vec3::ZERO
-                };
+        // let clamped_indicators = query.iter().filter_map(|(entity, v)| {
+        //     let clamped_query_vertical =
+        //         if v.query()[0].as_ref().is_some_and(|v| v.value.hints.can_grow) {
+        //             vec3(0.5, 0.0, 0.0)
+        //         } else {
+        //             Vec3::ZERO
+        //         };
 
-            let clamped_query_horizontal =
-                if v.query()[1].as_ref().is_some_and(|v| v.value.hints.can_grow) {
-                    vec3(0.0, 0.5, 0.0)
-                } else {
-                    Vec3::ZERO
-                };
+        //     let clamped_query_horizontal =
+        //         if v.query()[1].as_ref().is_some_and(|v| v.value.hints.can_grow) {
+        //             vec3(0.0, 0.5, 0.0)
+        //         } else {
+        //             Vec3::ZERO
+        //         };
 
-            let clamped_layout = if v.layout().map(|v| v.value.can_grow).unwrap_or(false) {
-                vec3(0.0, 0.0, 0.5)
-            } else {
-                Vec3::ZERO
-            };
+        //     let clamped_layout = if v.layout().map(|v| v.value.can_grow).unwrap_or(false) {
+        //         vec3(0.0, 0.0, 0.5)
+        //     } else {
+        //         Vec3::ZERO
+        //     };
 
-            let color: Vec3 = [
-                clamped_query_vertical,
-                clamped_query_horizontal,
-                clamped_layout,
-            ]
-            .into_iter()
-            .sum();
+        //     let color: Vec3 = [
+        //         clamped_query_vertical,
+        //         clamped_query_horizontal,
+        //         clamped_layout,
+        //     ]
+        //     .into_iter()
+        //     .sum();
 
-            if color == Vec3::ZERO {
-                None
-            } else {
-                Some((entity, color.extend(1.0)))
-            }
-        });
+        //     if color == Vec3::ZERO {
+        //         None
+        //     } else {
+        //         Some((entity, color.extend(1.0)))
+        //     }
+        // });
 
         let mut query = Query::new((entity_refs(), layout_cache()));
         let mut query = query.borrow(&frame.world);
@@ -185,32 +185,30 @@ impl DebugRenderer {
             Some((entity, color))
         });
 
-        let objects = clamped_indicators
-            .chain(objects)
-            .filter_map(|(entity, color)| {
-                let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
+        let objects = objects.filter_map(|(entity, color)| {
+            let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
 
-                let model_matrix = Mat4::from_scale_rotation_translation(
-                    screen_rect.size().extend(1.0),
-                    Quat::IDENTITY,
-                    screen_rect.pos().extend(0.2),
-                );
+            let model_matrix = Mat4::from_scale_rotation_translation(
+                screen_rect.size().extend(1.0),
+                Quat::IDENTITY,
+                screen_rect.pos().extend(0.2),
+            );
 
-                let object_data = ObjectData {
-                    model_matrix,
-                    color,
-                };
+            let object_data = ObjectData {
+                model_matrix,
+                color,
+            };
 
-                Some((
-                    DrawCommand {
-                        shader: self.shader.clone(),
-                        bind_group: self.bind_group.clone(),
-                        mesh: self.mesh.clone(),
-                        index_count: 6,
-                    },
-                    object_data,
-                ))
-            });
+            Some((
+                DrawCommand {
+                    shader: self.shader.clone(),
+                    bind_group: self.bind_group.clone(),
+                    mesh: self.mesh.clone(),
+                    index_count: 6,
+                },
+                object_data,
+            ))
+        });
 
         self.objects.clear();
         self.objects.extend(objects);

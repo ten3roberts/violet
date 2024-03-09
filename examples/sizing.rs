@@ -120,7 +120,7 @@ impl Widget for FlowSizing {
                 Unit::rel2(0.0, 0.0) + Unit::px2(10.0, 50.0),
             )
             .with_name("DARK_CYAN"),
-            // AnimatedSize,
+            AnimatedSize,
         );
 
         column((
@@ -221,6 +221,8 @@ impl Widget for AnimatedSize {
             }),
         );
 
-        Rectangle::new(LION_DEFAULT).mount(scope)
+        Rectangle::new(LION_DEFAULT)
+            .with_size(Default::default())
+            .mount(scope)
     }
 }
