@@ -2539,8 +2539,11 @@ name = "violet-web-example"
 version = "0.0.1"
 dependencies = [
  "console_error_panic_hook",
+ "futures",
  "glam",
+ "itertools 0.12.1",
  "tracing-subscriber",
+ "tracing-tree",
  "tracing-web",
  "violet",
  "wasm-bindgen",

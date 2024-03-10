@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use flax::{
     component, components::child_of, entity_ids, fetch::Satisfied, filter::All, Component, Entity,
-    EntityIds, EntityRef, Fetch, FetchExt, Mutable, Query, Topo,
+    EntityIds, EntityRef, Fetch, FetchExt, Mutable, Query, Topo, World,
 };
 use glam::Vec2;
 
@@ -123,14 +123,12 @@ impl InputState {
     pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) {
         self.pos = pos;
 
-        if let Some(cur) = &self.focused {
-            let entity = frame.world.entity(cur.id).unwrap();
-
+        if let Some(entity) = &self.focused(&frame.world) {
             let screen_rect = entity.get_copy(screen_rect()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
                 on_input(
                     frame,
-                    &entity,
+                    entity,
                     CursorMove {
                         modifiers: self.modifiers,
                         absolute_pos: pos,
@@ -146,14 +144,11 @@ impl InputState {
     }
 
     pub fn on_keyboard_input(&mut self, frame: &mut Frame, event: KeyEvent) {
-        if let Some(cur) = &self.focused {
-            tracing::debug!(?cur, "sending keyboard input event");
-            let entity = frame.world.entity(cur.id).unwrap();
-
+        if let Some(entity) = &self.focused(frame.world()) {
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
                 on_input(
                     frame,
-                    &entity,
+                    entity,
                     KeyboardInput {
                         modifiers: self.modifiers,
                         event,
@@ -163,18 +158,20 @@ impl InputState {
         }
     }
 
-    fn set_focused(&mut self, frame: &Frame, focused: Option<Entity>) {
-        let cur = self.focused.as_ref().map(|v| v.id);
+    fn focused<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
+        self.focused.as_ref().and_then(|v| world.entity(v.id).ok())
+    }
 
-        if cur == focused {
+    fn set_focused(&mut self, frame: &Frame, focused: Option<Entity>) {
+        let cur = self.focused(&frame.world);
+
+        if cur.map(|v| v.id()) == focused {
             return;
         }
 
-        if let Some(cur) = &self.focused {
-            let entity = frame.world().entity(cur.id).unwrap();
-
-            if let Ok(mut on_focus) = entity.get_mut(on_focus()) {
-                on_focus(frame, &entity, false);
+        if let Some(cur) = cur {
+            if let Ok(mut on_focus) = cur.get_mut(on_focus()) {
+                on_focus(frame, &cur, false);
             }
         }
 

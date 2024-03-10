@@ -12,13 +12,15 @@ use crate::{
     components::{offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
-    project::{Dedup, FilterDuplex, Map, StateDuplex, StateStream},
+    state::{Dedup, FilterDuplex, Map, StateDuplex, StateStream},
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
     to_owned,
     unit::Unit,
-    utils::zip_latest_clone,
-    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
+    utils::zip_latest,
+    widget::{
+        row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt,
+    },
     Edges, Scope, StreamEffect, Widget,
 };
 
@@ -171,7 +173,7 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
-        let update = zip_latest_clone(self.value, rect_size.stream());
+        let update = zip_latest(self.value, rect_size.stream());
 
         scope.frame_mut().monitor(self.rect_id, rect(), move |v| {
             rect_size.set(v.map(|v| v.size()));
@@ -308,12 +310,15 @@ impl SliderWithLabel<f32> {
 impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         if self.editable {
-            row((self.slider, TextInput::new(self.text_value))).mount(scope)
+            row((self.slider, TextInput::new(self.text_value)))
+                .with_cross_align(Alignment::Center)
+                .mount(scope)
         } else {
             row((
                 self.slider,
                 StreamWidget(self.text_value.stream().map(Text::new)),
             ))
+            .with_cross_align(Alignment::Center)
             .mount(scope)
         }
     }

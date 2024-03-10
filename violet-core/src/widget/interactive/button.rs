@@ -39,7 +39,10 @@ pub struct Button<W = Text> {
 }
 
 impl<W> Button<W> {
-    pub fn new(label: W) -> Self {
+    pub fn new(label: W) -> Self
+    where
+        W: Widget,
+    {
         Self {
             on_press: Box::new(|_, _| {}),
             label,

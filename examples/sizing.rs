@@ -20,7 +20,7 @@ use violet::core::{
     Edges, Scope, Widget,
 };
 use violet_core::{
-    project::MappedState,
+    state::MappedState,
     style::{colors::DARK_CYAN_DEFAULT, SizeExt},
     text::Wrap,
     widget::{card, centered, column, row, Slider},

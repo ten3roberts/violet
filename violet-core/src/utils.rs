@@ -10,12 +10,12 @@ macro_rules! to_owned {
 }
 
 /// Combines two streams yielding the latest value from each stream
-pub fn zip_latest<A: Stream, B: Stream, F>(a: A, b: B, func: F) -> ZipLatest<A, B, F> {
+pub fn zip_latest_ref<A: Stream, B: Stream, F>(a: A, b: B, func: F) -> ZipLatest<A, B, F> {
     ZipLatest::new(a, b, func)
 }
 
 /// Combines two streams yielding the latest value from each stream
-pub fn zip_latest_clone<A, B>(
+pub fn zip_latest<A, B>(
     a: A,
     b: B,
 ) -> ZipLatest<A, B, impl Fn(&A::Item, &B::Item) -> (A::Item, B::Item)>

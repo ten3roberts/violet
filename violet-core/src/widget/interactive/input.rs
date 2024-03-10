@@ -16,7 +16,7 @@ use crate::{
     components::{self, screen_rect},
     editor::{CursorMove, EditAction, EditorAction, TextEditor},
     input::{focus_sticky, focusable, on_focus, on_keyboard_input, on_mouse_input, KeyboardInput},
-    project::{StateDuplex, StateOwned, StateSink, StateStream},
+    state::{StateDuplex, StateOwned, StateSink, StateStream},
     style::{
         colors::EERIE_BLACK_300, get_stylesheet, interactive_active, interactive_inactive, spacing,
         Background, SizeExt, StyleExt, WidgetSize,

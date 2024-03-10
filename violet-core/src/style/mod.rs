@@ -241,17 +241,17 @@ pub fn setup_stylesheet() -> EntityBuilder {
     let mut builder = Entity::builder();
 
     builder
-        .set(primary_surface(), EERIE_BLACK_DEFAULT)
-        .set(primary_element(), PLATINUM_DEFAULT)
-        .set(secondary_surface(), EERIE_BLACK_600)
-        .set(accent_surface(), EERIE_BLACK_DEFAULT)
-        .set(accent_element(), JADE_DEFAULT)
-        .set(success_surface(), EERIE_BLACK_DEFAULT)
-        .set(success_element(), JADE_DEFAULT)
-        .set(warning_surface(), EERIE_BLACK_DEFAULT)
-        .set(warning_element(), LION_DEFAULT)
-        .set(error_surface(), EERIE_BLACK_DEFAULT)
-        .set(error_element(), REDWOOD_DEFAULT)
+        .set(primary_background(), EERIE_BLACK_DEFAULT)
+        .set(primary_item(), PLATINUM_DEFAULT)
+        .set(secondary_background(), EERIE_BLACK_600)
+        .set(accent_background(), EERIE_BLACK_DEFAULT)
+        .set(accent_item(), JADE_DEFAULT)
+        .set(success_background(), EERIE_BLACK_DEFAULT)
+        .set(success_item(), JADE_DEFAULT)
+        .set(warning_background(), EERIE_BLACK_DEFAULT)
+        .set(warning_item(), LION_DEFAULT)
+        .set(danger_background(), EERIE_BLACK_DEFAULT)
+        .set(danger_item(), REDWOOD_DEFAULT)
         .set(interactive_active(), JADE_DEFAULT)
         .set(interactive_hover(), JADE_600)
         .set(interactive_pressed(), JADE_400)
@@ -268,24 +268,24 @@ pub fn setup_stylesheet() -> EntityBuilder {
 flax::component! {
     pub stylesheet(id): () => [ Exclusive ],
     /// The primary surface color
-    pub primary_surface: Srgba,
-    pub primary_element: Srgba,
+    pub primary_background: Srgba,
+    pub primary_item: Srgba,
 
     /// Used for secondary surfaces, such as card backgrounds
-    pub secondary_surface: Srgba,
-    pub secondary_element: Srgba,
+    pub secondary_background: Srgba,
+    pub secondary_item: Srgba,
 
-    pub accent_surface: Srgba,
-    pub accent_element: Srgba,
+    pub accent_background: Srgba,
+    pub accent_item: Srgba,
 
-    pub success_surface: Srgba,
-    pub success_element: Srgba,
+    pub success_background: Srgba,
+    pub success_item: Srgba,
 
-    pub warning_surface: Srgba,
-    pub warning_element: Srgba,
+    pub warning_background: Srgba,
+    pub warning_item: Srgba,
 
-    pub error_surface: Srgba,
-    pub error_element: Srgba,
+    pub danger_background: Srgba,
+    pub danger_item: Srgba,
 
     pub spacing: SpacingConfig,
 

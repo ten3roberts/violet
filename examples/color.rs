@@ -7,10 +7,10 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    project::{Map, MappedState, StateStream, StateStreamRef},
+    state::{Map, MappedState, StateStream, StateStreamRef},
     style::{colors::LION_500, SizeExt},
     unit::Unit,
-    utils::zip_latest_clone,
+    utils::zip_latest,
     widget::{
         card, column, row, Rectangle, SignalWidget, SliderWithLabel, Stack, StreamWidget, Text,
     },
@@ -93,7 +93,7 @@ impl Widget for MainApp {
                         .round(1.0),
                 )),
                 StreamWidget(
-                    zip_latest_clone(color_oklch.stream(), falloff.stream())
+                    zip_latest(color_oklch.stream(), falloff.stream())
                         .map(|(color, falloff)| Tints::new(color, falloff)),
                 ),
             ))

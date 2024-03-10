@@ -90,15 +90,15 @@ impl Widget for MainApp {
                 column((
                     Button::with_label("Button"),
                     Button::with_label("Button").with_style(ButtonStyle {
-                        normal_color: style::success_element(),
+                        normal_color: style::success_item(),
                         ..Default::default()
                     }),
                     Button::with_label("Warning").with_style(ButtonStyle {
-                        normal_color: style::warning_element(),
+                        normal_color: style::warning_item(),
                         ..Default::default()
                     }),
                     Button::with_label("Error").with_style(ButtonStyle {
-                        normal_color: style::error_element(),
+                        normal_color: style::danger_item(),
                         ..Default::default()
                     }),
                 ))
