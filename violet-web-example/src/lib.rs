@@ -1,4 +1,4 @@
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use tracing_subscriber::{
     filter::LevelFilter, fmt::format::Pretty, layer::SubscriberExt, util::SubscriberInitExt, Layer,
 };
@@ -7,6 +7,7 @@ use violet::{
     core::{
         components,
         layout::{Alignment, Direction},
+        project::MappedState,
         style::{
             colors::{
                 EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_200, JADE_DEFAULT, LION_DEFAULT,
@@ -16,13 +17,16 @@ use violet::{
         },
         text::Wrap,
         unit::Unit,
-        widget::{List, Rectangle, SignalWidget, SliderWithLabel, Stack, Text, WidgetExt},
+        widget::{
+            card, column, row, List, Rectangle, SignalWidget, SliderWithLabel, SliderWithLabel,
+            Stack, Text, WidgetExt,
+        },
         Edges, Scope, Widget, WidgetCollection,
     },
     flax::components::name,
     futures_signals::signal::{Mutable, SignalExt},
     glam::vec2,
-    palette::Srgba,
+    palette::{IntoColor, Oklch, Srgba},
 };
 use wasm_bindgen::prelude::*;
 
@@ -64,10 +68,10 @@ impl Widget for MainApp {
         column((
             row((
                 Text::new("Lightness"),
-                SliderWithInput::new(lightness, 0.0, 1.0),
+                SliderWithLabel::new(lightness, 0.0, 1.0),
             )),
-            row((Text::new("Chroma"), SliderWithInput::new(chroma, 0.0, 0.37))),
-            row((Text::new("Hue"), SliderWithInput::new(hue, 0.0, 360.0))),
+            row((Text::new("Chroma"), SliderWithLabel::new(chroma, 0.0, 0.37))),
+            row((Text::new("Hue"), SliderWithLabel::new(hue, 0.0, 360.0))),
             SignalWidget(color.signal().map(|v| Text::new(format!("{}", v)))),
             card(SignalWidget(color_rect)),
         ))

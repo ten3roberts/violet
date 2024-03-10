@@ -5,24 +5,24 @@ use flax::{Component, Entity, EntityRef};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::{IVec2, Vec2};
-use palette::Srgba;
+use palette::{num::Recip, Srgba};
 use winit::event::ElementState;
 
 use crate::{
     components::{offset, rect},
-    editor::TextEditor,
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
-    project::{MappedDuplex, ProjectDuplex, ProjectStreamOwned},
+    project::{Dedup, FilterDuplex, Map, StateDuplex, StateStream},
     style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
     text::TextSegment,
+    to_owned,
     unit::Unit,
     utils::zip_latest_clone,
     widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
     Edges, Scope, StreamEffect, Widget,
 };
 
-use super::input::{InputField, TextInput};
+use super::input::TextInput;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {
@@ -45,14 +45,14 @@ impl Default for SliderStyle {
 
 pub struct Slider<V> {
     style: SliderStyle,
-    value: Arc<dyn Send + Sync + ProjectDuplex<V>>,
+    value: Arc<dyn Send + Sync + StateDuplex<Item = V>>,
     min: V,
     max: V,
-    label: bool,
+    transform: Option<Box<dyn Send + Sync + Fn(V) -> V>>,
 }
 
 impl<V> Slider<V> {
-    pub fn new(value: impl 'static + Send + Sync + ProjectDuplex<V>, min: V, max: V) -> Self
+    pub fn new(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
@@ -61,19 +61,19 @@ impl<V> Slider<V> {
             min,
             max,
             style: Default::default(),
-            label: false,
+            transform: None,
         }
-    }
-
-    /// Set the label visibility
-    pub fn with_label(mut self, label: bool) -> Self {
-        self.label = label;
-        self
     }
 
     /// Set the style
     pub fn with_style(mut self, style: SliderStyle) -> Self {
         self.style = style;
+        self
+    }
+
+    /// Set the transform
+    pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
+        self.transform = Some(Box::new(transform));
         self
     }
 }
@@ -104,15 +104,15 @@ impl<V: SliderValue> Widget for Slider<V> {
             input: CursorMove,
             min: f32,
             max: f32,
-            dst: &dyn ProjectDuplex<V>,
+            dst: &dyn StateDuplex<Item = V>,
         ) {
             let rect = entity.get_copy(rect()).unwrap();
             let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
-            dst.project_send(V::from_progress(value));
+            dst.send(V::from_progress(value));
         }
 
         let handle = SliderHandle {
-            value: self.value.project_stream_owned(),
+            value: self.value.stream(),
             min,
             max,
             rect_id: track,
@@ -120,10 +120,22 @@ impl<V: SliderValue> Widget for Slider<V> {
             handle_size,
         };
 
+        let value = Arc::new(Map::new(
+            self.value,
+            |v| v,
+            move |v| {
+                if let Some(transform) = &self.transform {
+                    transform(v)
+                } else {
+                    v
+                }
+            },
+        ));
+
         scope
             .set(focusable(), ())
             .on_event(on_mouse_input(), {
-                let value = self.value.clone();
+                to_owned![value];
                 move |_, entity, input| {
                     if input.state == ElementState::Pressed {
                         update(entity, input.cursor, min, max, &*value);
@@ -131,7 +143,7 @@ impl<V: SliderValue> Widget for Slider<V> {
                 }
             })
             .on_event(on_cursor_move(), {
-                let value = self.value.clone();
+                to_owned![value];
                 move |_, entity, input| update(entity, input, min, max, &*value)
             });
 
@@ -142,17 +154,7 @@ impl<V: SliderValue> Widget for Slider<V> {
                 ..Default::default()
             });
 
-        if self.label {
-            row((
-                slider,
-                StreamWidget(self.value.project_stream_owned().map(|v| {
-                    Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
-                })),
-            ))
-            .mount(scope)
-        } else {
-            slider.mount(scope)
-        }
+        slider.mount(scope)
     }
 }
 
@@ -169,7 +171,7 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
-        let update = zip_latest_clone(self.value, rect_size.project_stream_owned());
+        let update = zip_latest_clone(self.value, rect_size.stream());
 
         scope.frame_mut().monitor(self.rect_id, rect(), move |v| {
             rect_size.set(v.map(|v| v.size()));
@@ -235,16 +237,46 @@ num_impl!(usize);
 
 /// A slider with label displaying the value
 pub struct SliderWithLabel<V> {
+    text_value: Box<dyn 'static + Send + Sync + StateDuplex<Item = String>>,
     slider: Slider<V>,
+    editable: bool,
 }
 
-impl<V> SliderWithLabel<V> {
-    pub fn new(value: impl 'static + Send + Sync + ProjectDuplex<V>, min: V, max: V) -> Self
+impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<V> {
+    pub fn new(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
+        // Wrap in dedup to prevent updating equal numeric values like `0` and `0.` etc when typing
+        let value = Arc::new(value);
+
+        let text_value = Box::new(FilterDuplex::new(
+            Dedup::new(value.clone()),
+            |v| Some(format!("{v}")),
+            move |v: String| {
+                let v = v.parse::<V>().ok()?;
+                let v = if v < min {
+                    min
+                } else if v > max {
+                    max
+                } else {
+                    v
+                };
+
+                Some(v)
+            },
+        ));
+
         Self {
-            slider: Slider::new(value, min, max),
+            text_value,
+            slider: Slider {
+                style: Default::default(),
+                value,
+                min,
+                max,
+                transform: None,
+            },
+            editable: false,
         }
     }
 
@@ -253,68 +285,36 @@ impl<V> SliderWithLabel<V> {
         self.slider = self.slider.with_style(style);
         self
     }
-}
 
-impl<V: SliderValue> Widget for SliderWithLabel<V> {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let label =
-            StreamWidget(self.slider.value.project_stream_owned().map(|v| {
-                Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
-            }));
-
-        crate::widget::List::new((self.slider, label)).mount(scope)
-    }
-}
-
-/// A slider with label displaying the value
-pub struct SliderWithInput<V> {
-    text_value: TextInput,
-    slider: Slider<V>,
-}
-
-impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithInput<V> {
-    pub fn new(value: impl 'static + Send + Sync + ProjectDuplex<V>, min: V, max: V) -> Self
-    where
-        V: Copy,
-    {
-        todo!()
-        // let value = Arc::new(value);
-        // let text_value = TextInput::new(MappedDuplex::new(
-        //     value.clone(),
-        //     move |v| format!("{v}"),
-        //     move |v| {
-        //         let v = v.parse::<V>().unwrap_or_default();
-        //         if v < min {
-        //             min
-        //         } else if v > max {
-        //             max
-        //         } else {
-        //             v
-        //         }
-        //     },
-        // ));
-
-        // Self {
-        //     text_value,
-        //     slider: Slider {
-        //         style: Default::default(),
-        //         value,
-        //         min,
-        //         max,
-        //         label: false,
-        //     },
-        // }
+    pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
+        self.slider.transform = Some(Box::new(transform));
+        self
     }
 
-    /// Set the style
-    pub fn with_style(mut self, style: SliderStyle) -> Self {
-        self.slider = self.slider.with_style(style);
+    pub fn editable(mut self, editable: bool) -> Self {
+        self.editable = editable;
         self
     }
 }
 
-impl<V: SliderValue> Widget for SliderWithInput<V> {
+impl SliderWithLabel<f32> {
+    pub fn round(mut self, round: f32) -> Self {
+        let recip = round.recip();
+        self.slider.transform = Some(Box::new(move |v| (v * recip).round() / recip));
+        self
+    }
+}
+
+impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        row((self.slider, self.text_value)).mount(scope)
+        if self.editable {
+            row((self.slider, TextInput::new(self.text_value))).mount(scope)
+        } else {
+            row((
+                self.slider,
+                StreamWidget(self.text_value.stream().map(Text::new)),
+            ))
+            .mount(scope)
+        }
     }
 }

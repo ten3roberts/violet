@@ -302,11 +302,22 @@ impl TextEditor {
     }
 
     pub fn set_text<'a>(&mut self, text: impl IntoIterator<Item = &'a str>) {
+        let at_end_col = self.cursor.col >= self.text[self.cursor.row].len();
+        let at_end_row = self.cursor.row >= self.text.len() - 1;
+
         self.text.clear();
         self.text.extend(text.into_iter().map(EditorLine::new));
 
         self.cursor.row = self.cursor.row.min(self.text.len() - 1);
         self.cursor.col = self.cursor.col.min(self.text[self.cursor.row].len());
+
+        if at_end_row {
+            self.cursor.row = self.text.len() - 1;
+        }
+
+        if at_end_col {
+            self.cursor.col = self.text[self.cursor.row].len();
+        }
     }
 
     pub fn set_cursor(&mut self, row: usize, col: usize) {

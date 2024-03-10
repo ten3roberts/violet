@@ -1,49 +1,31 @@
 use std::usize;
 
-use futures_signals::{
-    map_ref,
-    signal::{self, Mutable, SignalExt},
-};
+use futures_signals::{map_ref, signal::Mutable};
 
-use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{num::Round, FromColor, Hsva, IntoColor, Oklcha, Srgba};
+use palette::{FromColor, Hsva, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
-use futures::stream::StreamExt;
 use violet::core::{
-    components::{self, screen_rect},
-    editor::{self, EditAction, EditorAction, TextEditor},
-    input::{focusable, on_keyboard_input, on_mouse_input},
     layout::Alignment,
     style::StyleExt,
-    text::{LayoutGlyphs, TextSegment},
-    to_owned,
     unit::Unit,
-    widget::{List, NoOp, Rectangle, SignalWidget, Stack, Text, WidgetExt},
+    widget::{List, Rectangle, SignalWidget, Stack, Text},
     Scope, Widget,
 };
 use violet_core::{
-    input::{
-        event::ElementState,
-        focus_sticky,
-        keyboard::{Key, NamedKey},
-        KeyboardInput,
-    },
     style::{
         self,
-        colors::{
-            EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT, LION_DEFAULT,
-        },
+        colors::{EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT},
         Background, SizeExt,
     },
     text::Wrap,
     widget::{
-        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, Slider,
-        SliderWithLabel, TextInput,
+        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, SliderWithLabel,
+        TextInput,
     },
-    Edges, Rect,
+    Edges,
 };
 use violet_wgpu::renderer::RendererConfig;
 
@@ -126,8 +108,14 @@ impl Widget for MainApp {
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
             card(column((
                 column((
-                    row((Text::new("Size"), SliderWithLabel::new(value, 20.0, 200.0))),
-                    row((Text::new("Count"), SliderWithLabel::new(count, 1, 20))),
+                    row((
+                        Text::new("Size"),
+                        SliderWithLabel::new(value, 20.0, 200.0).editable(true),
+                    )),
+                    row((
+                        Text::new("Count"),
+                        SliderWithLabel::new(count, 1, 2).editable(true),
+                    )),
                 )),
                 SignalWidget::new(item_list),
             ))),

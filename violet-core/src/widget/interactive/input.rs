@@ -5,7 +5,7 @@ use flax::Component;
 use futures::{FutureExt, StreamExt};
 use futures_signals::signal::{self, Mutable, SignalExt};
 use glam::{vec2, Vec2};
-use itertools::Itertools;
+use itertools::{Itertools, Position};
 use palette::Srgba;
 use winit::{
     event::ElementState,
@@ -15,11 +15,11 @@ use winit::{
 use crate::{
     components::{self, screen_rect},
     editor::{CursorMove, EditAction, EditorAction, TextEditor},
-    input::{focus_sticky, focusable, on_keyboard_input, on_mouse_input, KeyboardInput},
-    project::{ProjectDuplex, ProjectOwned, ProjectSink, ProjectStreamOwned},
+    input::{focus_sticky, focusable, on_focus, on_keyboard_input, on_mouse_input, KeyboardInput},
+    project::{StateDuplex, StateOwned, StateSink, StateStream},
     style::{
-        colors::EERIE_BLACK_300, get_stylesheet, interactive_active, spacing, Background, SizeExt,
-        StyleExt, WidgetSize,
+        colors::EERIE_BLACK_300, get_stylesheet, interactive_active, interactive_inactive, spacing,
+        Background, SizeExt, StyleExt, WidgetSize,
     },
     text::{LayoutGlyphs, TextSegment},
     to_owned,
@@ -46,14 +46,15 @@ impl Default for TextInputStyle {
     }
 }
 
+/// Text field allowing arbitrary user input
 pub struct TextInput {
     style: TextInputStyle,
-    content: Arc<dyn Send + Sync + ProjectDuplex<String>>,
+    content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
     size: WidgetSize,
 }
 
 impl TextInput {
-    pub fn new(content: impl 'static + Send + Sync + ProjectDuplex<String>) -> Self {
+    pub fn new(content: impl 'static + Send + Sync + StateDuplex<Item = String>) -> Self {
         Self {
             content: Arc::new(content),
             style: Default::default(),
@@ -89,6 +90,10 @@ impl Widget for TextInput {
 
         let content = self.content.clone();
 
+        let focused = Mutable::new(false);
+
+        // Internal text to keep track of non-bijective text changes, such as incomplete numeric
+        // input
         let mut text_content = Mutable::new(String::new());
         let mut editor = TextEditor::new();
 
@@ -103,33 +108,37 @@ impl Widget for TextInput {
 
         scope.spawn({
             let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream();
+            let mut focused_signal = focused.stream().fuse();
+            to_owned![text_content];
             async move {
-                let mut rx = rx.into_stream();
+                let mut rx = rx.into_stream().fuse();
 
                 let mut glyphs: LayoutGlyphs;
 
                 let mut cursor_pos = Vec2::ZERO;
 
-                let mut new_text = content.project_stream_owned();
+                let mut new_text = content.stream().fuse();
+                let mut focused = false;
 
                 loop {
                     futures::select! {
-                        new_text = new_text.next().fuse() => {
-                            if let Some(new_text) = new_text {
-                                editor.set_text(new_text.split('\n'));
-                            }
+                        focus = focused_signal.select_next_some() => {
+                            focused = focus;
                         }
-                        action = rx.next().fuse() => {
-                            if let Some(action) = action {
+                        new_text = new_text.select_next_some() => {
+                            editor.set_text(new_text.split('\n'));
+                            text_content.send(new_text);
+                        }
+                        action = rx.select_next_some() => {
+                            editor.apply_action(action);
 
-                                editor.apply_action(action);
+                            let mut text = text_content.lock_mut();
+                            text.clear();
+                            #[allow(unstable_name_collisions)]
+                            text.extend(editor.lines().iter().map(|v| v.text()).intersperse("\n"));
 
-                                let mut text = text_content.lock_mut();
-                                #[allow(unstable_name_collisions)]
-                                text.extend(editor.lines().iter().map(|v| v.text()).intersperse("\n"));
-
-                                content.project_send(editor.lines().iter().map(|v| v.text()).join("\n"));
-                            }
+                            content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
+                            // text_content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
                         }
                         new_glyphs = layout_glyphs.next().fuse() => {
                             if let Some(Some(new_glyphs)) = new_glyphs {
@@ -152,12 +161,12 @@ impl Widget for TextInput {
                         }
                     }
 
-                    editor_props_tx
+                                      editor_props_tx
                         .send(Box::new(Stack::new(
                                     (
-                                        Positioned::new(Rectangle::new(cursor_color)
+                                        focused.then(|| Positioned::new(Rectangle::new(cursor_color)
                                             .with_min_size(Unit::px2(2.0, 18.0)))
-                                        .with_offset(Unit::px(cursor_pos)),
+                                        .with_offset(Unit::px(cursor_pos))),
                                     )
                         )))
                         .ok();
@@ -168,6 +177,9 @@ impl Widget for TextInput {
         scope
             .set(focusable(), ())
             .set(focus_sticky(), ())
+            .on_event(on_focus(), move |_, _, focus| {
+                focused.set(focus);
+            })
             .on_event(on_mouse_input(), {
                 to_owned![layout_glyphs, text_bounds, tx];
                 move |_, _, input| {
@@ -199,7 +211,7 @@ impl Widget for TextInput {
             });
 
         Stack::new((
-            StreamWidget(self.content.clone().project_stream_owned().map(move |v| {
+            StreamWidget(text_content.stream().map(move |v| {
                 to_owned![text_bounds];
                 Text::rich([TextSegment::new(v)])
                     .with_font_size(self.style.font_size)
@@ -247,13 +259,13 @@ fn handle_input(input: KeyboardInput) -> Option<EditorAction> {
 
 pub struct InputField<V> {
     label: String,
-    value: Arc<dyn ProjectDuplex<V>>,
+    value: Arc<dyn StateDuplex<Item = V>>,
 }
 
 impl<V> InputField<V> {
     pub fn new(
         label: impl Into<String>,
-        value: impl 'static + Send + Sync + ProjectDuplex<V>,
+        value: impl 'static + Send + Sync + StateDuplex<Item = V>,
     ) -> Self {
         Self {
             label: label.into(),
@@ -278,23 +290,18 @@ impl<V: 'static + Display + FromStr> Widget for InputField<V> {
                 })
                 .for_each(move |v| {
                     tracing::info!("Parsed: {}", v);
-                    value.project_send(v);
+                    value.send(v);
                     async {}
                 }),
         );
 
-        scope.spawn(
-            self.value
-                .project_stream_owned()
-                .map(|v| v.to_string())
-                .for_each({
-                    to_owned![text_value];
-                    move |v| {
-                        text_value.set(v);
-                        async {}
-                    }
-                }),
-        );
+        scope.spawn(self.value.stream().map(|v| v.to_string()).for_each({
+            to_owned![text_value];
+            move |v| {
+                text_value.set(v);
+                async {}
+            }
+        }));
 
         let editor = TextInput::new(text_value);
 

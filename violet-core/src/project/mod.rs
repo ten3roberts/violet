@@ -1,127 +1,20 @@
+//! Module for state projection and transformation
+//!
+//! This simplifies the process of working with signals and mapping state from different types or
+//! smaller parts of a larger state.
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 use futures::{stream::BoxStream, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
-mod duplex;
-pub use duplex::*;
+mod dedup;
+mod filter;
 
-/// A trait to project an arbitrary type into a type `U`.
-///
-/// This can be used to "map" signals to other signals and composing and decomposing larger state
-/// into smaller parts for reactivity
-pub trait ProjectRef<U> {
-    fn project<V, F: FnOnce(&U) -> V>(&self, f: F) -> V;
-}
+pub use dedup::*;
+pub use filter::*;
 
-pub trait ProjectOwned<U>: ProjectRef<U> {
-    fn project_owned(&self) -> U;
-}
-
-// impl<T, U> ProjectOwned<U> for T
-// where
-//     T: ProjectRef<U>,
-//     U: Clone,
-// {
-//     fn project_owned(&self) -> U
-//     where
-//         U: Clone,
-//     {
-//         self.project(|v| v.clone())
-//     }
-// }
-
-/// Ability to project a mutable reference to a type `U`.
-pub trait ProjectMut<U> {
-    fn project_mut<V, F: FnOnce(&mut U) -> V>(&self, f: F) -> V
-    where
-        Self: Sized;
-}
-
-/// Ability to receive a type of `U`
-pub trait ProjectSink<U> {
-    fn project_send(&self, value: U);
-}
-
-// impl<U, T> ProjectSink<U> for T
-// where
-//     T: Sized + ProjectMut<U>,
-// {
-//     fn project_send(&self, value: U) {
-//         self.project_mut(|v| *v = value);
-//     }
-// }
-
-/// A trait to produce a stream projection of a type `U`.
-pub trait ProjectStreamRef<U> {
-    fn project_stream<F: 'static + Send + FnMut(&U) -> V, V: 'static>(
-        &self,
-        func: F,
-    ) -> impl 'static + Send + Stream<Item = V>
-    where
-        Self: Sized;
-}
-
-pub trait ProjectStreamOwned<U>: ProjectStreamRef<U> {
-    fn project_stream_owned(&self) -> BoxStream<'static, U>;
-}
-
-/// Supertrait for types that support both sending and receiving a type `U`.
-pub trait ProjectDuplex<U>: ProjectSink<U> + ProjectStreamOwned<U> {}
-
-/// Supertrait which support mutable and reference projection and streaming of a type `U`.
-///
-/// This is the most general trait, and is useful for composing and decomposing state.
-pub trait ProjectState<U>: ProjectMut<U> + ProjectStreamRef<U> {}
-
-impl<U, T> ProjectDuplex<U> for T where T: ProjectSink<U> + ProjectStreamOwned<U> {}
-
-impl<T> ProjectRef<T> for Mutable<T> {
-    fn project<V, F: FnOnce(&T) -> V>(&self, f: F) -> V {
-        f(&self.lock_ref())
-    }
-}
-
-impl<T: Clone> ProjectOwned<T> for Mutable<T> {
-    fn project_owned(&self) -> T {
-        self.get_cloned()
-    }
-}
-
-impl<T> ProjectMut<T> for Mutable<T> {
-    fn project_mut<V, F: FnOnce(&mut T) -> V>(&self, f: F) -> V {
-        f(&mut self.lock_mut())
-    }
-}
-
-impl<T> ProjectSink<T> for Mutable<T> {
-    fn project_send(&self, value: T) {
-        self.set(value);
-    }
-}
-
-impl<T> ProjectStreamRef<T> for Mutable<T>
-where
-    T: 'static + Send + Sync,
-{
-    fn project_stream<F: 'static + Send + FnMut(&T) -> V, V: 'static>(
-        &self,
-        func: F,
-    ) -> impl 'static + Send + Stream<Item = V> {
-        self.signal_ref(func).to_stream()
-    }
-}
-
-impl<T> ProjectStreamOwned<T> for Mutable<T>
-where
-    T: 'static + Send + Sync + Clone,
-{
-    fn project_stream_owned(&self) -> BoxStream<'static, T>
-    where
-        T: 'static + Clone,
-    {
-        self.signal_cloned().to_stream().boxed()
-    }
+pub trait State {
+    type Item;
 }
 
 /// A trait to read a reference from a generic state
@@ -131,7 +24,7 @@ pub trait StateRef {
 }
 
 /// Allows reading an owned value from a state
-pub trait StateOwned: StateRef {
+pub trait StateOwned: State {
     fn read(&self) -> Self::Item;
 }
 
@@ -144,17 +37,13 @@ pub trait StateMut: StateRef {
     fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V;
 }
 
-pub trait State {
-    type Item;
-}
-
 /// A trait to read a stream from a generic state
-pub trait StateStream: State {
+pub trait StateStreamRef: State {
     /// Subscribe to a stream of the state
     ///
     /// The passed function is used to transform the value in the stream, to allow for handling
     /// non-static or non-cloneable types.
-    fn stream<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
         &self,
         func: F,
     ) -> impl Stream<Item = V> + 'static + Send
@@ -162,8 +51,8 @@ pub trait StateStream: State {
         Self: Sized;
 }
 
-pub trait StateStreamOwned: StateStream {
-    fn stream_owned(&self) -> BoxStream<'static, Self::Item>;
+pub trait StateStream: State {
+    fn stream(&self) -> BoxStream<'static, Self::Item>;
 }
 
 /// A trait to send a value to a generic state
@@ -173,9 +62,9 @@ pub trait StateSink: State {
 }
 
 /// Allows sending and receiving a value to a state
-pub trait StateDuplex: StateStreamOwned + StateSink {}
+pub trait StateDuplex: StateStream + StateSink {}
 
-impl<T> StateDuplex for T where T: StateStreamOwned + StateSink {}
+impl<T> StateDuplex for T where T: StateStream + StateSink {}
 
 impl<T> State for Mutable<T> {
     type Item = T;
@@ -200,15 +89,30 @@ impl<T> StateMut for Mutable<T> {
     }
 }
 
-impl<T> StateStream for Mutable<T>
+impl<T> StateStreamRef for Mutable<T>
 where
     T: 'static + Send + Sync,
 {
-    fn stream<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
         &self,
         func: F,
     ) -> impl Stream<Item = V> + 'static + Send {
         self.signal_ref(func).to_stream()
+    }
+}
+
+impl<T> StateStream for Mutable<T>
+where
+    T: 'static + Send + Sync + Clone,
+{
+    fn stream(&self) -> BoxStream<'static, Self::Item> {
+        self.signal_cloned().to_stream().boxed()
+    }
+}
+
+impl<T> StateSink for Mutable<T> {
+    fn send(&self, value: Self::Item) {
+        self.set(value);
     }
 }
 
@@ -273,28 +177,28 @@ where
     }
 }
 
-impl<C, U, F, G> StateStream for MappedState<C, U, F, G>
+impl<C, U, F, G> StateStreamRef for MappedState<C, U, F, G>
 where
-    C: StateStream,
+    C: StateStreamRef,
     F: 'static + Fn(&C::Item) -> &U + Sync + Send,
 {
-    fn stream<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static>(
+    fn stream_ref<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
         &self,
         mut func: I,
     ) -> impl Stream<Item = V> + 'static + Send {
         let project = self.project.clone();
-        self.inner.stream(move |v| func(project(v)))
+        self.inner.stream_ref(move |v| func(project(v)))
     }
 }
 
-impl<C, U, F, G> StateStreamOwned for MappedState<C, U, F, G>
+impl<C, U, F, G> StateStream for MappedState<C, U, F, G>
 where
-    C: StateStream,
-    U: 'static + Clone,
+    C: StateStreamRef,
+    U: 'static + Send + Sync + Clone,
     F: 'static + Fn(&C::Item) -> &U + Sync + Send,
 {
-    fn stream_owned(&self) -> BoxStream<'static, Self::Item> {
-        self.stream(|v| v.clone()).boxed()
+    fn stream(&self) -> BoxStream<'static, Self::Item> {
+        self.stream_ref(|v| v.clone()).boxed()
     }
 }
 
@@ -317,83 +221,60 @@ where
 ///
 /// However, as this does not assume the derived state is contained withing the original state is
 /// does not allow in-place mutation.
-pub struct MappedDuplex<C, U, F, G> {
+pub struct Map<C, U, F, G> {
     inner: C,
-    project: Arc<F>,
-    project_mut: G,
+    conv_to: Arc<F>,
+    conv_from: G,
     _marker: PhantomData<U>,
 }
 
-impl<C, U, F, G> State for MappedDuplex<C, U, F, G> {
+impl<C, U, F, G> State for Map<C, U, F, G> {
     type Item = U;
 }
 
-impl<C: StateRef, U, F: Fn(&C::Item) -> U, G: Fn(&U) -> C::Item> MappedDuplex<C, U, F, G> {
+impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> Map<C, U, F, G> {
     pub fn new(inner: C, project: F, project_mut: G) -> Self {
         Self {
             inner,
-            project: Arc::new(project),
-            project_mut,
+            conv_to: Arc::new(project),
+            conv_from: project_mut,
             _marker: PhantomData,
         }
     }
 }
 
-impl<C, U, F, G> StateRef for MappedDuplex<C, U, F, G>
+impl<C, U, F, G> StateOwned for Map<C, U, F, G>
 where
-    C: StateRef,
-    F: Fn(&C::Item) -> U,
-{
-    type Item = U;
-    fn read_ref<H: FnOnce(&Self::Item) -> V, V>(&self, f: H) -> V {
-        f(&self.inner.read_ref(|v| (self.project)(v)))
-    }
-}
-
-impl<C, U, F, G> StateOwned for MappedDuplex<C, U, F, G>
-where
-    C: StateRef,
-    F: Fn(&C::Item) -> U,
+    C: StateOwned,
+    F: Fn(C::Item) -> U,
 {
     fn read(&self) -> Self::Item {
-        self.inner.read_ref(|v| (self.project)(v))
+        (self.conv_to)(self.inner.read())
     }
 }
 
-impl<C, U, F, G> StateStream for MappedDuplex<C, U, F, G>
+impl<C, U, F, G> StateStream for Map<C, U, F, G>
 where
     C: StateStream,
-    F: 'static + Fn(&C::Item) -> U + Sync + Send,
+    C::Item: 'static + Send,
+    U: 'static + Send + Sync,
+    F: 'static + Fn(C::Item) -> U + Sync + Send,
 {
-    fn stream<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static>(
-        &self,
-        mut func: I,
-    ) -> impl Stream<Item = V> + 'static + Send {
-        let project = self.project.clone();
-        self.inner.stream(move |v| func(&project(v)))
-    }
-}
-
-impl<C, U, F, G> StateStreamOwned for MappedDuplex<C, U, F, G>
-where
-    C: StateStream,
-    U: 'static + Clone,
-    F: 'static + Fn(&C::Item) -> U + Sync + Send,
-{
-    fn stream_owned(&self) -> BoxStream<'static, Self::Item> {
-        self.stream(|v| v.clone()).boxed()
+    fn stream(&self) -> BoxStream<'static, Self::Item> {
+        let project = self.conv_to.clone();
+        self.inner.stream().map(move |v| (project)(v)).boxed()
     }
 }
 
 /// Bridge update-by-reference to update-by-value
-impl<C, U, F, G> StateSink for MappedDuplex<C, U, F, G>
+impl<C, U, F, G> StateSink for Map<C, U, F, G>
 where
     C: StateSink,
     F: Fn(C::Item) -> U,
     G: Fn(U) -> C::Item,
 {
     fn send(&self, value: Self::Item) {
-        self.inner.send((self.project_mut)(value))
+        self.inner.send((self.conv_from)(value))
     }
 }
 
@@ -416,51 +297,71 @@ where
 
 macro_rules! impl_container {
     ($ty: ident) => {
-        impl<T, U> ProjectRef<U> for $ty<T>
+        impl<T> State for $ty<T>
         where
-            T: ?Sized + ProjectRef<U>,
+            T: ?Sized + State,
         {
-            fn project<V, F: FnOnce(&U) -> V>(&self, f: F) -> V {
-                (**self).project(f)
+            type Item = T::Item;
+        }
+
+        impl<T> StateRef for $ty<T>
+        where
+            T: StateRef,
+        {
+            type Item = T::Item;
+            fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V {
+                (**self).read_ref(f)
             }
         }
 
-        impl<T, U> ProjectMut<U> for $ty<T>
+        impl<T> StateOwned for $ty<T>
         where
-            T: ProjectMut<U>,
+            T: StateOwned,
         {
-            fn project_mut<V, F: FnOnce(&mut U) -> V>(&self, f: F) -> V {
-                (**self).project_mut(f)
+            fn read(&self) -> Self::Item {
+                (**self).read()
             }
         }
 
-        impl<T, U> ProjectStreamRef<U> for $ty<T>
+        impl<T> StateMut for $ty<T>
         where
-            T: ProjectStreamRef<U>,
+            T: StateMut,
         {
-            fn project_stream<F: 'static + Send + FnMut(&U) -> V, V: 'static>(
+            fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V {
+                (**self).write_mut(f)
+            }
+        }
+
+        impl<T> StateStreamRef for $ty<T>
+        where
+            T: StateStreamRef,
+        {
+            fn stream_ref<
+                F: 'static + Send + Sync + FnMut(&Self::Item) -> V,
+                V: 'static + Send + Sync,
+            >(
                 &self,
                 func: F,
-            ) -> impl Stream<Item = V> + 'static {
-                (**self).project_stream(func)
+            ) -> impl Stream<Item = V> + 'static + Send {
+                (**self).stream_ref(func)
             }
         }
 
-        impl<T, U> ProjectStreamOwned<U> for $ty<T>
+        impl<T> StateStream for $ty<T>
         where
-            T: ProjectStreamOwned<U>,
+            T: ?Sized + StateStream,
         {
-            fn project_stream_owned(&self) -> BoxStream<'static, U> {
-                (**self).project_stream_owned()
+            fn stream(&self) -> BoxStream<'static, Self::Item> {
+                (**self).stream()
             }
         }
 
-        impl<T, U> ProjectSink<U> for $ty<T>
+        impl<T> StateSink for $ty<T>
         where
-            T: ?Sized + ProjectSink<U>,
+            T: ?Sized + StateSink,
         {
-            fn project_send(&self, value: U) {
-                (**self).project_send(value);
+            fn send(&self, value: Self::Item) {
+                (**self).send(value)
             }
         }
     };
@@ -470,11 +371,19 @@ impl_container!(Box);
 impl_container!(Arc);
 impl_container!(Rc);
 
-impl<T> ProjectStreamRef<T> for flume::Receiver<T>
+impl<T> State for flume::Receiver<T> {
+    type Item = T;
+}
+
+impl<T> State for flume::Sender<T> {
+    type Item = T;
+}
+
+impl<T> StateStreamRef for flume::Receiver<T>
 where
     T: 'static + Send + Sync,
 {
-    fn project_stream<F: 'static + Send + FnMut(&T) -> V, V: 'static>(
+    fn stream_ref<F: 'static + Send + FnMut(&T) -> V, V: 'static + Send + Sync>(
         &self,
         mut func: F,
     ) -> impl 'static + Send + Stream<Item = V> {
@@ -482,8 +391,17 @@ where
     }
 }
 
-impl<T> ProjectSink<T> for flume::Sender<T> {
-    fn project_send(&self, value: T) {
+impl<T> StateStream for flume::Receiver<T>
+where
+    T: 'static + Send + Sync,
+{
+    fn stream(&self) -> BoxStream<'static, Self::Item> {
+        self.clone().into_stream().boxed()
+    }
+}
+
+impl<T> StateSink for flume::Sender<T> {
+    fn send(&self, value: T) {
         self.send(value).unwrap();
     }
 }
@@ -501,8 +419,8 @@ mod tests {
 
         assert_eq!(a.read(), 1);
 
-        let mut stream1 = a.stream(|v| *v);
-        let mut stream2 = a.stream(|v| *v);
+        let mut stream1 = a.stream_ref(|v| *v);
+        let mut stream2 = a.stream_ref(|v| *v);
 
         assert_eq!(stream1.next().await, Some(1));
         a.write_mut(|v| *v = 2);
@@ -518,8 +436,8 @@ mod tests {
 
         let a = Box::new(a) as Box<dyn StateDuplex<Item = i32>>;
 
-        let mut stream1 = a.stream_owned();
-        let mut stream2 = a.stream_owned();
+        let mut stream1 = a.stream();
+        let mut stream2 = a.stream();
 
         assert_eq!(stream1.next().await, Some(1));
         a.send(2);
