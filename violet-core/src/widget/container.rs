@@ -6,7 +6,10 @@ use crate::{
     components::{anchor, layout, margin, max_size, min_size, offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
-    style::{colors::EERIE_BLACK_400, Background, SizeExt, StyleExt, WidgetSize},
+    style::{
+        colors::{EERIE_BLACK_300, EERIE_BLACK_400},
+        Background, SizeExt, StyleExt, WidgetSize,
+    },
     unit::Unit,
     Edges, Frame, Scope, Widget, WidgetCollection,
 };
@@ -18,8 +21,6 @@ use crate::{
 /// **NOTE**: direction and alignment are not included here, and should be given on a per-widget basis.
 #[derive(Default, Debug, Clone)]
 pub struct ContainerStyle {
-    pub margin: Edges,
-    pub padding: Edges,
     pub background: Option<Background>,
 }
 
@@ -28,10 +29,6 @@ impl ContainerStyle {
         if let Some(background) = self.background {
             background.mount(scope);
         }
-
-        scope
-            .set(margin(), self.margin)
-            .set(padding(), self.padding);
     }
 }
 
@@ -62,16 +59,6 @@ impl<W> Stack<W> {
     /// Set the vertical alignment
     pub fn with_vertical_alignment(mut self, align: Alignment) -> Self {
         self.layout.vertical_alignment = align;
-        self
-    }
-
-    pub fn with_margin(mut self, margin: Edges) -> Self {
-        self.style.margin = margin;
-        self
-    }
-
-    pub fn with_padding(mut self, padding: Edges) -> Self {
-        self.style.padding = padding;
         self
     }
 
@@ -147,16 +134,6 @@ impl<W: WidgetCollection> List<W> {
 
     pub fn with_stretch(mut self, enable: bool) -> Self {
         self.layout.stretch = enable;
-        self
-    }
-
-    pub fn with_margin(mut self, margin: Edges) -> Self {
-        self.style.margin = margin;
-        self
-    }
-
-    pub fn with_padding(mut self, padding: Edges) -> Self {
-        self.style.padding = padding;
         self
     }
 
@@ -270,6 +247,14 @@ pub fn card<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
         .with_background(Background::new(EERIE_BLACK_400))
+        .with_padding(Edges::even(4.0))
+        .with_margin(Edges::even(4.0))
+}
+
+pub fn card2<W>(widget: W) -> Stack<W> {
+    Stack::new(widget)
+        // TODO: semantic color and sizing increment
+        .with_background(Background::new(EERIE_BLACK_300))
         .with_padding(Edges::even(4.0))
         .with_margin(Edges::even(4.0))
 }

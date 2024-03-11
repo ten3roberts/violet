@@ -2,6 +2,9 @@
     "check": {
         "cmd": "cargo check --all-targets --all-features"
     },
+    "run demo": {
+        "cmd": "cargo run --package violet-demo"
+    },
     "run basic": {
         "cmd": "cargo run --package violet --example basic"
     },

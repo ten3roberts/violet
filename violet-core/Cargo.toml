@@ -18,6 +18,7 @@ futures-signals.workspace = true
 itertools.workspace = true
 glam.workspace = true
 futures.workspace = true
+futures-concurrency.workspace = true
 flume.workspace = true
 parking_lot.workspace = true
 slotmap.workspace = true
@@ -25,6 +26,7 @@ anyhow.workspace = true
 once_cell.workspace = true
 slab.workspace = true
 tynm.workspace = true
+arrayvec.workspace = true
 
 bytemuck.workspace = true
 palette.workspace = true
@@ -43,6 +45,9 @@ more-asserts.workspace = true
 unicode-segmentation.workspace = true
 puffin.workspace = true
 web-time.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers.workspace = true

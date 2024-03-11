@@ -310,7 +310,7 @@ pub(crate) fn query_size(
             let _span = tracing::trace_span!("cached").entered();
             // validate_sizing(entity, &cache.value, limits);
             tracing::debug!(%entity, "found valid cached query");
-            // return cache.value;
+            return cache.value;
             // }
         }
     }
@@ -352,6 +352,9 @@ pub(crate) fn query_size(
             preferred: sizing.preferred.pad(&padding),
             hints: sizing.hints.combine(hints),
         }
+    } else if let [child] = children {
+        let child = world.entity(*child).unwrap();
+        query_size(world, &child, content_area, limits, direction)
     } else {
         let (instrisic_min_size, intrinsic_size, intrinsic_hints) = size_resolver
             .map(|v| v.query(entity, content_area, limits, direction))
@@ -453,7 +456,7 @@ pub(crate) fn update_subtree(
         if validate_cached_layout(value, limits, content_area, cache.fixed_size) {
             tracing::debug!(%entity, ?value, "found valid cached layout");
             // validate_block(entity, &value.value, limits);
-            // return value.value;
+            return value.value;
         }
     }
 
@@ -490,6 +493,12 @@ pub(crate) fn update_subtree(
 
         block.margin = (block.margin - padding).max(margin);
 
+        block
+    } else if let [child] = children {
+        let child = world.entity(*child).unwrap();
+        let block = update_subtree(world, &child, content_area, limits);
+
+        child.update_dedup(components::rect(), block.rect);
         block
     } else {
         assert_eq!(children, [], "Widget with children must have a layout");

@@ -1,10 +1,9 @@
-use cosmic_text::Wrap;
+use std::{fmt::Display, str::FromStr, sync::Arc};
+
 use flax::{Component, Entity, EntityRef};
-use futures_signals::{
-    map_ref,
-    signal::{Mutable, MutableSignal, SignalExt},
-};
-use glam::{IVec2, Vec2};
+use futures::{stream::BoxStream, StreamExt};
+use futures_signals::signal::Mutable;
+use glam::Vec2;
 use palette::Srgba;
 use winit::event::ElementState;
 
@@ -12,19 +11,23 @@ use crate::{
     components::{offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
-    style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
-    text::TextSegment,
+    state::{State, StateDuplex, StateStream},
+    style::{interactive_active, interactive_inactive, spacing_small, SizeExt, StyleExt},
+    to_owned,
     unit::Unit,
-    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, SignalWidget, Stack, Text},
-    Edges, Scope, StreamEffect, Widget,
+    utils::zip_latest,
+    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
+    Scope, StreamEffect, Widget,
 };
+
+use super::input::TextInput;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {
     pub track_color: Component<Srgba>,
     pub handle_color: Component<Srgba>,
-    pub track_size: Unit<IVec2>,
-    pub handle_size: Unit<IVec2>,
+    pub track_size: Unit<Vec2>,
+    pub handle_size: Unit<Vec2>,
 }
 
 impl Default for SliderStyle {
@@ -32,38 +35,32 @@ impl Default for SliderStyle {
         Self {
             track_color: interactive_inactive(),
             handle_color: interactive_active(),
-            track_size: Unit::px2i(64, 1),
-            handle_size: Unit::px2i(1, 4),
+            track_size: Unit::px2(256.0, 4.0),
+            handle_size: Unit::px2(4.0, 16.0),
         }
     }
 }
 
 pub struct Slider<V> {
     style: SliderStyle,
-    value: Mutable<V>,
+    value: Arc<dyn Send + Sync + StateDuplex<Item = V>>,
     min: V,
     max: V,
-    label: bool,
+    transform: Option<Box<dyn Send + Sync + Fn(V) -> V>>,
 }
 
 impl<V> Slider<V> {
-    pub fn new(value: Mutable<V>, min: V, max: V) -> Self
+    pub fn new(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
         Self {
-            value,
+            value: Arc::new(value),
             min,
             max,
             style: Default::default(),
-            label: false,
+            transform: None,
         }
-    }
-
-    /// Set the label visibility
-    pub fn with_label(mut self, label: bool) -> Self {
-        self.label = label;
-        self
     }
 
     /// Set the style
@@ -71,11 +68,17 @@ impl<V> Slider<V> {
         self.style = style;
         self
     }
+
+    /// Set the transform
+    pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
+        self.transform = Some(Box::new(transform));
+        self
+    }
 }
 
 impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let stylesheet = get_stylesheet(scope);
+        let stylesheet = scope.stylesheet();
 
         let track_color = stylesheet
             .get_copy(self.style.track_color)
@@ -84,10 +87,8 @@ impl<V: SliderValue> Widget for Slider<V> {
             .get_copy(self.style.handle_color)
             .unwrap_or_default();
 
-        let spacing = stylesheet.get_copy(spacing()).unwrap_or_default();
-
-        let handle_size = spacing.size(self.style.handle_size);
-        let track_size = spacing.size(self.style.track_size);
+        let handle_size = self.style.handle_size;
+        let track_size = self.style.track_size;
 
         let track = scope.attach(BoxSized::new(Rectangle::new(track_color)).with_size(track_size));
 
@@ -99,15 +100,15 @@ impl<V: SliderValue> Widget for Slider<V> {
             input: CursorMove,
             min: f32,
             max: f32,
-            dst: &Mutable<V>,
+            dst: &dyn StateDuplex<Item = V>,
         ) {
             let rect = entity.get_copy(rect()).unwrap();
             let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
-            dst.set(V::from_progress(value));
+            dst.send(V::from_progress(value));
         }
 
         let handle = SliderHandle {
-            value: self.value.signal(),
+            value: self.value.stream(),
             min,
             max,
             rect_id: track,
@@ -115,44 +116,38 @@ impl<V: SliderValue> Widget for Slider<V> {
             handle_size,
         };
 
+        let value = Arc::new(self.value.map(
+            |v| v,
+            move |v| self.transform.as_ref().map(|f| f(v)).unwrap_or(v),
+        ));
+
         scope
             .set(focusable(), ())
             .on_event(on_mouse_input(), {
-                let value = self.value.clone();
+                to_owned![value];
                 move |_, entity, input| {
                     if input.state == ElementState::Pressed {
-                        update(entity, input.cursor, min, max, &value);
+                        update(entity, input.cursor, min, max, &*value);
                     }
                 }
             })
             .on_event(on_cursor_move(), {
-                let value = self.value.clone();
-                move |_, entity, input| update(entity, input, min, max, &value)
+                to_owned![value];
+                move |_, entity, input| update(entity, input, min, max, &*value)
             });
 
-        let slider = Stack::new(handle)
+        Stack::new(handle)
             .with_vertical_alignment(Alignment::Center)
             .with_style(ContainerStyle {
-                margin: Edges::even(5.0),
                 ..Default::default()
-            });
-
-        if self.label {
-            row((
-                slider,
-                SignalWidget(self.value.signal().map(|v| {
-                    Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
-                })),
-            ))
+            })
+            .with_margin(spacing_small())
             .mount(scope)
-        } else {
-            slider.mount(scope)
-        }
     }
 }
 
 struct SliderHandle<V> {
-    value: MutableSignal<V>,
+    value: BoxStream<'static, V>,
     handle_color: Srgba,
     handle_size: Unit<Vec2>,
     min: f32,
@@ -164,20 +159,16 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let rect_size = Mutable::new(None);
 
-        let update_signal = map_ref! {
-            let value = self.value,
-            let size = rect_size.signal() =>
-                (value.to_progress(), *size)
-        };
+        let update = zip_latest(self.value, rect_size.stream());
 
         scope.frame_mut().monitor(self.rect_id, rect(), move |v| {
             rect_size.set(v.map(|v| v.size()));
         });
 
-        scope.spawn_effect(StreamEffect::new(update_signal.to_stream(), {
-            move |scope: &mut Scope<'_>, (value, size): (f32, Option<Vec2>)| {
+        scope.spawn_effect(StreamEffect::new(update, {
+            move |scope: &mut Scope<'_>, (value, size): (V, Option<Vec2>)| {
                 if let Some(size) = size {
-                    let pos = (value - self.min) * size.x / (self.max - self.min);
+                    let pos = (value.to_progress() - self.min) * size.x / (self.max - self.min);
 
                     scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
                 }
@@ -234,16 +225,44 @@ num_impl!(usize);
 
 /// A slider with label displaying the value
 pub struct SliderWithLabel<V> {
+    text_value: Box<dyn 'static + Send + Sync + StateDuplex<Item = String>>,
     slider: Slider<V>,
+    editable: bool,
 }
 
-impl<V> SliderWithLabel<V> {
-    pub fn new(value: Mutable<V>, min: V, max: V) -> Self
+impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<V> {
+    pub fn new(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
     where
         V: Copy,
     {
+        // Wrap in dedup to prevent updating equal numeric values like `0` and `0.` etc when typing
+        let value = Arc::new(value);
+
+        let text_value = Box::new(value.clone().dedup().prevent_feedback().filter_map(
+            move |v: V| Some(format!("{v}")),
+            move |v| {
+                v.parse::<V>().ok().map(|v| {
+                    if v < min {
+                        min
+                    } else if v > max {
+                        max
+                    } else {
+                        v
+                    }
+                })
+            },
+        ));
+
         Self {
-            slider: Slider::new(value, min, max),
+            text_value,
+            slider: Slider {
+                style: Default::default(),
+                value,
+                min,
+                max,
+                transform: None,
+            },
+            editable: false,
         }
     }
 
@@ -252,15 +271,39 @@ impl<V> SliderWithLabel<V> {
         self.slider = self.slider.with_style(style);
         self
     }
+
+    pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
+        self.slider.transform = Some(Box::new(transform));
+        self
+    }
+
+    pub fn editable(mut self, editable: bool) -> Self {
+        self.editable = editable;
+        self
+    }
+}
+
+impl SliderWithLabel<f32> {
+    pub fn round(mut self, round: f32) -> Self {
+        let recip = round.recip();
+        self.slider.transform = Some(Box::new(move |v| (v * recip).round() / recip));
+        self
+    }
 }
 
 impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let label =
-            SignalWidget(self.slider.value.signal().map(|v| {
-                Text::rich([TextSegment::new(format!("{:>4.2}", v))]).with_wrap(Wrap::None)
-            }));
-
-        crate::widget::List::new((self.slider, label)).mount(scope)
+        if self.editable {
+            row((self.slider, TextInput::new(self.text_value)))
+                .with_cross_align(Alignment::Center)
+                .mount(scope)
+        } else {
+            row((
+                self.slider,
+                StreamWidget(self.text_value.stream().map(Text::new)),
+            ))
+            .with_cross_align(Alignment::Center)
+            .mount(scope)
+        }
     }
 }

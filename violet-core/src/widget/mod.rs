@@ -4,16 +4,16 @@ mod container;
 mod future;
 mod interactive;
 
-pub use basic::{BoxSized, Image, Positioned, Rectangle, Text};
+pub use basic::*;
 pub use container::*;
 use flax::{component::ComponentValue, components::name, Component};
 pub use future::{SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use interactive::{button::*, input::*, slider::*};
 
-/// Represents a widget in the UI tree which can mount itself into the frame.
+/// A widget is a description of a part of the Ui with the capability to mount itself into the world.
 ///
-/// Is inert before mounting
+/// This trait rarely required Send nor Sync, or a static lifetime as it does remain in the world after it is mounted.
 pub trait Widget: BoxedWidget {
     /// Mount the widget into the world, returning a handle to refer to it
     fn mount(self, scope: &mut Scope<'_>);
@@ -179,3 +179,8 @@ tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E }
 tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F }
 tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G }
 tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H, 8 => I }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H, 8 => I, 9 => J }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H, 8 => I, 9 => J, 10 => K }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H, 8 => I, 9 => J, 10 => K, 11 => L }
+tuple_impl! { 0 => A, 1 => B, 2 => C, 3 => D, 4 => E, 5 => F, 6 => G, 7 => H, 8 => I, 9 => J, 10 => K, 11 => L, 12 => M }

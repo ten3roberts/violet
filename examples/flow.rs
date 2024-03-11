@@ -1,66 +1,42 @@
 use std::usize;
 
-use futures_signals::{
-    map_ref,
-    signal::{self, Mutable, SignalExt},
-};
+use futures_signals::{map_ref, signal::Mutable};
 
-use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{num::Round, FromColor, Hsva, IntoColor, Oklcha, Srgba};
+use palette::{FromColor, Hsva, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
-use futures::stream::StreamExt;
 use violet::core::{
-    components::{self, screen_rect},
-    editor::{self, EditAction, EditorAction, TextEditor},
-    input::{focusable, on_keyboard_input, on_mouse_input},
     layout::Alignment,
     style::StyleExt,
-    text::{LayoutGlyphs, TextSegment},
-    to_owned,
     unit::Unit,
-    widget::{List, NoOp, Rectangle, SignalWidget, Stack, Text, WidgetExt},
+    widget::{List, Rectangle, SignalWidget, Stack, Text},
     Scope, Widget,
 };
 use violet_core::{
-    input::{
-        event::ElementState,
-        focus_sticky,
-        keyboard::{Key, NamedKey},
-        KeyboardInput,
-    },
     style::{
         self,
-        colors::{
-            EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT, JADE_DEFAULT, LION_DEFAULT,
-        },
-        Background, SizeExt,
+        colors::{EERIE_BLACK_600, EERIE_BLACK_DEFAULT},
+        secondary_background, spacing_small, Background, SizeExt,
     },
     text::Wrap,
     widget::{
-        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, Positioned, Slider,
-        SliderWithLabel, TextInput,
+        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, SliderWithLabel,
+        TextInput,
     },
-    Edges, Rect,
 };
 use violet_wgpu::renderer::RendererConfig;
 
-const MARGIN: Edges = Edges::even(8.0);
-const MARGIN_SM: Edges = Edges::even(4.0);
-
 fn label(text: impl Into<String>) -> Stack<Text> {
     Stack::new(Text::new(text.into()))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
+        .with_padding(spacing_small())
+        .with_margin(spacing_small())
 }
 
 fn pill(widget: impl Widget) -> impl Widget {
     Stack::new(widget).with_style(ContainerStyle {
-        background: Some(Background::new(EERIE_BLACK_300)),
-        padding: MARGIN,
-        margin: MARGIN,
+        background: Some(Background::new(secondary_background())),
     })
 }
 
@@ -99,24 +75,20 @@ impl Widget for MainApp {
         }});
 
         column((
-            row((Text::new("Input: "), TextInput::new(content))).with_style(ContainerStyle {
-                margin: MARGIN_SM,
-                padding: MARGIN_SM,
-                ..Default::default()
-            }),
+            row((Text::new("Input: "), TextInput::new(content))),
             card(
                 column((
                     Button::with_label("Button"),
                     Button::with_label("Button").with_style(ButtonStyle {
-                        normal_color: style::success_element(),
+                        normal_color: style::success_item().into(),
                         ..Default::default()
                     }),
                     Button::with_label("Warning").with_style(ButtonStyle {
-                        normal_color: style::warning_element(),
+                        normal_color: style::warning_item().into(),
                         ..Default::default()
                     }),
                     Button::with_label("Error").with_style(ButtonStyle {
-                        normal_color: style::error_element(),
+                        normal_color: style::danger_item().into(),
                         ..Default::default()
                     }),
                 ))
@@ -126,8 +98,14 @@ impl Widget for MainApp {
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
             card(column((
                 column((
-                    row((Text::new("Size"), SliderWithLabel::new(value, 20.0, 200.0))),
-                    row((Text::new("Count"), SliderWithLabel::new(count, 1, 20))),
+                    row((
+                        Text::new("Size"),
+                        SliderWithLabel::new(value, 20.0, 200.0).editable(true),
+                    )),
+                    row((
+                        Text::new("Count"),
+                        SliderWithLabel::new(count, 1, 2).editable(true),
+                    )),
                 )),
                 SignalWidget::new(item_list),
             ))),
@@ -202,11 +180,14 @@ impl Widget for ItemList {
                         ))
                         .with_wrap(Wrap::None),
                     )
-                    .with_background(Background::new(
-                        Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
-                    ))
-                    .with_padding(MARGIN_SM)
-                    .with_margin(MARGIN_SM)
+                    .with_background(Background::new(Srgba::from_color(Hsva::new(
+                        i as f32 * 30.0,
+                        0.6,
+                        0.7,
+                        1.0,
+                    ))))
+                    .with_padding(spacing_small())
+                    .with_margin(spacing_small())
                     // .with_cross_align(Alignment::Center)
                     .with_vertical_alignment(Alignment::Center)
                     .with_horizontal_alignment(Alignment::Center)
