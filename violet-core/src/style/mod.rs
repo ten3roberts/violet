@@ -1,25 +1,22 @@
 pub mod colors;
 
 use flax::{
-    components::child_of, Entity, EntityBuilder, EntityRef, EntityRefMut, Exclusive, FetchExt,
-    RelationExt,
+    component::ComponentValue, components::child_of, Component, Entity, EntityBuilder, EntityRef,
+    Exclusive, FetchExt, RelationExt,
 };
-use glam::{vec2, IVec2, Vec2};
-use palette::{
-    named::{BLACK, GRAY, GREEN, LIMEGREEN, ORANGE, RED, SLATEGRAY, WHITE},
-    IntoColor, Oklab, Srgba, WithAlpha,
-};
+use glam::Vec2;
+use palette::{IntoColor, Oklab, Srgba};
 
 use crate::{
-    components::{color, draw_shape, max_size, min_size, size},
+    components::{color, draw_shape, margin, max_size, min_size, padding, size},
     shape::shape_rectangle,
     unit::Unit,
     Edges, Scope,
 };
 
 use self::colors::{
-    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_800, EERIE_BLACK_DEFAULT, JADE_400, JADE_600,
-    JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
+    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
 };
 
 #[macro_export]
@@ -52,12 +49,14 @@ pub trait StyleExt {
     fn with_style(self, style: Self::Style) -> Self;
 }
 
-/// Base properties for widget size
+/// Base properties for widget size and spacing
 #[derive(Debug, Clone, Default)]
 pub struct WidgetSize {
     pub size: Option<Unit<Vec2>>,
     pub min_size: Option<Unit<Vec2>>,
     pub max_size: Option<Unit<Vec2>>,
+    pub margin: Option<ValueOrRef<Edges>>,
+    pub padding: Option<ValueOrRef<Edges>>,
 }
 
 impl WidgetSize {
@@ -66,15 +65,61 @@ impl WidgetSize {
     }
 
     pub fn mount(&self, scope: &mut Scope<'_>) {
+        let stylesheet = scope.stylesheet();
+
+        let m = self.margin.map(|v| v.resolve(stylesheet));
+        let p = self.padding.map(|v| v.resolve(stylesheet));
+
         scope
+            .set_opt(margin(), m)
+            .set_opt(padding(), p)
             .set_opt(size(), self.size)
             .set_opt(min_size(), self.min_size)
             .set_opt(max_size(), self.max_size);
+    }
+
+    /// Set the size
+    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
+        self.size = Some(size);
+        self
+    }
+
+    /// Set the min size
+    pub fn with_min_size(mut self, size: Unit<Vec2>) -> Self {
+        self.min_size = Some(size);
+        self
+    }
+
+    /// Set the max size
+    pub fn with_max_size(mut self, size: Unit<Vec2>) -> Self {
+        self.max_size = Some(size);
+        self
+    }
+
+    /// Set the margin
+    pub fn with_margin(mut self, margin: impl Into<ValueOrRef<Edges>>) -> Self {
+        self.margin = Some(margin.into());
+        self
+    }
+
+    /// Set the padding around inner content.
+    pub fn with_padding(mut self, padding: impl Into<ValueOrRef<Edges>>) -> Self {
+        self.padding = Some(padding.into());
+        self
     }
 }
 
 /// A widget that allows you to set its sizing properties
 pub trait SizeExt {
+    /// Override all the size properties of the widget
+    fn with_size_props(mut self, size: WidgetSize) -> Self
+    where
+        Self: Sized,
+    {
+        *self.size_mut() = size;
+        self
+    }
+
     /// Set the preferred size
     fn with_size(mut self, size: Unit<Vec2>) -> Self
     where
@@ -102,145 +147,115 @@ pub trait SizeExt {
         self
     }
 
+    /// Set the margin
+    fn with_margin(mut self, margin: impl Into<ValueOrRef<Edges>>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().margin = Some(margin.into());
+        self
+    }
+
+    /// Set the padding around inner content.
+    ///
+    /// **NOTE**: Padding has no effect on widgets without children. Padding strictly affect
+    /// the distance between the widget and the contained children. Notable examples include lists
+    /// and stacks. This is merely added for consistency and not adding **too** many different
+    /// traits to implement :P
+    fn with_padding(mut self, padding: impl Into<ValueOrRef<Edges>>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().padding = Some(padding.into());
+        self
+    }
+
     fn size_mut(&mut self) -> &mut WidgetSize;
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Background {
-    pub color: Srgba,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueOrRef<T> {
+    Value(T),
+    Ref(Component<T>),
 }
 
-impl Background {
-    pub fn new(color: Srgba) -> Self {
-        Self { color }
+impl<T> ValueOrRef<T> {
+    pub fn value(value: T) -> Self {
+        Self::Value(value)
     }
 
-    pub fn mount(self, scope: &mut Scope) {
-        scope
-            .set(draw_shape(shape_rectangle()), ())
-            .set(color(), self.color);
+    pub fn ref_(component: Component<T>) -> Self {
+        Self::Ref(component)
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SpacingConfig {
-    /// The size of the default spacing unit
-    pub base_scale: f32,
-}
-
-impl Default for SpacingConfig {
+impl<T: Default> Default for ValueOrRef<T> {
     fn default() -> Self {
-        Self { base_scale: 4.0 }
+        Self::Value(Default::default())
     }
 }
 
-impl SpacingConfig {
-    pub fn small<T: FromSize<usize>>(&self) -> T {
-        T::from_spacing(self.base_scale, 1)
-    }
-
-    pub fn medium<T: FromSize<usize>>(&self) -> T {
-        T::from_spacing(self.base_scale, 2)
-    }
-
-    pub fn large<T: FromSize<usize>>(&self) -> T {
-        T::from_spacing(self.base_scale, 4)
-    }
-
-    pub fn size<T: FromSize<S>, S>(&self, size: S) -> T {
-        T::from_spacing(self.base_scale, size)
+impl<T> From<Component<T>> for ValueOrRef<T> {
+    fn from(v: Component<T>) -> Self {
+        Self::Ref(v)
     }
 }
 
-/// Converts a size to a pixel value
-pub trait FromSize<S> {
-    fn from_spacing(base_scale: f32, size: S) -> Self;
-}
-
-impl<T, S> FromSize<Unit<S>> for Unit<T>
-where
-    T: FromSize<S>,
-{
-    fn from_spacing(base_scale: f32, size: Unit<S>) -> Self {
-        Unit::new(
-            T::from_spacing(base_scale, size.px),
-            T::from_spacing(base_scale, size.rel),
-        )
+impl<T> From<T> for ValueOrRef<T> {
+    fn from(v: T) -> Self {
+        Self::Value(v)
     }
 }
 
-impl FromSize<IVec2> for Vec2 {
-    fn from_spacing(base_scale: f32, size: IVec2) -> Self {
-        vec2(base_scale * size.x as f32, base_scale * size.y as f32)
-    }
-}
-
-impl FromSize<usize> for f32 {
-    fn from_spacing(base_scale: f32, size: usize) -> Self {
-        base_scale * size as f32
-    }
-}
-
-impl FromSize<usize> for Edges {
-    fn from_spacing(base_scale: f32, size: usize) -> Self {
-        Edges::even(base_scale * size as f32)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SemanticColors {
-    pub primary_element: Srgba,
-    pub secondary_element: Srgba,
-    pub accent_element: Srgba,
-    pub success_element: Srgba,
-    pub warning_element: Srgba,
-    pub error_element: Srgba,
-
-    pub primary_surface: Srgba,
-    pub secondary_surface: Srgba,
-    pub accent_surface: Srgba,
-    pub success_surface: Srgba,
-    pub warning_surface: Srgba,
-    pub error_surface: Srgba,
-}
-
-impl Default for SemanticColors {
-    fn default() -> Self {
-        SemanticColors {
-            primary_element: WHITE.with_alpha(1.0).into_format(),
-            secondary_element: GRAY.with_alpha(1.0).into_format(),
-            accent_element: LIMEGREEN.with_alpha(1.0).into_format(),
-
-            success_element: GREEN.with_alpha(1.0).into_format(),
-            warning_element: ORANGE.with_alpha(1.0).into_format(),
-            error_element: RED.with_alpha(1.0).into_format(),
-
-            primary_surface: BLACK.with_alpha(1.0).into_format(),
-            secondary_surface: SLATEGRAY.with_alpha(1.0).into_format(),
-            accent_surface: SLATEGRAY.with_alpha(1.0).into_format(),
-            success_surface: SLATEGRAY.with_alpha(1.0).into_format(),
-            warning_surface: SLATEGRAY.with_alpha(1.0).into_format(),
-            error_surface: SLATEGRAY.with_alpha(1.0).into_format(),
+impl<T: Copy + ComponentValue> ValueOrRef<T> {
+    pub(crate) fn resolve(self, stylesheet: EntityRef<'_>) -> T {
+        match self {
+            ValueOrRef::Value(value) => value,
+            ValueOrRef::Ref(component) => {
+                let value = stylesheet.get_copy(component).unwrap();
+                value
+            }
         }
     }
 }
 
-pub fn get_stylesheet<'a>(scope: &'a Scope<'_>) -> EntityRef<'a> {
+#[derive(Debug, Clone, Copy)]
+pub struct Background {
+    pub color: ValueOrRef<Srgba>,
+}
+
+impl Background {
+    pub fn new(color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        Self {
+            color: color.into(),
+        }
+    }
+
+    pub fn mount(self, scope: &mut Scope) {
+        let c = self.color.resolve(scope.stylesheet());
+        scope.set(draw_shape(shape_rectangle()), ()).set(color(), c);
+    }
+}
+
+pub enum Spacing {
+    Small,
+    Medium,
+    Large,
+}
+
+pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
     let query = stylesheet.first_relation().traverse(child_of);
 
-    let (id, _) = scope
-        .entity()
-        .query(&query)
-        .get()
-        .expect("No stylesheet found");
+    let (id, _) = entity.query(&query).get().expect("No stylesheet found");
 
-    scope.frame().world.entity(id).unwrap()
+    entity.world().entity(id).unwrap()
 }
 
 pub fn setup_stylesheet() -> EntityBuilder {
     let mut builder = Entity::builder();
 
     builder
+        // colors
         .set(primary_background(), EERIE_BLACK_DEFAULT)
         .set(primary_item(), PLATINUM_DEFAULT)
         .set(secondary_background(), EERIE_BLACK_600)
@@ -256,7 +271,10 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(interactive_hover(), JADE_600)
         .set(interactive_pressed(), JADE_400)
         .set(interactive_inactive(), EERIE_BLACK_700)
-        .set(spacing(), SpacingConfig { base_scale: 4.0 });
+        // spacing
+        .set(spacing_small(), 4.0.into())
+        .set(spacing_medium(), 8.0.into())
+        .set(spacing_large(), 16.0.into());
 
     builder
 }
@@ -287,11 +305,14 @@ flax::component! {
     pub danger_background: Srgba,
     pub danger_item: Srgba,
 
-    pub spacing: SpacingConfig,
 
     /// Used for the main parts of interactive elements
     pub interactive_active: Srgba,
     pub interactive_inactive: Srgba,
     pub interactive_hover: Srgba,
     pub interactive_pressed: Srgba,
+
+    pub spacing_small: Edges,
+    pub spacing_medium: Edges,
+    pub spacing_large: Edges,
 }

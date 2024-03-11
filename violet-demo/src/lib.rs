@@ -9,21 +9,21 @@ use violet::{
     core::{
         components,
         layout::{Alignment, Direction},
-        state::{Map, MappedState, StateStream, StateStreamRef},
+        state::{Map, MapRef, State, StateStream, StateStreamRef},
         style::{
             colors::{
                 EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_200, JADE_DEFAULT, LION_DEFAULT,
                 REDWOOD_DEFAULT,
             },
-            danger_item, success_item, Background, SizeExt, StyleExt,
+            danger_item, success_item, Background, SizeExt, StyleExt, ValueOrRef,
         },
         text::Wrap,
         to_owned,
         unit::Unit,
         utils::zip_latest,
         widget::{
-            card, column, row, Button, ButtonStyle, List, Rectangle, SignalWidget, SliderWithLabel,
-            Stack, StreamWidget, Text, WidgetExt,
+            card, column, label, row, Button, ButtonStyle, List, Rectangle, SignalWidget,
+            SliderWithLabel, Stack, StreamWidget, Text, WidgetExt,
         },
         Edges, Scope, Widget, WidgetCollection,
     },
@@ -84,13 +84,14 @@ impl Widget for MainApp {
             |v| Vec3::new(v.l, v.chroma, v.hue.into_positive_degrees()),
         );
 
-        let lightness = MappedState::new(color.clone(), |v| &v.x, |v| &mut v.x);
-        let chroma = MappedState::new(color.clone(), |v| &v.y, |v| &mut v.y);
-        let hue = MappedState::new(color.clone(), |v| &v.z, |v| &mut v.z);
+        let lightness = color.clone().map_ref(|v| &v.x, |v| &mut v.x);
+        let chroma = color.clone().map_ref(|v| &v.y, |v| &mut v.y);
+        let hue = color.clone().map_ref(|v| &v.z, |v| &mut v.z);
 
         let color_rect = color.signal().map(|v| {
             let color = Oklch::new(v.x, v.y, v.z).into_color();
-            Rectangle::new(color).with_min_size(Unit::px2(200.0, 100.0))
+            Rectangle::new(ValueOrRef::value(color))
+                .with_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
         });
 
         let falloff = Mutable::new(50.0);
@@ -99,7 +100,7 @@ impl Widget for MainApp {
 
         let save_button = Button::new(Text::new("Save color"))
             .with_style(ButtonStyle {
-                normal_color: success_item(),
+                normal_color: success_item().into(),
                 ..Default::default()
             })
             .on_press({
@@ -155,7 +156,6 @@ impl Widget for MainApp {
                 save_button,
                 HistoryView::new(history),
             ))
-            .with_stretch(true)
             .with_margin(Edges::even(4.0)),
         )
         .with_size(Unit::rel2(1.0, 1.0))
@@ -189,7 +189,8 @@ impl Widget for Tints {
                 };
 
                 Stack::new(column((
-                    Rectangle::new(color.into_color()).with_min_size(Unit::px2(60.0, 60.0)),
+                    Rectangle::new(ValueOrRef::value(color.into_color()))
+                        .with_min_size(Unit::px2(60.0, 60.0)),
                     Text::new(format!("{:.2}", f)),
                 )))
                 .with_margin(Edges::even(4.0))
@@ -225,10 +226,7 @@ impl Widget for HistoryView {
                         items.lock_mut().remove(i);
                     }
                 })
-                .with_style(ButtonStyle {
-                    normal_color: danger_item(),
-                    ..Default::default()
-                })
+                .danger()
         };
 
         StreamWidget(self.items.stream_ref(move |items| {
@@ -253,9 +251,10 @@ pub struct HistoryItem {
 impl Widget for HistoryItem {
     fn mount(self, scope: &mut Scope<'_>) {
         column((
-            Text::new(color_hex(self.color)),
+            label(color_hex(self.color)),
             row((
-                Rectangle::new(self.color.into_color()).with_size(Unit::px2(100.0, 50.0)),
+                Rectangle::new(ValueOrRef::value(self.color.into_color()))
+                    .with_size(Unit::px2(100.0, 50.0)),
                 Tints::new(self.color, self.falloff),
             )),
         ))

@@ -2,13 +2,12 @@ use futures::StreamExt;
 use futures_signals::signal::{Mutable, SignalExt};
 use glam::Vec3;
 use itertools::Itertools;
-use palette::{num::Powi, FromColor, IntoColor, Lighten, Oklch, Srgb};
-use tracing::info;
+use palette::{FromColor, IntoColor, Oklch, Srgb};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    state::{Map, MappedState, StateStream, StateStreamRef},
-    style::{colors::LION_500, SizeExt},
+    state::{Map, MapRef, StateStream, StateStreamRef},
+    style::{SizeExt, ValueOrRef},
     unit::Unit,
     utils::zip_latest,
     widget::{
@@ -46,13 +45,13 @@ impl Widget for MainApp {
             |v| Vec3::new(v.l, v.chroma, v.hue.into_positive_degrees()),
         );
 
-        let lightness = MappedState::new(color.clone(), |v| &v.x, |v| &mut v.x);
-        let chroma = MappedState::new(color.clone(), |v| &v.y, |v| &mut v.y);
-        let hue = MappedState::new(color.clone(), |v| &v.z, |v| &mut v.z);
+        let lightness = MapRef::new(color.clone(), |v| &v.x, |v| &mut v.x);
+        let chroma = MapRef::new(color.clone(), |v| &v.y, |v| &mut v.y);
+        let hue = MapRef::new(color.clone(), |v| &v.z, |v| &mut v.z);
 
         let color_rect = color.signal().map(|v| {
             let color = Oklch::new(v.x, v.y, v.z).into_color();
-            Rectangle::new(color).with_min_size(Unit::px2(200.0, 100.0))
+            Rectangle::new(ValueOrRef::value(color)).with_min_size(Unit::px2(200.0, 100.0))
         });
 
         let falloff = Mutable::new(50.0);
@@ -131,7 +130,8 @@ impl Widget for Tints {
                 };
 
                 Stack::new(column((
-                    Rectangle::new(color.into_color()).with_min_size(Unit::px2(60.0, 60.0)),
+                    Rectangle::new(ValueOrRef::value(color.into_color()))
+                        .with_min_size(Unit::px2(60.0, 60.0)),
                     Text::new(format!("{:.2}", f)),
                 )))
                 .with_margin(Edges::even(4.0))

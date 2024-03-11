@@ -4,7 +4,7 @@ mod container;
 mod future;
 mod interactive;
 
-pub use basic::{BoxSized, Image, Positioned, Rectangle, Text};
+pub use basic::*;
 pub use container::*;
 use flax::{component::ComponentValue, components::name, Component};
 pub use future::{SignalWidget, StreamWidget};

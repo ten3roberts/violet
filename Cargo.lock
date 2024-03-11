@@ -630,7 +630,7 @@ dependencies = [
 [[package]]
 name = "flax"
 version = "0.6.2"
-source = "git+https://github.com/ten3roberts/flax#aa6cf3489d4ffe3e66ec8fe4937c47f7f6df0e1b"
+source = "git+https://github.com/ten3roberts/flax#39c01757b9ea5f142faeaf9d8b1473e1745ffcca"
 dependencies = [
  "anyhow",
  "atomic_refcell",
@@ -648,7 +648,7 @@ dependencies = [
 [[package]]
 name = "flax-derive"
 version = "0.6.0"
-source = "git+https://github.com/ten3roberts/flax#aa6cf3489d4ffe3e66ec8fe4937c47f7f6df0e1b"
+source = "git+https://github.com/ten3roberts/flax#39c01757b9ea5f142faeaf9d8b1473e1745ffcca"
 dependencies = [
  "itertools 0.11.0",
  "proc-macro-crate",
@@ -2501,6 +2501,7 @@ name = "violet-core"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "arrayvec",
  "atomic_refcell",
  "bytemuck",
  "bytes",
@@ -2535,7 +2536,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "violet-web-example"
+name = "violet-demo"
 version = "0.0.1"
 dependencies = [
  "console_error_panic_hook",

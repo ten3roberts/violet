@@ -21,8 +21,6 @@ use crate::{
 /// **NOTE**: direction and alignment are not included here, and should be given on a per-widget basis.
 #[derive(Default, Debug, Clone)]
 pub struct ContainerStyle {
-    pub margin: Edges,
-    pub padding: Edges,
     pub background: Option<Background>,
 }
 
@@ -31,10 +29,6 @@ impl ContainerStyle {
         if let Some(background) = self.background {
             background.mount(scope);
         }
-
-        scope
-            .set(margin(), self.margin)
-            .set(padding(), self.padding);
     }
 }
 
@@ -65,16 +59,6 @@ impl<W> Stack<W> {
     /// Set the vertical alignment
     pub fn with_vertical_alignment(mut self, align: Alignment) -> Self {
         self.layout.vertical_alignment = align;
-        self
-    }
-
-    pub fn with_margin(mut self, margin: Edges) -> Self {
-        self.style.margin = margin;
-        self
-    }
-
-    pub fn with_padding(mut self, padding: Edges) -> Self {
-        self.style.padding = padding;
         self
     }
 
@@ -150,16 +134,6 @@ impl<W: WidgetCollection> List<W> {
 
     pub fn with_stretch(mut self, enable: bool) -> Self {
         self.layout.stretch = enable;
-        self
-    }
-
-    pub fn with_margin(mut self, margin: Edges) -> Self {
-        self.style.margin = margin;
-        self
-    }
-
-    pub fn with_padding(mut self, padding: Edges) -> Self {
-        self.style.padding = padding;
         self
     }
 

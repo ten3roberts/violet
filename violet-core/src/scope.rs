@@ -13,7 +13,7 @@ use pin_project::pin_project;
 
 use crate::{
     assets::AssetCache, components::children, effect::Effect, input::InputEventHandler,
-    stored::Handle, Frame, FutureEffect, StreamEffect, Widget,
+    stored::Handle, style::get_stylesheet_from_entity, Frame, FutureEffect, StreamEffect, Widget,
 };
 
 /// The scope within a [`Widget`][crate::Widget] is mounted or modified
@@ -96,7 +96,7 @@ impl<'a> Scope<'a> {
     }
 
     pub fn entity(&self) -> EntityRef {
-        assert!(self.data.is_empty(), "EntityBuilder not flushed");
+        // assert!(self.data.is_empty(), "EntityBuilder not flushed");
         self.frame.world().entity(self.id).unwrap()
     }
 
@@ -163,8 +163,13 @@ impl<'a> Scope<'a> {
         self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
     }
 
-    pub fn spawn_stream(&mut self, stream: impl 'static + Stream) {
-        self.spawn_effect(StreamEffect::new(stream, |_: &mut Scope<'_>, _| {}))
+    /// Spawns a scoped stream invoking the callback in with the widgets scope for each item
+    pub fn spawn_stream<S: 'static + Stream>(
+        &mut self,
+        stream: S,
+        func: impl 'static + FnMut(&mut Scope<'_>, S::Item),
+    ) {
+        self.spawn_effect(StreamEffect::new(stream, func))
     }
 
     /// Spawns an effect which is *not* scoped to the widget
@@ -221,6 +226,11 @@ impl<'a> Scope<'a> {
         func: impl 'static + Send + Sync + FnMut(&Frame, &EntityRef, T),
     ) -> &mut Self {
         self.set(event, Box::new(func) as _)
+    }
+
+    /// Returns the active stylesheet for this scope
+    pub fn stylesheet(&self) -> EntityRef {
+        get_stylesheet_from_entity(&self.entity())
     }
 }
 

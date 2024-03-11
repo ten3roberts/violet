@@ -11,6 +11,12 @@ pub struct Edges {
     pub bottom: f32,
 }
 
+impl From<f32> for Edges {
+    fn from(value: f32) -> Self {
+        Self::even(value)
+    }
+}
+
 impl std::ops::Sub for Edges {
     type Output = Self;
 

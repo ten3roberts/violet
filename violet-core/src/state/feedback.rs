@@ -1,31 +1,30 @@
-use std::{future::ready, sync::Arc};
+use std::future::ready;
 
 use futures::{FutureExt, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
-use parking_lot::Mutex;
-use tracing::info;
 
 use super::{State, StateSink, StateStream, StateStreamRef};
 
-/// Deduplicates a state updates for receiving streams.
-///
-/// **NOTE**: Does not deduplicate for sending to sinks as it is not possible to know if the item
-/// has been set by another sink or not without readback.
-pub struct Dedup<T: State> {
+/// Prevents feedback loops by dropping items in the receiving stream that were sent to the sink.
+pub struct PreventFeedback<T: State> {
+    last_sent: Mutable<Option<T::Item>>,
     inner: T,
 }
 
-impl<T: State> Dedup<T> {
+impl<T: State> PreventFeedback<T> {
     pub fn new(inner: T) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            last_sent: Default::default(),
+        }
     }
 }
 
-impl<T: State> State for Dedup<T> {
+impl<T: State> State for PreventFeedback<T> {
     type Item = T::Item;
 }
 
-impl<T> StateStreamRef for Dedup<T>
+impl<T> StateStreamRef for PreventFeedback<T>
 where
     T: StateStreamRef,
     T::Item: 'static + Send + Sync + Clone + PartialEq,
@@ -37,12 +36,12 @@ where
     where
         Self: Sized,
     {
-        let mut last_seen = None;
+        let mut last_sent = self.last_sent.signal_cloned().to_stream().fuse();
 
         self.inner
             .stream_ref(move |item| {
-                if last_seen.as_ref() != Some(item) {
-                    last_seen = Some(item.clone());
+                let last_sent = last_sent.select_next_some().now_or_never().flatten();
+                if last_sent.as_ref() != Some(item) {
                     Some(func(item))
                 } else {
                     None
@@ -52,18 +51,18 @@ where
     }
 }
 
-impl<T> StateStream for Dedup<T>
+impl<T> StateStream for PreventFeedback<T>
 where
     T: StateStream,
     T::Item: 'static + Send + Sync + PartialEq + Clone,
 {
     fn stream(&self) -> futures::prelude::stream::BoxStream<'static, Self::Item> {
-        let mut last_seen = None;
+        let mut last_sent = self.last_sent.signal_cloned().to_stream().fuse();
         self.inner
             .stream()
             .filter_map(move |v| {
-                if last_seen.as_ref() != Some(&v) {
-                    last_seen = Some(v.clone());
+                let last_sent = last_sent.select_next_some().now_or_never().flatten();
+                if last_sent.as_ref() != Some(&v) {
                     ready(Some(v))
                 } else {
                     ready(None)
@@ -73,12 +72,13 @@ where
     }
 }
 
-impl<T> StateSink for Dedup<T>
+impl<T> StateSink for PreventFeedback<T>
 where
     T: StateSink,
     T::Item: 'static + Send + Sync + PartialEq + Clone,
 {
     fn send(&self, item: Self::Item) {
+        self.last_sent.set(Some(item.clone()));
         self.inner.send(item);
     }
 }

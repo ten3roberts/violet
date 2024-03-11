@@ -1,27 +1,23 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
-use cosmic_text::Wrap;
 use flax::{Component, Entity, EntityRef};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
-use glam::{IVec2, Vec2};
-use palette::{num::Recip, Srgba};
+use glam::Vec2;
+use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
     components::{offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
-    state::{Dedup, FilterDuplex, Map, StateDuplex, StateStream},
-    style::{get_stylesheet, interactive_active, interactive_inactive, spacing, StyleExt},
-    text::TextSegment,
+    state::{State, StateDuplex, StateStream},
+    style::{interactive_active, interactive_inactive, spacing_small, SizeExt, StyleExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,
-    widget::{
-        row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt,
-    },
-    Edges, Scope, StreamEffect, Widget,
+    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
+    Scope, StreamEffect, Widget,
 };
 
 use super::input::TextInput;
@@ -30,8 +26,8 @@ use super::input::TextInput;
 pub struct SliderStyle {
     pub track_color: Component<Srgba>,
     pub handle_color: Component<Srgba>,
-    pub track_size: Unit<IVec2>,
-    pub handle_size: Unit<IVec2>,
+    pub track_size: Unit<Vec2>,
+    pub handle_size: Unit<Vec2>,
 }
 
 impl Default for SliderStyle {
@@ -39,8 +35,8 @@ impl Default for SliderStyle {
         Self {
             track_color: interactive_inactive(),
             handle_color: interactive_active(),
-            track_size: Unit::px2i(64, 1),
-            handle_size: Unit::px2i(1, 4),
+            track_size: Unit::px2(256.0, 4.0),
+            handle_size: Unit::px2(4.0, 16.0),
         }
     }
 }
@@ -82,7 +78,7 @@ impl<V> Slider<V> {
 
 impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let stylesheet = get_stylesheet(scope);
+        let stylesheet = scope.stylesheet();
 
         let track_color = stylesheet
             .get_copy(self.style.track_color)
@@ -91,10 +87,8 @@ impl<V: SliderValue> Widget for Slider<V> {
             .get_copy(self.style.handle_color)
             .unwrap_or_default();
 
-        let spacing = stylesheet.get_copy(spacing()).unwrap_or_default();
-
-        let handle_size = spacing.size(self.style.handle_size);
-        let track_size = spacing.size(self.style.track_size);
+        let handle_size = self.style.handle_size;
+        let track_size = self.style.track_size;
 
         let track = scope.attach(BoxSized::new(Rectangle::new(track_color)).with_size(track_size));
 
@@ -122,16 +116,9 @@ impl<V: SliderValue> Widget for Slider<V> {
             handle_size,
         };
 
-        let value = Arc::new(Map::new(
-            self.value,
+        let value = Arc::new(self.value.map(
             |v| v,
-            move |v| {
-                if let Some(transform) = &self.transform {
-                    transform(v)
-                } else {
-                    v
-                }
-            },
+            move |v| self.transform.as_ref().map(|f| f(v)).unwrap_or(v),
         ));
 
         scope
@@ -149,14 +136,13 @@ impl<V: SliderValue> Widget for Slider<V> {
                 move |_, entity, input| update(entity, input, min, max, &*value)
             });
 
-        let slider = Stack::new(handle)
+        Stack::new(handle)
             .with_vertical_alignment(Alignment::Center)
             .with_style(ContainerStyle {
-                margin: Edges::even(5.0),
                 ..Default::default()
-            });
-
-        slider.mount(scope)
+            })
+            .with_margin(spacing_small())
+            .mount(scope)
     }
 }
 
@@ -252,20 +238,18 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<
         // Wrap in dedup to prevent updating equal numeric values like `0` and `0.` etc when typing
         let value = Arc::new(value);
 
-        let text_value = Box::new(FilterDuplex::new(
-            Dedup::new(value.clone()),
-            |v| Some(format!("{v}")),
-            move |v: String| {
-                let v = v.parse::<V>().ok()?;
-                let v = if v < min {
-                    min
-                } else if v > max {
-                    max
-                } else {
-                    v
-                };
-
-                Some(v)
+        let text_value = Box::new(value.clone().dedup().prevent_feedback().filter_map(
+            move |v: V| Some(format!("{v}")),
+            move |v| {
+                v.parse::<V>().ok().map(|v| {
+                    if v < min {
+                        min
+                    } else if v > max {
+                        max
+                    } else {
+                        v
+                    }
+                })
             },
         ));
 

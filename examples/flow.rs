@@ -17,32 +17,26 @@ use violet::core::{
 use violet_core::{
     style::{
         self,
-        colors::{EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_DEFAULT},
-        Background, SizeExt,
+        colors::{EERIE_BLACK_600, EERIE_BLACK_DEFAULT},
+        secondary_background, spacing_small, Background, SizeExt,
     },
     text::Wrap,
     widget::{
         card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, SliderWithLabel,
         TextInput,
     },
-    Edges,
 };
 use violet_wgpu::renderer::RendererConfig;
 
-const MARGIN: Edges = Edges::even(8.0);
-const MARGIN_SM: Edges = Edges::even(4.0);
-
 fn label(text: impl Into<String>) -> Stack<Text> {
     Stack::new(Text::new(text.into()))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
+        .with_padding(spacing_small())
+        .with_margin(spacing_small())
 }
 
 fn pill(widget: impl Widget) -> impl Widget {
     Stack::new(widget).with_style(ContainerStyle {
-        background: Some(Background::new(EERIE_BLACK_300)),
-        padding: MARGIN,
-        margin: MARGIN,
+        background: Some(Background::new(secondary_background())),
     })
 }
 
@@ -81,24 +75,20 @@ impl Widget for MainApp {
         }});
 
         column((
-            row((Text::new("Input: "), TextInput::new(content))).with_style(ContainerStyle {
-                margin: MARGIN_SM,
-                padding: MARGIN_SM,
-                ..Default::default()
-            }),
+            row((Text::new("Input: "), TextInput::new(content))),
             card(
                 column((
                     Button::with_label("Button"),
                     Button::with_label("Button").with_style(ButtonStyle {
-                        normal_color: style::success_item(),
+                        normal_color: style::success_item().into(),
                         ..Default::default()
                     }),
                     Button::with_label("Warning").with_style(ButtonStyle {
-                        normal_color: style::warning_item(),
+                        normal_color: style::warning_item().into(),
                         ..Default::default()
                     }),
                     Button::with_label("Error").with_style(ButtonStyle {
-                        normal_color: style::danger_item(),
+                        normal_color: style::danger_item().into(),
                         ..Default::default()
                     }),
                 ))
@@ -190,11 +180,14 @@ impl Widget for ItemList {
                         ))
                         .with_wrap(Wrap::None),
                     )
-                    .with_background(Background::new(
-                        Hsva::new(i as f32 * 30.0, 0.6, 0.7, 1.0).into_color(),
-                    ))
-                    .with_padding(MARGIN_SM)
-                    .with_margin(MARGIN_SM)
+                    .with_background(Background::new(Srgba::from_color(Hsva::new(
+                        i as f32 * 30.0,
+                        0.6,
+                        0.7,
+                        1.0,
+                    ))))
+                    .with_padding(spacing_small())
+                    .with_margin(spacing_small())
                     // .with_cross_align(Alignment::Center)
                     .with_vertical_alignment(Alignment::Center)
                     .with_horizontal_alignment(Alignment::Center)

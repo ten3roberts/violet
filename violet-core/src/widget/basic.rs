@@ -8,7 +8,7 @@ use crate::{
         self, aspect_ratio, color, draw_shape, font_size, min_size, size, text, text_wrap,
     },
     shape,
-    style::{SizeExt, StyleExt, WidgetSize},
+    style::{spacing_large, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
@@ -17,14 +17,14 @@ use crate::{
 /// A rectangular widget
 #[derive(Debug, Clone)]
 pub struct Rectangle {
-    color: Srgba,
+    color: ValueOrRef<Srgba>,
     size: WidgetSize,
 }
 
 impl Rectangle {
-    pub fn new(color: Srgba) -> Self {
+    pub fn new(color: impl Into<ValueOrRef<Srgba>>) -> Self {
         Self {
-            color,
+            color: color.into(),
             size: Default::default(),
         }
     }
@@ -34,9 +34,11 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         self.size.mount(scope);
 
+        let c = self.color.resolve(scope.stylesheet());
+
         scope
             .set(draw_shape(shape::shape_rectangle()), ())
-            .set(color(), self.color);
+            .set(color(), c);
     }
 }
 
@@ -95,20 +97,19 @@ impl Default for TextStyle {
 pub struct Text {
     text: Vec<TextSegment>,
     style: TextStyle,
+    size: WidgetSize,
 }
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
-        Self {
-            text: vec![TextSegment::new(text.into())],
-            style: TextStyle::default(),
-        }
+        Self::rich([TextSegment::new(text.into())])
     }
 
     pub fn rich(text: impl IntoIterator<Item = TextSegment>) -> Self {
         Self {
             text: text.into_iter().collect(),
             style: TextStyle::default(),
+            size: Default::default(),
         }
     }
 
@@ -139,8 +140,16 @@ impl StyleExt for Text {
     }
 }
 
+impl SizeExt for Text {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
+    }
+}
+
 impl Widget for Text {
     fn mount(self, scope: &mut Scope) {
+        self.size.mount(scope);
+
         scope
             .set(draw_shape(shape::shape_text()), ())
             .set(font_size(), self.style.font_size)
@@ -148,6 +157,11 @@ impl Widget for Text {
             .set(text(), self.text)
             .set_opt(color(), self.style.color);
     }
+}
+
+/// A text with a margin
+pub fn label(text: impl Into<String>) -> Text {
+    Text::new(text).with_margin(spacing_small())
 }
 
 /// Allows a widget to be manually positioned and offset

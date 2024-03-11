@@ -1,11 +1,10 @@
 use core::panic;
 use std::{fmt::Display, future::ready, str::FromStr, sync::Arc};
 
-use flax::Component;
 use futures::{FutureExt, StreamExt};
 use futures_signals::signal::{self, Mutable, SignalExt};
 use glam::{vec2, Vec2};
-use itertools::{Itertools, Position};
+use itertools::Itertools;
 use palette::Srgba;
 use winit::{
     event::ElementState,
@@ -16,10 +15,10 @@ use crate::{
     components::{self, screen_rect},
     editor::{CursorMove, EditAction, EditorAction, TextEditor},
     input::{focus_sticky, focusable, on_focus, on_keyboard_input, on_mouse_input, KeyboardInput},
-    state::{StateDuplex, StateOwned, StateSink, StateStream},
+    state::{State, StateDuplex, StateSink, StateStream},
     style::{
-        colors::EERIE_BLACK_300, get_stylesheet, interactive_active, interactive_inactive, spacing,
-        Background, SizeExt, StyleExt, WidgetSize,
+        colors::EERIE_BLACK_300, interactive_active, spacing_small, Background, SizeExt, StyleExt,
+        ValueOrRef, WidgetSize,
     },
     text::{LayoutGlyphs, TextSegment},
     to_owned,
@@ -31,7 +30,7 @@ use crate::{
 };
 
 pub struct TextInputStyle {
-    pub cursor_color: Component<Srgba>,
+    pub cursor_color: ValueOrRef<Srgba>,
     pub background: Background,
     pub font_size: f32,
 }
@@ -39,9 +38,9 @@ pub struct TextInputStyle {
 impl Default for TextInputStyle {
     fn default() -> Self {
         Self {
-            cursor_color: interactive_active(),
+            cursor_color: interactive_active().into(),
             background: Background::new(EERIE_BLACK_300),
-            font_size: 18.0,
+            font_size: 16.0,
         }
     }
 }
@@ -58,7 +57,9 @@ impl TextInput {
         Self {
             content: Arc::new(content),
             style: Default::default(),
-            size: Default::default(),
+            size: WidgetSize::default()
+                .with_margin(spacing_small())
+                .with_padding(spacing_small()),
         }
     }
 }
@@ -80,21 +81,17 @@ impl SizeExt for TextInput {
 
 impl Widget for TextInput {
     fn mount(self, scope: &mut Scope<'_>) {
-        let stylesheet = get_stylesheet(scope);
-        let spacing = stylesheet.get_copy(spacing()).unwrap_or_default();
-        let cursor_color = stylesheet
-            .get_copy(self.style.cursor_color)
-            .unwrap_or_default();
+        let stylesheet = scope.stylesheet();
+
+        let cursor_color = self.style.cursor_color.resolve(stylesheet);
 
         let (tx, rx) = flume::unbounded();
-
-        let content = self.content.clone();
 
         let focused = Mutable::new(false);
 
         // Internal text to keep track of non-bijective text changes, such as incomplete numeric
         // input
-        let mut text_content = Mutable::new(String::new());
+        let text_content = Mutable::new(String::new());
         let mut editor = TextEditor::new();
 
         let layout_glyphs = Mutable::new(None);
@@ -104,7 +101,7 @@ impl Widget for TextInput {
         editor.set_cursor_at_end();
 
         let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(NoOp) as Box<dyn Widget>);
-        let content = self.content.clone();
+        let content = self.content;
 
         scope.spawn({
             let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream();
@@ -165,7 +162,7 @@ impl Widget for TextInput {
                         .send(Box::new(Stack::new(
                                     (
                                         focused.then(|| Positioned::new(Rectangle::new(cursor_color)
-                                            .with_min_size(Unit::px2(2.0, 18.0)))
+                                            .with_min_size(Unit::px2(2.0, 16.0)))
                                         .with_offset(Unit::px(cursor_pos))),
                                     )
                         )))
@@ -221,8 +218,7 @@ impl Widget for TextInput {
             SignalWidget(editor_props_rx),
         ))
         .with_background(self.style.background)
-        .with_padding(spacing.small())
-        .with_margin(spacing.small())
+        .with_size_props(self.size)
         .mount(scope)
     }
 }

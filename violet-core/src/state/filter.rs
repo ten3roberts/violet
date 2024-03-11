@@ -5,19 +5,19 @@ use futures::{stream::BoxStream, StreamExt};
 use super::{State, StateSink, StateStream};
 
 /// Transforms one type to another through fallible conversion.
-pub struct FilterDuplex<C, U, F, G> {
+pub struct FilterMap<C, U, F, G> {
     inner: C,
     conv_to: Arc<F>,
     conv_from: G,
     _marker: PhantomData<U>,
 }
 
-impl<C, U, F, G> State for FilterDuplex<C, U, F, G> {
+impl<C, U, F, G> State for FilterMap<C, U, F, G> {
     type Item = U;
 }
 
 impl<C: State, U, F: Fn(C::Item) -> Option<U>, G: Fn(U) -> Option<C::Item>>
-    FilterDuplex<C, U, F, G>
+    FilterMap<C, U, F, G>
 {
     pub fn new(inner: C, conv_to: F, conv_from: G) -> Self {
         Self {
@@ -29,7 +29,7 @@ impl<C: State, U, F: Fn(C::Item) -> Option<U>, G: Fn(U) -> Option<C::Item>>
     }
 }
 
-impl<C, U, F, G> StateStream for FilterDuplex<C, U, F, G>
+impl<C, U, F, G> StateStream for FilterMap<C, U, F, G>
 where
     C: StateStream,
     C::Item: 'static + Send,
@@ -46,7 +46,7 @@ where
 }
 
 /// Bridge update-by-reference to update-by-value
-impl<C, U, F, G> StateSink for FilterDuplex<C, U, F, G>
+impl<C, U, F, G> StateSink for FilterMap<C, U, F, G>
 where
     C: StateSink,
     G: Fn(U) -> Option<C::Item>,

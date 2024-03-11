@@ -87,7 +87,6 @@ impl InputState {
             // Released after focusing a widget
             (ElementState::Released, Some(cur), _) => {
                 if !cur.sticky {
-                    tracing::info!(?cur, "focus lost on release");
                     self.set_focused(frame, None);
                 }
             }
@@ -99,7 +98,6 @@ impl InputState {
         if let Some((id, origin)) = intersect {
             let entity = frame.world().entity(id).unwrap();
 
-            tracing::info!(%entity, "sending input event");
             let cursor = CursorMove {
                 modifiers: self.modifiers,
                 absolute_pos: self.pos,

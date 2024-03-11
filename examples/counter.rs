@@ -7,12 +7,11 @@ use tracing_tree::HierarchicalLayer;
 use violet::core::{
     components::size,
     layout::Alignment,
-    style::StyleExt,
     unit::Unit,
     widget::{Button, List, SignalWidget, Stack, Text},
     Scope, Widget,
 };
-use violet_core::{style::Background, widget::ContainerStyle, Edges};
+use violet_core::style::{accent_item, secondary_background, spacing_small, Background, SizeExt};
 
 macro_rules! srgba {
     ($color:literal) => {{
@@ -21,8 +20,6 @@ macro_rules! srgba {
         Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
     }};
 }
-
-const MARGIN_SM: Edges = Edges::even(5.0);
 
 pub const EERIE_BLACK: Srgba = srgba!("#222525");
 pub const EERIE_BLACK_300: Srgba = srgba!("#151616");
@@ -36,11 +33,10 @@ pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
 
 fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget).with_style(ContainerStyle {
-        background: Some(Background::new(EERIE_BLACK_300)),
-        padding: MARGIN_SM,
-        margin: MARGIN_SM,
-    })
+    Stack::new(widget)
+        .with_background(Background::new(secondary_background()))
+        .with_margin(spacing_small())
+        .with_padding(spacing_small())
 }
 
 struct MainApp;
@@ -64,10 +60,7 @@ impl Widget for MainApp {
                 "Please click the button to increment the counter",
             )),
         ))
-        .with_style(ContainerStyle {
-            background: Some(Background::new(EMERALD)),
-            ..Default::default()
-        })
+        .with_background(Background::new(accent_item()))
         .with_cross_align(Alignment::Center)
         .mount(scope);
     }

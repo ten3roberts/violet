@@ -20,7 +20,7 @@ use violet::core::{
     Edges, Scope, Widget,
 };
 use violet_core::{
-    state::MappedState,
+    state::MapRef,
     style::{colors::DARK_CYAN_DEFAULT, SizeExt},
     text::Wrap,
     widget::{card, centered, column, row, Slider},
@@ -73,8 +73,8 @@ impl Widget for Vec2Editor {
     fn mount(self, scope: &mut Scope<'_>) {
         let value = self.value;
 
-        let x = MappedState::new(value.clone(), |v| &v.x, |v| &mut v.x);
-        let y = MappedState::new(value.clone(), |v| &v.y, |v| &mut v.y);
+        let x = MapRef::new(value.clone(), |v| &v.x, |v| &mut v.x);
+        let y = MapRef::new(value.clone(), |v| &v.y, |v| &mut v.y);
 
         column((
             row((label(self.x_label), Slider::new(x, 0.0, 200.0))),

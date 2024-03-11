@@ -2,7 +2,7 @@ use flax::{components::name, FetchExt, Query};
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsva, IntoColor, Srgba};
+use palette::{Hsva, IntoColor};
 use std::time::Duration;
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
@@ -19,34 +19,15 @@ use violet::core::{
     Scope, StreamEffect, Widget,
 };
 use violet_core::{
-    style::Background,
+    style::{
+        colors::{DARK_CYAN_DEFAULT, JADE_DEFAULT, LION_DEFAULT},
+        danger_item, primary_background, secondary_background, spacing_medium, spacing_small,
+        Background, SizeExt, ValueOrRef,
+    },
     widget::{BoxSized, ContainerStyle},
-    Edges,
 };
 
 struct MainApp;
-
-macro_rules! srgba {
-    ($color:literal) => {{
-        let [r, g, b] = color_hex::color_from_hex!($color);
-
-        Srgba::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
-    }};
-}
-
-const MARGIN: Edges = Edges::even(10.0);
-const MARGIN_SM: Edges = Edges::even(5.0);
-
-pub const EERIE_BLACK: Srgba = srgba!("#222525");
-pub const EERIE_BLACK_300: Srgba = srgba!("#151616");
-pub const EERIE_BLACK_400: Srgba = srgba!("#1b1e1e");
-pub const EERIE_BLACK_600: Srgba = srgba!("#4c5353");
-pub const PLATINUM: Srgba = srgba!("#dddddf");
-pub const VIOLET: Srgba = srgba!("#8000ff");
-pub const TEAL: Srgba = srgba!("#247b7b");
-pub const EMERALD: Srgba = srgba!("#50c878");
-pub const BRONZE: Srgba = srgba!("#cd7f32");
-pub const CHILI_RED: Srgba = srgba!("#d34131");
 
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope) {
@@ -73,16 +54,13 @@ impl Widget for MainApp {
                                 .with_min_size(Unit::px(size))
                                 .with_aspect_ratio(1.0),
                         )
-                        .with_style(ContainerStyle {
-                            margin: MARGIN,
-                            ..Default::default()
-                        })
+                        .with_margin(spacing_medium())
                     })
                     .collect_vec(),
             )
             .with_name("Images"),
             Stack::new((Text::rich([
-                TextSegment::new("Violet").with_color(VIOLET),
+                TextSegment::new("Violet"),
                 TextSegment::new(" now has support for "),
                 TextSegment::new("rich ").with_style(Style::Italic),
                 TextSegment::new("text. I wanted to "),
@@ -95,22 +73,20 @@ impl Widget for MainApp {
                 TextSegment::new(" also show off the different font loadings: \n"),
                 TextSegment::new("Monospace:")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                    .with_color(TEAL),
+                    .with_color(DARK_CYAN_DEFAULT),
                 TextSegment::new("\n\nfn main() { \n    println!(")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
                 TextSegment::new("\"Hello, world!\"")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                    .with_color(BRONZE)
+                    .with_color(LION_DEFAULT)
                     .with_style(Style::Italic),
                 TextSegment::new("); \n}")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
             ])
             .with_font_size(18.0),))
-            .with_style(ContainerStyle {
-                background: Some(Background::new(EERIE_BLACK)),
-                padding: MARGIN,
-                margin: MARGIN,
-            }),
+            .with_margin(spacing_small())
+            .with_margin(spacing_small())
+            .with_background(Background::new(primary_background())),
             Stack::new(
                 Text::rich([
                     TextSegment::new("The quick brown fox 🦊 jumps over the lazy dog 🐕")
@@ -120,30 +96,25 @@ impl Widget for MainApp {
                 // .with_family("Inter")
                 .with_font_size(18.0),
             )
-            .with_style(ContainerStyle {
-                background: Some(Background::new(EERIE_BLACK)),
-                padding: MARGIN,
-                margin: MARGIN,
-            }),
+            .with_margin(spacing_small())
+            .with_padding(spacing_small())
+            .with_background(Background::new(primary_background())),
             Stack::new((
-                BoxSized::new(Rectangle::new(CHILI_RED))
+                BoxSized::new(Rectangle::new(danger_item()))
                     .with_min_size(Unit::px(vec2(100.0, 30.0)))
                     .with_size(Unit::px(vec2(50.0, 30.0))),
-                BoxSized::new(Rectangle::new(TEAL))
+                BoxSized::new(Rectangle::new(danger_item()))
                     .with_min_size(Unit::px(vec2(200.0, 10.0)))
                     .with_size(Unit::px(vec2(50.0, 10.0))),
                 Text::new("This is some text").with_font_size(16.0),
             ))
             .with_vertical_alignment(Alignment::Center)
             .with_horizontal_alignment(Alignment::Center)
-            .with_background(Background::new(EERIE_BLACK_300))
-            .with_padding(MARGIN)
-            .with_margin(MARGIN),
+            .with_background(Background::new(secondary_background()))
+            .with_padding(spacing_small())
+            .with_margin(spacing_small()),
         ))
-        .with_style(ContainerStyle {
-            background: Some(Background::new(EERIE_BLACK_600)),
-            ..Default::default()
-        })
+        .with_background(Background::new(secondary_background()))
         .contain_margins(true)
         .with_direction(Direction::Vertical)
         .mount(scope);
@@ -182,12 +153,12 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        Stack::new((Text::new("This is an overlaid text").with_color(EMERALD),))
+        Stack::new((Text::new("This is an overlaid text").with_color(JADE_DEFAULT),))
             .with_style(ContainerStyle {
-                background: Some(Background::new(EERIE_BLACK_300)),
-                padding: MARGIN,
-                margin: MARGIN,
+                background: Some(Background::new(secondary_background())),
             })
+            .with_margin(spacing_small())
+            .with_padding(spacing_small())
             .mount(scope)
     }
 }
@@ -202,16 +173,13 @@ impl Widget for LayoutFlexTest {
                     let size = vec2(100.0, 20.0);
 
                     Stack::new(
-                        BoxSized::new(Rectangle::new(
+                        BoxSized::new(Rectangle::new(ValueOrRef::value(
                             Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color(),
-                        ))
+                        )))
                         .with_min_size(Unit::px(size))
                         .with_size(Unit::px(size * vec2(i as f32, 1.0))),
                     )
-                    .with_style(ContainerStyle {
-                        margin: MARGIN,
-                        ..Default::default()
-                    })
+                    .with_margin(spacing_small())
                 })
                 .collect_vec(),
         )
@@ -234,15 +202,14 @@ impl Widget for LayoutTest {
                         TextSegment::new("This is "),
                         TextSegment::new("sparta")
                             .with_style(Style::Italic)
-                            .with_color(BRONZE),
+                            .with_color(LION_DEFAULT),
                     ])
                     .with_font_size(16.0)
                     .with_wrap(Wrap::None),
                 )
+                .with_margin(spacing_small())
                 .with_style(ContainerStyle {
-                    background: Some(Background::new(EERIE_BLACK)),
-                    padding: MARGIN_SM,
-                    margin: MARGIN_SM,
+                    background: Some(Background::new(primary_background())),
                 }),
             ))
             .on_press({
@@ -271,19 +238,19 @@ impl Widget for LayoutTest {
         ))
         .contain_margins(self.contain_margins)
         .with_cross_align(Alignment::Center)
+        .with_margin(spacing_small())
+        .with_padding(spacing_small())
         .with_style(ContainerStyle {
-            background: Some(Background::new(EERIE_BLACK)),
-            padding: MARGIN,
-            margin: MARGIN,
+            background: Some(Background::new(primary_background())),
         });
         // row_1.mount(scope);
 
         List::new((row_1,))
             .contain_margins(self.contain_margins)
+            .with_margin(spacing_small())
+            .with_padding(spacing_small())
             .with_style(ContainerStyle {
-                background: Some(Background::new(EERIE_BLACK_300)),
-                padding: MARGIN,
-                margin: MARGIN,
+                background: Some(Background::new(secondary_background())),
             })
             .mount(scope);
     }

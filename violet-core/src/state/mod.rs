@@ -8,13 +8,69 @@ use futures::{stream::BoxStream, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
 mod dedup;
+mod feedback;
 mod filter;
+mod map;
 
 pub use dedup::*;
+pub use feedback::*;
 pub use filter::*;
+pub use map::*;
 
 pub trait State {
     type Item;
+
+    /// Map a state from one type to another through reference projection
+    fn map_ref<F: Fn(&Self::Item) -> &U, G: Fn(&mut Self::Item) -> &mut U, U>(
+        self,
+        f: F,
+        g: G,
+    ) -> MapRef<Self, U, F, G>
+    where
+        Self: Sized,
+    {
+        MapRef::new(self, f, g)
+    }
+
+    /// Map a state from one type to another
+    fn map<F: Fn(Self::Item) -> U, G: Fn(U) -> Self::Item, U>(
+        self,
+        f: F,
+        g: G,
+    ) -> Map<Self, U, F, G>
+    where
+        Self: Sized,
+    {
+        Map::new(self, f, g)
+    }
+
+    /// Map a state from one type to another through fallible conversion
+    fn filter_map<F: Fn(Self::Item) -> Option<U>, G: Fn(U) -> Option<Self::Item>, U>(
+        self,
+        f: F,
+        g: G,
+    ) -> FilterMap<Self, U, F, G>
+    where
+        Self: Sized,
+    {
+        FilterMap::new(self, f, g)
+    }
+
+    fn dedup(self) -> Dedup<Self>
+    where
+        Self: Sized,
+        Self::Item: PartialEq + Clone,
+    {
+        Dedup::new(self)
+    }
+
+    fn prevent_feedback(self) -> PreventFeedback<Self>
+    where
+        Self: Sized,
+        Self::Item: PartialEq + Clone,
+    {
+        PreventFeedback::new(self)
+    }
 }
 
 /// A trait to read a reference from a generic state
@@ -37,7 +93,9 @@ pub trait StateMut: StateRef {
     fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V;
 }
 
-/// A trait to read a stream from a generic state
+/// Convert a state to a stream of state changes through reference projection.
+///
+/// This is only available for some states as is used to lower or transform non-cloneable states into smaller parts.
 pub trait StateStreamRef: State {
     /// Subscribe to a stream of the state
     ///
@@ -51,6 +109,7 @@ pub trait StateStreamRef: State {
         Self: Sized;
 }
 
+/// Convert a state to a stream of state changes.
 pub trait StateStream: State {
     fn stream(&self) -> BoxStream<'static, Self::Item>;
 }
@@ -122,14 +181,14 @@ impl<T> StateSink for Mutable<T> {
 ///
 /// Can be used both to mutate and read the state, as well as to operate as a duplex sink and
 /// stream.
-pub struct MappedState<C, U, F, G> {
+pub struct MapRef<C, U, F, G> {
     inner: C,
     project: Arc<F>,
     project_mut: G,
     _marker: PhantomData<U>,
 }
 
-impl<C: StateRef, U, F: Fn(&C::Item) -> &U, G: Fn(&mut C::Item) -> &mut U> MappedState<C, U, F, G> {
+impl<C: State, U, F: Fn(&C::Item) -> &U, G: Fn(&mut C::Item) -> &mut U> MapRef<C, U, F, G> {
     pub fn new(inner: C, project: F, project_mut: G) -> Self {
         Self {
             inner,
@@ -140,11 +199,11 @@ impl<C: StateRef, U, F: Fn(&C::Item) -> &U, G: Fn(&mut C::Item) -> &mut U> Mappe
     }
 }
 
-impl<C, U, F, G> State for MappedState<C, U, F, G> {
+impl<C, U, F, G> State for MapRef<C, U, F, G> {
     type Item = U;
 }
 
-impl<C, U, F, G> StateRef for MappedState<C, U, F, G>
+impl<C, U, F, G> StateRef for MapRef<C, U, F, G>
 where
     C: StateRef,
     F: Fn(&C::Item) -> &U,
@@ -155,7 +214,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateOwned for MappedState<C, U, F, G>
+impl<C, U, F, G> StateOwned for MapRef<C, U, F, G>
 where
     C: StateRef,
     U: Clone,
@@ -166,7 +225,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateMut for MappedState<C, U, F, G>
+impl<C, U, F, G> StateMut for MapRef<C, U, F, G>
 where
     C: StateMut,
     F: Fn(&C::Item) -> &U,
@@ -177,7 +236,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateStreamRef for MappedState<C, U, F, G>
+impl<C, U, F, G> StateStreamRef for MapRef<C, U, F, G>
 where
     C: StateStreamRef,
     F: 'static + Fn(&C::Item) -> &U + Sync + Send,
@@ -191,7 +250,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateStream for MappedState<C, U, F, G>
+impl<C, U, F, G> StateStream for MapRef<C, U, F, G>
 where
     C: StateStreamRef,
     U: 'static + Send + Sync + Clone,
@@ -203,7 +262,7 @@ where
 }
 
 /// Bridge update-by-reference to update-by-value
-impl<C, U, F, G> StateSink for MappedState<C, U, F, G>
+impl<C, U, F, G> StateSink for MapRef<C, U, F, G>
 where
     C: StateMut,
     F: Fn(&C::Item) -> &U,
@@ -211,70 +270,6 @@ where
 {
     fn send(&self, value: Self::Item) {
         self.write_mut(|v| *v = value);
-    }
-}
-
-/// Transforms one state to another through type conversion
-///
-///
-/// This allows deriving state from another where the derived state is not present in the original.
-///
-/// However, as this does not assume the derived state is contained withing the original state is
-/// does not allow in-place mutation.
-pub struct Map<C, U, F, G> {
-    inner: C,
-    conv_to: Arc<F>,
-    conv_from: G,
-    _marker: PhantomData<U>,
-}
-
-impl<C, U, F, G> State for Map<C, U, F, G> {
-    type Item = U;
-}
-
-impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> Map<C, U, F, G> {
-    pub fn new(inner: C, project: F, project_mut: G) -> Self {
-        Self {
-            inner,
-            conv_to: Arc::new(project),
-            conv_from: project_mut,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<C, U, F, G> StateOwned for Map<C, U, F, G>
-where
-    C: StateOwned,
-    F: Fn(C::Item) -> U,
-{
-    fn read(&self) -> Self::Item {
-        (self.conv_to)(self.inner.read())
-    }
-}
-
-impl<C, U, F, G> StateStream for Map<C, U, F, G>
-where
-    C: StateStream,
-    C::Item: 'static + Send,
-    U: 'static + Send + Sync,
-    F: 'static + Fn(C::Item) -> U + Sync + Send,
-{
-    fn stream(&self) -> BoxStream<'static, Self::Item> {
-        let project = self.conv_to.clone();
-        self.inner.stream().map(move |v| (project)(v)).boxed()
-    }
-}
-
-/// Bridge update-by-reference to update-by-value
-impl<C, U, F, G> StateSink for Map<C, U, F, G>
-where
-    C: StateSink,
-    F: Fn(C::Item) -> U,
-    G: Fn(U) -> C::Item,
-{
-    fn send(&self, value: Self::Item) {
-        self.inner.send((self.conv_from)(value))
     }
 }
 
@@ -415,7 +410,7 @@ mod tests {
     async fn mapped_mutable() {
         let state = Mutable::new((1, 2));
 
-        let a = MappedState::new(state.clone(), |v| &v.0, |v| &mut v.0);
+        let a = MapRef::new(state.clone(), |v| &v.0, |v| &mut v.0);
 
         assert_eq!(a.read(), 1);
 
@@ -432,7 +427,7 @@ mod tests {
     async fn project_duplex() {
         let state = Mutable::new((1, 2));
 
-        let a = MappedState::new(state.clone(), |v| &v.0, |v| &mut v.0);
+        let a = MapRef::new(state.clone(), |v| &v.0, |v| &mut v.0);
 
         let a = Box::new(a) as Box<dyn StateDuplex<Item = i32>>;
 

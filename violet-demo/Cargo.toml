@@ -1,5 +1,5 @@
 [package]
-name = "violet-web-example"
+name = "violet-demo"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
