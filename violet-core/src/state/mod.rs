@@ -4,7 +4,7 @@
 //! smaller parts of a larger state.
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-use futures::{stream::BoxStream, Stream, StreamExt};
+use futures::{stream::BoxStream, FutureExt, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
 mod dedup;
@@ -16,6 +16,7 @@ pub use dedup::*;
 pub use feedback::*;
 pub use filter::*;
 pub use map::*;
+use sync_wrapper::SyncWrapper;
 
 pub trait State {
     type Item;
@@ -101,7 +102,7 @@ pub trait StateStreamRef: State {
     ///
     /// The passed function is used to transform the value in the stream, to allow for handling
     /// non-static or non-cloneable types.
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         func: F,
     ) -> impl Stream<Item = V> + 'static + Send
@@ -152,7 +153,7 @@ impl<T> StateStreamRef for Mutable<T>
 where
     T: 'static + Send + Sync,
 {
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         func: F,
     ) -> impl Stream<Item = V> + 'static + Send {
@@ -241,7 +242,7 @@ where
     C: StateStreamRef,
     F: 'static + Fn(&C::Item) -> &U + Sync + Send,
 {
-    fn stream_ref<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         mut func: I,
     ) -> impl Stream<Item = V> + 'static + Send {
@@ -270,6 +271,38 @@ where
 {
     fn send(&self, value: Self::Item) {
         self.write_mut(|v| *v = value);
+    }
+}
+
+pub struct WatchState<S: Stream> {
+    stream: SyncWrapper<S>,
+    last_item: Option<S::Item>,
+}
+
+impl<S: Stream> WatchState<S> {
+    pub fn new(stream: S) -> Self {
+        Self {
+            stream: SyncWrapper::new(stream),
+            last_item: None,
+        }
+    }
+
+    pub fn last_item(&self) -> Option<&S::Item> {
+        self.last_item.as_ref()
+    }
+
+    pub fn get(&mut self) -> Option<&S::Item>
+    where
+        S: Unpin,
+    {
+        let new =
+            std::iter::from_fn(|| self.stream.get_mut().next().now_or_never().flatten()).last();
+
+        if let Some(new) = new {
+            self.last_item = Some(new);
+        }
+
+        self.last_item.as_ref()
     }
 }
 
@@ -311,7 +344,7 @@ macro_rules! impl_container {
 
         impl<T> StateOwned for $ty<T>
         where
-            T: StateOwned,
+            T: ?Sized + StateOwned,
         {
             fn read(&self) -> Self::Item {
                 (**self).read()
@@ -331,10 +364,7 @@ macro_rules! impl_container {
         where
             T: StateStreamRef,
         {
-            fn stream_ref<
-                F: 'static + Send + Sync + FnMut(&Self::Item) -> V,
-                V: 'static + Send + Sync,
-            >(
+            fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
                 &self,
                 func: F,
             ) -> impl Stream<Item = V> + 'static + Send {
@@ -378,7 +408,7 @@ impl<T> StateStreamRef for flume::Receiver<T>
 where
     T: 'static + Send + Sync,
 {
-    fn stream_ref<F: 'static + Send + FnMut(&T) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + FnMut(&T) -> V, V: 'static + Send>(
         &self,
         mut func: F,
     ) -> impl 'static + Send + Stream<Item = V> {

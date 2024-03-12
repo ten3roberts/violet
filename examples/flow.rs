@@ -78,16 +78,16 @@ impl Widget for MainApp {
             row((Text::new("Input: "), TextInput::new(content))),
             card(
                 column((
-                    Button::with_label("Button"),
-                    Button::with_label("Button").with_style(ButtonStyle {
+                    Button::label("Button"),
+                    Button::label("Button").with_style(ButtonStyle {
                         normal_color: style::success_item().into(),
                         ..Default::default()
                     }),
-                    Button::with_label("Warning").with_style(ButtonStyle {
+                    Button::label("Warning").with_style(ButtonStyle {
                         normal_color: style::warning_item().into(),
                         ..Default::default()
                     }),
-                    Button::with_label("Error").with_style(ButtonStyle {
+                    Button::label("Error").with_style(ButtonStyle {
                         normal_color: style::danger_item().into(),
                         ..Default::default()
                     }),

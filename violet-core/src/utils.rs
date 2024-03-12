@@ -10,7 +10,12 @@ macro_rules! to_owned {
 }
 
 /// Combines two streams yielding the latest value from each stream
-pub fn zip_latest_ref<A: Stream, B: Stream, F>(a: A, b: B, func: F) -> ZipLatest<A, B, F> {
+pub fn zip_latest_ref<A, B, F, V>(a: A, b: B, func: F) -> ZipLatest<A, B, F>
+where
+    A: Stream,
+    B: Stream,
+    F: Fn(&A::Item, &B::Item) -> V,
+{
     ZipLatest::new(a, b, func)
 }
 

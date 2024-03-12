@@ -27,6 +27,7 @@ once_cell.workspace = true
 slab.workspace = true
 tynm.workspace = true
 arrayvec.workspace = true
+sync_wrapper.workspace = true
 
 bytemuck.workspace = true
 palette.workspace = true

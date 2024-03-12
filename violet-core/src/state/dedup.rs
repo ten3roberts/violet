@@ -30,7 +30,7 @@ where
     T: StateStreamRef,
     T::Item: 'static + Send + Sync + Clone + PartialEq,
 {
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         mut func: F,
     ) -> impl futures::prelude::Stream<Item = V> + 'static + Send

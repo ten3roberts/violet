@@ -1,15 +1,20 @@
+use futures::Stream;
+use futures_signals::signal::Mutable;
 use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
 
 use crate::{
-    components::color,
+    components::{self, color},
     input::{focusable, on_mouse_input},
     layout::Alignment,
+    state::{StateDuplex, StateMut, StateStream, WatchState},
     style::{
         danger_item, interactive_inactive, interactive_pressed, spacing_medium, success_item,
         warning_item, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
-    widget::{ContainerStyle, Stack, Text},
+    to_owned,
+    unit::Unit,
+    widget::{ContainerStyle, Rectangle, Stack, Text},
     Frame, Scope, Widget,
 };
 
@@ -47,7 +52,10 @@ impl<W> Button<W> {
             on_press: Box::new(|_, _| {}),
             label,
             style: Default::default(),
-            size: WidgetSize::default().with_padding(spacing_medium()),
+            size: WidgetSize::default()
+                .with_padding(spacing_medium())
+                .with_margin(spacing_medium())
+                .with_min_size(Unit::px2(28.0, 28.0)),
         }
     }
 
@@ -77,7 +85,7 @@ impl<W> Button<W> {
 }
 
 impl Button<Text> {
-    pub fn with_label(label: impl Into<String>) -> Self {
+    pub fn label(label: impl Into<String>) -> Self {
         Self::new(Text::new(label.into()))
     }
 }
@@ -116,6 +124,63 @@ impl<W: Widget> Widget for Button<W> {
             });
 
         Stack::new(self.label)
+            .with_style(ContainerStyle {
+                background: Some(Background::new(normal_color)),
+            })
+            .with_horizontal_alignment(Alignment::Center)
+            .with_vertical_alignment(Alignment::Center)
+            .with_size_props(self.size)
+            .mount(scope);
+    }
+}
+
+pub struct Checkbox {
+    state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
+    style: ButtonStyle,
+    size: WidgetSize,
+}
+
+impl Checkbox {
+    pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
+        Self {
+            state: Box::new(state),
+            style: Default::default(),
+            size: WidgetSize::default()
+                .with_padding(spacing_medium())
+                .with_margin(spacing_medium())
+                .with_min_size(Unit::px2(28.0, 28.0)),
+        }
+    }
+}
+
+impl Widget for Checkbox {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let stylesheet = scope.stylesheet();
+
+        let pressed_color = self.style.pressed_color.resolve(stylesheet);
+        let normal_color = self.style.normal_color.resolve(stylesheet);
+
+        scope.spawn_stream(self.state.stream(), {
+            move |scope, state| {
+                let color = if state { pressed_color } else { normal_color };
+
+                scope.set(components::color(), color);
+            }
+        });
+
+        let mut last_state = WatchState::new(self.state.stream());
+
+        scope
+            .set(focusable(), ())
+            .on_event(on_mouse_input(), move |_, _, input| {
+                if input.state == ElementState::Pressed {
+                    if let Some(state) = last_state.get() {
+                        self.state.send(!state)
+                    }
+                }
+            });
+
+        Stack::new(())
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal_color)),
             })

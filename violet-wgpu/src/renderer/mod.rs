@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 
 use bytemuck::Zeroable;
 use flax::{
@@ -281,7 +281,7 @@ impl MainRenderer {
 
             let commands = RendererIter {
                 world: &frame.world,
-                queue: roots,
+                stack: roots,
             }
             .filter_map(|entity| {
                 let mut query = entity.query(&query);
@@ -348,7 +348,7 @@ impl MainRenderer {
     }
 }
 
-fn collect_draw_commands<'a>(
+fn collect_draw_commands(
     entities: impl Iterator<Item = (DrawCommand, ObjectData)>,
     objects: &mut Vec<ObjectData>,
     draw_cmds: &mut Vec<(usize, InstancedDrawCommand)>,
@@ -399,17 +399,22 @@ pub(crate) struct ObjectData {
 
 struct RendererIter<'a> {
     world: &'a World,
-    queue: VecDeque<EntityRef<'a>>,
+    // queue: VecDeque<EntityRef<'a>>,
+    stack: Vec<EntityRef<'a>>,
 }
 
 impl<'a> Iterator for RendererIter<'a> {
     type Item = EntityRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let entity = self.queue.pop_front()?;
+        let entity = self.stack.pop()?;
         if let Ok(children) = entity.get(children()) {
-            self.queue
-                .extend(children.iter().map(|&id| self.world.entity(id).unwrap()));
+            self.stack.extend(
+                children
+                    .iter()
+                    .rev()
+                    .map(|&id| self.world.entity(id).unwrap()),
+            );
         }
 
         Some(entity)

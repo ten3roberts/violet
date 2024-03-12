@@ -196,7 +196,11 @@ impl<Data> Executor<Data> {
             }
 
             for id in self.processing.drain(..) {
-                let (task, waker) = self.tasks.get_mut(id).unwrap();
+                let Some((task, waker)) = self.tasks.get_mut(id) else {
+                    // Task was canceled and thus returned Poll::Ready before being woken by an
+                    // external waker
+                    continue;
+                };
                 let mut context = Context::from_waker(&*waker);
                 tracing::trace!(?id, "Polling task");
 
