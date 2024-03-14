@@ -68,7 +68,7 @@ impl LayoutCache {
     pub(crate) fn insert_query_row(&mut self, value: CachedValue<Row>) {
         self.query_row = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
-            f(LayoutUpdate::SizeQueryUpdate)
+            // f(LayoutUpdate::SizeQueryUpdate)
         }
     }
 
@@ -83,8 +83,8 @@ impl LayoutCache {
         self.layout.as_ref()
     }
 
-    pub fn query(&self) -> &[Option<CachedValue<Sizing>>; 2] {
-        &self.query
+    pub(crate) fn get_query(&self, direction: Direction) -> Option<&CachedValue<Sizing>> {
+        self.query[direction as usize].as_ref()
     }
 }
 

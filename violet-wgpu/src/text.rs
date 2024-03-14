@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 
 use violet_core::{
     components::font_size,
-    layout::{Direction, LayoutLimits, SizeResolver, SizingHints},
+    layout::{Direction, LayoutLimits, QueryArgs, SizeResolver, SizingHints},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };
@@ -54,15 +54,9 @@ pub struct TextSizeResolver {
 }
 
 impl SizeResolver for TextSizeResolver {
-    fn query(
-        &mut self,
-        entity: &flax::EntityRef,
-        _content_area: Vec2,
-        limits: LayoutLimits,
-        direction: Direction,
-    ) -> (Vec2, Vec2, SizingHints) {
+    fn query(&mut self, entity: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
         puffin::profile_scope!("TextSizeResolver::query");
-        let _span = tracing::debug_span!("TextSizeResolver::query", ?direction).entered();
+        let _span = tracing::debug_span!("TextSizeResolver::query", ?args.direction).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 
@@ -78,9 +72,12 @@ impl SizeResolver for TextSizeResolver {
             state,
             text_system,
             font_size,
-            match direction {
-                Direction::Horizontal => vec2(1.0, limits.max_size.y.max(line_height)),
-                Direction::Vertical => vec2(limits.max_size.x, limits.max_size.y.max(line_height)),
+            match args.direction {
+                Direction::Horizontal => vec2(1.0, args.limits.max_size.y.max(line_height)),
+                Direction::Vertical => vec2(
+                    args.limits.max_size.x,
+                    args.limits.max_size.y.max(line_height),
+                ),
             },
         );
 
@@ -88,12 +85,12 @@ impl SizeResolver for TextSizeResolver {
             state,
             text_system,
             font_size,
-            limits.max_size.max(vec2(1.0, line_height)),
+            args.limits.max_size.max(vec2(1.0, line_height)),
         );
         // + vec2(5.0, 5.0);
 
-        if min.dot(direction.to_axis()) > preferred.dot(direction.to_axis()) {
-            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?direction, %limits.max_size, "Text wrapping failed");
+        if min.dot(args.direction.to_axis()) > preferred.dot(args.direction.to_axis()) {
+            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?args.direction, %args.limits.max_size, "Text wrapping failed");
         }
         (
             min,

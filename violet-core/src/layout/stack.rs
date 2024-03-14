@@ -8,7 +8,9 @@ use crate::{
     Edges, Rect,
 };
 
-use super::{resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, Sizing};
+use super::{
+    resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, QueryArgs, Sizing,
+};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -173,13 +175,12 @@ impl StackLayout {
         &self,
         world: &World,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        squeeze: Direction,
+        args: QueryArgs,
         preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        let min_rect = Rect::from_size_pos(limits.min_size, content_area.min);
+        let min_rect = Rect::from_size(args.limits.min_size);
+
         let mut min_bounds = StackableBounds::from_rect(min_rect);
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);
 
@@ -191,32 +192,29 @@ impl StackLayout {
             let sizing = query_size(
                 world,
                 &entity,
-                content_area.size(),
-                LayoutLimits {
-                    min_size: Vec2::ZERO,
-                    max_size: limits.max_size,
+                QueryArgs {
+                    limits: LayoutLimits {
+                        min_size: Vec2::ZERO,
+                        max_size: args.limits.max_size,
+                    },
+                    content_area: args.content_area,
+                    direction: args.direction,
                 },
-                squeeze,
             );
 
             hints = hints.combine(sizing.hints);
 
-            min_bounds = min_bounds.merge(&StackableBounds::new(
-                sizing.min.translate(content_area.min),
-                sizing.margin,
-            ));
+            min_bounds = min_bounds.merge(&StackableBounds::new(sizing.min, sizing.margin));
 
-            preferred_bounds = preferred_bounds.merge(&StackableBounds::new(
-                sizing.preferred.translate(content_area.min),
-                sizing.margin,
-            ));
+            preferred_bounds =
+                preferred_bounds.merge(&StackableBounds::new(sizing.preferred, sizing.margin));
         }
 
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
 
         Sizing {
-            min: min_bounds.inner.max_size(limits.min_size),
+            min: min_bounds.inner.max_size(args.limits.min_size),
             // .clamp_size(limits.min_size, limits.max_size),
             preferred: preferred_bounds.inner.max_size(preferred_size),
             // .clamp_size(limits.min_size, limits.max_size),
