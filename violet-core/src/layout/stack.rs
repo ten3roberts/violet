@@ -1,5 +1,5 @@
 use flax::{Entity, EntityRef, World};
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
@@ -98,7 +98,7 @@ impl StackLayout {
         preferred_size: Vec2,
     ) -> Block {
         puffin::profile_function!();
-        let _span = tracing::info_span!("StackLayout::apply").entered();
+        let _span = tracing::debug_span!("StackLayout::apply").entered();
 
         let mut bounds = Rect {
             min: Vec2::MAX,
@@ -132,7 +132,7 @@ impl StackLayout {
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(preferred_size, content_area.min));
 
-        let mut can_grow = false;
+        let mut can_grow = BVec2::FALSE;
 
         let offset = resolve_pos(entity, content_area.size(), size);
         for (entity, block) in blocks {
@@ -151,7 +151,7 @@ impl StackLayout {
                 block.margin,
             ));
 
-            can_grow = can_grow || block.can_grow;
+            can_grow |= block.can_grow;
 
             // entity.update_dedup(components::rect(), block.rect.translate(offset));
             entity.update_dedup(components::rect(), block.rect);
@@ -183,10 +183,7 @@ impl StackLayout {
         let mut min_bounds = StackableBounds::from_rect(min_rect);
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);
 
-        let mut hints = SizingHints {
-            fixed_size: true,
-            can_grow: false,
-        };
+        let mut hints = SizingHints::default();
 
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");

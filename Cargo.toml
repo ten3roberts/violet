@@ -106,6 +106,12 @@ opt-level = 2
 [profile.dev.package.parking_lot]
 opt-level = 2
 
+[profile.dev.package.puffin]
+opt-level = 2
+
+[profile.dev.package.puffin_server]
+opt-level = 2
+
 [patch.crates-io]
 palette = { git = "https://github.com/Ogeon/palette" }
 

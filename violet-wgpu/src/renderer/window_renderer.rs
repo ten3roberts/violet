@@ -4,6 +4,7 @@ use anyhow::Context;
 use flax::Entity;
 use glam::Mat4;
 use parking_lot::Mutex;
+use puffin::profile_scope;
 use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
 use winit::dpi::PhysicalSize;
 
@@ -110,8 +111,11 @@ impl WindowRenderer {
                 .context("Failed to draw shapes")?;
         }
 
-        self.ctx.gpu.queue.submit([encoder.finish()]);
-        target.present();
+        {
+            profile_scope!("submit");
+            self.ctx.gpu.queue.submit([encoder.finish()]);
+            target.present();
+        }
 
         Ok(())
     }

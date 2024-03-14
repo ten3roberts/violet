@@ -15,8 +15,8 @@ use crate::{
 };
 
 use self::colors::{
-    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
-    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+    EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600,
+    JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
 };
 
 #[macro_export]
@@ -258,7 +258,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         // colors
         .set(primary_background(), EERIE_BLACK_DEFAULT)
         .set(primary_item(), PLATINUM_DEFAULT)
-        .set(secondary_background(), EERIE_BLACK_600)
+        .set(secondary_background(), EERIE_BLACK_300)
         .set(accent_background(), EERIE_BLACK_DEFAULT)
         .set(accent_item(), JADE_DEFAULT)
         .set(success_background(), EERIE_BLACK_DEFAULT)

@@ -131,6 +131,12 @@ pub struct Rect {
     pub max: Vec2,
 }
 
+impl Display for Rect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("({:?},{:?})", self.min, self.max))
+    }
+}
+
 impl Rect {
     pub const ZERO: Self = Self {
         min: Vec2::ZERO,

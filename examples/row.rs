@@ -45,7 +45,9 @@ impl Widget for MainApp {
                 row((
                     column((
                         Rectangle::new(JADE_DEFAULT).with_size(Unit::px2(900.0, 40.0)),
-                        Rectangle::new(JADE_400).with_size(Unit::px2(900.0, 40.0)),
+                        Rectangle::new(JADE_400)
+                            .with_size(Unit::px2(900.0, 40.0))
+                            .with_min_size(Unit::px2(400.0, 40.0)),
                     )),
                     Rectangle::new(LION_DEFAULT).with_size(Unit::px2(900.0, 40.0)),
                 )),

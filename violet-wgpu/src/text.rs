@@ -3,7 +3,7 @@ use std::sync::Arc;
 use cosmic_text::{
     fontdb::Source, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
 };
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
@@ -73,8 +73,8 @@ impl SizeResolver for TextSizeResolver {
 
         let line_height = state.buffer.metrics().line_height;
 
-        // If preferred is clamped, so is min
-        let (min, _clamped) = Self::resolve_text_size(
+        // If preferred is can_grow, so is min
+        let (min, _can_grow) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -84,7 +84,7 @@ impl SizeResolver for TextSizeResolver {
             },
         );
 
-        let (preferred, clamped) = Self::resolve_text_size(
+        let (preferred, can_grow) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -99,8 +99,8 @@ impl SizeResolver for TextSizeResolver {
             min,
             preferred,
             SizingHints {
-                can_grow: clamped,
-                fixed_size: true,
+                can_grow,
+                relative_size: BVec2::TRUE,
             },
         )
     }
@@ -110,7 +110,7 @@ impl SizeResolver for TextSizeResolver {
         entity: &flax::EntityRef,
         content_area: Vec2,
         limits: LayoutLimits,
-    ) -> (Vec2, bool) {
+    ) -> (Vec2, BVec2) {
         puffin::profile_scope!("TextSizeResolver::apply");
         let _span = tracing::debug_span!("TextSizeResolver::apply", ?content_area).entered();
 
@@ -122,7 +122,7 @@ impl SizeResolver for TextSizeResolver {
         let text_system = &mut *self.text_system.lock();
         let line_height = state.buffer.metrics().line_height;
 
-        let (size, clamped) = Self::resolve_text_size(
+        let (size, can_grow) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -135,7 +135,7 @@ impl SizeResolver for TextSizeResolver {
             // tracing::error!(%entity, text=?state.text(), %size, %limits.max_size, "Text overflowed");
         }
 
-        (size, clamped)
+        (size, can_grow)
     }
 }
 
@@ -149,7 +149,7 @@ impl TextSizeResolver {
         text_system: &mut TextSystem,
         font_size: f32,
         size: Vec2,
-    ) -> (Vec2, bool) {
+    ) -> (Vec2, BVec2) {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
         let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
@@ -168,7 +168,7 @@ fn glyph_bounds(glyph: &LayoutGlyph) -> (f32, f32) {
     (glyph.x, glyph.x + glyph.w)
 }
 
-fn measure(buffer: &Buffer) -> (Vec2, bool) {
+fn measure(buffer: &Buffer) -> (Vec2, BVec2) {
     let (width, total_lines) =
         buffer
             .layout_runs()
@@ -193,7 +193,7 @@ fn measure(buffer: &Buffer) -> (Vec2, bool) {
 
     (
         vec2(width, total_lines as f32 * buffer.metrics().line_height),
-        total_lines > buffer.lines.len(),
+        BVec2::new(total_lines > buffer.lines.len(), false),
     )
 }
 

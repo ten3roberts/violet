@@ -213,11 +213,12 @@ impl DebugRenderer {
         self.objects.clear();
         self.objects.extend(objects);
 
-        self.layout_changes.retain(|_, lifetime| {
-            *lifetime -= 1;
+        self.layout_changes.clear();
+        // self.layout_changes.retain(|_, lifetime| {
+        //     *lifetime -= 1;
 
-            *lifetime > 0
-        });
+        //     *lifetime > 0
+        // });
     }
 
     pub fn draw_commands(&self) -> &[(DrawCommand, ObjectData)] {

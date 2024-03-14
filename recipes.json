@@ -5,6 +5,9 @@
     "run demo": {
         "cmd": "cargo run --package violet-demo"
     },
+    "run demo release": {
+        "cmd": "cargo run --package violet-demo --release"
+    },
     "run basic": {
         "cmd": "cargo run --package violet --example basic"
     },

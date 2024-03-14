@@ -8,7 +8,8 @@ use crate::{
     layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
     style::{
         colors::{EERIE_BLACK_300, EERIE_BLACK_400},
-        Background, SizeExt, StyleExt, WidgetSize,
+        primary_background, secondary_background, spacing_medium, spacing_small, Background,
+        SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
     Edges, Frame, Scope, Widget, WidgetCollection,
@@ -246,15 +247,15 @@ pub fn centered<W>(widget: W) -> Stack<W> {
 pub fn card<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
-        .with_background(Background::new(EERIE_BLACK_400))
-        .with_padding(Edges::even(4.0))
-        .with_margin(Edges::even(4.0))
+        .with_background(Background::new(secondary_background()))
+        .with_padding(spacing_medium())
+        .with_margin(spacing_medium())
 }
 
-pub fn card2<W>(widget: W) -> Stack<W> {
+pub fn pill<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
-        .with_background(Background::new(EERIE_BLACK_300))
-        .with_padding(Edges::even(4.0))
-        .with_margin(Edges::even(4.0))
+        .with_background(Background::new(primary_background()))
+        .with_padding(spacing_small())
+        .with_margin(spacing_small())
 }

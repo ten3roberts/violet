@@ -9,30 +9,22 @@ use tracing_subscriber::{
 use tracing_web::{performance_layer, MakeWebConsoleWriter};
 use violet::{
     core::{
-        components,
-        layout::{Alignment, Direction},
-        state::{Map, MapRef, State, StateMut, StateStream, StateStreamRef},
-        style::{
-            colors::{
-                EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_200, JADE_DEFAULT, LION_DEFAULT,
-                REDWOOD_DEFAULT,
-            },
-            danger_item, success_item, Background, SizeExt, StyleExt, ValueOrRef,
-        },
-        text::Wrap,
+        layout::Alignment,
+        state::{DynStateDuplex, State, StateMut, StateStream, StateStreamRef},
+        style::{primary_background, Background, SizeExt, ValueOrRef},
         to_owned,
         unit::Unit,
-        utils::{zip_latest, zip_latest_ref},
+        utils::zip_latest_ref,
         widget::{
-            card, column, label, row, Button, ButtonStyle, Checkbox, List, Rectangle, SignalWidget,
-            SliderWithLabel, Stack, StreamWidget, Text, WidgetExt,
+            card, column, label, pill, row, Button, Checkbox, Rectangle, SliderWithLabel, Stack,
+            StreamWidget, Text, TextInput, WidgetExt,
         },
-        Edges, Scope, Widget, WidgetCollection,
+        Edges, Scope, Widget,
     },
-    flax::components::name,
-    futures_signals::signal::{Mutable, SignalExt},
+    futures_signals::signal::Mutable,
     glam::vec2,
-    palette::{FromColor, IntoColor, Oklch, Srgb, Srgba},
+    palette::{FromColor, IntoColor, OklabHue, Oklch, Srgb},
+    wgpu::renderer::RendererConfig,
 };
 use wasm_bindgen::prelude::*;
 
@@ -72,18 +64,33 @@ fn setup() {
 pub fn run() {
     setup();
 
-    violet::wgpu::App::new().run(MainApp).unwrap();
+    violet::wgpu::App::new()
+        .with_renderer_config(RendererConfig { debug_mode: true })
+        .run(MainApp)
+        .unwrap();
 }
 
 struct MainApp;
 
+const DEFAULT_FALLOFF: f32 = 15.0;
+
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
-        let palette_item = Mutable::new(Vec::new());
+        let palette_item = Mutable::new(
+            (0..8)
+                .map(|i| {
+                    Mutable::new(PaletteColor {
+                        color: Oklch::new(0.5, 0.27, (i as f32 * 60.0) % 360.0),
+                        falloff: DEFAULT_FALLOFF,
+                    })
+                })
+                .collect(),
+        );
 
-        card((Palettes::new(palette_item),))
-            .with_margin(Edges::even(4.0))
+        column((Palettes::new(palette_item),))
             .with_size(Unit::rel2(1.0, 1.0))
+            .with_background(Background::new(primary_background()))
+            .contain_margins(true)
             .mount(scope);
     }
 }
@@ -113,12 +120,12 @@ impl Widget for Tints {
                     ..self.base
                 };
 
-                Stack::new(column((
-                    Rectangle::new(ValueOrRef::value(color.into_color()))
-                        .with_min_size(Unit::px2(60.0, 60.0)),
-                    // Text::new(format!("{:.2}", f)),
-                )))
+                Stack::new(column((Rectangle::new(ValueOrRef::value(
+                    color.into_color(),
+                ))
+                .with_size(Unit::px2(80.0, 60.0)),)))
                 .with_margin(Edges::even(4.0))
+                .with_name("Tint")
             })
             .collect_vec())
         .mount(scope)
@@ -155,34 +162,40 @@ impl Widget for Palettes {
                 .danger()
         };
 
-        let current_choice = Mutable::new(None as Option<usize>);
+        let current_choice = Mutable::new(Some(0));
 
         let editor = zip_latest_ref(
             self.items.stream(),
             current_choice.stream(),
-            |items, i: &Option<usize>| i.and_then(|i| items.get(i).cloned()).map(OklchEditor::new),
+            |items, i: &Option<usize>| {
+                i.and_then(|i| items.get(i).cloned())
+                    .map(PaletteEditor::new)
+            },
         );
 
-        let palettes = StreamWidget(self.items.stream_ref(move |items| {
-            let items = items
-                .iter()
-                .enumerate()
-                .map({
-                    to_owned![current_choice];
-                    let discard = &discard;
-                    move |(i, item)| {
-                        let checkbox = Checkbox::new(
-                            current_choice
-                                .clone()
-                                .map(move |v| v == Some(i), move |state| state.then_some(i)),
-                        );
+        let palettes = StreamWidget(self.items.stream_ref({
+            to_owned![current_choice];
+            move |items| {
+                let items = items
+                    .iter()
+                    .enumerate()
+                    .map({
+                        to_owned![current_choice];
+                        let discard = &discard;
+                        move |(i, item)| {
+                            let checkbox = Checkbox::new(
+                                current_choice
+                                    .clone()
+                                    .map(move |v| v == Some(i), move |state| state.then_some(i)),
+                            );
 
-                        card(row((checkbox, discard(i), StreamWidget(item.stream()))))
-                    }
-                })
-                .collect_vec();
+                            card(row((checkbox, discard(i), StreamWidget(item.stream()))))
+                        }
+                    })
+                    .collect_vec();
 
-            column(items)
+                column(items)
+            }
         }));
 
         let items = self.items.clone();
@@ -191,7 +204,13 @@ impl Widget for Palettes {
             StreamWidget(editor),
             palettes,
             Button::label("+").on_press(move |_, _| {
-                items.write_mut(|v| v.push(Mutable::new(PaletteColor::default())))
+                items.write_mut(|v| {
+                    v.push(Mutable::new(PaletteColor {
+                        color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
+                        falloff: DEFAULT_FALLOFF,
+                    }));
+                    current_choice.set(Some(v.len() - 1));
+                })
             }),
         ))
         .mount(scope)
@@ -200,63 +219,51 @@ impl Widget for Palettes {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PaletteColor {
-    color: Vec3,
+    color: Oklch,
     falloff: f32,
-}
-
-impl Default for PaletteColor {
-    fn default() -> Self {
-        Self {
-            color: Vec3::new(0.5, 0.27, 153.0),
-            falloff: 10.0,
-        }
-    }
 }
 
 impl Widget for PaletteColor {
     fn mount(self, scope: &mut Scope<'_>) {
-        let oklch_color = Oklch::new(self.color.x, self.color.y, self.color.z);
-        column((
-            row((Tints::new(oklch_color, self.falloff),)),
-            label(color_hex(oklch_color)),
+        Stack::new((
+            row((Tints::new(self.color, self.falloff),)),
+            pill(label(color_hex(self.color))),
         ))
-        .with_cross_align(Alignment::Center)
+        .with_vertical_alignment(Alignment::End)
+        .with_horizontal_alignment(Alignment::Center)
         .mount(scope)
     }
 }
 
-pub struct OklchEditor {
+pub struct PaletteEditor {
     color: Mutable<PaletteColor>,
 }
 
-impl OklchEditor {
+impl PaletteEditor {
     pub fn new(color: Mutable<PaletteColor>) -> Self {
         Self { color }
     }
 }
 
-impl Widget for OklchEditor {
+impl Widget for PaletteEditor {
     fn mount(self, scope: &mut Scope<'_>) {
         let color = Arc::new(self.color.clone().map_ref(|v| &v.color, |v| &mut v.color));
         let falloff = self.color.map_ref(|v| &v.falloff, |v| &mut v.falloff);
 
-        let color_oklch = Map::new(
-            color.clone(),
-            |v| Oklch::new(v.x, v.y, v.z),
-            |v| Vec3::new(v.l, v.chroma, v.hue.into_positive_degrees()),
-        );
-
-        let lightness = color.clone().map_ref(|v| &v.x, |v| &mut v.x);
-        let chroma = color.clone().map_ref(|v| &v.y, |v| &mut v.y);
-        let hue = color.clone().map_ref(|v| &v.z, |v| &mut v.z);
+        let lightness = color.clone().map_ref(|v| &v.l, |v| &mut v.l);
+        let chroma = color.clone().map_ref(|v| &v.chroma, |v| &mut v.chroma);
+        let hue = color
+            .clone()
+            .map_ref(|v| &v.hue, |v| &mut v.hue)
+            .map(|v| v.into_positive_degrees(), OklabHue::new);
 
         let color_rect = color.stream().map(|v| {
-            let color = Oklch::new(v.x, v.y, v.z).into_color();
-            Rectangle::new(ValueOrRef::value(color))
+            Rectangle::new(ValueOrRef::value(v.into_color()))
                 .with_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
+                .with_name("ColorPreview")
         });
 
-        column((
+        card(column((
             row((
                 Text::new("Lightness"),
                 SliderWithLabel::new(lightness, 0.0, 1.0)
@@ -275,14 +282,9 @@ impl Widget for OklchEditor {
                     .editable(true)
                     .round(1.0),
             )),
-            StreamWidget(color.stream_ref(|v| {
-                let hex: Srgb<u8> = Srgb::from_color(Oklch::new(v.x, v.y, v.z)).into_format();
-                Text::new(format!(
-                    "#{:0>2x}{:0>2x}{:0>2x}",
-                    hex.red, hex.green, hex.blue
-                ))
-            })),
-            StreamWidget(color.stream().map(|v| Text::new(format!("{}", v)))),
+            ColorHexEditor {
+                color: Box::new(color.clone()),
+            },
             StreamWidget(color_rect),
             row((
                 Text::new("Chroma falloff"),
@@ -290,7 +292,28 @@ impl Widget for OklchEditor {
                     .editable(true)
                     .round(1.0),
             )),
-        ))
+        )))
+        .with_name("PaletteEditor")
         .mount(scope)
+    }
+}
+
+pub struct ColorHexEditor {
+    color: DynStateDuplex<Oklch>,
+}
+
+impl Widget for ColorHexEditor {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let value = self.color.prevent_feedback().filter_map(
+            |v| Some(color_hex(v)),
+            |v| {
+                let v: Srgb<u8> = v.trim().parse().ok()?;
+
+                let v = Oklch::from_color(v.into_format());
+                Some(v)
+            },
+        );
+
+        TextInput::new(value).mount(scope)
     }
 }

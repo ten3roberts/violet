@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use flax::{Entity, EntityRef, World};
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
@@ -260,7 +260,7 @@ impl FlowLayout {
 
         let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
 
-        let mut can_grow = false;
+        let mut can_grow = BVec2::FALSE;
         // Distribute the size to the widgets and apply their layout
         let blocks = row
             .blocks
@@ -328,7 +328,7 @@ impl FlowLayout {
                 // let local_rect = widget_outer_bounds(world, &child, size);
                 let block = update_subtree(world, &entity, content_area.size(), child_limits);
 
-                can_grow = can_grow || block.can_grow;
+                can_grow |= block.can_grow;
                 tracing::debug!(?block, "updated subtree");
 
                 // block.rect = block
@@ -462,10 +462,7 @@ impl FlowLayout {
         let mut sum = 0.0;
 
         let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
-        let mut hints = SizingHints {
-            fixed_size: true,
-            can_grow: false,
-        };
+        let mut hints = SizingHints::default();
 
         // Distribute the size to the widgets and apply their layout
         row

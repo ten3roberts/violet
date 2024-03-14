@@ -22,6 +22,8 @@ pub trait State {
     type Item;
 
     /// Map a state from one type to another through reference projection
+    ///
+    /// This an be used to target a specific field of a struct or item in an array to transform.
     fn map_ref<F: Fn(&Self::Item) -> &U, G: Fn(&mut Self::Item) -> &mut U, U>(
         self,
         f: F,
@@ -122,7 +124,17 @@ pub trait StateSink: State {
 }
 
 /// Allows sending and receiving a value to a state
+///
+///
+/// This is the most common form of state and is used for both reading state updates, and sending
+/// new state.
+///
+/// Notably, this does not allow to directly read the state, as it may not always be available due
+/// to filtered states. Instead, you can subscribe to changes and use [`WatchState`] to hold on to
+/// the latest known state.
 pub trait StateDuplex: StateStream + StateSink {}
+
+pub type DynStateDuplex<T> = Box<dyn Send + Sync + StateDuplex<Item = T>>;
 
 impl<T> StateDuplex for T where T: StateStream + StateSink {}
 

@@ -1,4 +1,4 @@
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 
 use crate::layout::{Direction, LayoutLimits, SizeResolver, SizingHints};
 
@@ -42,8 +42,8 @@ impl SizeResolver for FixedAreaConstraint {
             min * self.unit_size,
             vec2(size.x, (self.area / size.x).ceil()) * self.unit_size,
             SizingHints {
-                can_grow: true,
-                fixed_size: false,
+                can_grow: BVec2::TRUE,
+                relative_size: BVec2::TRUE,
             },
         )
     }
@@ -53,11 +53,11 @@ impl SizeResolver for FixedAreaConstraint {
         _: &flax::EntityRef,
         _: Vec2,
         limits: crate::layout::LayoutLimits,
-    ) -> (Vec2, bool) {
+    ) -> (Vec2, BVec2) {
         let width = (limits.max_size.x / self.unit_size).floor().max(1.0);
 
         let height = (self.area / width).ceil();
 
-        (vec2(width, height) * self.unit_size, true)
+        (vec2(width, height) * self.unit_size, BVec2::TRUE)
     }
 }

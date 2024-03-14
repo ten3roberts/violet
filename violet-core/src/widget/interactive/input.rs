@@ -15,9 +15,9 @@ use crate::{
     components::{self, screen_rect},
     editor::{CursorMove, EditAction, EditorAction, TextEditor},
     input::{focus_sticky, focusable, on_focus, on_keyboard_input, on_mouse_input, KeyboardInput},
-    state::{State, StateDuplex, StateSink, StateStream},
+    state::{StateDuplex, StateSink, StateStream},
     style::{
-        colors::EERIE_BLACK_300, interactive_active, spacing_small, Background, SizeExt, StyleExt,
+        interactive_active, interactive_inactive, spacing_small, Background, SizeExt, StyleExt,
         ValueOrRef, WidgetSize,
     },
     text::{LayoutGlyphs, TextSegment},
@@ -39,7 +39,7 @@ impl Default for TextInputStyle {
     fn default() -> Self {
         Self {
             cursor_color: interactive_active().into(),
-            background: Background::new(EERIE_BLACK_300),
+            background: Background::new(interactive_inactive()),
             font_size: 16.0,
         }
     }

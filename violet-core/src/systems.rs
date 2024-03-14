@@ -16,6 +16,7 @@ use flax::{
     QueryBorrow, System, World,
 };
 use glam::Vec2;
+use tracing::info;
 
 use crate::{
     components::{
@@ -180,7 +181,6 @@ pub fn layout_system() -> BoxedSystem {
 
 /// Updates the apparent screen position of entities based on the hierarchy
 pub fn transform_system() -> BoxedSystem {
-    puffin::profile_function!();
     System::builder()
         .with_query(
             Query::new((
@@ -192,7 +192,6 @@ pub fn transform_system() -> BoxedSystem {
             .with_strategy(Dfs::new(child_of)),
         )
         .build(|mut query: DfsBorrow<_>| {
-            puffin::profile_scope!("transform_system");
             query.traverse(
                 &Vec2::ZERO,
                 |(pos, screen_rect, rect, local_pos): (&mut Vec2, &mut Rect, &Rect, &Vec2),
