@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, QueryArgs, Sizing,
+    resolve_pos, apply_layout, Alignment, Block, Direction, LayoutLimits, QueryArgs, Sizing,
 };
 
 #[derive(Debug)]
@@ -119,7 +119,7 @@ impl StackLayout {
                     max_size: limits.max_size,
                 };
 
-                let block = update_subtree(world, &entity, content_area.size(), limits);
+                let block = apply_layout(world, &entity, content_area.size(), limits);
 
                 bounds = bounds.merge(block.rect.translate(content_area.min));
 

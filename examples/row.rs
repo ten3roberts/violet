@@ -1,3 +1,6 @@
+use std::iter::repeat;
+
+use itertools::Itertools;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -12,10 +15,10 @@ use violet::core::{
 };
 use violet_core::{
     style::{
-        colors::{JADE_400, JADE_DEFAULT, LION_DEFAULT},
-        spacing_medium, SizeExt,
+        colors::{JADE_400, JADE_DEFAULT, LION_DEFAULT, REDWOOD_100, ULTRA_VIOLET_DEFAULT},
+        spacing_medium, spacing_small, SizeExt,
     },
-    widget::{column, row, Stack},
+    widget::{card, column, label, row, Stack},
 };
 use violet_wgpu::renderer::RendererConfig;
 
@@ -42,24 +45,45 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
         Stack::new(
             column((
-                row((
-                    column((
-                        Rectangle::new(JADE_DEFAULT).with_size(Unit::px2(900.0, 40.0)),
-                        Rectangle::new(JADE_400)
-                            .with_size(Unit::px2(900.0, 40.0))
-                            .with_min_size(Unit::px2(400.0, 40.0)),
-                    )),
-                    Rectangle::new(LION_DEFAULT).with_size(Unit::px2(900.0, 40.0)),
-                )),
-                Rectangle::new(REDWOOD_DEFAULT)
-                    .with_min_size(Unit::px2(100.0, 100.0))
-                    .with_size(Unit::px2(0.0, 100.0) + Unit::rel2(1.0, 0.0)),
+                // row((
+                //     label("This text can wrap to save horizontal space"),
+                //     card((
+                //         Rectangle::new(JADE_DEFAULT).with_size(Unit::px2(100.0, 40.0)),
+                //         label("Jade"),
+                //     )),
+                //     label("This text can wrap to save horizontal space"),
+                // )),
+                // row((
+                //     column((
+                //         Rectangle::new(JADE_DEFAULT).with_size(Unit::px2(900.0, 40.0)),
+                //         Rectangle::new(JADE_400)
+                //             .with_size(Unit::px2(900.0, 40.0))
+                //             .with_min_size(Unit::px2(400.0, 40.0)),
+                //     )),
+                //     Rectangle::new(LION_DEFAULT).with_size(Unit::px2(900.0, 40.0)),
+                // )),
+                // Rectangle::new(REDWOOD_DEFAULT)
+                //     .with_min_size(Unit::px2(100.0, 100.0))
+                //     .with_size(Unit::px2(0.0, 100.0) + Unit::rel2(1.0, 0.0)),
                 // .with_margin(spacing_medium()),
+                row((0..16).map(|_| Stack::new(Item)).collect_vec()),
             ))
             // .with_padding(spacing_medium())
             .contain_margins(true),
         )
         .with_background(Background::new(EERIE_BLACK_DEFAULT))
         .mount(scope)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Item;
+
+impl Widget for Item {
+    fn mount(self, scope: &mut Scope<'_>) {
+        Rectangle::new(ULTRA_VIOLET_DEFAULT)
+            .with_size(Unit::px2(100.0, 100.0))
+            .with_margin(spacing_small())
+            .mount(scope)
     }
 }

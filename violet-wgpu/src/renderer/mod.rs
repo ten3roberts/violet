@@ -11,6 +11,7 @@ use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
+use smallvec::{smallvec, SmallVec};
 use violet_core::{
     components::{children, draw_shape},
     layout::cache::LayoutUpdate,
@@ -179,12 +180,14 @@ pub struct MainRenderer {
     debug_renderer: Option<DebugRenderer>,
 
     object_bind_group_layout: BindGroupLayout,
+    root: Entity,
 }
 
 impl MainRenderer {
     pub(crate) fn new(
         frame: &mut Frame,
         ctx: &mut RendererContext,
+        root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
         layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
@@ -239,6 +242,7 @@ impl MainRenderer {
             register_objects,
             object_bind_group_layout,
             object_buffers: Vec::new(),
+            root,
         }
     }
 
@@ -269,19 +273,12 @@ impl MainRenderer {
         }
 
         {
-            puffin::profile_scope!("collect_draw_commands");
+            puffin::profile_scope!("create_draw_commands");
             let query = DrawQuery::new();
-
-            let roots = Query::new(entity_ids())
-                .without_relation(child_of)
-                .borrow(&frame.world)
-                .iter()
-                .map(|id| frame.world.entity(id).unwrap())
-                .collect();
 
             let commands = RendererIter {
                 world: &frame.world,
-                stack: roots,
+                stack: smallvec![frame.world.entity(self.root).unwrap()],
             }
             .filter_map(|entity| {
                 let mut query = entity.query(&query);
@@ -353,6 +350,7 @@ fn collect_draw_commands(
     objects: &mut Vec<ObjectData>,
     draw_cmds: &mut Vec<(usize, InstancedDrawCommand)>,
 ) {
+    puffin::profile_function!();
     let chunks = entities.chunks(CHUNK_SIZE);
 
     for (chunk_index, chunk) in (&chunks).into_iter().enumerate() {
@@ -400,7 +398,7 @@ pub(crate) struct ObjectData {
 struct RendererIter<'a> {
     world: &'a World,
     // queue: VecDeque<EntityRef<'a>>,
-    stack: Vec<EntityRef<'a>>,
+    stack: SmallVec<[EntityRef<'a>; 16]>,
 }
 
 impl<'a> Iterator for RendererIter<'a> {

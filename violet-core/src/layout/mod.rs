@@ -12,7 +12,7 @@ use crate::{
         self, anchor, aspect_ratio, children, layout, max_size, min_size, offset, padding, size,
         size_resolver,
     },
-    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
+    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue, LAYOUT_TOLERANCE},
     Edges, Rect,
 };
 
@@ -52,6 +52,22 @@ impl Direction {
             Direction::Horizontal => Vec2::X,
             Direction::Vertical => Vec2::Y,
         }
+    }
+
+    /// Returns `true` if the direction is [`Horizontal`].
+    ///
+    /// [`Horizontal`]: Direction::Horizontal
+    #[must_use]
+    pub fn is_horizontal(&self) -> bool {
+        matches!(self, Self::Horizontal)
+    }
+
+    /// Returns `true` if the direction is [`Vertical`].
+    ///
+    /// [`Vertical`]: Direction::Vertical
+    #[must_use]
+    pub fn is_vertical(&self) -> bool {
+        matches!(self, Self::Vertical)
     }
 }
 
@@ -180,6 +196,10 @@ pub struct SizingHints {
     /// This is used for an optimization to avoid invalidating the layout when the available size
     /// increases
     pub relative_size: BVec2,
+    /// Changes to width affect the height and vice versa.
+    ///
+    /// This is used to optimize the layout query as not full distribution queries are needed
+    pub coupled_size: bool,
 }
 
 impl Default for SizingHints {
@@ -187,6 +207,7 @@ impl Default for SizingHints {
         Self {
             can_grow: BVec2::FALSE,
             relative_size: BVec2::FALSE,
+            coupled_size: false,
         }
     }
 }
@@ -196,6 +217,7 @@ impl SizingHints {
         Self {
             can_grow: self.can_grow | other.can_grow,
             relative_size: self.relative_size | other.relative_size,
+            coupled_size: self.coupled_size | other.coupled_size,
         }
     }
 }
@@ -295,8 +317,6 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, mut args: QueryArgs)
 
     let external_max_size = args.limits.max_size;
 
-    let external_max_size = args.limits.max_size;
-
     // Minimum size is *always* respected, even if that entails overflowing
     args.limits.max_size = args.limits.max_size.max(args.limits.min_size);
 
@@ -325,6 +345,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, mut args: QueryArgs)
             resolved_size.x > external_max_size.x,
             resolved_size.y > external_max_size.y,
         ),
+        coupled_size: false,
     };
 
     // if hints != Default::default() {
@@ -410,7 +431,6 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, mut args: QueryArgs)
         args.direction,
         CachedValue::new(args.limits, args.content_area, sizing),
     );
-    cache.relative_size = sizing.hints.relative_size;
 
     sizing
 }
@@ -419,7 +439,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, mut args: QueryArgs)
 ///
 /// Returns the outer bounds of the subtree.
 #[must_use = "This function does not mutate the entity"]
-pub(crate) fn update_subtree(
+pub(crate) fn apply_layout(
     world: &World,
     entity: &EntityRef,
     // The size of the potentially available space for the subtree
@@ -462,7 +482,7 @@ pub(crate) fn update_subtree(
     // Check if cache is still valid
 
     if let Some(value) = &cache.layout {
-        if validate_cached_layout(value, limits, content_area, cache.relative_size) {
+        if validate_cached_layout(value, limits, content_area, cache.hints.relative_size) {
             tracing::debug!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
 
             return value.value;
@@ -487,9 +507,7 @@ pub(crate) fn update_subtree(
         resolved_size.y > external_max_size.y,
     );
 
-    if can_grow.any() {
-        tracing::info!(%entity, ?resolved_size, ?external_max_size, "can grow");
-    }
+    // tracing::trace!(%entity, ?resolved_size, ?external_max_size, %can_grow);
 
     let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
 
@@ -514,7 +532,7 @@ pub(crate) fn update_subtree(
         block
     } else if let [child] = children {
         let child = world.entity(*child).unwrap();
-        let block = update_subtree(world, &child, content_area, limits);
+        let block = apply_layout(world, &child, content_area, limits);
 
         child.update_dedup(components::rect(), block.rect);
         block
@@ -523,7 +541,7 @@ pub(crate) fn update_subtree(
 
         let (intrinsic_size, instrinsic_can_grow) = size_resolver
             .map(|v| v.apply(entity, content_area, limits))
-            .unwrap_or((Vec2::ZERO, BVec2::TRUE));
+            .unwrap_or((Vec2::ZERO, BVec2::FALSE));
 
         let size = intrinsic_size.max(resolved_size);
 

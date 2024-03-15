@@ -43,7 +43,8 @@ slab = "0.4"
 tynm ="0.1"
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt"] }
 arrayvec = "0.7"
-sync_wrapper = "0.1"
+sync_wrapper = "1.0"
+smallvec = "1.0"
 
 bytemuck = { version = "1.13", features = ["derive"] }
 winit = "0.29"

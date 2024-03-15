@@ -190,3 +190,57 @@ impl Widget for Checkbox {
             .mount(scope);
     }
 }
+
+/// A button that can only be set
+pub struct Radio {
+    state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
+    style: ButtonStyle,
+    size: WidgetSize,
+}
+
+impl Radio {
+    pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
+        Self {
+            state: Box::new(state),
+            style: Default::default(),
+            size: WidgetSize::default()
+                .with_padding(spacing_medium())
+                .with_margin(spacing_medium())
+                .with_min_size(Unit::px2(28.0, 28.0)),
+        }
+    }
+}
+
+impl Widget for Radio {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let stylesheet = scope.stylesheet();
+
+        let pressed_color = self.style.pressed_color.resolve(stylesheet);
+        let normal_color = self.style.normal_color.resolve(stylesheet);
+
+        scope.spawn_stream(self.state.stream(), {
+            move |scope, state| {
+                let color = if state { pressed_color } else { normal_color };
+
+                scope.set(components::color(), color);
+            }
+        });
+
+        scope
+            .set(focusable(), ())
+            .on_event(on_mouse_input(), move |_, _, input| {
+                if input.state == ElementState::Pressed {
+                    self.state.send(true)
+                }
+            });
+
+        Stack::new(())
+            .with_style(ContainerStyle {
+                background: Some(Background::new(normal_color)),
+            })
+            .with_horizontal_alignment(Alignment::Center)
+            .with_vertical_alignment(Alignment::Center)
+            .with_size_props(self.size)
+            .mount(scope);
+    }
+}

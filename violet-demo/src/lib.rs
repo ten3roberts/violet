@@ -16,7 +16,7 @@ use violet::{
         unit::Unit,
         utils::zip_latest_ref,
         widget::{
-            card, column, label, pill, row, Button, Checkbox, Rectangle, SliderWithLabel, Stack,
+            card, column, label, pill, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
             StreamWidget, Text, TextInput, WidgetExt,
         },
         Edges, Scope, Widget,
@@ -183,7 +183,7 @@ impl Widget for Palettes {
                         to_owned![current_choice];
                         let discard = &discard;
                         move |(i, item)| {
-                            let checkbox = Checkbox::new(
+                            let checkbox = Radio::new(
                                 current_choice
                                     .clone()
                                     .map(move |v| v == Some(i), move |state| state.then_some(i)),
@@ -260,6 +260,7 @@ impl Widget for PaletteEditor {
         let color_rect = color.stream().map(|v| {
             Rectangle::new(ValueOrRef::value(v.into_color()))
                 .with_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
+                // .with_min_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
                 .with_name("ColorPreview")
         });
 

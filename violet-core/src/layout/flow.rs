@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    cache::LayoutCache, resolve_pos, update_subtree, Block, Direction, LayoutLimits, QueryArgs,
+    apply_layout, cache::LayoutCache, resolve_pos, Block, Direction, LayoutLimits, QueryArgs,
     Sizing,
 };
 
@@ -163,6 +163,7 @@ pub(crate) struct Row {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
     pub(crate) blocks: Arc<Vec<(Entity, Sizing)>>,
+    pub(crate) margin: Edges,
     pub(crate) hints: SizingHints,
 }
 
@@ -336,7 +337,7 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = update_subtree(world, &entity, content_area.size(), child_limits);
+                let block = apply_layout(world, &entity, content_area.size(), child_limits);
 
                 can_grow |= block.can_grow;
                 tracing::debug!(?block, "updated subtree");
@@ -489,7 +490,7 @@ impl FlowLayout {
                         "min is larger than preferred",
                     );
 
-                    return;
+                    // return;
                 }
 
                 assert!(block_min_size.is_finite());
@@ -665,11 +666,18 @@ impl FlowLayout {
         let preferred = preferred_cursor.finish();
         let min = min_cursor.finish();
 
+        let margin = self.direction.to_edges(
+            preferred_cursor.main_margin,
+            preferred_cursor.cross_margin,
+            self.reverse,
+        );
+
         let row = Row {
             min,
             preferred,
             blocks: Arc::new(blocks),
             hints,
+            margin,
         };
 
         cache.insert_query_row(CachedValue::new(
@@ -730,8 +738,44 @@ impl FlowLayout {
             },
         );
 
-        let sizing = self.distribute_query(world, &row, args, preferred_size);
-        tracing::debug!(?self.direction, ?sizing, "query");
-        sizing
+        if row.hints.coupled_size {
+            let sizing = self.distribute_query(world, &row, args, preferred_size);
+            tracing::debug!(?self.direction, ?sizing, "query");
+            sizing
+        } else {
+            let (axis, cross) = self.direction.as_main_and_cross(self.reverse);
+            let minimum_inner_size = row.min.size().dot(axis);
+
+            let preferred_size = row.preferred.size().dot(axis);
+            let to_distribute = (preferred_size - minimum_inner_size).max(0.0);
+
+            let can_grow = to_distribute > (args.limits.max_size.dot(axis) - minimum_inner_size);
+
+            let can_grow = if self.direction.is_horizontal() {
+                BVec2::new(can_grow, false)
+            } else {
+                BVec2::new(false, can_grow)
+            };
+
+            let to_distribute = to_distribute
+                .min(args.limits.max_size.dot(axis) - minimum_inner_size)
+                .max(0.0);
+
+            let preferred =
+                (minimum_inner_size + to_distribute) * axis + row.preferred.size() * cross;
+
+            let min = row.min.max_size(args.limits.min_size);
+            let preferred = preferred.max(preferred).max(args.limits.min_size);
+
+            Sizing {
+                min,
+                preferred: Rect::from_size(preferred),
+                margin: row.margin,
+                hints: SizingHints {
+                    can_grow: can_grow | row.hints.can_grow,
+                    ..row.hints
+                },
+            }
+        }
     }
 }

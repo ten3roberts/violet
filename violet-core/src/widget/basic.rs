@@ -88,7 +88,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         Self {
             font_size: 16.0,
-            wrap: Wrap::WordOrGlyph,
+            wrap: Wrap::Word,
             color: None,
         }
     }

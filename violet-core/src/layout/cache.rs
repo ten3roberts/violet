@@ -1,7 +1,7 @@
 use flax::{component, components::child_of, Entity, FetchExt, RelationExt, World};
 use glam::{BVec2, Vec2};
 
-use super::{flow::Row, Block, Direction, LayoutLimits, Sizing};
+use super::{flow::Row, Block, Direction, LayoutLimits, Sizing, SizingHints};
 
 #[derive(Debug)]
 pub struct CachedValue<T> {
@@ -10,7 +10,7 @@ pub struct CachedValue<T> {
     pub value: T,
 }
 
-pub const LAYOUT_TOLERANCE: f32 = 0.1;
+pub const LAYOUT_TOLERANCE: f32 = 0.01;
 
 impl<T> CachedValue<T> {
     pub(crate) fn new(limits: LayoutLimits, content_area: Vec2, value: T) -> Self {
@@ -34,7 +34,7 @@ pub struct LayoutCache {
     pub(crate) query_row: Option<CachedValue<Row>>,
     pub(crate) layout: Option<CachedValue<Block>>,
     on_invalidated: Option<Box<dyn Fn(LayoutUpdate) + Send + Sync>>,
-    pub(crate) relative_size: BVec2,
+    pub(crate) hints: SizingHints,
 }
 
 impl LayoutCache {
@@ -44,7 +44,7 @@ impl LayoutCache {
             query_row: None,
             layout: None,
             on_invalidated,
-            relative_size: BVec2::TRUE,
+            hints: Default::default(),
         }
     }
 
@@ -59,6 +59,7 @@ impl LayoutCache {
     }
 
     pub(crate) fn insert_query(&mut self, direction: Direction, value: CachedValue<Sizing>) {
+        self.hints = value.value.hints;
         self.query[direction as usize] = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
             f(LayoutUpdate::SizeQueryUpdate)
@@ -83,15 +84,19 @@ impl LayoutCache {
         self.layout.as_ref()
     }
 
-    pub(crate) fn get_query(&self, direction: Direction) -> Option<&CachedValue<Sizing>> {
+    pub fn get_query(&self, direction: Direction) -> Option<&CachedValue<Sizing>> {
         self.query[direction as usize].as_ref()
+    }
+
+    pub fn hints(&self) -> SizingHints {
+        self.hints
     }
 }
 
 /// Invalidates a widgets layout cache along with its ancestors
 pub(crate) fn invalidate_widget(world: &World, id: Entity) {
     let entity = world.entity(id).unwrap();
-    tracing::info!(%entity, "invalidating widget");
+    // tracing::info!(%entity, "invalidating widget");
 
     let query = (layout_cache().as_mut(), child_of.first_relation().opt());
     let mut query = entity.query(&query);
@@ -117,10 +122,11 @@ pub(crate) fn validate_cached_query(
     // tracing::debug!( ?preferred_size, %cache.limits.max_size, %limits.max_size, "validate_cached_query");
 
     let hints = &value.hints;
+    #[allow(clippy::nonminimal_bool)]
     if hints.can_grow.x && cache.limits.max_size.x < limits.max_size.x
         || (hints.can_grow.x && cache.limits.max_size.y < limits.max_size.y)
     {
-        tracing::info!(%hints.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated by can_grow");
+        // tracing::info!(%hints.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated by can_grow");
     }
 
     min_size.x >= limits.min_size.x - LAYOUT_TOLERANCE
@@ -149,10 +155,11 @@ pub(crate) fn validate_cached_layout(
 
     // tracing::debug!( ?size, %cache.limits.max_size, %limits.max_size, "validate_cached_layout");
 
+    #[allow(clippy::nonminimal_bool)]
     if value.can_grow.x && cache.limits.max_size.x < limits.max_size.x
         || (value.can_grow.x && cache.limits.max_size.y < limits.max_size.y)
     {
-        tracing::info!(%value.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated layout by can_grow");
+        // tracing::info!(%value.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated layout by can_grow");
     }
 
     size.x >= limits.min_size.x - LAYOUT_TOLERANCE

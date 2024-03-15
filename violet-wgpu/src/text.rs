@@ -67,21 +67,25 @@ impl SizeResolver for TextSizeResolver {
 
         let line_height = state.buffer.metrics().line_height;
 
+        // Text wraps to the size of the container
+        //
+        // Wrapping text will decrease width, and increase height.
+        //
+        //
+        // To optimize for X, we wrap as much as possible, and then measure the height.
+        //
+        // To optimize for Y, we wrap as little as possible. This is equivalent to the preferred
+        // size as the widest width (which text wants) also gives the least height.
+
         // If preferred is can_grow, so is min
-        let (min, _can_grow) = Self::resolve_text_size(
+        let (most_wrapped, _can_grow, wrapped_lines) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
-            match args.direction {
-                Direction::Horizontal => vec2(1.0, args.limits.max_size.y.max(line_height)),
-                Direction::Vertical => vec2(
-                    args.limits.max_size.x,
-                    args.limits.max_size.y.max(line_height),
-                ),
-            },
+            vec2(1.0, args.limits.max_size.y.max(line_height)),
         );
 
-        let (preferred, can_grow) = Self::resolve_text_size(
+        let (preferred, can_grow, preferred_lines) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -89,15 +93,23 @@ impl SizeResolver for TextSizeResolver {
         );
         // + vec2(5.0, 5.0);
 
-        if min.dot(args.direction.to_axis()) > preferred.dot(args.direction.to_axis()) {
-            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?args.direction, %args.limits.max_size, "Text wrapping failed");
-        }
+        // if min.dot(args.direction.to_axis()) > preferred.dot(args.direction.to_axis()) {
+        //     tracing::error!(%entity, text=?state.text(), %min, %preferred, ?args.direction, %args.limits.max_size, "Text wrapping failed");
+        // }
+
+        // tracing::info!(?wrapped_lines, ?preferred_lines, "Text wrapping results");
+
         (
-            min,
+            if args.direction.is_horizontal() {
+                most_wrapped
+            } else {
+                preferred
+            },
             preferred,
             SizingHints {
                 can_grow,
                 relative_size: BVec2::TRUE,
+                coupled_size: wrapped_lines != preferred_lines,
             },
         )
     }
@@ -119,7 +131,7 @@ impl SizeResolver for TextSizeResolver {
         let text_system = &mut *self.text_system.lock();
         let line_height = state.buffer.metrics().line_height;
 
-        let (size, can_grow) = Self::resolve_text_size(
+        let (size, can_grow, _) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -146,7 +158,7 @@ impl TextSizeResolver {
         text_system: &mut TextSystem,
         font_size: f32,
         size: Vec2,
-    ) -> (Vec2, BVec2) {
+    ) -> (Vec2, BVec2, usize) {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
         let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
@@ -165,7 +177,7 @@ fn glyph_bounds(glyph: &LayoutGlyph) -> (f32, f32) {
     (glyph.x, glyph.x + glyph.w)
 }
 
-fn measure(buffer: &Buffer) -> (Vec2, BVec2) {
+fn measure(buffer: &Buffer) -> (Vec2, BVec2, usize) {
     let (width, total_lines) =
         buffer
             .layout_runs()
@@ -191,6 +203,7 @@ fn measure(buffer: &Buffer) -> (Vec2, BVec2) {
     (
         vec2(width, total_lines as f32 * buffer.metrics().line_height),
         BVec2::new(total_lines > buffer.lines.len(), false),
+        total_lines,
     )
 }
 

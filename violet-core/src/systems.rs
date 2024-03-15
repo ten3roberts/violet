@@ -23,8 +23,9 @@ use crate::{
         self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
     },
     layout::{
+        apply_layout,
         cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdate},
-        update_subtree, LayoutLimits,
+        LayoutLimits,
     },
     Rect,
 };
@@ -149,32 +150,37 @@ impl EventSubscriber for QueryInvalidator {
     }
 }
 /// Updates the layout for entities using the given constraints
-pub fn layout_system() -> BoxedSystem {
+pub fn layout_system(root: Entity) -> BoxedSystem {
     puffin::profile_function!();
     System::builder()
         .with_world()
-        .with_query(Query::new((rect(), children())).without_relation(child_of))
-        .build(move |world: &World, mut roots: QueryBorrow<_, _>| {
+        // .with_query(Query::new((rect(), children())).without_relation(child_of))
+        .build(move |world: &World| {
+            let Ok(entity) = world.entity(root) else {
+                return;
+            };
+            let query = (rect().opt_or_default(), children().opt_or_default());
+            let mut query = entity.query(&query);
+
+            let (canvas_rect, children) = query.get().unwrap();
+
             puffin::profile_scope!("layout_system");
-            (&mut roots)
-                .into_iter()
-                .for_each(|(canvas_rect, children): (&Rect, &Vec<_>)| {
-                    for &child in children {
-                        let entity = world.entity(child).unwrap();
 
-                        let res = update_subtree(
-                            world,
-                            &entity,
-                            canvas_rect.size(),
-                            LayoutLimits {
-                                min_size: Vec2::ZERO,
-                                max_size: canvas_rect.size(),
-                            },
-                        );
+            for &child in children {
+                let entity = world.entity(child).unwrap();
 
-                        entity.update_dedup(components::rect(), res.rect);
-                    }
-                });
+                let res = apply_layout(
+                    world,
+                    &entity,
+                    canvas_rect.size(),
+                    LayoutLimits {
+                        min_size: Vec2::ZERO,
+                        max_size: canvas_rect.size(),
+                    },
+                );
+
+                entity.update_dedup(components::rect(), res.rect);
+            }
         })
         .boxed()
 }

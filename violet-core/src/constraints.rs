@@ -40,6 +40,7 @@ impl SizeResolver for FixedAreaConstraint {
             SizingHints {
                 can_grow: BVec2::TRUE,
                 relative_size: BVec2::TRUE,
+                coupled_size: true,
             },
         )
     }

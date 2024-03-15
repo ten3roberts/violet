@@ -13,6 +13,7 @@ flax.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 
+smallvec.workspace = true
 tracing.workspace = true
 cosmic-text.workspace = true
 guillotiere.workspace = true

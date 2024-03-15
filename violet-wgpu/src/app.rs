@@ -152,6 +152,7 @@ impl App {
                     .send(WindowRenderer::new(
                         frame,
                         gpu,
+                        root,
                         text_system.clone(),
                         surface,
                         layout_changes_rx.clone(),
@@ -172,7 +173,7 @@ impl App {
             .flush()
             .with_system(update_text_buffers(text_system.clone()))
             .with_system(invalidate_cached_layout_system(&mut frame.world))
-            .with_system(layout_system())
+            .with_system(layout_system(root))
             .with_system(transform_system());
 
         let start_time = Instant::now();

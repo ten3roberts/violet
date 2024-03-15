@@ -26,6 +26,7 @@ impl WindowRenderer {
     pub fn new(
         frame: &mut Frame,
         gpu: Gpu,
+        root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
         layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
@@ -36,6 +37,7 @@ impl WindowRenderer {
         let widget_renderer = MainRenderer::new(
             frame,
             &mut ctx,
+            root,
             text_system,
             surface.surface_format(),
             layout_changes_rx,
