@@ -69,7 +69,7 @@ impl LayoutCache {
     pub(crate) fn insert_query_row(&mut self, value: CachedValue<Row>) {
         self.query_row = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
-            // f(LayoutUpdate::SizeQueryUpdate)
+            f(LayoutUpdate::SizeQueryUpdate)
         }
     }
 

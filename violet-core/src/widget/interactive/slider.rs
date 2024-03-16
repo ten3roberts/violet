@@ -5,7 +5,6 @@ use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
 use palette::Srgba;
-use web_time::Duration;
 use winit::event::ElementState;
 
 use crate::{
@@ -14,10 +13,9 @@ use crate::{
     layout::Alignment,
     state::{State, StateDuplex, StateStream},
     style::{interactive_active, interactive_inactive, spacing_small, SizeExt, StyleExt},
-    time::sleep,
     to_owned,
     unit::Unit,
-    utils::{throttle, zip_latest},
+    utils::zip_latest,
     widget::{row, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
     Scope, StreamEffect, Widget,
 };

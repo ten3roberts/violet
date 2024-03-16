@@ -1,9 +1,6 @@
-use std::{future::ready, sync::Arc};
+use std::future::ready;
 
-use futures::{FutureExt, StreamExt};
-use futures_signals::signal::{Mutable, SignalExt};
-use parking_lot::Mutex;
-use tracing::info;
+use futures::StreamExt;
 
 use super::{State, StateSink, StateStream, StateStreamRef};
 

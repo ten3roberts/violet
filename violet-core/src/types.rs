@@ -218,7 +218,7 @@ impl Rect {
     }
 
     #[must_use]
-    pub(crate) fn clamp_size(&self, min: Vec2, max: Vec2) -> Self {
+    pub fn clamp_size(&self, min: Vec2, max: Vec2) -> Self {
         let size = self.size().clamp(min, max);
         Self {
             min: self.min,

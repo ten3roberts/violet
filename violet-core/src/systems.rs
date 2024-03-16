@@ -11,12 +11,10 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
-    sink::Sink,
     BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query,
     QueryBorrow, System, World,
 };
 use glam::Vec2;
-use tracing::info;
 
 use crate::{
     components::{

@@ -4,14 +4,9 @@ use palette::Srgba;
 
 use crate::{
     assets::AssetKey,
-    components::{
-        self, aspect_ratio, color, draw_shape, font_size, min_size, size, text, text_wrap,
-    },
+    components::{self, color, draw_shape, font_size, text, text_wrap},
     shape,
-    style::{
-        colors::REDWOOD_DEFAULT, spacing_large, spacing_small, SizeExt, StyleExt, ValueOrRef,
-        WidgetSize,
-    },
+    style::{colors::REDWOOD_DEFAULT, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,

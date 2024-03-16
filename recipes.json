@@ -55,7 +55,11 @@
         ]
     },
     "build web": {
-        "cmd": "wasm-pack build --target web",
+        "cmd": "wasm-pack build --target web --dev",
+        "cwd": "./violet-demo/"
+    },
+    "build web profile": {
+        "cmd": "wasm-pack build --target web --profiling",
         "cwd": "./violet-demo/"
     },
     "host": {

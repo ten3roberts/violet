@@ -6,10 +6,9 @@ use flax::{components::name, Entity, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
-    dpi::PhysicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::EventLoopBuilder,
-    keyboard::Key,
+    dpi::{LogicalSize, PhysicalSize},
+    event::{Event, WindowEvent},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     window::WindowBuilder,
 };
 
@@ -77,9 +76,9 @@ impl App {
     }
 
     pub fn run(self, root: impl Widget) -> anyhow::Result<()> {
-        let mut ex = Executor::new();
+        let executor = Executor::new();
 
-        let spawner = ex.spawner();
+        let spawner = executor.spawner();
 
         let mut frame = Frame::new(spawner, AssetCache::new(), World::new());
 
@@ -121,8 +120,6 @@ impl App {
 
         let window = builder.build(&event_loop)?;
 
-        let mut window_size = window.inner_size();
-
         let mut input_state = InputState::new(Vec2::ZERO);
 
         let stylesheet = setup_stylesheet().spawn(frame.world_mut());
@@ -130,11 +127,9 @@ impl App {
         // Mount the root widget
         let root = frame.new_root(Canvas {
             stylesheet,
-            size: vec2(window_size.width as f32, window_size.height as f32),
+            size: vec2(0.0, 0.0),
             root,
         });
-
-        let mut stats = AppStats::new(60);
 
         tracing::info!("creating gpu");
         let window = Arc::new(window);
@@ -162,9 +157,7 @@ impl App {
             }
         }));
 
-        let mut renderer = None;
-
-        let mut schedule = Schedule::new()
+        let schedule = Schedule::new()
             .with_system(templating_system(root, layout_changes_tx))
             .flush()
             .with_system(hydrate_text())
@@ -177,71 +170,57 @@ impl App {
             .with_system(transform_system());
 
         let start_time = Instant::now();
-        let mut cur_time = start_time;
 
         #[cfg(not(target_arch = "wasm32"))]
         let _puffin_server = setup_puffin();
 
-        let mut minimized = true;
+        let mut instance = AppInstance {
+            frame,
+            renderer: None,
+            root,
+            scale_factor: window.scale_factor(),
+            stats: AppStats::new(60),
+            current_time: start_time,
+            start_time,
+            executor,
+            schedule,
+            window_size: window.inner_size(),
+        };
 
-        event_loop.run(move |event, ctl| match event {
+        let on_event = move |event, ctl: &EventLoopWindowTarget<()>| match event {
             Event::AboutToWait => {
                 puffin::profile_scope!("AboutToWait");
 
                 if let Some(mut window_renderer) = renderer_rx.try_recv().ok().flatten() {
-                    window_renderer.resize(window_size);
-                    renderer = Some(window_renderer);
+                    window_renderer.resize(instance.window_size, instance.scale_factor);
+                    instance.renderer = Some(window_renderer);
                 }
 
-                if minimized {
-                    return;
+                instance.update();
+
+                if let Err(err) = instance.draw() {
+                    tracing::error!("Failed to draw to window: {err:?}");
                 }
 
-                let new_time = Instant::now();
-
-                let frame_time = new_time.duration_since(cur_time);
-
-                cur_time = new_time;
-
-                // tracing::info!(?dt, fps = 1.0 / delta_time);
-
-                stats.record_frame(frame_time);
-
-                ex.tick(&mut frame);
-
-                update_animations(&mut frame, cur_time - start_time);
-
-                {
-                    puffin::profile_scope!("Schedule");
-                    schedule.execute_seq(&mut frame.world).unwrap();
+                if !instance.is_minimized() {
+                    let report = instance.stats.report();
+                    window.set_title(&format!(
+                        "Violet - {:>4.1?} {:>4.1?} {:>4.1?}",
+                        report.min_frame_time, report.average_frame_time, report.max_frame_time,
+                    ));
                 }
-
-                if let Some(renderer) = &mut renderer {
-                    puffin::profile_scope!("Draw");
-                    if let Err(err) = renderer.draw(&mut frame) {
-                        tracing::error!("Failed to draw to window: {err:?}");
-                    }
-                }
-
-                let report = stats.report();
-                window.set_title(&format!(
-                    "Violet - {:>4.1?} {:>4.1?} {:>4.1?}",
-                    report.min_frame_time, report.average_frame_time, report.max_frame_time,
-                ));
                 puffin::GlobalProfiler::lock().new_frame();
             }
             Event::WindowEvent { window_id, event } => match event {
                 WindowEvent::RedrawRequested => {
                     puffin::profile_scope!("RedrawRequested");
-                    if let Some(renderer) = &mut renderer {
-                        if let Err(err) = renderer.draw(&mut frame) {
-                            tracing::error!("Failed to draw to window: {err:?}");
-                        }
+                    if let Err(err) = instance.draw() {
+                        tracing::error!("Failed to draw to window: {err:?}");
                     }
                 }
                 WindowEvent::MouseInput { state, button, .. } => {
                     puffin::profile_scope!("MouseInput");
-                    input_state.on_mouse_input(&mut frame, state, button);
+                    input_state.on_mouse_input(&mut instance.frame, state, button);
                 }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     puffin::profile_scope!("ModifiersChanged");
@@ -249,34 +228,26 @@ impl App {
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     puffin::profile_scope!("KeyboardInput", format!("{event:?}"));
-                    input_state.on_keyboard_input(&mut frame, event)
+                    input_state.on_keyboard_input(&mut instance.frame, event)
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     puffin::profile_scope!("CursorMoved");
-                    input_state
-                        .on_cursor_move(&mut frame, vec2(position.x as f32, position.y as f32))
+                    input_state.on_cursor_move(
+                        &mut instance.frame,
+                        vec2(position.x as f32, position.y as f32),
+                    )
+                }
+                WindowEvent::ScaleFactorChanged {
+                    scale_factor: s, ..
+                } => {
+                    tracing::info!("Scale factor changed to {s}");
+                    instance.scale_factor = s;
+
+                    let size = instance.window_size;
+                    instance.on_resize(size);
                 }
                 WindowEvent::Resized(size) => {
-                    puffin::profile_scope!("Resized");
-                    minimized = size.width == 0 || size.height == 0;
-
-                    window_size = size;
-
-                    frame
-                        .world_mut()
-                        .set(
-                            root,
-                            components::rect(),
-                            Rect {
-                                min: vec2(0.0, 0.0),
-                                max: vec2(size.width as f32, size.height as f32),
-                            },
-                        )
-                        .unwrap();
-
-                    if let Some(renderer) = &mut renderer {
-                        renderer.resize(size);
-                    }
+                    instance.on_resize(size);
                 }
                 WindowEvent::CloseRequested => {
                     ctl.exit();
@@ -288,9 +259,89 @@ impl App {
             event => {
                 tracing::trace!(?event, "Event")
             }
-        })?;
+        };
+
+        // #[cfg(not(target_arch = "wasm32"))]
+        // {
+        //     event_loop.run(on_event)?;
+        // }
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::EventLoopExtWebSys;
+            event_loop.spawn(on_event);
+        }
 
         Ok(())
+    }
+}
+
+pub struct AppInstance {
+    frame: Frame,
+    renderer: Option<WindowRenderer>,
+    root: Entity,
+    scale_factor: f64,
+    stats: AppStats,
+    current_time: Instant,
+    start_time: Instant,
+    executor: Executor,
+    schedule: Schedule,
+    window_size: PhysicalSize<u32>,
+}
+
+impl AppInstance {
+    pub fn on_resize(&mut self, size: PhysicalSize<u32>) {
+        self.window_size = size;
+
+        tracing::info!(?size, self.scale_factor, "Resizing window");
+
+        let logical_size: LogicalSize<f32> = size.to_logical(self.scale_factor);
+
+        self.frame
+            .world_mut()
+            .set(
+                self.root,
+                components::rect(),
+                Rect::from_size(vec2(logical_size.width, logical_size.height)),
+            )
+            .unwrap();
+
+        if let Some(renderer) = &mut self.renderer {
+            renderer.resize(size, self.scale_factor);
+        }
+    }
+
+    pub fn update(&mut self) {
+        if self.is_minimized() {
+            return;
+        }
+
+        let new_time = Instant::now();
+
+        let frame_time = new_time.duration_since(self.current_time);
+
+        self.current_time = new_time;
+        self.stats.record_frame(frame_time);
+
+        self.executor.tick(&mut self.frame);
+
+        update_animations(&mut self.frame, self.current_time - self.start_time);
+
+        {
+            self.schedule.execute_seq(&mut self.frame.world).unwrap();
+        }
+    }
+
+    pub fn draw(&mut self) -> anyhow::Result<()> {
+        puffin::profile_function!();
+        if let Some(renderer) = &mut self.renderer {
+            puffin::profile_scope!("Draw");
+            renderer.draw(&mut self.frame)?;
+        }
+
+        Ok(())
+    }
+    pub fn is_minimized(&self) -> bool {
+        self.window_size.width == 0 || self.window_size.height == 0
     }
 }
 

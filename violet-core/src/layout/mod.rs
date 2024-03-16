@@ -12,7 +12,7 @@ use crate::{
         self, anchor, aspect_ratio, children, layout, max_size, maximize, min_size, offset,
         padding, size, size_resolver,
     },
-    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue, LAYOUT_TOLERANCE},
+    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
     Edges, Rect,
 };
 
@@ -220,67 +220,6 @@ impl SizingHints {
             relative_size: self.relative_size | other.relative_size,
             coupled_size: self.coupled_size | other.coupled_size,
         }
-    }
-}
-
-fn validate_sizing(entity: &EntityRef, sizing: &Sizing, limits: LayoutLimits) {
-    const TOLERANCE: f32 = 0.2;
-    if sizing.min.size().x > limits.max_size.x + TOLERANCE
-        || sizing.min.size().y > limits.max_size.y + TOLERANCE
-    {
-        tracing::error!(
-            %entity,
-            min_size = %sizing.min.size(),
-            max_size = %limits.max_size,
-            "Minimum size exceeds size limit",
-        );
-    }
-
-    if sizing.preferred.size().x > limits.max_size.x + TOLERANCE
-        || sizing.preferred.size().y > limits.max_size.y + TOLERANCE
-    {
-        tracing::error!(
-            %entity,
-            preferred_size = %sizing.preferred.size(),
-            ?limits,
-            "Preferred size exceeds size limit",
-        );
-    }
-
-    if sizing.min.size().x + TOLERANCE < limits.min_size.x
-        || sizing.min.size().y + TOLERANCE < limits.min_size.y
-    {
-        tracing::error!(
-            %entity,
-            min_size = %sizing.min.size(),
-            ?limits,
-            "Minimum size is less than size limit",
-        );
-    }
-}
-
-fn validate_block(entity: &EntityRef, block: &Block, limits: LayoutLimits) {
-    const TOLERANCE: f32 = 0.2;
-    if block.rect.size().x > limits.max_size.x + TOLERANCE
-        || block.rect.size().y > limits.max_size.y + TOLERANCE
-    {
-        tracing::error!(
-            %entity,
-            rect_size = %block.rect.size(),
-            max_size = %limits.max_size,
-            "Widget size exceeds size limit",
-        );
-    }
-
-    if block.rect.size().x + TOLERANCE < limits.min_size.x
-        || block.rect.size().y + TOLERANCE < limits.min_size.y
-    {
-        tracing::error!(
-            %entity,
-            rect_size = %block.rect.size(),
-            min_size = %limits.min_size,
-            "Widget size is less than size limit",
-        );
     }
 }
 

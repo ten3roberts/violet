@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 
 use violet_core::{
     components::font_size,
-    layout::{Direction, LayoutLimits, QueryArgs, SizeResolver, SizingHints},
+    layout::{LayoutLimits, QueryArgs, SizeResolver, SizingHints},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };

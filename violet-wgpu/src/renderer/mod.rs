@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use bytemuck::Zeroable;
 use flax::{
-    components::child_of,
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
     CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,

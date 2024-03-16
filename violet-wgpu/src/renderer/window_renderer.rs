@@ -6,7 +6,7 @@ use glam::Mat4;
 use parking_lot::Mutex;
 use puffin::profile_scope;
 use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
-use winit::dpi::PhysicalSize;
+use winit::dpi::{LogicalSize, PhysicalSize};
 
 use violet_core::{layout::cache::LayoutUpdate, Frame};
 
@@ -51,9 +51,10 @@ impl WindowRenderer {
         }
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        let w = new_size.width as f32;
-        let h = new_size.height as f32;
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>, scale_factor: f64) {
+        let logical_size: LogicalSize<f32> = new_size.to_logical(scale_factor);
+        let w = logical_size.width;
+        let h = logical_size.height;
 
         self.ctx.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
         self.ctx

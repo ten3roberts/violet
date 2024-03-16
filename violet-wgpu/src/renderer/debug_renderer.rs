@@ -4,7 +4,6 @@ use flax::{fetch::entity_refs, Entity, Query};
 use glam::{vec2, vec3, vec4, Mat4, Quat, Vec3, Vec4};
 use image::DynamicImage;
 use itertools::Itertools;
-use palette::bool_mask::Select;
 use violet_core::{
     assets::Asset,
     components::screen_rect,

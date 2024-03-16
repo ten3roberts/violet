@@ -11,7 +11,6 @@ use std::{
 };
 
 use futures::{
-    channel::oneshot,
     task::{ArcWake, AtomicWaker},
     Future,
 };
@@ -226,14 +225,17 @@ impl Timers {
 #[cfg(target_arch = "wasm32")]
 struct TickFuture {
     inner: Arc<Inner>,
-    timeout: Option<(oneshot::Receiver<()>, gloo_timers::callback::Timeout)>,
+    timeout: Option<(
+        futures::channel::oneshot::Receiver<()>,
+        gloo_timers::callback::Timeout,
+    )>,
 }
 
 #[cfg(target_arch = "wasm32")]
 impl TickFuture {
     fn new(inner: Arc<Inner>, timeout: Option<Duration>) -> Self {
         let timeout = if let Some(timeout) = timeout {
-            let (tx, rx) = oneshot::channel();
+            let (tx, rx) = futures::channel::oneshot::channel();
 
             let timeout = gloo_timers::callback::Timeout::new(
                 timeout.as_millis().try_into().unwrap(),

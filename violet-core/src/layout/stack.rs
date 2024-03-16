@@ -8,9 +8,7 @@ use crate::{
     Edges, Rect,
 };
 
-use super::{
-    apply_layout, resolve_pos, Alignment, Block, Direction, LayoutLimits, QueryArgs, Sizing,
-};
+use super::{apply_layout, resolve_pos, Alignment, Block, LayoutLimits, QueryArgs, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -203,7 +201,7 @@ impl StackLayout {
                 },
             );
 
-            maximize = maximize + sizing.maximize;
+            maximize += sizing.maximize;
 
             hints = hints.combine(sizing.hints);
 

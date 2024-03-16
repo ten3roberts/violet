@@ -61,7 +61,7 @@ impl Texture {
             // The layout of the texture
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(format.block_size(None).unwrap() * dimensions.0),
+                bytes_per_row: Some(format.block_copy_size(None).unwrap() * dimensions.0),
                 rows_per_image: Some(dimensions.1),
             },
             size,
