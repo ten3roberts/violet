@@ -5,6 +5,7 @@ use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
 use palette::Srgba;
+use web_time::Duration;
 use winit::event::ElementState;
 
 use crate::{
@@ -13,10 +14,11 @@ use crate::{
     layout::Alignment,
     state::{State, StateDuplex, StateStream},
     style::{interactive_active, interactive_inactive, spacing_small, SizeExt, StyleExt},
+    time::sleep,
     to_owned,
     unit::Unit,
-    utils::zip_latest,
-    widget::{row, BoxSized, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
+    utils::{throttle, zip_latest},
+    widget::{row, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
     Scope, StreamEffect, Widget,
 };
 
@@ -90,7 +92,7 @@ impl<V: SliderValue> Widget for Slider<V> {
         let handle_size = self.style.handle_size;
         let track_size = self.style.track_size;
 
-        let track = scope.attach(BoxSized::new(Rectangle::new(track_color)).with_size(track_size));
+        let track = scope.attach(Rectangle::new(track_color).with_size(track_size));
 
         let min = self.min.to_progress();
         let max = self.max.to_progress();
@@ -175,11 +177,9 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
             }
         }));
 
-        Positioned::new(
-            BoxSized::new(Rectangle::new(self.handle_color)).with_min_size(self.handle_size),
-        )
-        .with_anchor(Unit::rel2(0.5, 0.0))
-        .mount(scope)
+        Positioned::new(Rectangle::new(self.handle_color).with_min_size(self.handle_size))
+            .with_anchor(Unit::rel2(0.5, 0.0))
+            .mount(scope)
     }
 }
 

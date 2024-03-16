@@ -23,18 +23,11 @@ use violet_core::{
     state::MapRef,
     style::{colors::DARK_CYAN_DEFAULT, SizeExt},
     text::Wrap,
-    widget::{card, centered, column, row, Slider},
+    widget::{card, centered, column, label, row, Slider},
 };
 use violet_wgpu::renderer::RendererConfig;
 
 const MARGIN_SM: Edges = Edges::even(4.0);
-
-fn label(text: impl Into<String>) -> Stack<Text> {
-    Stack::new(Text::new(text.into()))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
-        .with_background(Background::new(EERIE_BLACK_400))
-}
 
 pub fn main() -> anyhow::Result<()> {
     registry()

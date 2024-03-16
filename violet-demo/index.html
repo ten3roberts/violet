@@ -12,7 +12,9 @@
             /* This allows the flexbox to grow to max size, this is needed for WebGPU */
             flex: 1;
             /* This forces CSS to ignore the width/height of the canvas, this is needed for WebGL */
-            /* contain: size; */
+            contain: size;
+            width: 100%;
+            height: 100%;
             background-color: #001133;
         }
 
@@ -26,7 +28,7 @@
     </head>
     <body>
     <script type="module">
-        import init, { run } from './pkg/violet_web_example.js';
+        import init, { run } from './pkg/violet_demo.js';
 
         async function start() {
             await init();
@@ -35,6 +37,6 @@
 
         start();
     </script> 
-    <div id="canvas-container"><canvas id="canvas" class="main-canvas" width="800" height="600"></canvas></div>
+    <div id="canvas-container"><canvas id="canvas" class="main-canvas"></canvas></div>
     </body>
 </html>

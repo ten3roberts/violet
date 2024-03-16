@@ -3,16 +3,15 @@ use glam::Vec2;
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, margin, max_size, min_size, offset, padding, rect},
+    components::{anchor, layout, offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
     style::{
-        colors::{EERIE_BLACK_300, EERIE_BLACK_400},
         primary_background, secondary_background, spacing_medium, spacing_small, Background,
         SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
-    Edges, Frame, Scope, Widget, WidgetCollection,
+    Frame, Scope, Widget, WidgetCollection,
 };
 
 /// Style for most container type widgets.

@@ -12,9 +12,10 @@ use violet::{
         layout::Alignment,
         state::{DynStateDuplex, State, StateMut, StateStream, StateStreamRef},
         style::{primary_background, Background, SizeExt, ValueOrRef},
+        time::sleep,
         to_owned,
         unit::Unit,
-        utils::zip_latest_ref,
+        utils::{throttle, zip_latest_ref},
         widget::{
             card, column, label, pill, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
             StreamWidget, Text, TextInput, WidgetExt,
@@ -24,6 +25,7 @@ use violet::{
     futures_signals::signal::Mutable,
     glam::vec2,
     palette::{FromColor, IntoColor, OklabHue, Oklch, Srgb},
+    web_time::Duration,
     wgpu::renderer::RendererConfig,
 };
 use wasm_bindgen::prelude::*;
@@ -65,7 +67,7 @@ pub fn run() {
     setup();
 
     violet::wgpu::App::new()
-        .with_renderer_config(RendererConfig { debug_mode: true })
+        .with_renderer_config(RendererConfig { debug_mode: false })
         .run(MainApp)
         .unwrap();
 }
@@ -108,6 +110,7 @@ impl Tints {
 
 impl Widget for Tints {
     fn mount(self, scope: &mut Scope<'_>) {
+        puffin::profile_function!();
         row((1..=9)
             .map(|i| {
                 let f = (i as f32) / 10.0;
@@ -183,13 +186,20 @@ impl Widget for Palettes {
                         to_owned![current_choice];
                         let discard = &discard;
                         move |(i, item)| {
+                            puffin::profile_scope!("Update palette item", format!("{i}"));
                             let checkbox = Radio::new(
                                 current_choice
                                     .clone()
                                     .map(move |v| v == Some(i), move |state| state.then_some(i)),
                             );
 
-                            card(row((checkbox, discard(i), StreamWidget(item.stream()))))
+                            card(row((
+                                checkbox,
+                                discard(i),
+                                StreamWidget(throttle(item.stream(), || {
+                                    sleep(Duration::from_millis(100))
+                                })),
+                            )))
                         }
                     })
                     .collect_vec();
@@ -225,6 +235,7 @@ pub struct PaletteColor {
 
 impl Widget for PaletteColor {
     fn mount(self, scope: &mut Scope<'_>) {
+        puffin::profile_function!();
         Stack::new((
             row((Tints::new(self.color, self.falloff),)),
             pill(label(color_hex(self.color))),
@@ -259,7 +270,8 @@ impl Widget for PaletteEditor {
 
         let color_rect = color.stream().map(|v| {
             Rectangle::new(ValueOrRef::value(v.into_color()))
-                .with_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
+                .with_min_size(Unit::px2(100.0, 100.0))
+                .with_maximize(Vec2::X)
                 // .with_min_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
                 .with_name("ColorPreview")
         });

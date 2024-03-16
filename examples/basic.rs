@@ -24,7 +24,7 @@ use violet_core::{
         danger_item, primary_background, secondary_background, spacing_medium, spacing_small,
         Background, SizeExt, ValueOrRef,
     },
-    widget::{BoxSized, ContainerStyle},
+    widget::ContainerStyle,
 };
 
 struct MainApp;
@@ -50,7 +50,7 @@ impl Widget for MainApp {
                     .map(|i| {
                         let size = Vec2::splat(128.0 / i as f32);
                         Stack::new(
-                            BoxSized::new(Image::new("./assets/images/statue.jpg"))
+                            Image::new("./assets/images/statue.jpg")
                                 .with_min_size(Unit::px(size))
                                 .with_aspect_ratio(1.0),
                         )
@@ -100,10 +100,10 @@ impl Widget for MainApp {
             .with_padding(spacing_small())
             .with_background(Background::new(primary_background())),
             Stack::new((
-                BoxSized::new(Rectangle::new(danger_item()))
+                Rectangle::new(danger_item())
                     .with_min_size(Unit::px(vec2(100.0, 30.0)))
                     .with_size(Unit::px(vec2(50.0, 30.0))),
-                BoxSized::new(Rectangle::new(danger_item()))
+                Rectangle::new(danger_item())
                     .with_min_size(Unit::px(vec2(200.0, 10.0)))
                     .with_size(Unit::px(vec2(50.0, 10.0))),
                 Text::new("This is some text").with_font_size(16.0),
@@ -170,14 +170,14 @@ impl Widget for LayoutFlexTest {
         List::new(
             (0..8)
                 .map(|i| {
-                    let size = vec2(100.0, 20.0);
+                    let size = vec2(50.0, 20.0);
 
                     Stack::new(
-                        BoxSized::new(Rectangle::new(ValueOrRef::value(
+                        Rectangle::new(ValueOrRef::value(
                             Hsva::new(i as f32 * 30.0, 1.0, 1.0, 1.0).into_color(),
-                        )))
+                        ))
                         .with_min_size(Unit::px(size))
-                        .with_size(Unit::px(size * vec2(i as f32, 1.0))),
+                        .with_maximize(Vec2::X * i as f32),
                     )
                     .with_margin(spacing_small())
                 })

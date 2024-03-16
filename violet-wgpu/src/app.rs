@@ -207,10 +207,7 @@ impl App {
 
                 stats.record_frame(frame_time);
 
-                {
-                    puffin::profile_scope!("Tick");
-                    ex.tick(&mut frame);
-                }
+                ex.tick(&mut frame);
 
                 update_animations(&mut frame, cur_time - start_time);
 

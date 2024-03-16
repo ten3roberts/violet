@@ -18,27 +18,12 @@ use violet_core::{
     style::{
         self,
         colors::{EERIE_BLACK_600, EERIE_BLACK_DEFAULT},
-        secondary_background, spacing_small, Background, SizeExt,
+        spacing_small, Background, SizeExt,
     },
     text::Wrap,
-    widget::{
-        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, SliderWithLabel,
-        TextInput,
-    },
+    widget::{card, column, label, row, Button, ButtonStyle, SliderWithLabel, TextInput},
 };
 use violet_wgpu::renderer::RendererConfig;
-
-fn label(text: impl Into<String>) -> Stack<Text> {
-    Stack::new(Text::new(text.into()))
-        .with_padding(spacing_small())
-        .with_margin(spacing_small())
-}
-
-fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget).with_style(ContainerStyle {
-        background: Some(Background::new(secondary_background())),
-    })
-}
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -94,8 +79,7 @@ impl Widget for MainApp {
                 ))
                 .with_stretch(true),
             ),
-            BoxSized::new(Rectangle::new(EERIE_BLACK_600))
-                .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
+            Rectangle::new(EERIE_BLACK_600).with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
             card(column((
                 column((
                     row((
@@ -147,7 +131,7 @@ impl Widget for Tints {
                 );
 
                 card(column((
-                    BoxSized::new(Rectangle::new(color)).with_size(Unit::px2(100.0, 40.0)),
+                    Rectangle::new(color).with_size(Unit::px2(100.0, 40.0)),
                     label(format!("{tint}")),
                     label(color_string),
                 )))

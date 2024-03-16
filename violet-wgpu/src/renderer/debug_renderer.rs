@@ -139,7 +139,7 @@ impl DebugRenderer {
         let mut query = query.borrow(&frame.world);
 
         let clamped_indicators = query.iter().filter_map(|(entity, v)| {
-            let clamped_query_vertical = if v
+            let can_grow_vert = if v
                 .get_query(Direction::Vertical)
                 .as_ref()
                 .is_some_and(|v| v.value.hints.can_grow.any())
@@ -149,7 +149,7 @@ impl DebugRenderer {
                 Vec3::ZERO
             };
 
-            let clamped_query_horizontal = if v
+            let can_grow_hor = if v
                 .get_query(Direction::Horizontal)
                 .as_ref()
                 .is_some_and(|v| v.value.hints.can_grow.any())
@@ -159,19 +159,13 @@ impl DebugRenderer {
                 Vec3::ZERO
             };
 
-            let clamped_layout = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
+            let can_grow = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
                 vec3(0.0, 0.0, 0.5)
             } else {
                 Vec3::ZERO
             };
 
-            let color: Vec3 = [
-                clamped_query_vertical,
-                clamped_query_horizontal,
-                clamped_layout,
-            ]
-            .into_iter()
-            .sum();
+            let color: Vec3 = [can_grow_vert, can_grow_hor, can_grow].into_iter().sum();
 
             if color == Vec3::ZERO {
                 None

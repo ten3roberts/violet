@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    resolve_pos, apply_layout, Alignment, Block, Direction, LayoutLimits, QueryArgs, Sizing,
+    apply_layout, resolve_pos, Alignment, Block, Direction, LayoutLimits, QueryArgs, Sizing,
 };
 
 #[derive(Debug)]
@@ -185,6 +185,7 @@ impl StackLayout {
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);
 
         let mut hints = SizingHints::default();
+        let mut maximize = Vec2::ZERO;
 
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
@@ -201,6 +202,8 @@ impl StackLayout {
                     direction: args.direction,
                 },
             );
+
+            maximize = maximize + sizing.maximize;
 
             hints = hints.combine(sizing.hints);
 
@@ -220,6 +223,7 @@ impl StackLayout {
             // .clamp_size(limits.min_size, limits.max_size),
             margin: min_margin.max(preferred_margin),
             hints,
+            maximize,
         }
     }
 }

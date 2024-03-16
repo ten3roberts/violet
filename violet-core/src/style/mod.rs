@@ -8,15 +8,15 @@ use glam::Vec2;
 use palette::{IntoColor, Oklab, Srgba};
 
 use crate::{
-    components::{color, draw_shape, margin, max_size, min_size, padding, size},
+    components::{color, draw_shape, margin, max_size, maximize, min_size, padding, size},
     shape::shape_rectangle,
     unit::Unit,
     Edges, Scope,
 };
 
 use self::colors::{
-    EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600,
-    JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+    EERIE_BLACK_300, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
+    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
 };
 
 #[macro_export]
@@ -57,6 +57,7 @@ pub struct WidgetSize {
     pub max_size: Option<Unit<Vec2>>,
     pub margin: Option<ValueOrRef<Edges>>,
     pub padding: Option<ValueOrRef<Edges>>,
+    pub maximize: Option<Vec2>,
 }
 
 impl WidgetSize {
@@ -75,7 +76,8 @@ impl WidgetSize {
             .set_opt(padding(), p)
             .set_opt(size(), self.size)
             .set_opt(min_size(), self.min_size)
-            .set_opt(max_size(), self.max_size);
+            .set_opt(max_size(), self.max_size)
+            .set_opt(maximize(), self.maximize);
     }
 
     /// Set the size
@@ -105,6 +107,12 @@ impl WidgetSize {
     /// Set the padding around inner content.
     pub fn with_padding(mut self, padding: impl Into<ValueOrRef<Edges>>) -> Self {
         self.padding = Some(padding.into());
+        self
+    }
+
+    /// Maximize the widget to the available size with the given weight.
+    pub fn with_maximize(mut self, maximize: Vec2) -> Self {
+        self.maximize = Some(maximize);
         self
     }
 }
@@ -170,6 +178,14 @@ pub trait SizeExt {
         self
     }
 
+    fn with_maximize(mut self, maximize: Vec2) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().maximize = Some(maximize);
+        self
+    }
+
     fn size_mut(&mut self) -> &mut WidgetSize;
 }
 
@@ -211,10 +227,7 @@ impl<T: Copy + ComponentValue> ValueOrRef<T> {
     pub(crate) fn resolve(self, stylesheet: EntityRef<'_>) -> T {
         match self {
             ValueOrRef::Value(value) => value,
-            ValueOrRef::Ref(component) => {
-                let value = stylesheet.get_copy(component).unwrap();
-                value
-            }
+            ValueOrRef::Ref(component) => stylesheet.get_copy(component).unwrap(),
         }
     }
 }

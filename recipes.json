@@ -1,6 +1,6 @@
 {
     "check": {
-        "cmd": "cargo check --all-targets --all-features"
+        "cmd": "cargo check --all-targets --all-features --workspace"
     },
     "run demo": {
         "cmd": "cargo run --package violet-demo"
@@ -56,10 +56,10 @@
     },
     "build web": {
         "cmd": "wasm-pack build --target web",
-        "cwd": "./violet-web-example/"
+        "cwd": "./violet-demo/"
     },
     "host": {
         "cmd": "python3 -m http.server 8080",
-        "cwd": "./violet-web-example/"
+        "cwd": "./violet-demo/"
     }
 }

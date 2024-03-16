@@ -257,4 +257,8 @@ impl<E: for<'x> Effect<Scope<'x>>> Effect<Frame> for ScopedEffect<E> {
             Poll::Ready(())
         }
     }
+
+    fn label(&self) -> Option<&str> {
+        self.effect.label()
+    }
 }

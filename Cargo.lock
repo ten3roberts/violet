@@ -630,7 +630,7 @@ dependencies = [
 [[package]]
 name = "flax"
 version = "0.6.2"
-source = "git+https://github.com/ten3roberts/flax#bb23e6eaf91195371b96d8725cfef42efdc4b19c"
+source = "git+https://github.com/ten3roberts/flax#b75a7275d9a119309d3d7f41d824347dc2f9806b"
 dependencies = [
  "anyhow",
  "atomic_refcell",
@@ -648,7 +648,7 @@ dependencies = [
 [[package]]
 name = "flax-derive"
 version = "0.6.0"
-source = "git+https://github.com/ten3roberts/flax#bb23e6eaf91195371b96d8725cfef42efdc4b19c"
+source = "git+https://github.com/ten3roberts/flax#b75a7275d9a119309d3d7f41d824347dc2f9806b"
 dependencies = [
  "itertools 0.11.0",
  "proc-macro-crate",
@@ -2500,6 +2500,7 @@ dependencies = [
  "tracing-tree",
  "violet-core",
  "violet-wgpu",
+ "web-time 1.0.0",
 ]
 
 [[package]]
@@ -2550,6 +2551,7 @@ dependencies = [
  "futures",
  "glam",
  "itertools 0.12.1",
+ "puffin",
  "tracing-subscriber",
  "tracing-tree",
  "tracing-web",

@@ -1,5 +1,3 @@
-use futures::Stream;
-use futures_signals::signal::Mutable;
 use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
 
@@ -7,14 +5,13 @@ use crate::{
     components::{self, color},
     input::{focusable, on_mouse_input},
     layout::Alignment,
-    state::{StateDuplex, StateMut, StateStream, WatchState},
+    state::{StateDuplex, StateStream, WatchState},
     style::{
         danger_item, interactive_inactive, interactive_pressed, spacing_medium, success_item,
         warning_item, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
-    to_owned,
     unit::Unit,
-    widget::{ContainerStyle, Rectangle, Stack, Text},
+    widget::{ContainerStyle, Stack, Text},
     Frame, Scope, Widget,
 };
 

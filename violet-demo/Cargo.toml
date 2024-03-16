@@ -28,3 +28,4 @@ futures.workspace = true
 wasm-bindgen-futures = "0.4"
 itertools.workspace = true
 tracing-tree.workspace = true
+puffin.workspace = true

@@ -6,6 +6,7 @@ use futures_signals::signal::{self, Mutable, SignalExt};
 use glam::{vec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
+use web_time::Duration;
 use winit::{
     event::ElementState,
     keyboard::{Key, NamedKey},
@@ -21,8 +22,10 @@ use crate::{
         ValueOrRef, WidgetSize,
     },
     text::{LayoutGlyphs, TextSegment},
+    time::sleep,
     to_owned,
     unit::Unit,
+    utils::throttle,
     widget::{
         row, NoOp, Positioned, Rectangle, SignalWidget, Stack, StreamWidget, Text, WidgetExt,
     },
@@ -114,7 +117,7 @@ impl Widget for TextInput {
 
                 let mut cursor_pos = Vec2::ZERO;
 
-                let mut new_text = content.stream().fuse();
+                let mut new_text = throttle(content.stream(), || sleep(Duration::from_millis(100))).fuse();
                 let mut focused = false;
 
                 loop {

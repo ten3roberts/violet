@@ -1,6 +1,8 @@
 use std::iter::repeat;
 
+use glam::{vec2, Vec2};
 use itertools::Itertools;
+use palette::named::DARKCYAN;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
@@ -15,10 +17,13 @@ use violet::core::{
 };
 use violet_core::{
     style::{
-        colors::{JADE_400, JADE_DEFAULT, LION_DEFAULT, REDWOOD_100, ULTRA_VIOLET_DEFAULT},
+        colors::{
+            DARK_CYAN_DEFAULT, JADE_400, JADE_DEFAULT, LION_DEFAULT, REDWOOD_100,
+            ULTRA_VIOLET_DEFAULT,
+        },
         spacing_medium, spacing_small, SizeExt,
     },
-    widget::{card, column, label, row, Stack},
+    widget::{card, centered, column, label, row, Image, Stack},
 };
 use violet_wgpu::renderer::RendererConfig;
 
@@ -66,7 +71,17 @@ impl Widget for MainApp {
                 //     .with_min_size(Unit::px2(100.0, 100.0))
                 //     .with_size(Unit::px2(0.0, 100.0) + Unit::rel2(1.0, 0.0)),
                 // .with_margin(spacing_medium()),
-                row((0..16).map(|_| Stack::new(Item)).collect_vec()),
+                row((0..4)
+                    .map(|_| Box::new(Stack::new(Item)) as Box<dyn Widget>)
+                    .chain([Box::new(
+                        centered((Rectangle::new(JADE_DEFAULT)
+                            .with_maximize(vec2(1.0, 0.0))
+                            .with_size(Unit::px2(0.0, 50.0))
+                            .with_max_size(Unit::px2(1000.0, 100.0)),))
+                        .with_maximize(Vec2::ONE),
+                    ) as Box<dyn Widget>])
+                    .collect_vec())
+                .with_padding(spacing_small()),
             ))
             // .with_padding(spacing_medium())
             .contain_margins(true),
@@ -81,8 +96,9 @@ struct Item;
 
 impl Widget for Item {
     fn mount(self, scope: &mut Scope<'_>) {
-        Rectangle::new(ULTRA_VIOLET_DEFAULT)
+        Image::new("./assets/images/statue.jpg")
             .with_size(Unit::px2(100.0, 100.0))
+            // .with_aspect_ratio(1.0)
             .with_margin(spacing_small())
             .mount(scope)
     }
