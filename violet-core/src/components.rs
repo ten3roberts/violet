@@ -28,6 +28,8 @@ component! {
     /// Specifies in screen space where the widget rect upper left corner is
     pub screen_position: Vec2 => [ Debuggable ],
 
+    pub rotation: f32 => [ Debuggable ],
+
     /// Offset the widget from its original position
     pub offset: Unit<Vec2> => [ Debuggable ],
 
@@ -48,7 +50,9 @@ component! {
     /// Constrain the aspect ratio of a widget
     pub aspect_ratio: f32 => [ Debuggable ],
 
-    /// Sets the anchor point withing the bounds of the widget where position is applied
+    /// Set the origin or anchor point of a widget.
+    ///
+    /// This determines the center of positioning and rotation
     pub anchor: Unit<Vec2> => [ Debuggable ],
 
 

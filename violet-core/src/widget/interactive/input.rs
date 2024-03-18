@@ -16,7 +16,7 @@ use crate::{
     components::{self, screen_rect},
     editor::{CursorMove, EditAction, EditorAction, TextEditor},
     input::{focus_sticky, focusable, on_focus, on_keyboard_input, on_mouse_input, KeyboardInput},
-    state::{StateDuplex, StateSink, StateStream},
+    state::{State, StateDuplex, StateSink, StateStream},
     style::{
         interactive_active, interactive_inactive, spacing_small, Background, SizeExt, StyleExt,
         ValueOrRef, WidgetSize,
@@ -104,7 +104,7 @@ impl Widget for TextInput {
         editor.set_cursor_at_end();
 
         let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(NoOp) as Box<dyn Widget>);
-        let content = self.content;
+        let content = self.content.prevent_feedback();
 
         scope.spawn({
             let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream();

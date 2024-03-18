@@ -7,6 +7,7 @@ use std::{marker::PhantomData, rc::Rc, sync::Arc};
 use futures::{stream::BoxStream, FutureExt, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
+pub mod constant;
 mod dedup;
 mod feedback;
 mod filter;

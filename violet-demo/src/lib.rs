@@ -1,37 +1,45 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use futures::StreamExt;
-use glam::{Vec2, Vec3};
+use anyhow::Context;
+use flume::Sender;
+use futures::{Stream, StreamExt};
+use glam::Vec2;
+use indexmap::IndexMap;
 use itertools::Itertools;
-use tracing_subscriber::{
-    filter::LevelFilter, fmt::format::Pretty, layer::SubscriberExt, util::SubscriberInitExt, Layer,
-};
-use tracing_web::{performance_layer, MakeWebConsoleWriter};
+use rfd::AsyncFileDialog;
+use serde::{Deserialize, Serialize};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use violet::{
     core::{
+        declare_atom,
         layout::Alignment,
         state::{DynStateDuplex, State, StateMut, StateStream, StateStreamRef},
-        style::{primary_background, Background, SizeExt, ValueOrRef},
-        time::sleep,
+        style::{
+            danger_item, primary_background, success_item, warning_item, Background, SizeExt,
+            ValueOrRef,
+        },
+        time::interval,
         to_owned,
         unit::Unit,
-        utils::{throttle, zip_latest_ref},
+        utils::zip_latest_ref,
         widget::{
-            card, column, label, pill, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
+            card, column, label, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
             StreamWidget, Text, TextInput, WidgetExt,
         },
-        Edges, Scope, Widget,
+        Edges, Frame, FutureEffect, Scope, Widget,
     },
     futures_signals::signal::Mutable,
-    glam::vec2,
     palette::{FromColor, IntoColor, OklabHue, Oklch, Srgb},
     web_time::Duration,
-    wgpu::renderer::RendererConfig,
+    wgpu::{app::App, renderer::RendererConfig},
 };
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 fn setup() {
+    use tracing_subscriber::{filter::LevelFilter, fmt::format::Pretty, Layer};
+    use tracing_web::{performance_layer, MakeWebConsoleWriter};
+
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false)
         .without_time()
@@ -66,7 +74,7 @@ fn setup() {
 pub fn run() {
     setup();
 
-    violet::wgpu::App::new()
+    App::builder()
         .with_renderer_config(RendererConfig { debug_mode: false })
         .run(MainApp)
         .unwrap();
@@ -84,55 +92,47 @@ impl Widget for MainApp {
                     Mutable::new(PaletteColor {
                         color: Oklch::new(0.5, 0.27, (i as f32 * 60.0) % 360.0),
                         falloff: DEFAULT_FALLOFF,
+                        name: format!("color_{i}"),
                     })
                 })
                 .collect(),
         );
 
-        column((Palettes::new(palette_item),))
-            .with_size(Unit::rel2(1.0, 1.0))
-            .with_background(Background::new(primary_background()))
-            .contain_margins(true)
-            .mount(scope);
+        let (notify_tx, notify_rx) = flume::unbounded();
+
+        scope.frame_mut().set_atom(crate::notify_tx(), notify_tx);
+
+        Stack::new((
+            Palettes::new(palette_item),
+            Stack::new(Notifications {
+                items: notify_rx.into_stream(),
+            })
+            .with_maximize(Vec2::ONE)
+            .with_horizontal_alignment(Alignment::End),
+        ))
+        .with_size(Unit::rel2(1.0, 1.0))
+        .with_background(Background::new(primary_background()))
+        .mount(scope);
     }
 }
 
-struct Tints {
-    base: Oklch,
-    falloff: f32,
-}
-
-impl Tints {
-    fn new(base: Oklch, falloff: f32) -> Self {
-        Self { base, falloff }
-    }
-}
-
-impl Widget for Tints {
-    fn mount(self, scope: &mut Scope<'_>) {
-        puffin::profile_function!();
-        row((1..=9)
-            .map(|i| {
+fn tints(color: impl StateStream<Item = PaletteColor>) -> impl Widget {
+    puffin::profile_function!();
+    row((1..=9)
+        .map(move |i| {
+            let color = color.stream().map(move |v| {
                 let f = (i as f32) / 10.0;
-                let chroma = self.base.chroma * (1.0 / (1.0 + self.falloff * (f - 0.5).powi(2)));
+                let color = v.tint(f);
 
-                // let color = self.base.lighten(f);
-                let color = Oklch {
-                    chroma,
-                    l: f,
-                    ..self.base
-                };
+                Rectangle::new(ValueOrRef::value(color.into_color()))
+                    .with_size(Unit::px2(80.0, 60.0))
+            });
 
-                Stack::new(column((Rectangle::new(ValueOrRef::value(
-                    color.into_color(),
-                ))
-                .with_size(Unit::px2(80.0, 60.0)),)))
+            Stack::new(column(StreamWidget(color)))
                 .with_margin(Edges::even(4.0))
                 .with_name("Tint")
-            })
-            .collect_vec())
-        .mount(scope)
-    }
+        })
+        .collect_vec())
 }
 
 pub fn color_hex(color: impl IntoColor<Srgb>) -> String {
@@ -150,8 +150,13 @@ impl Palettes {
     }
 }
 
+declare_atom! {
+    notify_tx: flume::Sender<Notification>,
+}
+
 impl Widget for Palettes {
     fn mount(self, scope: &mut Scope<'_>) {
+        let notify_tx = scope.frame().get_atom(notify_tx()).unwrap().clone();
         let items = self.items.clone();
 
         let discard = move |i| {
@@ -196,9 +201,7 @@ impl Widget for Palettes {
                             card(row((
                                 checkbox,
                                 discard(i),
-                                StreamWidget(throttle(item.stream(), || {
-                                    sleep(Duration::from_millis(100))
-                                })),
+                                palette_color_view(item.clone()),
                             )))
                         }
                     })
@@ -211,6 +214,7 @@ impl Widget for Palettes {
         let items = self.items.clone();
 
         column((
+            menu_bar(self.items.clone(), notify_tx),
             StreamWidget(editor),
             palettes,
             Button::label("+").on_press(move |_, _| {
@@ -218,6 +222,7 @@ impl Widget for Palettes {
                     v.push(Mutable::new(PaletteColor {
                         color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
                         falloff: DEFAULT_FALLOFF,
+                        name: format!("color_{}", v.len() + 1),
                     }));
                     current_choice.set(Some(v.len() - 1));
                 })
@@ -227,23 +232,243 @@ impl Widget for Palettes {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+struct Notification {
+    message: String,
+    kind: NotificationKind,
+}
+
+enum NotificationKind {
+    Info,
+    Warning,
+    Error,
+}
+
+pub struct Notifications<S> {
+    items: S,
+}
+
+impl<S> Notifications<S> {
+    pub fn new(items: S) -> Self {
+        Self { items }
+    }
+}
+
+impl<S> Widget for Notifications<S>
+where
+    S: 'static + Stream<Item = Notification>,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        let notifications = Mutable::new(Vec::new());
+
+        let notifications_stream = notifications.stream_ref(|v| {
+            let items = v
+                .iter()
+                .map(|(_, v): &(f32, Notification)| {
+                    let color = match v.kind {
+                        NotificationKind::Info => success_item(),
+                        NotificationKind::Warning => warning_item(),
+                        NotificationKind::Error => danger_item(),
+                    };
+                    card(label(v.message.clone())).with_background(Background::new(color))
+                })
+                .collect_vec();
+
+            column(items)
+        });
+
+        scope.spawn(async move {
+            let stream = self.items;
+
+            let mut interval = interval(Duration::from_secs(1)).fuse();
+
+            let stream = stream.fuse();
+            futures::pin_mut!(stream);
+
+            loop {
+                futures::select! {
+                    _ = interval.next() =>  {
+                        let notifications = &mut *notifications.lock_mut();
+                        notifications.retain(|(time, _)| *time > 0.0);
+                        for (time, _) in notifications {
+                            *time -= 1.0;
+                        }
+                    },
+                    notification = stream.select_next_some() => {
+                        notifications.lock_mut().push((5.0, notification));
+                    }
+                    complete => break,
+                }
+            }
+        });
+
+        StreamWidget(notifications_stream).mount(scope);
+    }
+}
+
+fn menu_bar(
+    items: Mutable<Vec<Mutable<PaletteColor>>>,
+    notify_tx: Sender<Notification>,
+) -> impl Widget {
+    fn notify_result(
+        notify_tx: &Sender<Notification>,
+        on_success: &str,
+    ) -> impl Fn(&mut Frame, anyhow::Result<()>) {
+        let notify_tx = notify_tx.clone();
+        move |_, result| match result {
+            Ok(()) => {
+                notify_tx
+                    .send(Notification {
+                        message: "Saved".to_string(),
+                        kind: NotificationKind::Info,
+                    })
+                    .unwrap();
+            }
+            Err(e) => {
+                notify_tx
+                    .send(Notification {
+                        message: format!("Failed to save: {e}"),
+                        kind: NotificationKind::Error,
+                    })
+                    .unwrap();
+            }
+        }
+    }
+
+    let export = Button::label("Export Tints").on_press({
+        to_owned![items, notify_tx];
+        move |frame, _| {
+            let data = items
+                .lock_ref()
+                .iter()
+                .map(|item| {
+                    let item = item.lock_ref();
+                    let tints = (1..=9)
+                        .map(|i| {
+                            let color = item.tint(i as f32 / 10.0);
+                            (
+                                format!("{}", i * 100),
+                                HexColor(Srgb::from_color(color).into_format()),
+                            )
+                        })
+                        .collect::<IndexMap<String, _>>();
+
+                    (item.name.clone(), tints)
+                })
+                .collect::<IndexMap<_, _>>();
+
+            let json = serde_json::to_string_pretty(&data).unwrap();
+
+            let fut = async move {
+                let Some(file) = AsyncFileDialog::new().set_directory(".").save_file().await else {
+                    return anyhow::Ok(());
+                };
+
+                file.write(json.as_bytes())
+                    .await
+                    .context("Failed to write to save file")?;
+
+                Ok(())
+            };
+
+            frame.spawn(FutureEffect::new(fut, notify_result(&notify_tx, "Saves")));
+        }
+    });
+
+    let save = Button::label("Save").on_press({
+        to_owned![items, notify_tx];
+        move |frame, _| {
+            to_owned![items, notify_tx];
+            let fut = async move {
+                let Some(file) = AsyncFileDialog::new().set_directory(".").save_file().await else {
+                    return anyhow::Ok(());
+                };
+
+                let items = items.lock_ref();
+                let data =
+                    serde_json::to_string_pretty(&*items).context("Failed to serialize state")?;
+
+                file.write(data.as_bytes())
+                    .await
+                    .context("Failed to write to save file")?;
+
+                Ok(())
+            };
+
+            frame.spawn(FutureEffect::new(fut, notify_result(&notify_tx, "Saves")));
+        }
+    });
+
+    let load = Button::label("Load").on_press({
+        to_owned![items, notify_tx];
+        move |frame, _| {
+            to_owned![items, notify_tx];
+            let fut = async move {
+                let Some(file) = AsyncFileDialog::new().set_directory(".").pick_file().await else {
+                    return anyhow::Ok(());
+                };
+
+                let data = file.read().await;
+
+                let data = serde_json::from_slice(&data).context("Failed to deserialize state")?;
+
+                items.set(data);
+
+                Ok(())
+            };
+
+            frame.spawn(FutureEffect::new(fut, notify_result(&notify_tx, "Loaded")));
+        }
+    });
+
+    let test_notification = Button::label("Test Notification").on_press({
+        to_owned![notify_tx];
+        move |_, _| {
+            notify_tx
+                .send(Notification {
+                    message: "Test notification".to_string(),
+                    kind: NotificationKind::Info,
+                })
+                .unwrap();
+        }
+    });
+
+    row((
+        label("Palette editor"),
+        save,
+        load,
+        export,
+        test_notification,
+    ))
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PaletteColor {
     color: Oklch,
     falloff: f32,
+    name: String,
 }
 
-impl Widget for PaletteColor {
-    fn mount(self, scope: &mut Scope<'_>) {
-        puffin::profile_function!();
-        Stack::new((
-            row((Tints::new(self.color, self.falloff),)),
-            pill(label(color_hex(self.color))),
-        ))
+impl PaletteColor {
+    pub fn tint(&self, tint: f32) -> Oklch {
+        let chroma = self.color.chroma * (1.0 / (1.0 + self.falloff * (tint - 0.5).powi(2)));
+        // let color = self.base.lighten(f);
+        Oklch {
+            chroma,
+            l: tint,
+            ..self.color
+        }
+    }
+}
+
+fn palette_color_view(color: Mutable<PaletteColor>) -> impl Widget {
+    puffin::profile_function!();
+    // let label = color.stream().map(|v| label(color_hex(v.color)));
+    let label = color.clone().map_ref(|v| &v.name, |v| &mut v.name);
+
+    let label = TextInput::new(label);
+    Stack::new((row((tints(color),)), label))
         .with_vertical_alignment(Alignment::End)
         .with_horizontal_alignment(Alignment::Center)
-        .mount(scope)
-    }
 }
 
 pub struct PaletteEditor {
@@ -330,3 +555,55 @@ impl Widget for ColorHexEditor {
         TextInput::new(value).mount(scope)
     }
 }
+
+pub struct HexColor(Srgb<u8>);
+
+impl Serialize for HexColor {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let s = format!(
+            "#{:0>2x}{:0>2x}{:0>2x}",
+            self.0.red, self.0.green, self.0.blue
+        );
+
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> Deserialize<'de> for HexColor {
+    fn deserialize<D>(deserializer: D) -> Result<HexColor, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let color: Srgb<u8> = s.trim().parse().map_err(serde::de::Error::custom)?;
+        Ok(HexColor(color))
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TintsData {
+    #[serde(rename = "100")]
+    _100: HexColor,
+    #[serde(rename = "200")]
+    _200: HexColor,
+    #[serde(rename = "300")]
+    _300: HexColor,
+    #[serde(rename = "400")]
+    _400: HexColor,
+    #[serde(rename = "500")]
+    _500: HexColor,
+    #[serde(rename = "600")]
+    _600: HexColor,
+    #[serde(rename = "700")]
+    _700: HexColor,
+    #[serde(rename = "800")]
+    _800: HexColor,
+    #[serde(rename = "900")]
+    _900: HexColor,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ColorPalettes(HashMap<String, TintsData>);

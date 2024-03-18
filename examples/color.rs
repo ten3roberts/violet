@@ -29,7 +29,7 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new()
+    violet_wgpu::AppBuilder::new()
         .with_renderer_config(RendererConfig { debug_mode: false })
         .run(MainApp)
 }

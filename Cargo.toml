@@ -1,5 +1,6 @@
 [workspace]
 members = [ "violet-wgpu", "violet-core", "violet-demo" ]
+exclude = [ "flax" ]
   
 [workspace.package]
 version = "0.0.1"
@@ -23,7 +24,7 @@ documentation = "https://docs.rs/violet"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace.dependencies]
-flax = { git = "https://github.com/ten3roberts/flax", version = "0.6.0", features = [
+flax = { path = "./flax", version = "0.6.0", features = [
     "derive",
     "puffin",
 ] }
@@ -31,7 +32,7 @@ flax = { git = "https://github.com/ten3roberts/flax", version = "0.6.0", feature
 atomic_refcell = "0.1"
 futures-signals = "0.3"
 itertools = "0.12"
-glam = { version = "0.24", features = ["bytemuck"] }
+glam = { version = "0.25", features = ["bytemuck"] }
 futures = "0.3"
 futures-concurrency = "7.0"
 flume = "0.11"
@@ -51,9 +52,12 @@ winit = "0.29"
 wgpu = { version = "0.19", default-features = false, features = ["fragile-send-sync-non-atomic-wasm", "webgl", "wgsl"] }
 palette = { version = "0.7", features = ["serializing"] }
 dashmap = "5.4"
-image = { version = "0.24", default_features = false, features = ["png", "jpeg"] }
+image = { version = "0.25", default_features = false, features = ["png", "jpeg"] }
 color-hex = "0.2"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+indexmap = { version = "2.0", features = ["serde"] }
+rfd = "0.14"
 
 tracing = "0.1"
 pin-project = "1.1"

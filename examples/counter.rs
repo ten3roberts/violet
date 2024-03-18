@@ -77,5 +77,5 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new().run(MainApp)
+    violet_wgpu::AppBuilder::new().run(MainApp)
 }

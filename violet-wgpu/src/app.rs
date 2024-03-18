@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{Event, WindowEvent},
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoopWindowTarget},
     window::WindowBuilder,
 };
 
@@ -58,11 +58,11 @@ impl<W: Widget> Widget for Canvas<W> {
     }
 }
 
-pub struct App {
+pub struct AppBuilder {
     renderer_config: RendererConfig,
 }
 
-impl App {
+impl AppBuilder {
     pub fn new() -> Self {
         Self {
             renderer_config: Default::default(),
@@ -85,7 +85,7 @@ impl App {
         let event_loop = EventLoopBuilder::new().build()?;
 
         #[allow(unused_mut)]
-        let mut builder = WindowBuilder::new().with_inner_size(PhysicalSize::new(800, 600));
+        let mut builder = WindowBuilder::new().with_inner_size(PhysicalSize::new(1920, 1080));
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -174,7 +174,7 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         let _puffin_server = setup_puffin();
 
-        let mut instance = AppInstance {
+        let mut instance = App {
             frame,
             renderer: None,
             root,
@@ -198,10 +198,6 @@ impl App {
 
                 instance.update();
 
-                if let Err(err) = instance.draw() {
-                    tracing::error!("Failed to draw to window: {err:?}");
-                }
-
                 if !instance.is_minimized() {
                     let report = instance.stats.report();
                     window.set_title(&format!(
@@ -209,6 +205,9 @@ impl App {
                         report.min_frame_time, report.average_frame_time, report.max_frame_time,
                     ));
                 }
+
+                ctl.set_control_flow(ControlFlow::Poll);
+                window.request_redraw();
                 puffin::GlobalProfiler::lock().new_frame();
             }
             Event::WindowEvent { window_id, event } => match event {
@@ -261,10 +260,10 @@ impl App {
             }
         };
 
-        // #[cfg(not(target_arch = "wasm32"))]
-        // {
-        //     event_loop.run(on_event)?;
-        // }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            event_loop.run(on_event)?;
+        }
         #[cfg(target_arch = "wasm32")]
         {
             use winit::platform::web::EventLoopExtWebSys;
@@ -275,7 +274,8 @@ impl App {
     }
 }
 
-pub struct AppInstance {
+/// A running application instance of violet
+pub struct App {
     frame: Frame,
     renderer: Option<WindowRenderer>,
     root: Entity,
@@ -288,7 +288,11 @@ pub struct AppInstance {
     window_size: PhysicalSize<u32>,
 }
 
-impl AppInstance {
+impl App {
+    pub fn builder() -> AppBuilder {
+        AppBuilder::new()
+    }
+
     pub fn on_resize(&mut self, size: PhysicalSize<u32>) {
         self.window_size = size;
 
@@ -361,7 +365,7 @@ fn setup_puffin() -> Option<puffin_http::Server> {
     Some(server)
 }
 
-impl Default for App {
+impl Default for AppBuilder {
     fn default() -> Self {
         Self::new()
     }

@@ -29,6 +29,12 @@ wasm-bindgen-futures = "0.4"
 itertools.workspace = true
 tracing-tree.workspace = true
 puffin.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+indexmap.workspace = true
+rfd.workspace = true
+anyhow.workspace = true
+flume.workspace = true
 
 [package.metadata.wasm-pack.profile.profiling]
 wasm-opt = false
