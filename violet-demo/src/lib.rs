@@ -1,9 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
 use flume::Sender;
 use futures::{Future, Stream, StreamExt};
 use glam::Vec2;
+use heck::ToKebabCase;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use rfd::AsyncFileDialog;
@@ -75,6 +76,7 @@ pub fn run() {
     setup();
 
     App::builder()
+        .with_title("Palette Editor")
         .with_renderer_config(RendererConfig { debug_mode: false })
         .run(MainApp)
         .unwrap();
@@ -92,7 +94,7 @@ impl Widget for MainApp {
                     Mutable::new(PaletteColor {
                         color: Oklch::new(0.5, 0.27, (i as f32 * 60.0) % 360.0),
                         falloff: DEFAULT_FALLOFF,
-                        name: format!("color_{i}"),
+                        name: format!("Color {i}"),
                     })
                 })
                 .collect(),
@@ -118,14 +120,15 @@ impl Widget for MainApp {
 
 fn tints(color: impl StateStream<Item = PaletteColor>) -> impl Widget {
     puffin::profile_function!();
-    row((1..=9)
-        .map(move |i| {
+    row(TINTS
+        .iter()
+        .map(move |&i| {
             let color = color.stream().map(move |v| {
-                let f = (i as f32) / 10.0;
+                let f = (i as f32) / 1000.0;
                 let color = v.tint(f);
 
                 Rectangle::new(ValueOrRef::value(color.into_color()))
-                    .with_size(Unit::px2(80.0, 60.0))
+                    .with_size(Unit::px2(120.0, 80.0))
             });
 
             Stack::new(column(StreamWidget(color)))
@@ -218,7 +221,7 @@ impl Widget for Palettes {
                 v.push(Mutable::new(PaletteColor {
                     color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
                     falloff: DEFAULT_FALLOFF,
-                    name: format!("color_{}", v.len() + 1),
+                    name: format!("Color {}", v.len() + 1),
                 }));
                 current_choice.set(Some(v.len() - 1));
             })
@@ -239,7 +242,7 @@ struct Notification {
     kind: NotificationKind,
 }
 
-enum NotificationKind {
+pub enum NotificationKind {
     Info,
     Warning,
     Error,
@@ -307,6 +310,17 @@ where
     }
 }
 
+fn local_dir() -> std::path::PathBuf {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::env::current_dir().unwrap()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        PathBuf::from(".")
+    }
+}
+
 fn description() -> impl Widget {
     let content = Mutable::new(
         r#"This is a palette editor. You can add, remove and select the colors in the list. Edit the color by selecting them and using the sliders or typing in the slider labels
@@ -347,7 +361,7 @@ fn menu_bar(
         }
     }
 
-    let export = Button::label("Export Tints").on_press({
+    let export = Button::label("Export Json").on_press({
         to_owned![items, notify_tx];
         move |frame, _| {
             let data = items
@@ -355,24 +369,30 @@ fn menu_bar(
                 .iter()
                 .map(|item| {
                     let item = item.lock_ref();
-                    let tints = (1..=9)
-                        .map(|i| {
-                            let color = item.tint(i as f32 / 10.0);
+                    let tints = TINTS
+                        .iter()
+                        .map(|&i| {
+                            let color = item.tint(i as f32 / 1000.0);
                             (
-                                format!("{}", i * 100),
+                                format!("{}", i),
                                 HexColor(Srgb::from_color(color).into_format()),
                             )
                         })
                         .collect::<IndexMap<String, _>>();
 
-                    (item.name.clone(), tints)
+                    (item.name.to_kebab_case(), tints)
                 })
                 .collect::<IndexMap<_, _>>();
 
             let json = serde_json::to_string_pretty(&data).unwrap();
 
             let fut = async move {
-                let Some(file) = AsyncFileDialog::new().set_directory(".").save_file().await else {
+                let Some(file) = AsyncFileDialog::new()
+                    .set_directory(local_dir())
+                    .set_file_name("colors.json")
+                    .save_file()
+                    .await
+                else {
                     return anyhow::Ok(());
                 };
 
@@ -392,7 +412,12 @@ fn menu_bar(
         move |frame, _| {
             to_owned![items, notify_tx];
             let fut = async move {
-                let Some(file) = AsyncFileDialog::new().set_directory(".").save_file().await else {
+                let Some(file) = AsyncFileDialog::new()
+                    .set_directory(local_dir())
+                    .set_file_name("colors.save.json")
+                    .save_file()
+                    .await
+                else {
                     return anyhow::Ok(());
                 };
 
@@ -416,7 +441,11 @@ fn menu_bar(
         move |frame, _| {
             to_owned![items, notify_tx];
             let fut = async move {
-                let Some(file) = AsyncFileDialog::new().set_directory(".").pick_file().await else {
+                let Some(file) = AsyncFileDialog::new()
+                    .set_directory(local_dir())
+                    .pick_file()
+                    .await
+                else {
                     return anyhow::Ok(());
                 };
 
@@ -597,27 +626,4 @@ impl<'de> Deserialize<'de> for HexColor {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct TintsData {
-    #[serde(rename = "100")]
-    _100: HexColor,
-    #[serde(rename = "200")]
-    _200: HexColor,
-    #[serde(rename = "300")]
-    _300: HexColor,
-    #[serde(rename = "400")]
-    _400: HexColor,
-    #[serde(rename = "500")]
-    _500: HexColor,
-    #[serde(rename = "600")]
-    _600: HexColor,
-    #[serde(rename = "700")]
-    _700: HexColor,
-    #[serde(rename = "800")]
-    _800: HexColor,
-    #[serde(rename = "900")]
-    _900: HexColor,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct ColorPalettes(HashMap<String, TintsData>);
+static TINTS: &[i32] = &[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];

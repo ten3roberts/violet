@@ -35,6 +35,7 @@ indexmap.workspace = true
 rfd.workspace = true
 anyhow.workspace = true
 flume.workspace = true
+heck.workspace = true
 
 [package.metadata.wasm-pack.profile.profiling]
 wasm-opt = false

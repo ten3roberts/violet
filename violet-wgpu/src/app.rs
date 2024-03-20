@@ -2,7 +2,7 @@ use futures::channel::oneshot;
 use std::sync::Arc;
 use web_time::{Duration, Instant};
 
-use flax::{components::name, Entity, Schedule, World};
+use flax::{components::name, entity_ids, Entity, Query, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
@@ -61,13 +61,20 @@ impl<W: Widget> Widget for Canvas<W> {
 
 pub struct AppBuilder {
     renderer_config: RendererConfig,
+    title: String,
 }
 
 impl AppBuilder {
     pub fn new() -> Self {
         Self {
             renderer_config: Default::default(),
+            title: "Violet".to_string(),
         }
+    }
+
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
     }
 
     /// Set the renderer config
@@ -86,7 +93,9 @@ impl AppBuilder {
         let event_loop = EventLoopBuilder::new().build()?;
 
         #[allow(unused_mut)]
-        let mut builder = WindowBuilder::new().with_inner_size(PhysicalSize::new(1920, 1080));
+        let mut builder = WindowBuilder::new()
+            .with_inner_size(PhysicalSize::new(1920, 1080))
+            .with_title(self.title);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -175,8 +184,8 @@ impl AppBuilder {
 
         let start_time = Instant::now();
 
-        #[cfg(not(target_arch = "wasm32"))]
-        let _puffin_server = setup_puffin();
+        // #[cfg(not(target_arch = "wasm32"))]
+        // let _puffin_server = setup_puffin();
 
         let mut instance = App {
             frame,
@@ -203,11 +212,19 @@ impl AppBuilder {
                 instance.update();
 
                 if !instance.is_minimized() {
-                    let report = instance.stats.report();
-                    window.set_title(&format!(
-                        "Violet - {:>4.1?} {:>4.1?} {:>4.1?}",
-                        report.min_frame_time, report.average_frame_time, report.max_frame_time,
-                    ));
+                    let archetypes = instance.frame.world.archetype_info();
+                    let pruned = instance.frame.world.prune_archetypes();
+                    let entity_count = Query::new(entity_ids())
+                        .borrow(&instance.frame.world)
+                        .iter()
+                        .count();
+                    tracing::info!(archetype_count = archetypes.len(), entity_count, pruned);
+                    // let report = instance.?stats.report();
+
+                    // window.set_title(&format!(
+                    //     "Violet - {:>4.1?} {:>4.1?} {:>4.1?}",
+                    //     report.min_frame_time, report.average_frame_time, report.max_frame_time,
+                    // ));
                 }
 
                 ctl.set_control_flow(ControlFlow::Poll);
@@ -389,10 +406,10 @@ impl AppStats {
     }
 
     fn record_frame(&mut self, frame_time: Duration) {
-        self.frames.push(AppFrame { frame_time });
-        if self.frames.len() > self.max_frames {
+        if self.frames.len() >= self.max_frames {
             self.frames.remove(0);
         }
+        self.frames.push(AppFrame { frame_time });
     }
 
     fn report(&self) -> StatsReport {
