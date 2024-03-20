@@ -70,12 +70,13 @@ impl EditorLine {
     }
 }
 
-/// Text editor driver
+/// The core text editor buffer
 pub struct TextEditor {
     text: Vec<EditorLine>,
     /// The current cursor position
     ///
     cursor: CursorLocation,
+    selection: Option<CursorLocation>,
 }
 
 /// Movement action for the cursor
@@ -99,6 +100,8 @@ pub enum EditAction<S = String> {
 
 pub enum EditorAction<S = String> {
     CursorMove(CursorMove),
+    SelectionMove(CursorMove),
+    SelectionClear,
     Edit(EditAction<S>),
     SetText(Vec<S>),
 }
@@ -108,17 +111,28 @@ impl TextEditor {
         Self {
             cursor: CursorLocation { row: 0, col: 0 },
             text: vec![EditorLine::default()],
+            selection: None,
         }
     }
 
-    pub fn move_cursor(&mut self, direction: CursorMove) {
-        match direction {
-            CursorMove::Up => {
-                self.cursor.row = self.cursor.row.saturating_sub(1);
-            }
-            CursorMove::Down => {
-                self.cursor.row = (self.cursor.row + 1).min(self.text.len() - 1);
-            }
+    pub fn move_cursor(&mut self, m: CursorMove) {
+        self.cursor = self.get_new_cursor(m, self.cursor)
+    }
+
+    pub fn move_selection(&mut self, m: CursorMove) {
+        self.selection = Some(self.get_new_cursor(m, self.selection.unwrap_or(self.cursor)))
+    }
+
+    fn get_new_cursor(&self, m: CursorMove, cursor: CursorLocation) -> CursorLocation {
+        match m {
+            CursorMove::Up => CursorLocation {
+                row: cursor.row.saturating_sub(1),
+                col: cursor.col,
+            },
+            CursorMove::Down => CursorLocation {
+                row: (cursor.row + 1).min(self.text.len() - 1),
+                col: cursor.col,
+            },
             CursorMove::Left => {
                 if let Some((i, _)) = self
                     .line()
@@ -126,20 +140,34 @@ impl TextEditor {
                     .take_while(|(i, _)| *i < self.cursor.col)
                     .last()
                 {
-                    self.cursor.col = i;
+                    CursorLocation {
+                        row: cursor.row,
+                        col: i,
+                    }
                 } else if self.cursor.row > 0 {
-                    self.cursor.row -= 1;
-                    self.cursor.col = self.line().len();
+                    CursorLocation {
+                        row: cursor.row - 1,
+                        col: self.line().len(),
+                    }
+                } else {
+                    cursor
                 }
             }
             CursorMove::Right => {
                 let next_glyph = self.line().graphemes().find(|(i, _)| *i == self.cursor.col);
 
                 if let Some((i, g)) = next_glyph {
-                    self.cursor.col = i + g.len();
+                    CursorLocation {
+                        row: cursor.row,
+                        col: i + g.len(),
+                    }
                 } else if self.cursor.row < self.text.len() - 1 {
-                    self.cursor.row += 1;
-                    self.cursor.col = 0;
+                    CursorLocation {
+                        row: cursor.row + 1,
+                        col: 0,
+                    }
+                } else {
+                    cursor
                 }
             }
             CursorMove::ForwardWord => {
@@ -149,7 +177,12 @@ impl TextEditor {
                     .find_or_last(|(i, _)| *i >= self.cursor.col);
                 tracing::info!(?word, "current word");
                 if let Some((i, word)) = word {
-                    self.cursor.col = i + word.len();
+                    CursorLocation {
+                        row: cursor.row,
+                        col: i + word.len(),
+                    }
+                } else {
+                    cursor
                 }
             }
             CursorMove::BackwardWord => {
@@ -161,20 +194,29 @@ impl TextEditor {
                         .find(|(i, _)| *i < self.cursor.col);
                     tracing::info!(?word, "current word");
                     if let Some((i, _)) = word {
-                        self.cursor.col = i;
+                        CursorLocation {
+                            row: cursor.row,
+                            col: i,
+                        }
+                    } else {
+                        cursor
                     }
                 } else if self.cursor.row > 0 {
-                    self.cursor.row -= 1;
-                    self.cursor.col = self.line().len();
+                    CursorLocation {
+                        row: cursor.row - 1,
+                        col: self.line().len(),
+                    }
+                } else {
+                    cursor
                 }
             }
             CursorMove::SetPosition(pos) => {
                 if (pos.row > self.text.len() - 1) || (pos.col > self.text[pos.row].len()) {
                     tracing::error!(?pos, "invalid cursor position");
-                    return;
+                    cursor
+                } else {
+                    pos
                 }
-
-                self.cursor = pos;
             }
         }
     }
@@ -186,8 +228,10 @@ impl TextEditor {
                 "expected cursor to be on a grapheme"
             );
         }
+
         match action {
             EditAction::InsertText(text) => {
+                self.delete_selected_text();
                 let mut insert_lines = text.as_ref().lines();
 
                 if let Some(text) = insert_lines.next() {
@@ -208,6 +252,9 @@ impl TextEditor {
                 }
             }
             EditAction::DeleteBackwardChar => {
+                if self.delete_selected_text() {
+                    return;
+                }
                 if self.cursor.col > 0 {
                     let col = self.cursor.col;
                     let current_grapheme =
@@ -227,6 +274,9 @@ impl TextEditor {
                 }
             }
             EditAction::DeleteBackwardWord => {
+                if self.delete_selected_text() {
+                    return;
+                }
                 let line = &mut self.text[self.cursor.row];
                 if self.cursor.col > 0 {
                     let graphemes = line.graphemes().peekable();
@@ -259,6 +309,7 @@ impl TextEditor {
                 }
             }
             EditAction::InsertLine => {
+                self.delete_selected_text();
                 let col = self.insert_column();
                 let line = &mut self.text[self.cursor.row];
                 let new_line = line.text.split_off(col);
@@ -270,6 +321,9 @@ impl TextEditor {
                 self.cursor.col = 0;
             }
             EditAction::DeleteLine => {
+                if self.delete_selected_text() {
+                    return;
+                }
                 if self.cursor.row == 0 && self.text.len() == 1 {
                     self.text[0].clear();
                     self.cursor.col = 0;
@@ -286,6 +340,8 @@ impl TextEditor {
             EditorAction::CursorMove(m) => self.move_cursor(m),
             EditorAction::Edit(e) => self.edit(e),
             EditorAction::SetText(v) => self.set_text(v.iter().map(|v| v.as_ref())),
+            EditorAction::SelectionMove(m) => self.move_selection(m),
+            EditorAction::SelectionClear => self.clear_selection(),
         }
     }
 
@@ -340,6 +396,67 @@ impl TextEditor {
 
     fn insert_column(&self) -> usize {
         self.cursor.col.min(self.line().len())
+    }
+
+    pub fn selection_bounds(&self) -> Option<(CursorLocation, CursorLocation)> {
+        let sel = self.selection?;
+        if sel < self.cursor {
+            Some((sel, self.cursor))
+        } else {
+            Some((self.cursor, sel))
+        }
+    }
+
+    pub fn selected_text(&self) -> Option<Vec<&str>> {
+        let (start, end) = self.selection_bounds()?;
+
+        let mut text = Vec::new();
+        for (i, line) in self.text[start.row..=end.row].iter().enumerate() {
+            let row = start.row + i;
+
+            if row == start.row && row == end.row {
+                text.push(&line.text[start.col..end.col]);
+            } else if row == start.row {
+                text.push(&line.text[start.col..]);
+            } else if row == end.row {
+                text.push(&line.text[..end.col]);
+            } else {
+                text.push(&line.text);
+            }
+        }
+
+        Some(text)
+    }
+
+    pub fn delete_selected_text(&mut self) -> bool {
+        let Some((start, end)) = self.selection_bounds() else {
+            return false;
+        };
+
+        if start.row == end.row {
+            self.text[start.row].text.drain(start.col..end.col);
+        } else {
+            self.text[start.row].text.truncate(start.col);
+            self.text[end.row].text.drain(0..end.col);
+            self.text.drain(start.row + 1..end.row);
+        }
+
+        self.cursor = start;
+        self.clear_selection();
+
+        true
+    }
+
+    pub fn set_selection(&mut self, sel: Option<CursorLocation>) {
+        self.selection = sel;
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+    }
+
+    pub fn selection(&self) -> Option<CursorLocation> {
+        self.selection
     }
 }
 

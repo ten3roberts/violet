@@ -5,7 +5,7 @@ use winit::event::ElementState;
 use crate::{
     components::{anchor, layout, offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
-    layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
+    layout::{Alignment, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     style::{
         primary_background, secondary_background, spacing_medium, spacing_small, Background,
         SizeExt, StyleExt, WidgetSize,
@@ -204,16 +204,16 @@ impl<W: Widget> Widget for Movable<W> {
             .set(offset(), Unit::default())
             .on_event(on_mouse_input(), {
                 let start_offset = start_offset.clone();
-                move |_, _, input| {
+                move |_, input| {
                     if input.state == ElementState::Pressed {
                         let cursor_pos = input.cursor.local_pos;
                         *start_offset.lock_mut() = cursor_pos;
                     }
                 }
             })
-            .on_event(on_cursor_move(), move |frame, entity, input| {
-                let rect = entity.get_copy(rect()).unwrap();
-                let anchor = entity
+            .on_event(on_cursor_move(), move |scope, input| {
+                let rect = scope.get_copy(rect()).unwrap();
+                let anchor = scope
                     .get_copy(anchor())
                     .unwrap_or_default()
                     .resolve(rect.size());
@@ -221,11 +221,32 @@ impl<W: Widget> Widget for Movable<W> {
                 let cursor_pos = input.local_pos + rect.min;
 
                 let new_offset = cursor_pos - start_offset.get() + anchor;
-                let new_offset = (self.on_move)(frame, new_offset);
-                entity.update_dedup(offset(), Unit::px(new_offset));
+                let new_offset = (self.on_move)(scope.frame(), new_offset);
+                scope.update_dedup(offset(), Unit::px(new_offset));
             });
 
         Stack::new(self.content).mount(scope)
+    }
+}
+
+pub struct Float<W> {
+    items: W,
+}
+
+impl<W> Float<W> {
+    pub fn new(items: W) -> Self {
+        Self { items }
+    }
+}
+
+impl<W> Widget for Float<W>
+where
+    W: WidgetCollection,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.items.attach(scope);
+
+        scope.set(layout(), Layout::Float(FloatLayout {}));
     }
 }
 

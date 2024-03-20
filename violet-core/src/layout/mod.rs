@@ -1,4 +1,5 @@
 pub mod cache;
+mod float;
 mod flow;
 mod stack;
 
@@ -16,6 +17,7 @@ use crate::{
     Edges, Rect,
 };
 
+pub use float::FloatLayout;
 pub use flow::{Alignment, FlowLayout};
 pub use stack::StackLayout;
 
@@ -75,6 +77,7 @@ impl Direction {
 pub enum Layout {
     Stack(StackLayout),
     Flow(FlowLayout),
+    Float(FloatLayout),
 }
 
 impl Layout {
@@ -106,6 +109,14 @@ impl Layout {
                 limits,
                 preferred_size,
             ),
+            Layout::Float(v) => v.apply(
+                world,
+                entity,
+                children,
+                content_area,
+                limits,
+                preferred_size,
+            ),
         }
     }
 
@@ -120,6 +131,7 @@ impl Layout {
         match self {
             Layout::Stack(v) => v.query_size(world, children, args, preferred_size),
             Layout::Flow(v) => v.query_size(world, cache, children, args, preferred_size),
+            Layout::Float(v) => v.query_size(world, children, args, preferred_size),
         }
     }
 }
@@ -172,7 +184,7 @@ impl Display for LayoutLimits {
 pub struct Block {
     pub(crate) rect: Rect,
     pub(crate) margin: Edges,
-    /// See: [SizingHints::can_grow]
+    /// See: [`SizingHints::can_grow`]
     pub can_grow: BVec2,
 }
 

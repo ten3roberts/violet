@@ -18,6 +18,7 @@ use violet_core::{
     components::{self, local_position, rect, screen_position},
     executor::Executor,
     input::InputState,
+    io::{self, Clipboard},
     style::{setup_stylesheet, stylesheet},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
@@ -124,6 +125,9 @@ impl AppBuilder {
 
         let stylesheet = setup_stylesheet().spawn(frame.world_mut());
 
+        let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
+        frame.set_atom(io::clipboard(), clipboard);
+
         // Mount the root widget
         let root = frame.new_root(Canvas {
             stylesheet,
@@ -158,7 +162,7 @@ impl AppBuilder {
         }));
 
         let schedule = Schedule::new()
-            .with_system(templating_system(root, layout_changes_tx))
+            .with_system(templating_system(layout_changes_tx))
             .flush()
             .with_system(hydrate_text())
             .flush()

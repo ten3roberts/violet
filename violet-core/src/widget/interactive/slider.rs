@@ -125,15 +125,15 @@ impl<V: SliderValue> Widget for Slider<V> {
             .set(focusable(), ())
             .on_event(on_mouse_input(), {
                 to_owned![value];
-                move |_, entity, input| {
+                move |scope, input| {
                     if input.state == ElementState::Pressed {
-                        update(entity, input.cursor, min, max, &*value);
+                        update(scope, input.cursor, min, max, &*value);
                     }
                 }
             })
             .on_event(on_cursor_move(), {
                 to_owned![value];
-                move |_, entity, input| update(entity, input, min, max, &*value)
+                move |scope, input| update(scope, input, min, max, &*value)
             });
 
         Stack::new(handle)

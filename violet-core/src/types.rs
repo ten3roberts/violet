@@ -138,6 +138,10 @@ impl Display for Rect {
 }
 
 impl Rect {
+    pub fn new(min: Vec2, max: Vec2) -> Self {
+        Self { min, max }
+    }
+
     pub const ZERO: Self = Self {
         min: Vec2::ZERO,
         max: Vec2::ZERO,

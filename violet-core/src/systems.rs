@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Weak},
+    thread::scope,
 };
 
 use atomic_refcell::AtomicRefCell;
@@ -11,8 +12,9 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
-    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query,
-    QueryBorrow, System, World,
+    query::TopoBorrow,
+    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, Fetch, FetchExt, FetchItem,
+    Query, QueryBorrow, System, Topo, World,
 };
 use glam::Vec2;
 
@@ -41,40 +43,37 @@ pub fn hydrate_text() -> BoxedSystem {
         .boxed()
 }
 
-pub fn templating_system(
-    root: Entity,
-    layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)>,
-) -> BoxedSystem {
-    let query = Query::new(entity_ids())
-        .filter(Or((
-            screen_position().without(),
-            local_position().without(),
-            rect().without(),
-            screen_rect().without(),
-        )))
-        .filter(root.traverse(child_of));
+pub fn widget_template(entity: &mut EntityBuilder, name: String) {
+    entity
+        .set(flax::components::name(), name)
+        .set_default(screen_position())
+        .set_default(local_position())
+        .set_default(screen_rect())
+        .set_default(rect());
+}
+
+pub fn templating_system(layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)>) -> BoxedSystem {
+    let query = Query::new(entity_ids()).filter(Or((rect().with(), layout_cache().without())));
 
     System::builder()
+        .with_name("templating_system")
         .with_query(query)
         .with_cmd_mut()
         .build(
             move |mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
                 puffin::profile_scope!("templating_system");
-                for id in &mut query {
+                for id in query.iter() {
+                    puffin::profile_scope!("apply", format!("{id}"));
                     tracing::debug!(%id, "incomplete widget");
 
                     let layout_changes_tx = layout_changes_tx.clone();
-                    cmd.set_missing(id, screen_position(), Vec2::ZERO)
-                        .set_missing(id, local_position(), Vec2::ZERO)
-                        .set_missing(id, screen_rect(), Rect::default())
-                        .set_missing(
-                            id,
-                            layout_cache(),
-                            LayoutCache::new(Some(Box::new(move |layout| {
-                                layout_changes_tx.send((id, layout)).ok();
-                            }))),
-                        )
-                        .set_missing(id, rect(), Rect::default());
+                    cmd.set_missing(
+                        id,
+                        layout_cache(),
+                        LayoutCache::new(Some(Box::new(move |layout| {
+                            layout_changes_tx.send((id, layout)).ok();
+                        }))),
+                    );
                 }
             },
         )

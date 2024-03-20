@@ -242,15 +242,6 @@ impl TextBufferState {
             Attrs::new(),
             Shaping::Advanced,
         );
-        // self.buffer.set_text(
-        //     font_system,
-        //     text,
-        //     Attrs::new()
-        //         .family(cosmic_text::Family::Name("Inter"))
-        //         .style(Style::Normal)
-        //         .weight(400.0)
-        //     Shaping::Advanced,
-        // );
     }
 
     fn text(&self) -> Vec<String> {
@@ -267,6 +258,7 @@ impl TextBufferState {
 
         let mut result = Vec::new();
 
+        let mut ln = 0;
         for (row, line) in self.buffer.lines.iter().enumerate() {
             let mut current_offset = 0;
 
@@ -275,9 +267,11 @@ impl TextBufferState {
                 continue;
             };
 
-            result.extend(layout.iter().enumerate().map(|(i, run)| {
-                let top = i as f32 * lh;
+            result.extend(layout.iter().map(|run| {
+                let top = ln as f32 * lh;
                 let bottom = top + lh;
+
+                ln += 1;
 
                 let start = current_offset;
                 let glyphs = run

@@ -1,4 +1,5 @@
 use std::{
+    ops::Deref,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -12,11 +13,17 @@ use futures::{Future, Stream};
 use pin_project::pin_project;
 
 use crate::{
-    assets::AssetCache, components::children, effect::Effect, input::InputEventHandler,
-    stored::Handle, style::get_stylesheet_from_entity, Frame, FutureEffect, StreamEffect, Widget,
+    assets::AssetCache,
+    components::{children, handles},
+    effect::Effect,
+    input::InputEventHandler,
+    stored::{Handle, UntypedHandle, WeakHandle},
+    style::get_stylesheet_from_entity,
+    systems::widget_template,
+    Frame, FutureEffect, StreamEffect, Widget,
 };
 
-/// The scope within a [`Widget`][crate::Widget] is mounted or modified
+/// The scope to modify and mount a widget
 pub struct Scope<'a> {
     frame: &'a mut Frame,
     id: Entity,
@@ -32,8 +39,10 @@ impl<'a> std::fmt::Debug for Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    pub(crate) fn new(frame: &'a mut Frame) -> Self {
-        let id = frame.world_mut().spawn();
+    pub(crate) fn new(frame: &'a mut Frame, name: String) -> Self {
+        let mut entity = EntityBuilder::new();
+        widget_template(&mut entity, name);
+        let id = entity.spawn(frame.world_mut());
 
         Self {
             frame,
@@ -108,7 +117,9 @@ impl<'a> Scope<'a> {
     /// Attaches a widget in a sub-scope.
     pub fn attach<W: Widget>(&mut self, widget: W) -> Entity {
         self.flush();
-        let id = self.frame.world.spawn();
+        let mut entity = EntityBuilder::new();
+        widget_template(&mut entity, tynm::type_name::<W>());
+        let id = entity.spawn(self.frame.world_mut());
 
         self.frame
             .world_mut()
@@ -152,14 +163,14 @@ impl<'a> Scope<'a> {
     }
 
     /// Spawns an effect scoped to the lifetime of this entity and scope
-    pub fn spawn_effect(&mut self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
+    pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
         self.frame.spawn(ScopedEffect {
             id: self.id,
             effect,
         });
     }
 
-    pub fn spawn(&mut self, fut: impl 'static + Future) {
+    pub fn spawn(&self, fut: impl 'static + Future) {
         self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
     }
 
@@ -173,7 +184,7 @@ impl<'a> Scope<'a> {
     }
 
     /// Spawns an effect which is *not* scoped to the widget
-    pub fn spawn_unscoped(&mut self, effect: impl 'static + for<'x> Effect<Frame>) {
+    pub fn spawn_unscoped(&self, effect: impl 'static + for<'x> Effect<Frame>) {
         self.frame.spawn(effect);
     }
 
@@ -195,20 +206,30 @@ impl<'a> Scope<'a> {
 
     /// Stores an arbitrary value and returns a handle to it.
     ///
-    /// The value is stored for the duration of the returned handle, and *not* the widgets scope.
+    /// The value is stored for the duration of the widgets lifetime.
     ///
     /// A handle can be used to safely store state across multiple widgets and will not panic if
     /// the original widget is despawned.
-    pub fn store<T: 'static>(&mut self, value: T) -> Handle<T> {
-        self.frame.store_mut().insert(value)
+    pub fn store<T: 'static>(&mut self, value: T) -> WeakHandle<T> {
+        let handle = self.frame.store_mut().insert(value);
+        let weak_handle = handle.downgrade();
+        self.entity_mut()
+            .entry(handles())
+            .or_default()
+            .push(UntypedHandle::new(handle));
+        weak_handle
     }
 
-    pub fn read<T: 'static>(&self, handle: &Handle<T>) -> &T {
-        self.frame.store().get(handle)
+    pub fn read<T: 'static>(&self, handle: &WeakHandle<T>) -> &T {
+        let store = self.frame.store().store::<T>().expect("Handle is invalid");
+        let handle = handle.upgrade(store).expect("Handle is invalid");
+        self.frame.store().get(&handle)
     }
 
-    pub fn write<T: 'static>(&mut self, handle: &Handle<T>) -> &mut T {
-        self.frame.store_mut().get_mut(handle)
+    pub fn write<T: 'static>(&mut self, handle: WeakHandle<T>) -> &mut T {
+        let store = self.frame.store().store::<T>().expect("Handle is invalid");
+        let handle = handle.upgrade(store).expect("Handle is invalid");
+        self.frame.store_mut().get_mut(&handle)
     }
 
     pub fn monitor<T: ComponentValue>(
@@ -223,7 +244,7 @@ impl<'a> Scope<'a> {
     pub fn on_event<T: 'static>(
         &mut self,
         event: Component<InputEventHandler<T>>,
-        func: impl 'static + Send + Sync + FnMut(&Frame, &EntityRef, T),
+        func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, T),
     ) -> &mut Self {
         self.set(event, Box::new(func) as _)
     }
@@ -237,6 +258,86 @@ impl<'a> Scope<'a> {
 impl Drop for Scope<'_> {
     fn drop(&mut self) {
         self.flush()
+    }
+}
+
+/// A non-mutable view into a widgets scope.
+///
+/// This is used for accessing state and modifying components (but not adding) of a widget during
+/// callbacks.
+pub struct ScopeRef<'a> {
+    frame: &'a Frame,
+    entity: EntityRef<'a>,
+}
+
+impl<'a> std::fmt::Debug for ScopeRef<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScopeRef")
+            .field("id", &self.entity.id())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> Deref for ScopeRef<'a> {
+    type Target = EntityRef<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entity
+    }
+}
+
+impl<'a> ScopeRef<'a> {
+    pub fn new(frame: &'a Frame, entity: EntityRef<'a>) -> Self {
+        Self { frame, entity }
+    }
+
+    pub fn entity(&self) -> &EntityRef {
+        &self.entity
+    }
+
+    /// Returns the active stylesheet for this scope
+    pub fn stylesheet(&self) -> EntityRef {
+        get_stylesheet_from_entity(&self.entity())
+    }
+
+    /// Spawns an effect scoped to the lifetime of this entity and scope
+    pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
+        self.frame.spawn(ScopedEffect {
+            id: self.entity.id(),
+            effect,
+        });
+    }
+
+    pub fn spawn(&self, fut: impl 'static + Future) {
+        self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
+    }
+
+    /// Spawns a scoped stream invoking the callback in with the widgets scope for each item
+    pub fn spawn_stream<S: 'static + Stream>(
+        &mut self,
+        stream: S,
+        func: impl 'static + FnMut(&mut Scope<'_>, S::Item),
+    ) {
+        self.spawn_effect(StreamEffect::new(stream, func))
+    }
+
+    /// Spawns an effect which is *not* scoped to the widget
+    pub fn spawn_unscoped(&self, effect: impl 'static + for<'x> Effect<Frame>) {
+        self.frame.spawn(effect);
+    }
+
+    pub fn id(&self) -> Entity {
+        self.entity.id()
+    }
+
+    pub fn frame(&self) -> &Frame {
+        self.frame
+    }
+
+    pub fn read<T: 'static>(&self, handle: WeakHandle<T>) -> &T {
+        let store = self.frame.store().store::<T>().expect("Handle is invalid");
+        let handle = handle.upgrade(store).expect("Handle is invalid");
+        self.frame.store().get(&handle)
     }
 }
 

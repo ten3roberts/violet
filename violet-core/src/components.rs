@@ -8,6 +8,7 @@ use palette::Srgba;
 use crate::{
     assets::Asset,
     layout::{Layout, SizeResolver},
+    stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
     Edges, Frame, Rect,
@@ -97,6 +98,8 @@ component! {
     pub(crate) atoms,
 
     pub on_animation_frame: OnAnimationFrame,
+
+    pub handles: Vec<UntypedHandle>,
 }
 
 pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration) + Send + Sync>;

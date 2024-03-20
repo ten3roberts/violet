@@ -5,6 +5,7 @@ use crate::{
     components::{self, color},
     input::{focusable, on_mouse_input},
     layout::Alignment,
+    scope::ScopeRef,
     state::{StateDuplex, StateStream, WatchState},
     style::{
         danger_item, interactive_inactive, interactive_pressed, spacing_medium, success_item,
@@ -15,7 +16,7 @@ use crate::{
     Frame, Scope, Widget,
 };
 
-type ButtonCallback = Box<dyn Send + Sync + FnMut(&Frame, winit::event::MouseButton)>;
+type ButtonCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, winit::event::MouseButton)>;
 
 #[derive(Debug, Clone)]
 pub struct ButtonStyle {
@@ -59,7 +60,7 @@ impl<W> Button<W> {
     /// Handle the button press
     pub fn on_press(
         mut self,
-        on_press: impl 'static + Send + Sync + FnMut(&Frame, MouseButton),
+        on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, MouseButton),
     ) -> Self {
         self.on_press = Box::new(on_press);
         self
@@ -111,12 +112,12 @@ impl<W: Widget> Widget for Button<W> {
 
         scope
             .set(focusable(), ())
-            .on_event(on_mouse_input(), move |frame, entity, input| {
+            .on_event(on_mouse_input(), move |scope, input| {
                 if input.state == ElementState::Pressed {
-                    entity.update_dedup(color(), pressed_color);
-                    (self.on_press)(frame, input.button);
+                    scope.update_dedup(color(), pressed_color);
+                    (self.on_press)(scope, input.button);
                 } else {
-                    entity.update_dedup(color(), normal_color);
+                    scope.update_dedup(color(), normal_color);
                 }
             });
 
@@ -169,7 +170,7 @@ impl Widget for Checkbox {
 
         scope
             .set(focusable(), ())
-            .on_event(on_mouse_input(), move |_, _, input| {
+            .on_event(on_mouse_input(), move |_, input| {
                 if input.state == ElementState::Pressed {
                     if let Some(state) = last_state.get() {
                         self.state.send(!state)
@@ -225,7 +226,7 @@ impl Widget for Radio {
 
         scope
             .set(focusable(), ())
-            .on_event(on_mouse_input(), move |_, _, input| {
+            .on_event(on_mouse_input(), move |_, input| {
                 if input.state == ElementState::Pressed {
                     self.state.send(true)
                 }

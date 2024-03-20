@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
 use flume::Sender;
-use futures::{Stream, StreamExt};
+use futures::{Future, Stream, StreamExt};
 use glam::Vec2;
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -23,10 +23,10 @@ use violet::{
         unit::Unit,
         utils::zip_latest_ref,
         widget::{
-            card, column, label, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
+            card, centered, column, label, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
             StreamWidget, Text, TextInput, WidgetExt,
         },
-        Edges, Frame, FutureEffect, Scope, Widget,
+        Edges, Scope, Widget,
     },
     futures_signals::signal::Mutable,
     palette::{FromColor, IntoColor, OklabHue, Oklch, Srgb},
@@ -213,20 +213,22 @@ impl Widget for Palettes {
 
         let items = self.items.clone();
 
+        let new_color = Button::label("+").on_press(move |_, _| {
+            items.write_mut(|v| {
+                v.push(Mutable::new(PaletteColor {
+                    color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
+                    falloff: DEFAULT_FALLOFF,
+                    name: format!("color_{}", v.len() + 1),
+                }));
+                current_choice.set(Some(v.len() - 1));
+            })
+        });
+
+        let editor_column = column((StreamWidget(editor), palettes, new_color));
+
         column((
             menu_bar(self.items.clone(), notify_tx),
-            StreamWidget(editor),
-            palettes,
-            Button::label("+").on_press(move |_, _| {
-                items.write_mut(|v| {
-                    v.push(Mutable::new(PaletteColor {
-                        color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
-                        falloff: DEFAULT_FALLOFF,
-                        name: format!("color_{}", v.len() + 1),
-                    }));
-                    current_choice.set(Some(v.len() - 1));
-                })
-            }),
+            row((editor_column, description())),
         ))
         .mount(scope)
     }
@@ -305,20 +307,31 @@ where
     }
 }
 
+fn description() -> impl Widget {
+    let content = Mutable::new(
+        r#"This is a palette editor. You can add, remove and select the colors in the list. Edit the color by selecting them and using the sliders or typing in the slider labels
+You can then export the various generated tints of the colors to a tailwind style `.json`
+
+This text is also editable, give it a try :)"#.to_string(),
+    );
+
+    card(TextInput::new(content))
+}
+
 fn menu_bar(
     items: Mutable<Vec<Mutable<PaletteColor>>>,
     notify_tx: Sender<Notification>,
 ) -> impl Widget {
-    fn notify_result(
-        notify_tx: &Sender<Notification>,
+    async fn notify_result(
+        fut: impl Future<Output = anyhow::Result<()>>,
+        notify_tx: Sender<Notification>,
         on_success: &str,
-    ) -> impl Fn(&mut Frame, anyhow::Result<()>) {
-        let notify_tx = notify_tx.clone();
-        move |_, result| match result {
+    ) {
+        match fut.await {
             Ok(()) => {
                 notify_tx
                     .send(Notification {
-                        message: "Saved".to_string(),
+                        message: on_success.into(),
                         kind: NotificationKind::Info,
                     })
                     .unwrap();
@@ -326,7 +339,7 @@ fn menu_bar(
             Err(e) => {
                 notify_tx
                     .send(Notification {
-                        message: format!("Failed to save: {e}"),
+                        message: format!("{e:?}"),
                         kind: NotificationKind::Error,
                     })
                     .unwrap();
@@ -370,7 +383,7 @@ fn menu_bar(
                 Ok(())
             };
 
-            frame.spawn(FutureEffect::new(fut, notify_result(&notify_tx, "Saves")));
+            frame.spawn(notify_result(fut, notify_tx.clone(), "Saves"));
         }
     });
 
@@ -394,7 +407,7 @@ fn menu_bar(
                 Ok(())
             };
 
-            frame.spawn(FutureEffect::new(fut, notify_result(&notify_tx, "Saves")));
+            frame.spawn(notify_result(fut, notify_tx, "Saves"));
         }
     });
 
@@ -416,7 +429,7 @@ fn menu_bar(
                 Ok(())
             };
 
-            frame.spawn(FutureEffect::new(fut, notify_result(&notify_tx, "Loaded")));
+            frame.spawn(notify_result(fut, notify_tx, "Loaded"));
         }
     });
 
@@ -433,12 +446,13 @@ fn menu_bar(
     });
 
     row((
-        label("Palette editor"),
+        centered(label("Palette editor")),
         save,
         load,
         export,
         test_notification,
     ))
+    .with_stretch(true)
 }
 
 #[derive(Clone, Serialize, Deserialize)]

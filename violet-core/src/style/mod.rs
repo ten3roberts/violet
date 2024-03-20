@@ -15,8 +15,8 @@ use crate::{
 };
 
 use self::colors::{
-    EERIE_BLACK_300, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
-    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
+    EERIE_BLACK_300, EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600,
+    JADE_DEFAULT, LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
 };
 
 #[macro_export]
@@ -283,7 +283,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(interactive_active(), JADE_DEFAULT)
         .set(interactive_hover(), JADE_600)
         .set(interactive_pressed(), JADE_400)
-        .set(interactive_inactive(), EERIE_BLACK_700)
+        .set(interactive_inactive(), EERIE_BLACK_600)
         // spacing
         .set(spacing_small(), 4.0.into())
         .set(spacing_medium(), 8.0.into())
