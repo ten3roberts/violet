@@ -93,9 +93,7 @@ impl AppBuilder {
         let event_loop = EventLoopBuilder::new().build()?;
 
         #[allow(unused_mut)]
-        let mut builder = WindowBuilder::new()
-            .with_inner_size(PhysicalSize::new(1920, 1080))
-            .with_title(self.title);
+        let mut builder = WindowBuilder::new().with_title(self.title);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -111,24 +109,20 @@ impl AppBuilder {
                 .dyn_into::<web_sys::HtmlCanvasElement>()
                 .unwrap();
             builder = builder.with_canvas(Some(canvas));
-            // use winit::dpi::PhysicalSize;
-            // window.request_inner_size(PhysicalSize::new(450, 400));
-
-            // let node = web_sys::window()
-            //     .unwrap()
-            //     .document()
-            //     .unwrap()
-            //     .get_element_by_id("canvas-container")
-            //     .unwrap();
-
-            // use winit::platform::web::WindowExtWebSys;
-            // node.append_child(&web_sys::Element::from(
-            //     window.canvas().ok_or_else(|| anyhow!("No canvas"))?,
-            // ))
-            // .expect("Failed to add child");
         }
 
         let window = builder.build(&event_loop)?;
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowExtWebSys;
+            let canvas = window.canvas().expect("Missing window canvas");
+            let (w, h) = (canvas.client_width(), canvas.client_height());
+
+            canvas.set_width(w.try_into().unwrap());
+            canvas.set_height(h.try_into().unwrap());
+            window.request_inner_size(winit::dpi::PhysicalSize::new(w, h));
+        }
 
         let mut input_state = InputState::new(Vec2::ZERO);
 
@@ -184,8 +178,8 @@ impl AppBuilder {
 
         let start_time = Instant::now();
 
-        // #[cfg(not(target_arch = "wasm32"))]
-        // let _puffin_server = setup_puffin();
+        #[cfg(not(target_arch = "wasm32"))]
+        let _puffin_server = setup_puffin();
 
         let mut instance = App {
             frame,

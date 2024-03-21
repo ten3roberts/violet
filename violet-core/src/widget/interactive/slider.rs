@@ -12,7 +12,7 @@ use crate::{
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
     state::{State, StateDuplex, StateStream},
-    style::{interactive_active, interactive_inactive, spacing_small, SizeExt, StyleExt},
+    style::{interactive_active, interactive_passive, spacing_small, SizeExt, StyleExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,
@@ -33,7 +33,7 @@ pub struct SliderStyle {
 impl Default for SliderStyle {
     fn default() -> Self {
         Self {
-            track_color: interactive_inactive(),
+            track_color: interactive_passive(),
             handle_color: interactive_active(),
             track_size: Unit::px2(256.0, 4.0),
             handle_size: Unit::px2(4.0, 16.0),

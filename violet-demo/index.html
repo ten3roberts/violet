@@ -7,21 +7,12 @@
         <link href="css/style.css" rel="stylesheet">
         <style>
 
+        body {
+            padding: 0;
+        }
         .main-canvas {
             margin: 0;
-            /* This allows the flexbox to grow to max size, this is needed for WebGPU */
-            flex: 1;
-            /* This forces CSS to ignore the width/height of the canvas, this is needed for WebGL */
-            contain: size;
-            width: 100%;
-            height: 100%;
-            background-color: #001133;
-        }
-
-        .canvas-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            width: 100vw;
             height: 100vh;
         }
         </style>
@@ -37,6 +28,6 @@
 
         start();
     </script> 
-    <div id="canvas-container"><canvas id="canvas" class="main-canvas"></canvas></div>
+    <canvas id="canvas" class="main-canvas"></canvas>
     </body>
 </html>

@@ -275,9 +275,9 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     };
 
     // Check if cache is valid
-    if let Some(cache) = cache.get_query(args.direction) {
-        if validate_cached_query(cache, limits, args.content_area) {
-            return cache.value;
+    for cached in cache.get_query(args.direction) {
+        if validate_cached_query(cached, limits, args.content_area) {
+            return cached.value;
         }
     }
 

@@ -137,41 +137,41 @@ impl DebugRenderer {
         let mut query = Query::new((entity_refs(), layout_cache()));
         let mut query = query.borrow(&frame.world);
 
-        let clamped_indicators = query.iter().filter_map(|(entity, v)| {
-            let can_grow_vert = if v
-                .get_query(Direction::Vertical)
-                .as_ref()
-                .is_some_and(|v| v.value.hints.can_grow.any())
-            {
-                vec3(0.5, 0.0, 0.0)
-            } else {
-                Vec3::ZERO
-            };
+        // let clamped_indicators = query.iter().filter_map(|(entity, v)| {
+        //     let can_grow_vert = if v
+        //         .get_query(Direction::Vertical)
+        //         .as_ref()
+        //         .is_some_and(|v| v.value.hints.can_grow.any())
+        //     {
+        //         vec3(0.5, 0.0, 0.0)
+        //     } else {
+        //         Vec3::ZERO
+        //     };
 
-            let can_grow_hor = if v
-                .get_query(Direction::Horizontal)
-                .as_ref()
-                .is_some_and(|v| v.value.hints.can_grow.any())
-            {
-                vec3(0.0, 0.5, 0.0)
-            } else {
-                Vec3::ZERO
-            };
+        //     let can_grow_hor = if v
+        //         .get_query(Direction::Horizontal)
+        //         .as_ref()
+        //         .is_some_and(|v| v.value.hints.can_grow.any())
+        //     {
+        //         vec3(0.0, 0.5, 0.0)
+        //     } else {
+        //         Vec3::ZERO
+        //     };
 
-            let can_grow = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
-                vec3(0.0, 0.0, 0.5)
-            } else {
-                Vec3::ZERO
-            };
+        //     let can_grow = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
+        //         vec3(0.0, 0.0, 0.5)
+        //     } else {
+        //         Vec3::ZERO
+        //     };
 
-            let color: Vec3 = [can_grow_vert, can_grow_hor, can_grow].into_iter().sum();
+        //     let color: Vec3 = [can_grow_vert, can_grow_hor, can_grow].into_iter().sum();
 
-            if color == Vec3::ZERO {
-                None
-            } else {
-                Some((entity, &self.corner_shader, color.extend(1.0)))
-            }
-        });
+        //     if color == Vec3::ZERO {
+        //         None
+        //     } else {
+        //         Some((entity, &self.corner_shader, color.extend(1.0)))
+        //     }
+        // });
 
         let mut query = Query::new((entity_refs(), layout_cache()));
         let mut query = query.borrow(&frame.world);
@@ -200,32 +200,30 @@ impl DebugRenderer {
             Some((entity, &self.border_shader, color))
         });
 
-        let objects = clamped_indicators
-            .chain(objects)
-            .filter_map(|(entity, shader, color)| {
-                let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
+        let objects = objects.filter_map(|(entity, shader, color)| {
+            let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
 
-                let model_matrix = Mat4::from_scale_rotation_translation(
-                    screen_rect.size().extend(1.0),
-                    Quat::IDENTITY,
-                    screen_rect.pos().extend(0.2),
-                );
+            let model_matrix = Mat4::from_scale_rotation_translation(
+                screen_rect.size().extend(1.0),
+                Quat::IDENTITY,
+                screen_rect.pos().extend(0.2),
+            );
 
-                let object_data = ObjectData {
-                    model_matrix,
-                    color,
-                };
+            let object_data = ObjectData {
+                model_matrix,
+                color,
+            };
 
-                Some((
-                    DrawCommand {
-                        shader: shader.clone(),
-                        bind_group: self.bind_group.clone(),
-                        mesh: self.mesh.clone(),
-                        index_count: 6,
-                    },
-                    object_data,
-                ))
-            });
+            Some((
+                DrawCommand {
+                    shader: shader.clone(),
+                    bind_group: self.bind_group.clone(),
+                    mesh: self.mesh.clone(),
+                    index_count: 6,
+                },
+                object_data,
+            ))
+        });
 
         self.objects.clear();
         self.objects.extend(objects);

@@ -6,7 +6,7 @@ use crate::{
     assets::AssetKey,
     components::{self, color, draw_shape, font_size, text, text_wrap},
     shape,
-    style::{colors::REDWOOD_DEFAULT, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
+    style::{colors::REDWOOD_500, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
@@ -82,7 +82,7 @@ where
                 .set_opt(components::aspect_ratio(), self.aspect_ratio);
         } else {
             label("Image not found")
-                .with_color(REDWOOD_DEFAULT)
+                .with_color(REDWOOD_500)
                 .mount(scope);
         }
     }

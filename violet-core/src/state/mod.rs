@@ -12,11 +12,14 @@ mod dedup;
 mod feedback;
 mod filter;
 mod map;
+mod memo;
 
 pub use dedup::*;
 pub use feedback::*;
 pub use filter::*;
 pub use map::*;
+pub use memo::*;
+
 use sync_wrapper::SyncWrapper;
 
 pub trait State {
@@ -31,6 +34,7 @@ pub trait State {
         g: G,
     ) -> MapRef<Self, U, F, G>
     where
+        Self: StateRef,
         Self: Sized,
     {
         MapRef::new(self, f, g)
@@ -75,11 +79,19 @@ pub trait State {
     {
         PreventFeedback::new(self)
     }
+
+    fn memo(self, initial_value: Self::Item) -> Memo<Self, Self::Item>
+    where
+        Self: Sized,
+        Self: StateStream,
+        Self::Item: Clone,
+    {
+        Memo::new(self, initial_value)
+    }
 }
 
 /// A trait to read a reference from a generic state
-pub trait StateRef {
-    type Item;
+pub trait StateRef: State {
     fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V;
 }
 
@@ -144,7 +156,6 @@ impl<T> State for Mutable<T> {
 }
 
 impl<T> StateRef for Mutable<T> {
-    type Item = T;
     fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V {
         f(&self.lock_ref())
     }
@@ -222,7 +233,6 @@ where
     C: StateRef,
     F: Fn(&C::Item) -> &U,
 {
-    type Item = U;
     fn read_ref<H: FnOnce(&Self::Item) -> V, V>(&self, f: H) -> V {
         self.inner.read_ref(|v| f((self.project)(v)))
     }
@@ -349,7 +359,6 @@ macro_rules! impl_container {
         where
             T: StateRef,
         {
-            type Item = T::Item;
             fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V {
                 (**self).read_ref(f)
             }

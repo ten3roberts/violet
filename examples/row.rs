@@ -1,29 +1,12 @@
-use std::iter::repeat;
-
 use glam::{vec2, Vec2};
 use itertools::Itertools;
-use palette::named::DARKCYAN;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 
-use violet::core::{
-    style::{
-        colors::{EERIE_BLACK_DEFAULT, REDWOOD_DEFAULT},
-        Background,
-    },
-    unit::Unit,
-    widget::Rectangle,
-    Scope, Widget,
-};
+use violet::core::{style::Background, unit::Unit, widget::Rectangle, Scope, Widget};
 use violet_core::{
-    style::{
-        colors::{
-            DARK_CYAN_DEFAULT, JADE_400, JADE_DEFAULT, LION_DEFAULT, REDWOOD_100,
-            ULTRA_VIOLET_DEFAULT,
-        },
-        spacing_medium, spacing_small, SizeExt,
-    },
-    widget::{card, centered, column, label, row, Image, Stack},
+    style::{accent_item, primary_background, spacing_small, SizeExt},
+    widget::{centered, col, row, Image, Stack},
 };
 use violet_wgpu::renderer::RendererConfig;
 
@@ -49,7 +32,7 @@ struct MainApp;
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
         Stack::new(
-            column((
+            col((
                 // row((
                 //     label("This text can wrap to save horizontal space"),
                 //     card((
@@ -74,7 +57,7 @@ impl Widget for MainApp {
                 row((0..4)
                     .map(|_| Box::new(Stack::new(Item)) as Box<dyn Widget>)
                     .chain([Box::new(
-                        centered((Rectangle::new(JADE_DEFAULT)
+                        centered((Rectangle::new(accent_item())
                             .with_maximize(vec2(1.0, 0.0))
                             .with_size(Unit::px2(0.0, 50.0))
                             .with_max_size(Unit::px2(1000.0, 100.0)),))
@@ -86,7 +69,7 @@ impl Widget for MainApp {
             // .with_padding(spacing_medium())
             .contain_margins(true),
         )
-        .with_background(Background::new(EERIE_BLACK_DEFAULT))
+        .with_background(Background::new(primary_background()))
         .mount(scope)
     }
 }

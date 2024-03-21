@@ -10,8 +10,6 @@ impl<T> State for Constant<T> {
 }
 
 impl<T> StateRef for Constant<T> {
-    type Item = T;
-
     fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V {
         (f)(&self.0)
     }

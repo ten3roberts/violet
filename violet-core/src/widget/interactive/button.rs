@@ -8,12 +8,13 @@ use crate::{
     scope::ScopeRef,
     state::{StateDuplex, StateStream, WatchState},
     style::{
-        danger_item, interactive_inactive, interactive_pressed, spacing_medium, success_item,
-        warning_item, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        danger_item, interactive_inactive, interactive_passive, interactive_pressed,
+        spacing_medium, success_item, warning_item, Background, SizeExt, StyleExt, ValueOrRef,
+        WidgetSize,
     },
     unit::Unit,
     widget::{ContainerStyle, Stack, Text},
-    Frame, Scope, Widget,
+    Scope, Widget, WidgetCollection,
 };
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, winit::event::MouseButton)>;
@@ -27,7 +28,7 @@ pub struct ButtonStyle {
 impl Default for ButtonStyle {
     fn default() -> Self {
         Self {
-            normal_color: interactive_inactive().into(),
+            normal_color: interactive_passive().into(),
             pressed_color: interactive_pressed().into(),
         }
     }
@@ -190,14 +191,15 @@ impl Widget for Checkbox {
 }
 
 /// A button that can only be set
-pub struct Radio {
+pub struct Radio<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     style: ButtonStyle,
     size: WidgetSize,
+    label: W,
 }
 
-impl Radio {
-    pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
+impl<W: WidgetCollection> Radio<W> {
+    pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
             style: Default::default(),
@@ -205,11 +207,12 @@ impl Radio {
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_min_size(Unit::px2(28.0, 28.0)),
+            label,
         }
     }
 }
 
-impl Widget for Radio {
+impl<W: WidgetCollection> Widget for Radio<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
@@ -232,7 +235,7 @@ impl Widget for Radio {
                 }
             });
 
-        Stack::new(())
+        Stack::new(self.label)
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal_color)),
             })

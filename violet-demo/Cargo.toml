@@ -20,12 +20,13 @@ console_error_panic_hook = "0.1.6"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-web = "0.1"
 web-sys = { version = "0.3", features = ["Gpu", "CanvasRenderingContext2d", "GpuCanvasContext", "GpuRenderBundle"] }
+ordered-float.workspace = true
 
 wgpu.workspace = true
 
 glam.workspace = true
 futures.workspace = true
-wasm-bindgen-futures = "0.4"
+wasm-bindgen-futures.workspace = true
 itertools.workspace = true
 tracing-tree.workspace = true
 puffin.workspace = true

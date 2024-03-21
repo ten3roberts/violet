@@ -22,8 +22,8 @@ use crate::{
     io,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
-        interactive_active, interactive_hover, interactive_inactive, spacing_small, Background,
-        SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        interactive_active, interactive_hover, interactive_inactive, interactive_passive,
+        spacing_small, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{CursorLocation, LayoutGlyphs, TextSegment},
     time::sleep,
@@ -48,7 +48,7 @@ impl Default for TextInputStyle {
         Self {
             cursor_color: interactive_active().into(),
             selection_color: interactive_hover().into(),
-            background: Background::new(interactive_inactive()),
+            background: Background::new(interactive_passive()),
             font_size: 16.0,
         }
     }

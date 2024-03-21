@@ -254,7 +254,7 @@ pub fn row<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Horizontal)
 }
 
-pub fn column<W: WidgetCollection>(widgets: W) -> List<W> {
+pub fn col<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Vertical)
 }
 

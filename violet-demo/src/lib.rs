@@ -1,36 +1,35 @@
-use std::sync::Arc;
+mod editor;
+mod menu;
 
-use anyhow::Context;
-use flume::Sender;
-use futures::{Future, Stream, StreamExt};
+use editor::palette_editor;
+use futures::{Stream, StreamExt};
 use glam::Vec2;
-use heck::ToKebabCase;
-use indexmap::IndexMap;
 use itertools::Itertools;
-use rfd::AsyncFileDialog;
+use menu::menu_bar;
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use violet::{
     core::{
         declare_atom,
         layout::Alignment,
-        state::{DynStateDuplex, State, StateMut, StateStream, StateStreamRef},
+        state::{State, StateMut, StateStream, StateStreamRef},
         style::{
             danger_item, primary_background, success_item, warning_item, Background, SizeExt,
             ValueOrRef,
         },
-        time::interval,
+        time::{interval, sleep},
         to_owned,
         unit::Unit,
-        utils::zip_latest_ref,
+        utils::{throttle, zip_latest_ref},
         widget::{
-            card, centered, column, label, row, Button, Radio, Rectangle, SliderWithLabel, Stack,
-            StreamWidget, Text, TextInput, WidgetExt,
+            card, col, label, row, Button, Radio, Rectangle, Stack, StreamWidget, Text, TextInput,
+            WidgetExt,
         },
         Edges, Scope, Widget,
     },
     futures_signals::signal::Mutable,
-    palette::{FromColor, IntoColor, OklabHue, Oklch, Srgb},
+    palette::{IntoColor, Oklch, Srgb},
     web_time::Duration,
     wgpu::{app::App, renderer::RendererConfig},
 };
@@ -123,15 +122,16 @@ fn tints(color: impl StateStream<Item = PaletteColor>) -> impl Widget {
     row(TINTS
         .iter()
         .map(move |&i| {
-            let color = color.stream().map(move |v| {
-                let f = (i as f32) / 1000.0;
-                let color = v.tint(f);
+            let color =
+                throttle(color.stream(), || sleep(Duration::from_millis(200))).map(move |v| {
+                    let f = (i as f32) / 1000.0;
+                    let color = v.tint(f);
 
-                Rectangle::new(ValueOrRef::value(color.into_color()))
-                    .with_size(Unit::px2(120.0, 80.0))
-            });
+                    Rectangle::new(ValueOrRef::value(color.into_color()))
+                        .with_min_size(Unit::px2(80.0, 60.0))
+                });
 
-            Stack::new(column(StreamWidget(color)))
+            Stack::new(col(StreamWidget(color)))
                 .with_margin(Edges::even(4.0))
                 .with_name("Tint")
         })
@@ -160,8 +160,8 @@ declare_atom! {
 impl Widget for Palettes {
     fn mount(self, scope: &mut Scope<'_>) {
         let notify_tx = scope.frame().get_atom(notify_tx()).unwrap().clone();
-        let items = self.items.clone();
 
+        let items = self.items.clone();
         let discard = move |i| {
             let items = items.clone();
             Button::new(Text::new("-"))
@@ -173,15 +173,40 @@ impl Widget for Palettes {
                 .danger()
         };
 
+        let items = self.items.clone();
+        let move_up = move |i| {
+            let items = items.clone();
+            Button::new(Text::new("˰")).on_press({
+                move |_, _| {
+                    items.write_mut(|v| {
+                        if i > 0 {
+                            v.swap(i, i - 1);
+                        }
+                    });
+                }
+            })
+        };
+
+        let items = self.items.clone();
+        let move_down = move |i| {
+            let items = items.clone();
+            Button::new(Text::new("˯")).on_press({
+                move |_, _| {
+                    items.write_mut(|v| {
+                        if i < v.len() - 1 {
+                            v.swap(i, i + 1);
+                        }
+                    });
+                }
+            })
+        };
+
         let current_choice = Mutable::new(Some(0));
 
         let editor = zip_latest_ref(
             self.items.stream(),
             current_choice.stream(),
-            |items, i: &Option<usize>| {
-                i.and_then(|i| items.get(i).cloned())
-                    .map(PaletteEditor::new)
-            },
+            |items, i: &Option<usize>| i.and_then(|i| items.get(i).cloned()).map(palette_editor),
         );
 
         let palettes = StreamWidget(self.items.stream_ref({
@@ -193,9 +218,12 @@ impl Widget for Palettes {
                     .map({
                         to_owned![current_choice];
                         let discard = &discard;
+                        let move_up = &move_up;
+                        let move_down = &move_down;
                         move |(i, item)| {
                             puffin::profile_scope!("Update palette item", format!("{i}"));
                             let checkbox = Radio::new(
+                                (),
                                 current_choice
                                     .clone()
                                     .map(move |v| v == Some(i), move |state| state.then_some(i)),
@@ -203,6 +231,8 @@ impl Widget for Palettes {
 
                             card(row((
                                 checkbox,
+                                move_down(i),
+                                move_up(i),
                                 discard(i),
                                 palette_color_view(item.clone()),
                             )))
@@ -210,26 +240,44 @@ impl Widget for Palettes {
                     })
                     .collect_vec();
 
-                column(items)
+                col(items)
             }
         }));
 
         let items = self.items.clone();
 
-        let new_color = Button::label("+").on_press(move |_, _| {
-            items.write_mut(|v| {
-                v.push(Mutable::new(PaletteColor {
-                    color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
-                    falloff: DEFAULT_FALLOFF,
-                    name: format!("Color {}", v.len() + 1),
-                }));
-                current_choice.set(Some(v.len() - 1));
-            })
+        let new_color = Button::label("+").on_press({
+            to_owned![items];
+            move |_, _| {
+                items.write_mut(|v| {
+                    v.push(Mutable::new(PaletteColor {
+                        color: Oklch::new(0.5, 0.27, (v.len() as f32 * 60.0) % 360.0),
+                        falloff: DEFAULT_FALLOFF,
+                        name: format!("Color {}", v.len() + 1),
+                    }));
+                    current_choice.set(Some(v.len() - 1));
+                })
+            }
         });
 
-        let editor_column = column((StreamWidget(editor), palettes, new_color));
+        let sort = Button::label("Sort").on_press({
+            to_owned![items];
+            move |_, _| {
+                items.write_mut(|v| {
+                    v.sort_by_cached_key(|v| {
+                        let v = v.lock_ref();
+                        (
+                            (v.color.chroma / 0.37 * 5.0) as u32,
+                            OrderedFloat(v.color.hue.into_positive_degrees()),
+                        )
+                    });
+                });
+            }
+        });
 
-        column((
+        let editor_column = col((StreamWidget(editor), palettes, card(row((new_color, sort)))));
+
+        col((
             menu_bar(self.items.clone(), notify_tx),
             row((editor_column, description())),
         ))
@@ -278,7 +326,7 @@ where
                 })
                 .collect_vec();
 
-            column(items)
+            col(items)
         });
 
         scope.spawn(async move {
@@ -317,7 +365,7 @@ fn local_dir() -> std::path::PathBuf {
     }
     #[cfg(target_arch = "wasm32")]
     {
-        PathBuf::from(".")
+        std::path::PathBuf::from(".")
     }
 }
 
@@ -330,158 +378,6 @@ This text is also editable, give it a try :)"#.to_string(),
     );
 
     card(TextInput::new(content))
-}
-
-fn menu_bar(
-    items: Mutable<Vec<Mutable<PaletteColor>>>,
-    notify_tx: Sender<Notification>,
-) -> impl Widget {
-    async fn notify_result(
-        fut: impl Future<Output = anyhow::Result<()>>,
-        notify_tx: Sender<Notification>,
-        on_success: &str,
-    ) {
-        match fut.await {
-            Ok(()) => {
-                notify_tx
-                    .send(Notification {
-                        message: on_success.into(),
-                        kind: NotificationKind::Info,
-                    })
-                    .unwrap();
-            }
-            Err(e) => {
-                notify_tx
-                    .send(Notification {
-                        message: format!("{e:?}"),
-                        kind: NotificationKind::Error,
-                    })
-                    .unwrap();
-            }
-        }
-    }
-
-    let export = Button::label("Export Json").on_press({
-        to_owned![items, notify_tx];
-        move |frame, _| {
-            let data = items
-                .lock_ref()
-                .iter()
-                .map(|item| {
-                    let item = item.lock_ref();
-                    let tints = TINTS
-                        .iter()
-                        .map(|&i| {
-                            let color = item.tint(i as f32 / 1000.0);
-                            (
-                                format!("{}", i),
-                                HexColor(Srgb::from_color(color).into_format()),
-                            )
-                        })
-                        .collect::<IndexMap<String, _>>();
-
-                    (item.name.to_kebab_case(), tints)
-                })
-                .collect::<IndexMap<_, _>>();
-
-            let json = serde_json::to_string_pretty(&data).unwrap();
-
-            let fut = async move {
-                let Some(file) = AsyncFileDialog::new()
-                    .set_directory(local_dir())
-                    .set_file_name("colors.json")
-                    .save_file()
-                    .await
-                else {
-                    return anyhow::Ok(());
-                };
-
-                file.write(json.as_bytes())
-                    .await
-                    .context("Failed to write to save file")?;
-
-                Ok(())
-            };
-
-            frame.spawn(notify_result(fut, notify_tx.clone(), "Saves"));
-        }
-    });
-
-    let save = Button::label("Save").on_press({
-        to_owned![items, notify_tx];
-        move |frame, _| {
-            to_owned![items, notify_tx];
-            let fut = async move {
-                let Some(file) = AsyncFileDialog::new()
-                    .set_directory(local_dir())
-                    .set_file_name("colors.save.json")
-                    .save_file()
-                    .await
-                else {
-                    return anyhow::Ok(());
-                };
-
-                let items = items.lock_ref();
-                let data =
-                    serde_json::to_string_pretty(&*items).context("Failed to serialize state")?;
-
-                file.write(data.as_bytes())
-                    .await
-                    .context("Failed to write to save file")?;
-
-                Ok(())
-            };
-
-            frame.spawn(notify_result(fut, notify_tx, "Saves"));
-        }
-    });
-
-    let load = Button::label("Load").on_press({
-        to_owned![items, notify_tx];
-        move |frame, _| {
-            to_owned![items, notify_tx];
-            let fut = async move {
-                let Some(file) = AsyncFileDialog::new()
-                    .set_directory(local_dir())
-                    .pick_file()
-                    .await
-                else {
-                    return anyhow::Ok(());
-                };
-
-                let data = file.read().await;
-
-                let data = serde_json::from_slice(&data).context("Failed to deserialize state")?;
-
-                items.set(data);
-
-                Ok(())
-            };
-
-            frame.spawn(notify_result(fut, notify_tx, "Loaded"));
-        }
-    });
-
-    let test_notification = Button::label("Test Notification").on_press({
-        to_owned![notify_tx];
-        move |_, _| {
-            notify_tx
-                .send(Notification {
-                    message: "Test notification".to_string(),
-                    kind: NotificationKind::Info,
-                })
-                .unwrap();
-        }
-    });
-
-    row((
-        centered(label("Palette editor")),
-        save,
-        load,
-        export,
-        test_notification,
-    ))
-    .with_stretch(true)
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -497,7 +393,7 @@ impl PaletteColor {
         // let color = self.base.lighten(f);
         Oklch {
             chroma,
-            l: tint,
+            l: (TINT_MAX - TINT_MIN) * (1.0 - tint) + TINT_MIN,
             ..self.color
         }
     }
@@ -512,91 +408,6 @@ fn palette_color_view(color: Mutable<PaletteColor>) -> impl Widget {
     Stack::new((row((tints(color),)), label))
         .with_vertical_alignment(Alignment::End)
         .with_horizontal_alignment(Alignment::Center)
-}
-
-pub struct PaletteEditor {
-    color: Mutable<PaletteColor>,
-}
-
-impl PaletteEditor {
-    pub fn new(color: Mutable<PaletteColor>) -> Self {
-        Self { color }
-    }
-}
-
-impl Widget for PaletteEditor {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let color = Arc::new(self.color.clone().map_ref(|v| &v.color, |v| &mut v.color));
-        let falloff = self.color.map_ref(|v| &v.falloff, |v| &mut v.falloff);
-
-        let lightness = color.clone().map_ref(|v| &v.l, |v| &mut v.l);
-        let chroma = color.clone().map_ref(|v| &v.chroma, |v| &mut v.chroma);
-        let hue = color
-            .clone()
-            .map_ref(|v| &v.hue, |v| &mut v.hue)
-            .map(|v| v.into_positive_degrees(), OklabHue::new);
-
-        let color_rect = color.stream().map(|v| {
-            Rectangle::new(ValueOrRef::value(v.into_color()))
-                .with_min_size(Unit::px2(100.0, 100.0))
-                .with_maximize(Vec2::X)
-                // .with_min_size(Unit::new(vec2(0.0, 100.0), vec2(1.0, 0.0)))
-                .with_name("ColorPreview")
-        });
-
-        card(column((
-            row((
-                Text::new("Lightness"),
-                SliderWithLabel::new(lightness, 0.0, 1.0)
-                    .editable(true)
-                    .round(0.01),
-            )),
-            row((
-                Text::new("Chroma"),
-                SliderWithLabel::new(chroma, 0.0, 0.37)
-                    .editable(true)
-                    .round(0.005),
-            )),
-            row((
-                Text::new("Hue"),
-                SliderWithLabel::new(hue, 0.0, 360.0)
-                    .editable(true)
-                    .round(1.0),
-            )),
-            ColorHexEditor {
-                color: Box::new(color.clone()),
-            },
-            StreamWidget(color_rect),
-            row((
-                Text::new("Chroma falloff"),
-                SliderWithLabel::new(falloff, 0.0, 100.0)
-                    .editable(true)
-                    .round(1.0),
-            )),
-        )))
-        .with_name("PaletteEditor")
-        .mount(scope)
-    }
-}
-
-pub struct ColorHexEditor {
-    color: DynStateDuplex<Oklch>,
-}
-
-impl Widget for ColorHexEditor {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let value = self.color.prevent_feedback().filter_map(
-            |v| Some(color_hex(v)),
-            |v| {
-                let v: Srgb<u8> = v.trim().parse().ok()?;
-
-                let v = Oklch::from_color(v.into_format());
-                Some(v)
-            },
-        );
-
-        TextInput::new(value).mount(scope)
-    }
 }
 
 pub struct HexColor(Srgb<u8>);
@@ -627,3 +438,7 @@ impl<'de> Deserialize<'de> for HexColor {
 }
 
 static TINTS: &[i32] = &[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+
+/// Going from 0.0 to 1.0 is too dark to be perceptible in the higher ranges
+static TINT_MIN: f32 = 0.14;
+static TINT_MAX: f32 = 0.97;

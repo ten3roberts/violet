@@ -20,7 +20,7 @@ use violet::core::{
 };
 use violet_core::{
     style::{
-        colors::{DARK_CYAN_DEFAULT, JADE_DEFAULT, LION_DEFAULT},
+        colors::{AMBER_500, EMERALD_500, TEAL_500},
         danger_item, primary_background, secondary_background, spacing_medium, spacing_small,
         Background, SizeExt, ValueOrRef,
     },
@@ -73,12 +73,12 @@ impl Widget for MainApp {
                 TextSegment::new(" also show off the different font loadings: \n"),
                 TextSegment::new("Monospace:")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                    .with_color(DARK_CYAN_DEFAULT),
+                    .with_color(TEAL_500),
                 TextSegment::new("\n\nfn main() { \n    println!(")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
                 TextSegment::new("\"Hello, world!\"")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font"))
-                    .with_color(LION_DEFAULT)
+                    .with_color(AMBER_500)
                     .with_style(Style::Italic),
                 TextSegment::new("); \n}")
                     .with_family(FontFamily::named("JetBrainsMono Nerd Font")),
@@ -153,7 +153,7 @@ struct StackTest {}
 
 impl Widget for StackTest {
     fn mount(self, scope: &mut Scope<'_>) {
-        Stack::new((Text::new("This is an overlaid text").with_color(JADE_DEFAULT),))
+        Stack::new((Text::new("This is an overlaid text").with_color(EMERALD_500),))
             .with_style(ContainerStyle {
                 background: Some(Background::new(secondary_background())),
             })
@@ -202,7 +202,7 @@ impl Widget for LayoutTest {
                         TextSegment::new("This is "),
                         TextSegment::new("sparta")
                             .with_style(Style::Italic)
-                            .with_color(LION_DEFAULT),
+                            .with_color(AMBER_500),
                     ])
                     .with_font_size(16.0)
                     .with_wrap(Wrap::None),

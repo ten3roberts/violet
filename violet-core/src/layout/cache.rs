@@ -30,7 +30,7 @@ pub enum LayoutUpdate {
 }
 
 pub struct LayoutCache {
-    pub(crate) query: [Option<CachedValue<Sizing>>; 2],
+    pub(crate) query: [Vec<CachedValue<Sizing>>; 2],
     pub(crate) query_row: Option<CachedValue<Row>>,
     pub(crate) layout: Option<CachedValue<Block>>,
     on_invalidated: Option<Box<dyn Fn(LayoutUpdate) + Send + Sync>>,
@@ -60,7 +60,13 @@ impl LayoutCache {
 
     pub(crate) fn insert_query(&mut self, direction: Direction, value: CachedValue<Sizing>) {
         self.hints = value.value.hints;
-        self.query[direction as usize] = Some(value);
+        let v = &mut self.query[direction as usize];
+        if v.len() >= 16 {
+            v.pop();
+        }
+
+        v.insert(0, value);
+
         if let Some(f) = self.on_invalidated.as_ref() {
             f(LayoutUpdate::SizeQueryUpdate)
         }
@@ -84,7 +90,7 @@ impl LayoutCache {
         self.layout.as_ref()
     }
 
-    pub fn get_query(&self, direction: Direction) -> Option<&CachedValue<Sizing>> {
+    pub fn get_query(&self, direction: Direction) -> &[CachedValue<Sizing>] {
         self.query[direction as usize].as_ref()
     }
 
