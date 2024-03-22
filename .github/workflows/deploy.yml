@@ -1,0 +1,41 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo build --release --package violet-demo --target wasm32-unknown-unknown
+      - run: mv ./target/wasm32-unknown-unknown/release/violet_demo.wasm ./violet-demo/public
+      - name: Upload Artefact
+        uses: actions/upload-artifact@v2
+        with:
+          name: demo
+          path: demo/public
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [asteroids, guide]
+    if: github.event_name == 'push' && ${{ github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Download demo
+        uses: actions/download-artifact@v2
+        with:
+          name: demo
+          path: dist/demo
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
