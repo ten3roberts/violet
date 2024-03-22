@@ -1,6 +1,6 @@
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 
-use crate::layout::{Direction, LayoutLimits, SizeResolver, SizingHints};
+use crate::layout::{Direction, QueryArgs, SizeResolver, SizingHints};
 
 pub struct FixedAreaConstraint {
     pub area: f32,
@@ -24,16 +24,12 @@ impl SizeResolver for FixedAreaConstraint {
     //     }
     // }
 
-    fn query(
-        &mut self,
-        _: &flax::EntityRef,
-        _content_area: Vec2,
-        limits: LayoutLimits,
-        squeeze: Direction,
-    ) -> (Vec2, Vec2, SizingHints) {
-        let size = (limits.max_size / self.unit_size).floor().max(Vec2::ONE);
+    fn query(&mut self, _: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
+        let size = (args.limits.max_size / self.unit_size)
+            .floor()
+            .max(Vec2::ONE);
 
-        let min = match squeeze {
+        let min = match args.direction {
             Direction::Horizontal => vec2((self.area / size.y).ceil(), size.y),
             Direction::Vertical => vec2(size.x, (self.area / size.x).ceil()),
         };
@@ -42,8 +38,9 @@ impl SizeResolver for FixedAreaConstraint {
             min * self.unit_size,
             vec2(size.x, (self.area / size.x).ceil()) * self.unit_size,
             SizingHints {
-                can_grow: true,
-                fixed_size: false,
+                can_grow: BVec2::TRUE,
+                relative_size: BVec2::TRUE,
+                coupled_size: true,
             },
         )
     }
@@ -53,11 +50,11 @@ impl SizeResolver for FixedAreaConstraint {
         _: &flax::EntityRef,
         _: Vec2,
         limits: crate::layout::LayoutLimits,
-    ) -> (Vec2, bool) {
+    ) -> (Vec2, BVec2) {
         let width = (limits.max_size.x / self.unit_size).floor().max(1.0);
 
         let height = (self.area / width).ceil();
 
-        (vec2(width, height) * self.unit_size, true)
+        (vec2(width, height) * self.unit_size, BVec2::TRUE)
     }
 }

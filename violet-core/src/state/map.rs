@@ -11,11 +11,27 @@ use super::{State, StateOwned, StateSink, StateStream};
 ///
 /// However, as this does not assume the derived state is contained withing the original state is
 /// does not allow in-place mutation.
+
 pub struct Map<C, U, F, G> {
     inner: C,
     conv_to: Arc<F>,
     conv_from: G,
     _marker: PhantomData<U>,
+}
+
+impl<C, U, F, G> Clone for Map<C, U, F, G>
+where
+    C: Clone,
+    G: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            conv_to: self.conv_to.clone(),
+            conv_from: self.conv_from.clone(),
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<C, U, F, G> State for Map<C, U, F, G> {

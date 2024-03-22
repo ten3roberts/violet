@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use glam::UVec2;
 use wgpu::{Adapter, Backends, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 

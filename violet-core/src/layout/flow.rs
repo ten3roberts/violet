@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use flax::{Entity, EntityRef, World};
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
@@ -14,7 +14,8 @@ use crate::{
 };
 
 use super::{
-    cache::LayoutCache, resolve_pos, update_subtree, Block, Direction, LayoutLimits, Sizing,
+    apply_layout, cache::LayoutCache, resolve_pos, Block, Direction, LayoutLimits, QueryArgs,
+    Sizing,
 };
 
 #[derive(Debug, Clone)]
@@ -162,7 +163,9 @@ pub(crate) struct Row {
     pub(crate) min: Rect,
     pub(crate) preferred: Rect,
     pub(crate) blocks: Arc<Vec<(Entity, Sizing)>>,
+    pub(crate) margin: Edges,
     pub(crate) hints: SizingHints,
+    maximize_sum: Vec2,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -193,7 +196,16 @@ impl FlowLayout {
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
         // the direction of this axis.
-        let row = self.query_row(world, cache, children, content_area, limits);
+        let row = self.query_row(
+            world,
+            cache,
+            children,
+            QueryArgs {
+                limits,
+                content_area: content_area.size(),
+                direction: self.direction,
+            },
+        );
 
         // tracing::info!(?row.margin, "row margins to be contained");
         self.distribute_children(world, entity, &row, content_area, limits, preferred_size)
@@ -214,24 +226,8 @@ impl FlowLayout {
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
 
-        // if minimum_inner_size > limits.max_size.dot(axis) {
-        //     tracing::error!(
-        //         ?minimum_inner_size,
-        //         ?limits.max_size,
-        //         "minimum inner size exceeded max size",
-        //     );
-        // }
-
         // If everything could take as much space as it wants
         let preferred_inner_size = row.preferred.size().dot(axis);
-
-        // if minimum_inner_size > preferred_inner_size {
-        //     tracing::error!(
-        //         ?minimum_inner_size,
-        //         ?preferred_inner_size,
-        //         "minimum inner size exceeded preferred size",
-        //     );
-        // }
 
         // How much space there is left to distribute to the children
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
@@ -242,14 +238,9 @@ impl FlowLayout {
             .min(limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
 
-        // tracing::info!(
-        //     ?row.preferred,
-        //     distribute_size,
-        //     target_inner_size,
-        //     blocks = row.blocks.len(),
-        //     "query size"
-        // );
+        let remaining_size = (limits.max_size.dot(axis) - preferred_inner_size).max(0.0);
 
+        // for cross
         let available_size = limits.max_size;
 
         let mut cursor =
@@ -260,7 +251,7 @@ impl FlowLayout {
 
         let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
 
-        let mut can_grow = false;
+        let mut can_grow = BVec2::FALSE;
         // Distribute the size to the widgets and apply their layout
         let blocks = row
             .blocks
@@ -289,10 +280,17 @@ impl FlowLayout {
                     remaining / distribute_size
                 };
 
-                let given_size = block_min_size + target_inner_size * ratio;
+                let mut given_size = block_min_size + target_inner_size * ratio;
                 sum += ratio;
 
+                let maximize = sizing.maximize.dot(axis);
+
+                if maximize > 0.0 {
+                    given_size += remaining_size * (maximize / row.maximize_sum.dot(axis));
+                }
+
                 let axis_sizing = given_size * axis;
+
                 // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
 
                 assert!(
@@ -326,27 +324,10 @@ impl FlowLayout {
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = update_subtree(world, &entity, content_area.size(), child_limits);
+                let block = apply_layout(world, &entity, content_area.size(), child_limits);
 
-                can_grow = can_grow || block.can_grow;
+                can_grow |= block.can_grow;
                 tracing::debug!(?block, "updated subtree");
-
-                // block.rect = block
-                //     .rect
-                //     .clamp_size(child_limits.min_size, child_limits.max_size);
-
-                // if block.rect.size().x > child_limits.max_size.x
-                //     || block.rect.size().y > child_limits.max_size.y
-                // {
-                //     tracing::error!(
-                //         block_min_size,
-                //         block_preferred_size,
-                //         "child {} exceeded max size: {:?} > {:?}",
-                //         entity,
-                //         block.rect.size(),
-                //         child_limits.max_size,
-                //     );
-                // }
 
                 cursor.put(&block);
 
@@ -405,9 +386,7 @@ impl FlowLayout {
         &self,
         world: &World,
         row: &Row,
-        content_area: Rect,
-        limits: LayoutLimits,
-        direction: Direction,
+        args: QueryArgs,
         preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
@@ -416,24 +395,8 @@ impl FlowLayout {
         // If everything was squished as much as possible
         let minimum_inner_size = row.min.size().dot(axis);
 
-        // if minimum_inner_size > limits.max_size.dot(axis) {
-        //     tracing::error!(
-        //         ?minimum_inner_size,
-        //         ?limits.max_size,
-        //         "minimum inner size exceeded max size",
-        //     );
-        // }
-
         // If everything could take as much space as it wants
         let preferred_inner_size = row.preferred.size().dot(axis);
-
-        // if minimum_inner_size > preferred_inner_size {
-        //     tracing::error!(
-        //         ?minimum_inner_size,
-        //         ?preferred_inner_size,
-        //         "minimum inner size exceeded preferred size",
-        //     );
-        // }
 
         // How much space there is left to distribute out
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
@@ -441,8 +404,10 @@ impl FlowLayout {
 
         // Clipped maximum that we remap to
         let target_inner_size = distribute_size
-            .min(limits.max_size.dot(axis) - minimum_inner_size)
+            .min(args.limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
+
+        let remaining_size = args.limits.max_size.dot(axis) - preferred_inner_size;
 
         tracing::debug!(
             min=?row.min.size(),
@@ -452,20 +417,15 @@ impl FlowLayout {
             "distribute"
         );
 
-        let available_size = limits.max_size;
+        let available_size = args.limits.max_size;
 
-        let mut min_cursor =
-            MarginCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
-        let mut cursor =
-            MarginCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
+        let mut min_cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
+        let mut cursor = MarginCursor::new(Vec2::ZERO, axis, cross_axis, self.contain_margins);
 
         let mut sum = 0.0;
 
         let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
-        let mut hints = SizingHints {
-            fixed_size: true,
-            can_grow: false,
-        };
+        let mut hints = SizingHints::default();
 
         // Distribute the size to the widgets and apply their layout
         row
@@ -486,7 +446,7 @@ impl FlowLayout {
                         "min is larger than preferred",
                     );
 
-                    return;
+                    // return;
                 }
 
                 assert!(block_min_size.is_finite());
@@ -501,8 +461,15 @@ impl FlowLayout {
                     remaining / distribute_size
                 };
 
-                let given_size = block_min_size + target_inner_size * ratio;
+                let mut given_size = block_min_size + target_inner_size * ratio;
                 sum += ratio;
+
+                let maximize = sizing.maximize.dot(axis);
+
+                if maximize > 0.0 {
+                    given_size =
+                        given_size.max(remaining_size * (maximize / row.maximize_sum).dot(axis));
+                }
 
                 let axis_sizing = given_size * axis;
                 // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
@@ -540,7 +507,13 @@ impl FlowLayout {
 
                 // NOTE: optimize for the minimum size in the query direction, not the
                 // direction of the flow
-                let sizing = query_size(world, &entity, content_area.size(), child_limits, direction);
+                let sizing = query_size(world, &entity, QueryArgs {
+                    limits: child_limits,
+                    content_area: args.content_area,
+                    // Use the query direction, not the flow direction
+                    direction: args.direction,
+                });
+
 
                 hints = hints.combine(sizing.hints);
 
@@ -560,10 +533,11 @@ impl FlowLayout {
             .to_edges(cursor.main_margin, cursor.cross_margin, self.reverse);
 
         Sizing {
-            min: min_rect.max_size(limits.min_size),
-            preferred: rect.max_size(limits.min_size),
+            min: min_rect.max_size(args.limits.min_size),
+            preferred: rect.max_size(args.limits.min_size),
             margin,
             hints,
+            maximize: row.maximize_sum,
         }
     }
 
@@ -572,13 +546,12 @@ impl FlowLayout {
         world: &World,
         cache: &mut LayoutCache,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
+        args: QueryArgs,
     ) -> Row {
         puffin::profile_function!();
         if let Some(value) = cache.query_row.as_ref() {
-            if validate_cached_row(value, limits, content_area.size()) {
-                return value.value.clone();
+            if validate_cached_row(value, args.limits, args.content_area) {
+                // return value.value.clone();
             }
         }
 
@@ -598,13 +571,27 @@ impl FlowLayout {
 
         let mut hints = SizingHints::default();
 
+        let mut maximize = Vec2::ZERO;
+
         let blocks = children
             .iter()
             .map(|&child| {
                 let entity = world.entity(child).expect("Invalid child");
 
                 let child_margin = if self.contain_margins {
-                    query_size(world, &entity, content_area.size(), limits, self.direction).margin
+                    query_size(
+                        world,
+                        &entity,
+                        QueryArgs {
+                            limits: LayoutLimits {
+                                min_size: Vec2::ZERO,
+                                max_size: args.limits.max_size,
+                            },
+                            content_area: args.content_area,
+                            direction: self.direction,
+                        },
+                    )
+                    .margin
                 } else {
                     Edges::ZERO
                 };
@@ -612,15 +599,17 @@ impl FlowLayout {
                 let sizing = query_size(
                     world,
                     &entity,
-                    content_area.size(),
-                    LayoutLimits {
-                        min_size: Vec2::ZERO,
-                        // max_size: limits.max_size,
-                        max_size: limits.max_size - child_margin.size(),
+                    QueryArgs {
+                        limits: LayoutLimits {
+                            min_size: Vec2::ZERO,
+                            max_size: args.limits.max_size - child_margin.size(),
+                        },
+                        content_area: args.content_area,
+                        direction: self.direction,
                     },
-                    self.direction,
                 );
 
+                maximize += sizing.maximize;
                 hints = hints.combine(sizing.hints);
 
                 min_cursor.put(&Block::new(
@@ -645,14 +634,26 @@ impl FlowLayout {
         let preferred = preferred_cursor.finish();
         let min = min_cursor.finish();
 
+        let margin = self.direction.to_edges(
+            preferred_cursor.main_margin,
+            preferred_cursor.cross_margin,
+            self.reverse,
+        );
+
         let row = Row {
             min,
             preferred,
             blocks: Arc::new(blocks),
             hints,
+            margin,
+            maximize_sum: maximize,
         };
 
-        cache.insert_query_row(CachedValue::new(limits, content_area.size(), row.clone()));
+        cache.insert_query_row(CachedValue::new(
+            args.limits,
+            args.content_area,
+            row.clone(),
+        ));
         row
     }
 
@@ -661,12 +662,10 @@ impl FlowLayout {
         world: &World,
         cache: &mut LayoutCache,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        direction: Direction,
+        args: QueryArgs,
         preferred_size: Vec2,
     ) -> Sizing {
-        puffin::profile_function!(format!("{direction:?}"));
+        puffin::profile_function!(format!("{args:?}"));
 
         // We want to query the min/preferred size in the direction orthogonal to the flows
         // layout
@@ -698,11 +697,55 @@ impl FlowLayout {
         // exist a better solution where some widgets may get slightly more space and still
         // fall within the max height. If anybody comes across a non-iterative solution for
         // this, be sure to let me know :)
-        let row = self.query_row(world, cache, children, content_area, limits);
+        let row = self.query_row(
+            world,
+            cache,
+            children,
+            QueryArgs {
+                direction: self.direction,
+                ..args
+            },
+        );
 
-        let sizing =
-            self.distribute_query(world, &row, content_area, limits, direction, preferred_size);
-        tracing::debug!(?self.direction, ?sizing, "query");
-        sizing
+        if row.hints.coupled_size {
+            let sizing = self.distribute_query(world, &row, args, preferred_size);
+            tracing::debug!(?self.direction, ?sizing, "query");
+            sizing
+        } else {
+            let (axis, cross) = self.direction.as_main_and_cross(self.reverse);
+            let minimum_inner_size = row.min.size().dot(axis);
+
+            let preferred_size = row.preferred.size().dot(axis);
+            let to_distribute = (preferred_size - minimum_inner_size).max(0.0);
+
+            let can_grow = to_distribute > (args.limits.max_size.dot(axis) - minimum_inner_size);
+
+            let can_grow = if self.direction.is_horizontal() {
+                BVec2::new(can_grow, false)
+            } else {
+                BVec2::new(false, can_grow)
+            };
+
+            let to_distribute = to_distribute
+                .min(args.limits.max_size.dot(axis) - minimum_inner_size)
+                .max(0.0);
+
+            let preferred =
+                (minimum_inner_size + to_distribute) * axis + row.preferred.size() * cross;
+
+            let min = row.min.max_size(args.limits.min_size);
+            let preferred = preferred.max(preferred).max(args.limits.min_size);
+
+            Sizing {
+                min,
+                preferred: Rect::from_size(preferred),
+                margin: row.margin,
+                hints: SizingHints {
+                    can_grow: can_grow | row.hints.can_grow,
+                    ..row.hints
+                },
+                maximize: row.maximize_sum,
+            }
+        }
     }
 }

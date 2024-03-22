@@ -1,7 +1,7 @@
 use futures::{Future, Stream};
 use futures_signals::signal::{self, SignalExt};
 
-use crate::{components::layout, layout::Layout, FutureEffect, Scope, StreamEffect, Widget};
+use crate::{effect::Effect, FutureEffect, Scope, StreamEffect, Widget};
 
 pub struct SignalWidget<S>(pub S);
 
@@ -15,25 +15,26 @@ impl<S> SignalWidget<S> {
     }
 }
 
-impl<S, W> Widget for SignalWidget<S>
+impl<S> Widget for SignalWidget<S>
 where
-    S: 'static + signal::Signal<Item = W>,
-    W: Widget,
+    S: 'static + signal::Signal,
+    S::Item: Widget,
 {
     fn mount(self, scope: &mut crate::Scope<'_>) {
         let mut child = None;
         let stream = self.0.to_stream();
+        let label = std::any::type_name::<S::Item>();
 
-        scope.spawn_effect(StreamEffect::new(
-            stream,
-            move |scope: &mut Scope<'_>, v| {
+        scope.spawn_effect(
+            StreamEffect::new(stream, move |scope: &mut Scope<'_>, v| {
                 if let Some(child) = child {
                     scope.detach(child);
                 }
 
                 child = Some(scope.attach(v));
-            },
-        ));
+            })
+            .with_label(label),
+        );
     }
 }
 
@@ -42,24 +43,31 @@ where
     S: Stream,
     S::Item: Widget;
 
-impl<S, W> Widget for StreamWidget<S>
+impl<S> Widget for StreamWidget<S>
 where
-    S: 'static + Stream<Item = W>,
-    W: Widget,
+    S: 'static + Stream,
+    S::Item: Widget,
 {
     fn mount(self, scope: &mut crate::Scope<'_>) {
         let mut child = None;
 
-        scope.spawn_effect(StreamEffect::new(
-            self.0,
-            move |scope: &mut Scope<'_>, v| {
+        let label = std::any::type_name::<S::Item>();
+
+        scope.spawn_effect(
+            StreamEffect::new(self.0, move |scope: &mut Scope<'_>, v| {
+                puffin::profile_scope!("StreamWidget::mount", "update child widget");
                 if let Some(child) = child {
+                    puffin::profile_scope!("detach");
                     scope.detach(child);
                 }
 
-                child = Some(scope.attach(v));
-            },
-        ));
+                {
+                    puffin::profile_scope!("attach");
+                    child = Some(scope.attach(v));
+                }
+            })
+            .with_label(label),
+        );
     }
 }
 
@@ -68,17 +76,18 @@ where
     S: Future,
     S::Output: Widget;
 
-impl<S, W> Widget for FutureWidget<S>
+impl<S> Widget for FutureWidget<S>
 where
-    S: 'static + Future<Output = W>,
-    W: Widget,
+    S: 'static + Future,
+    S::Output: Widget,
 {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        scope.spawn_effect(FutureEffect::new(
-            self.0,
-            move |scope: &mut Scope<'_>, v| {
+        let label = std::any::type_name::<S::Output>();
+        scope.spawn_effect(
+            FutureEffect::new(self.0, move |scope: &mut Scope<'_>, v| {
                 scope.attach(v);
-            },
-        ));
+            })
+            .with_label(label),
+        );
     }
 }

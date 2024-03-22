@@ -15,30 +15,11 @@ use violet::core::{
     Scope, Widget,
 };
 use violet_core::{
-    style::{
-        self,
-        colors::{EERIE_BLACK_600, EERIE_BLACK_DEFAULT},
-        secondary_background, spacing_small, Background, SizeExt,
-    },
+    style::{self, primary_background, secondary_background, spacing_small, Background, SizeExt},
     text::Wrap,
-    widget::{
-        card, column, row, BoxSized, Button, ButtonStyle, ContainerStyle, SliderWithLabel,
-        TextInput,
-    },
+    widget::{card, col, label, row, Button, ButtonStyle, SliderWithLabel, TextInput},
 };
 use violet_wgpu::renderer::RendererConfig;
-
-fn label(text: impl Into<String>) -> Stack<Text> {
-    Stack::new(Text::new(text.into()))
-        .with_padding(spacing_small())
-        .with_margin(spacing_small())
-}
-
-fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget).with_style(ContainerStyle {
-        background: Some(Background::new(secondary_background())),
-    })
-}
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -52,7 +33,7 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new()
+    violet_wgpu::AppBuilder::new()
         .with_renderer_config(RendererConfig { debug_mode: false })
         .run(MainApp)
 }
@@ -74,30 +55,30 @@ impl Widget for MainApp {
             count: *count,
         }});
 
-        column((
+        col((
             row((Text::new("Input: "), TextInput::new(content))),
             card(
-                column((
-                    Button::with_label("Button"),
-                    Button::with_label("Button").with_style(ButtonStyle {
+                col((
+                    Button::label("Button"),
+                    Button::label("Button").with_style(ButtonStyle {
                         normal_color: style::success_item().into(),
                         ..Default::default()
                     }),
-                    Button::with_label("Warning").with_style(ButtonStyle {
+                    Button::label("Warning").with_style(ButtonStyle {
                         normal_color: style::warning_item().into(),
                         ..Default::default()
                     }),
-                    Button::with_label("Error").with_style(ButtonStyle {
+                    Button::label("Error").with_style(ButtonStyle {
                         normal_color: style::danger_item().into(),
                         ..Default::default()
                     }),
                 ))
                 .with_stretch(true),
             ),
-            BoxSized::new(Rectangle::new(EERIE_BLACK_600))
+            Rectangle::new(secondary_background())
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
-            card(column((
-                column((
+            card(col((
+                col((
                     row((
                         Text::new("Size"),
                         SliderWithLabel::new(value, 20.0, 200.0).editable(true),
@@ -109,8 +90,7 @@ impl Widget for MainApp {
                 )),
                 SignalWidget::new(item_list),
             ))),
-            column(
-                [
+            col([
                     // EERIE_BLACK_DEFAULT,
                     // PLATINUM_DEFAULT,
                     // JADE_DEFAULT,
@@ -119,12 +99,11 @@ impl Widget for MainApp {
                     // LION_DEFAULT,
                     // REDWOOD_DEFAULT,
                 ]
-                .into_iter()
-                .map(|color| Tints { color })
-                .collect_vec(),
-            ),
+            .into_iter()
+            .map(|color| Tints { color })
+            .collect_vec()),
         ))
-        .with_background(Background::new(EERIE_BLACK_DEFAULT))
+        .with_background(Background::new(primary_background()))
         .contain_margins(true)
         .mount(scope)
     }
@@ -146,8 +125,8 @@ impl Widget for Tints {
                     color_bytes.red, color_bytes.green, color_bytes.blue
                 );
 
-                card(column((
-                    BoxSized::new(Rectangle::new(color)).with_size(Unit::px2(100.0, 40.0)),
+                card(col((
+                    Rectangle::new(color).with_size(Unit::px2(100.0, 40.0)),
                     label(format!("{tint}")),
                     label(color_string),
                 )))

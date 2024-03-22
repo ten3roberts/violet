@@ -1,8 +1,6 @@
-use std::str::FromStr;
-
 use flax::{
     component, components::child_of, entity_ids, fetch::Satisfied, filter::All, Component, Entity,
-    EntityIds, EntityRef, Fetch, FetchExt, Mutable, Query, Topo, World,
+    EntityIds, EntityRef, Fetch, FetchExt, Query, Topo, World,
 };
 use glam::Vec2;
 
@@ -15,6 +13,7 @@ use winit::{
 
 use crate::{
     components::{rect, screen_position, screen_rect},
+    scope::ScopeRef,
     Frame, Rect,
 };
 
@@ -104,9 +103,9 @@ impl InputState {
                 local_pos: self.pos - origin,
             };
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
+                let s = ScopeRef::new(frame, entity);
                 on_input(
-                    frame,
-                    &entity,
+                    &s,
                     MouseInput {
                         modifiers: self.modifiers,
                         state,
@@ -124,9 +123,9 @@ impl InputState {
         if let Some(entity) = &self.focused(&frame.world) {
             let screen_rect = entity.get_copy(screen_rect()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
+                let s = ScopeRef::new(frame, *entity);
                 on_input(
-                    frame,
-                    entity,
+                    &s,
                     CursorMove {
                         modifiers: self.modifiers,
                         absolute_pos: pos,
@@ -144,9 +143,9 @@ impl InputState {
     pub fn on_keyboard_input(&mut self, frame: &mut Frame, event: KeyEvent) {
         if let Some(entity) = &self.focused(frame.world()) {
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
+                let s = ScopeRef::new(frame, *entity);
                 on_input(
-                    frame,
-                    entity,
+                    &s,
                     KeyboardInput {
                         modifiers: self.modifiers,
                         event,
@@ -169,15 +168,17 @@ impl InputState {
 
         if let Some(cur) = cur {
             if let Ok(mut on_focus) = cur.get_mut(on_focus()) {
-                on_focus(frame, &cur, false);
+                let s = ScopeRef::new(frame, cur);
+                on_focus(&s, false);
             }
         }
 
         if let Some(new) = focused {
             let entity = frame.world().entity(new).unwrap();
+            let s = ScopeRef::new(frame, entity);
 
             if let Ok(mut on_focus) = entity.get_mut(on_focus()) {
-                on_focus(frame, &entity, true);
+                on_focus(&s, true);
             }
 
             let sticky = entity.has(focus_sticky());
@@ -211,7 +212,7 @@ pub struct KeyboardInput {
     pub event: KeyEvent,
 }
 
-pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&Frame, &EntityRef, T)>;
+pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, T)>;
 
 component! {
     pub focus_sticky: (),

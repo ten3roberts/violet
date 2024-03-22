@@ -174,8 +174,10 @@ impl<Data> Executor<Data> {
     }
 
     pub fn tick(&mut self, data: &mut Data) {
+        puffin::profile_function!();
         assert!(self.processing.is_empty());
         loop {
+            puffin::profile_scope!("tick");
             // Add new tasks
             self.processing
                 .extend(self.incoming.borrow_mut().drain(..).map(|task| {
@@ -196,7 +198,13 @@ impl<Data> Executor<Data> {
             }
 
             for id in self.processing.drain(..) {
-                let (task, waker) = self.tasks.get_mut(id).unwrap();
+                let Some((task, waker)) = self.tasks.get_mut(id) else {
+                    // Task was canceled and thus returned Poll::Ready before being woken by an
+                    // external waker
+                    continue;
+                };
+
+                puffin::profile_scope!("process task", task.effect.label().unwrap_or_default());
                 let mut context = Context::from_waker(&*waker);
                 tracing::trace!(?id, "Polling task");
 

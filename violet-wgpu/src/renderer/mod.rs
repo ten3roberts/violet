@@ -1,8 +1,7 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 
 use bytemuck::Zeroable;
 use flax::{
-    components::child_of,
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
     CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
@@ -11,6 +10,7 @@ use glam::{vec4, Mat4, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
+use smallvec::{smallvec, SmallVec};
 use violet_core::{
     components::{children, draw_shape},
     layout::cache::LayoutUpdate,
@@ -179,12 +179,14 @@ pub struct MainRenderer {
     debug_renderer: Option<DebugRenderer>,
 
     object_bind_group_layout: BindGroupLayout,
+    root: Entity,
 }
 
 impl MainRenderer {
     pub(crate) fn new(
         frame: &mut Frame,
         ctx: &mut RendererContext,
+        root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
         layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
@@ -239,6 +241,7 @@ impl MainRenderer {
             register_objects,
             object_bind_group_layout,
             object_buffers: Vec::new(),
+            root,
         }
     }
 
@@ -269,19 +272,12 @@ impl MainRenderer {
         }
 
         {
-            puffin::profile_scope!("collect_draw_commands");
+            puffin::profile_scope!("create_draw_commands");
             let query = DrawQuery::new();
-
-            let roots = Query::new(entity_ids())
-                .without_relation(child_of)
-                .borrow(&frame.world)
-                .iter()
-                .map(|id| frame.world.entity(id).unwrap())
-                .collect();
 
             let commands = RendererIter {
                 world: &frame.world,
-                queue: roots,
+                stack: smallvec![frame.world.entity(self.root).unwrap()],
             }
             .filter_map(|entity| {
                 let mut query = entity.query(&query);
@@ -348,11 +344,12 @@ impl MainRenderer {
     }
 }
 
-fn collect_draw_commands<'a>(
+fn collect_draw_commands(
     entities: impl Iterator<Item = (DrawCommand, ObjectData)>,
     objects: &mut Vec<ObjectData>,
     draw_cmds: &mut Vec<(usize, InstancedDrawCommand)>,
 ) {
+    puffin::profile_function!();
     let chunks = entities.chunks(CHUNK_SIZE);
 
     for (chunk_index, chunk) in (&chunks).into_iter().enumerate() {
@@ -399,17 +396,22 @@ pub(crate) struct ObjectData {
 
 struct RendererIter<'a> {
     world: &'a World,
-    queue: VecDeque<EntityRef<'a>>,
+    // queue: VecDeque<EntityRef<'a>>,
+    stack: SmallVec<[EntityRef<'a>; 16]>,
 }
 
 impl<'a> Iterator for RendererIter<'a> {
     type Item = EntityRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let entity = self.queue.pop_front()?;
+        let entity = self.stack.pop()?;
         if let Ok(children) = entity.get(children()) {
-            self.queue
-                .extend(children.iter().map(|&id| self.world.entity(id).unwrap()));
+            self.stack.extend(
+                children
+                    .iter()
+                    .rev()
+                    .map(|&id| self.world.entity(id).unwrap()),
+            );
         }
 
         Some(entity)

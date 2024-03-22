@@ -1,9 +1,6 @@
-use std::{future::ready, sync::Arc};
+use std::future::ready;
 
-use futures::{FutureExt, StreamExt};
-use futures_signals::signal::{Mutable, SignalExt};
-use parking_lot::Mutex;
-use tracing::info;
+use futures::StreamExt;
 
 use super::{State, StateSink, StateStream, StateStreamRef};
 
@@ -30,7 +27,7 @@ where
     T: StateStreamRef,
     T::Item: 'static + Send + Sync + Clone + PartialEq,
 {
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         mut func: F,
     ) -> impl futures::prelude::Stream<Item = V> + 'static + Send

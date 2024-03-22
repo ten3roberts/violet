@@ -77,7 +77,7 @@ impl TextSegment {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
-            family: FontFamily::Serif,
+            family: FontFamily::SansSerif,
             style: Style::Normal,
             weight: Weight::NORMAL,
             color: Srgba::new(1.0, 1.0, 1.0, 1.0),
@@ -206,6 +206,7 @@ impl LayoutGlyphs {
         None
     }
 
+    /// Returns all layout lines for the specified row
     pub fn find_lines(&self, row: usize) -> impl Iterator<Item = &LayoutLineGlyphs> {
         self.lines
             .iter()
@@ -257,7 +258,7 @@ impl Index<LayoutCursorLocation> for LayoutGlyphs {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CursorLocation {
     /// The row index of the non-wrapped original text
     pub row: usize,

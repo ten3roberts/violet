@@ -3,14 +3,14 @@ use std::sync::Arc;
 use cosmic_text::{
     fontdb::Source, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
 };
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
 
 use violet_core::{
     components::font_size,
-    layout::{Direction, LayoutLimits, SizeResolver, SizingHints},
+    layout::{LayoutLimits, QueryArgs, SizeResolver, SizingHints},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };
@@ -54,15 +54,9 @@ pub struct TextSizeResolver {
 }
 
 impl SizeResolver for TextSizeResolver {
-    fn query(
-        &mut self,
-        entity: &flax::EntityRef,
-        _content_area: Vec2,
-        limits: LayoutLimits,
-        direction: Direction,
-    ) -> (Vec2, Vec2, SizingHints) {
+    fn query(&mut self, entity: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
         puffin::profile_scope!("TextSizeResolver::query");
-        let _span = tracing::debug_span!("TextSizeResolver::query", ?direction).entered();
+        let _span = tracing::debug_span!("TextSizeResolver::query", ?args.direction).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 
@@ -73,34 +67,49 @@ impl SizeResolver for TextSizeResolver {
 
         let line_height = state.buffer.metrics().line_height;
 
-        // If preferred is clamped, so is min
-        let (min, _clamped) = Self::resolve_text_size(
+        // Text wraps to the size of the container
+        //
+        // Wrapping text will decrease width, and increase height.
+        //
+        //
+        // To optimize for X, we wrap as much as possible, and then measure the height.
+        //
+        // To optimize for Y, we wrap as little as possible. This is equivalent to the preferred
+        // size as the widest width (which text wants) also gives the least height.
+
+        // If preferred is can_grow, so is min
+        let (most_wrapped, _can_grow, wrapped_lines) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
-            match direction {
-                Direction::Horizontal => vec2(1.0, limits.max_size.y.max(line_height)),
-                Direction::Vertical => vec2(limits.max_size.x, limits.max_size.y.max(line_height)),
-            },
+            vec2(1.0, args.limits.max_size.y.max(line_height)),
         );
 
-        let (preferred, clamped) = Self::resolve_text_size(
+        let (preferred, can_grow, preferred_lines) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
-            limits.max_size.max(vec2(1.0, line_height)),
+            args.limits.max_size.max(vec2(1.0, line_height)),
         );
         // + vec2(5.0, 5.0);
 
-        if min.dot(direction.to_axis()) > preferred.dot(direction.to_axis()) {
-            tracing::error!(%entity, text=?state.text(), %min, %preferred, ?direction, %limits.max_size, "Text wrapping failed");
-        }
+        // if min.dot(args.direction.to_axis()) > preferred.dot(args.direction.to_axis()) {
+        //     tracing::error!(%entity, text=?state.text(), %min, %preferred, ?args.direction, %args.limits.max_size, "Text wrapping failed");
+        // }
+
+        // tracing::info!(?wrapped_lines, ?preferred_lines, "Text wrapping results");
+
         (
-            min,
+            if args.direction.is_horizontal() {
+                most_wrapped
+            } else {
+                preferred
+            },
             preferred,
             SizingHints {
-                can_grow: clamped,
-                fixed_size: true,
+                can_grow,
+                relative_size: BVec2::TRUE,
+                coupled_size: wrapped_lines != preferred_lines,
             },
         )
     }
@@ -110,7 +119,7 @@ impl SizeResolver for TextSizeResolver {
         entity: &flax::EntityRef,
         content_area: Vec2,
         limits: LayoutLimits,
-    ) -> (Vec2, bool) {
+    ) -> (Vec2, BVec2) {
         puffin::profile_scope!("TextSizeResolver::apply");
         let _span = tracing::debug_span!("TextSizeResolver::apply", ?content_area).entered();
 
@@ -122,7 +131,7 @@ impl SizeResolver for TextSizeResolver {
         let text_system = &mut *self.text_system.lock();
         let line_height = state.buffer.metrics().line_height;
 
-        let (size, clamped) = Self::resolve_text_size(
+        let (size, can_grow, _) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -135,7 +144,7 @@ impl SizeResolver for TextSizeResolver {
             // tracing::error!(%entity, text=?state.text(), %size, %limits.max_size, "Text overflowed");
         }
 
-        (size, clamped)
+        (size, can_grow)
     }
 }
 
@@ -149,7 +158,7 @@ impl TextSizeResolver {
         text_system: &mut TextSystem,
         font_size: f32,
         size: Vec2,
-    ) -> (Vec2, bool) {
+    ) -> (Vec2, BVec2, usize) {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
         let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
@@ -168,7 +177,7 @@ fn glyph_bounds(glyph: &LayoutGlyph) -> (f32, f32) {
     (glyph.x, glyph.x + glyph.w)
 }
 
-fn measure(buffer: &Buffer) -> (Vec2, bool) {
+fn measure(buffer: &Buffer) -> (Vec2, BVec2, usize) {
     let (width, total_lines) =
         buffer
             .layout_runs()
@@ -193,7 +202,8 @@ fn measure(buffer: &Buffer) -> (Vec2, bool) {
 
     (
         vec2(width, total_lines as f32 * buffer.metrics().line_height),
-        total_lines > buffer.lines.len(),
+        BVec2::new(total_lines > buffer.lines.len(), false),
+        total_lines,
     )
 }
 
@@ -232,15 +242,6 @@ impl TextBufferState {
             Attrs::new(),
             Shaping::Advanced,
         );
-        // self.buffer.set_text(
-        //     font_system,
-        //     text,
-        //     Attrs::new()
-        //         .family(cosmic_text::Family::Name("Inter"))
-        //         .style(Style::Normal)
-        //         .weight(400.0)
-        //     Shaping::Advanced,
-        // );
     }
 
     fn text(&self) -> Vec<String> {
@@ -257,6 +258,7 @@ impl TextBufferState {
 
         let mut result = Vec::new();
 
+        let mut ln = 0;
         for (row, line) in self.buffer.lines.iter().enumerate() {
             let mut current_offset = 0;
 
@@ -265,9 +267,11 @@ impl TextBufferState {
                 continue;
             };
 
-            result.extend(layout.iter().enumerate().map(|(i, run)| {
-                let top = i as f32 * lh;
+            result.extend(layout.iter().map(|run| {
+                let top = ln as f32 * lh;
                 let bottom = top + lh;
+
+                ln += 1;
 
                 let start = current_offset;
                 let glyphs = run

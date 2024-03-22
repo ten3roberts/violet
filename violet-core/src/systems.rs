@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Weak},
+    thread::scope,
 };
 
 use atomic_refcell::AtomicRefCell;
@@ -11,9 +12,9 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
-    sink::Sink,
-    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, Fetch, FetchExt, FetchItem, Query,
-    QueryBorrow, System, World,
+    query::TopoBorrow,
+    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, Fetch, FetchExt, FetchItem,
+    Query, QueryBorrow, System, Topo, World,
 };
 use glam::Vec2;
 
@@ -22,8 +23,9 @@ use crate::{
         self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
     },
     layout::{
+        apply_layout,
         cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdate},
-        update_subtree, LayoutLimits,
+        LayoutLimits,
     },
     Rect,
 };
@@ -41,40 +43,37 @@ pub fn hydrate_text() -> BoxedSystem {
         .boxed()
 }
 
-pub fn templating_system(
-    root: Entity,
-    layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)>,
-) -> BoxedSystem {
-    let query = Query::new(entity_ids())
-        .filter(Or((
-            screen_position().without(),
-            local_position().without(),
-            rect().without(),
-            screen_rect().without(),
-        )))
-        .filter(root.traverse(child_of));
+pub fn widget_template(entity: &mut EntityBuilder, name: String) {
+    entity
+        .set(flax::components::name(), name)
+        .set_default(screen_position())
+        .set_default(local_position())
+        .set_default(screen_rect())
+        .set_default(rect());
+}
+
+pub fn templating_system(layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)>) -> BoxedSystem {
+    let query = Query::new(entity_ids()).filter(Or((rect().with(), layout_cache().without())));
 
     System::builder()
+        .with_name("templating_system")
         .with_query(query)
         .with_cmd_mut()
         .build(
             move |mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
                 puffin::profile_scope!("templating_system");
-                for id in &mut query {
+                for id in query.iter() {
+                    puffin::profile_scope!("apply", format!("{id}"));
                     tracing::debug!(%id, "incomplete widget");
 
                     let layout_changes_tx = layout_changes_tx.clone();
-                    cmd.set_missing(id, screen_position(), Vec2::ZERO)
-                        .set_missing(id, local_position(), Vec2::ZERO)
-                        .set_missing(id, screen_rect(), Rect::default())
-                        .set_missing(
-                            id,
-                            layout_cache(),
-                            LayoutCache::new(Some(Box::new(move |layout| {
-                                layout_changes_tx.send((id, layout)).ok();
-                            }))),
-                        )
-                        .set_missing(id, rect(), Rect::default());
+                    cmd.set_missing(
+                        id,
+                        layout_cache(),
+                        LayoutCache::new(Some(Box::new(move |layout| {
+                            layout_changes_tx.send((id, layout)).ok();
+                        }))),
+                    );
                 }
             },
         )
@@ -148,39 +147,43 @@ impl EventSubscriber for QueryInvalidator {
     }
 }
 /// Updates the layout for entities using the given constraints
-pub fn layout_system() -> BoxedSystem {
+pub fn layout_system(root: Entity) -> BoxedSystem {
     puffin::profile_function!();
     System::builder()
         .with_world()
-        .with_query(Query::new((rect(), children())).without_relation(child_of))
-        .build(move |world: &World, mut roots: QueryBorrow<_, _>| {
+        // .with_query(Query::new((rect(), children())).without_relation(child_of))
+        .build(move |world: &World| {
+            let Ok(entity) = world.entity(root) else {
+                return;
+            };
+            let query = (rect().opt_or_default(), children().opt_or_default());
+            let mut query = entity.query(&query);
+
+            let (canvas_rect, children) = query.get().unwrap();
+
             puffin::profile_scope!("layout_system");
-            (&mut roots)
-                .into_iter()
-                .for_each(|(canvas_rect, children): (&Rect, &Vec<_>)| {
-                    for &child in children {
-                        let entity = world.entity(child).unwrap();
 
-                        let res = update_subtree(
-                            world,
-                            &entity,
-                            canvas_rect.size(),
-                            LayoutLimits {
-                                min_size: Vec2::ZERO,
-                                max_size: canvas_rect.size(),
-                            },
-                        );
+            for &child in children {
+                let entity = world.entity(child).unwrap();
 
-                        entity.update_dedup(components::rect(), res.rect);
-                    }
-                });
+                let res = apply_layout(
+                    world,
+                    &entity,
+                    canvas_rect.size(),
+                    LayoutLimits {
+                        min_size: Vec2::ZERO,
+                        max_size: canvas_rect.size(),
+                    },
+                );
+
+                entity.update_dedup(components::rect(), res.rect);
+            }
         })
         .boxed()
 }
 
 /// Updates the apparent screen position of entities based on the hierarchy
 pub fn transform_system() -> BoxedSystem {
-    puffin::profile_function!();
     System::builder()
         .with_query(
             Query::new((
@@ -192,7 +195,6 @@ pub fn transform_system() -> BoxedSystem {
             .with_strategy(Dfs::new(child_of)),
         )
         .build(|mut query: DfsBorrow<_>| {
-            puffin::profile_scope!("transform_system");
             query.traverse(
                 &Vec2::ZERO,
                 |(pos, screen_rect, rect, local_pos): (&mut Vec2, &mut Rect, &Rect, &Vec2),

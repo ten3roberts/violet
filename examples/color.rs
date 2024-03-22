@@ -11,7 +11,7 @@ use violet_core::{
     unit::Unit,
     utils::zip_latest,
     widget::{
-        card, column, row, Rectangle, SignalWidget, SliderWithLabel, Stack, StreamWidget, Text,
+        card, col, row, Rectangle, SignalWidget, SliderWithLabel, Stack, StreamWidget, Text,
     },
     Edges, Scope, Widget,
 };
@@ -29,7 +29,7 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new()
+    violet_wgpu::AppBuilder::new()
         .with_renderer_config(RendererConfig { debug_mode: false })
         .run(MainApp)
 }
@@ -57,7 +57,7 @@ impl Widget for MainApp {
         let falloff = Mutable::new(50.0);
 
         card(
-            column((
+            col((
                 row((
                     Text::new("Lightness"),
                     SliderWithLabel::new(lightness, 0.0, 1.0)
@@ -129,7 +129,7 @@ impl Widget for Tints {
                     ..self.base
                 };
 
-                Stack::new(column((
+                Stack::new(col((
                     Rectangle::new(ValueOrRef::value(color.into_color()))
                         .with_min_size(Unit::px2(60.0, 60.0)),
                     Text::new(format!("{:.2}", f)),

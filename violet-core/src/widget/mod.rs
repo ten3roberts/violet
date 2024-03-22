@@ -32,9 +32,9 @@ where
     }
 }
 
-impl<T> Widget for Box<T>
-where
-    T: ?Sized + Widget,
+impl Widget for Box<dyn Widget>
+// where
+//     T: ?Sized + Widget,
 {
     fn mount(self, scope: &mut Scope<'_>) {
         self.mount_boxed(scope)
@@ -46,6 +46,15 @@ impl<T: Widget> Widget for Option<T> {
         if let Some(widget) = self {
             widget.mount(scope);
         }
+    }
+}
+
+impl<F> Widget for F
+where
+    F: FnOnce(&mut Scope<'_>),
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self(scope);
     }
 }
 

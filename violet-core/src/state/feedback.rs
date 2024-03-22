@@ -29,7 +29,7 @@ where
     T: StateStreamRef,
     T::Item: 'static + Send + Sync + Clone + PartialEq,
 {
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         mut func: F,
     ) -> impl futures::prelude::Stream<Item = V> + 'static + Send
@@ -61,7 +61,8 @@ where
         self.inner
             .stream()
             .filter_map(move |v| {
-                let last_sent = last_sent.select_next_some().now_or_never().flatten();
+                let last_sent = last_sent.next().now_or_never().flatten().flatten();
+
                 if last_sent.as_ref() != Some(&v) {
                     ready(Some(v))
                 } else {

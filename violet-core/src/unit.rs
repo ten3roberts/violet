@@ -3,7 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
-use glam::{IVec2, Vec2};
+use glam::{BVec2, IVec2, Vec2};
 
 /// Represents a unit of measurement
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,13 +37,6 @@ impl<T: Zero> Unit<T> {
     pub fn rel(rel: T) -> Self {
         Self { px: T::ZERO, rel }
     }
-
-    pub(crate) fn is_fixed(&self) -> bool
-    where
-        T: PartialEq,
-    {
-        self.rel == T::ZERO
-    }
 }
 
 impl Unit<Vec2> {
@@ -59,6 +52,10 @@ impl Unit<Vec2> {
             px: Vec2::ZERO,
             rel: Vec2::new(x, y),
         }
+    }
+
+    pub(crate) fn is_relative(&self) -> BVec2 {
+        self.rel.cmpgt(Vec2::ZERO)
     }
 }
 

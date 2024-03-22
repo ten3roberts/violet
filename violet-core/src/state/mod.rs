@@ -4,56 +4,64 @@
 //! smaller parts of a larger state.
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-use futures::{stream::BoxStream, Stream, StreamExt};
+use futures::{stream::BoxStream, FutureExt, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
+pub mod constant;
 mod dedup;
 mod feedback;
 mod filter;
 mod map;
+mod memo;
 
 pub use dedup::*;
 pub use feedback::*;
 pub use filter::*;
 pub use map::*;
+pub use memo::*;
+
+use sync_wrapper::SyncWrapper;
 
 pub trait State {
     type Item;
 
     /// Map a state from one type to another through reference projection
+    ///
+    /// This an be used to target a specific field of a struct or item in an array to transform.
     fn map_ref<F: Fn(&Self::Item) -> &U, G: Fn(&mut Self::Item) -> &mut U, U>(
         self,
-        f: F,
-        g: G,
+        conv_to: F,
+        conv_from: G,
     ) -> MapRef<Self, U, F, G>
     where
+        Self: StateRef,
         Self: Sized,
     {
-        MapRef::new(self, f, g)
+        MapRef::new(self, conv_to, conv_from)
     }
 
     /// Map a state from one type to another
     fn map<F: Fn(Self::Item) -> U, G: Fn(U) -> Self::Item, U>(
         self,
-        f: F,
-        g: G,
+        conv_to: F,
+        conv_from: G,
     ) -> Map<Self, U, F, G>
     where
         Self: Sized,
     {
-        Map::new(self, f, g)
+        Map::new(self, conv_to, conv_from)
     }
 
     /// Map a state from one type to another through fallible conversion
     fn filter_map<F: Fn(Self::Item) -> Option<U>, G: Fn(U) -> Option<Self::Item>, U>(
         self,
-        f: F,
-        g: G,
+        conv_to: F,
+        conv_from: G,
     ) -> FilterMap<Self, U, F, G>
     where
         Self: Sized,
     {
-        FilterMap::new(self, f, g)
+        FilterMap::new(self, conv_to, conv_from)
     }
 
     fn dedup(self) -> Dedup<Self>
@@ -71,11 +79,19 @@ pub trait State {
     {
         PreventFeedback::new(self)
     }
+
+    fn memo(self, initial_value: Self::Item) -> Memo<Self, Self::Item>
+    where
+        Self: Sized,
+        Self: StateStream,
+        Self::Item: Clone,
+    {
+        Memo::new(self, initial_value)
+    }
 }
 
 /// A trait to read a reference from a generic state
-pub trait StateRef {
-    type Item;
+pub trait StateRef: State {
     fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V;
 }
 
@@ -101,7 +117,7 @@ pub trait StateStreamRef: State {
     ///
     /// The passed function is used to transform the value in the stream, to allow for handling
     /// non-static or non-cloneable types.
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         func: F,
     ) -> impl Stream<Item = V> + 'static + Send
@@ -121,7 +137,17 @@ pub trait StateSink: State {
 }
 
 /// Allows sending and receiving a value to a state
+///
+///
+/// This is the most common form of state and is used for both reading state updates, and sending
+/// new state.
+///
+/// Notably, this does not allow to directly read the state, as it may not always be available due
+/// to filtered states. Instead, you can subscribe to changes and use [`WatchState`] to hold on to
+/// the latest known state.
 pub trait StateDuplex: StateStream + StateSink {}
+
+pub type DynStateDuplex<T> = Box<dyn Send + Sync + StateDuplex<Item = T>>;
 
 impl<T> StateDuplex for T where T: StateStream + StateSink {}
 
@@ -130,7 +156,6 @@ impl<T> State for Mutable<T> {
 }
 
 impl<T> StateRef for Mutable<T> {
-    type Item = T;
     fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V {
         f(&self.lock_ref())
     }
@@ -152,7 +177,7 @@ impl<T> StateStreamRef for Mutable<T>
 where
     T: 'static + Send + Sync,
 {
-    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         func: F,
     ) -> impl Stream<Item = V> + 'static + Send {
@@ -208,7 +233,6 @@ where
     C: StateRef,
     F: Fn(&C::Item) -> &U,
 {
-    type Item = U;
     fn read_ref<H: FnOnce(&Self::Item) -> V, V>(&self, f: H) -> V {
         self.inner.read_ref(|v| f((self.project)(v)))
     }
@@ -241,7 +265,7 @@ where
     C: StateStreamRef,
     F: 'static + Fn(&C::Item) -> &U + Sync + Send,
 {
-    fn stream_ref<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
         &self,
         mut func: I,
     ) -> impl Stream<Item = V> + 'static + Send {
@@ -270,6 +294,38 @@ where
 {
     fn send(&self, value: Self::Item) {
         self.write_mut(|v| *v = value);
+    }
+}
+
+pub struct WatchState<S: Stream> {
+    stream: SyncWrapper<S>,
+    last_item: Option<S::Item>,
+}
+
+impl<S: Stream> WatchState<S> {
+    pub fn new(stream: S) -> Self {
+        Self {
+            stream: SyncWrapper::new(stream),
+            last_item: None,
+        }
+    }
+
+    pub fn last_item(&self) -> Option<&S::Item> {
+        self.last_item.as_ref()
+    }
+
+    pub fn get(&mut self) -> Option<&S::Item>
+    where
+        S: Unpin,
+    {
+        let new =
+            std::iter::from_fn(|| self.stream.get_mut().next().now_or_never().flatten()).last();
+
+        if let Some(new) = new {
+            self.last_item = Some(new);
+        }
+
+        self.last_item.as_ref()
     }
 }
 
@@ -303,7 +359,6 @@ macro_rules! impl_container {
         where
             T: StateRef,
         {
-            type Item = T::Item;
             fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V {
                 (**self).read_ref(f)
             }
@@ -311,7 +366,7 @@ macro_rules! impl_container {
 
         impl<T> StateOwned for $ty<T>
         where
-            T: StateOwned,
+            T: ?Sized + StateOwned,
         {
             fn read(&self) -> Self::Item {
                 (**self).read()
@@ -331,10 +386,7 @@ macro_rules! impl_container {
         where
             T: StateStreamRef,
         {
-            fn stream_ref<
-                F: 'static + Send + Sync + FnMut(&Self::Item) -> V,
-                V: 'static + Send + Sync,
-            >(
+            fn stream_ref<F: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
                 &self,
                 func: F,
             ) -> impl Stream<Item = V> + 'static + Send {
@@ -378,7 +430,7 @@ impl<T> StateStreamRef for flume::Receiver<T>
 where
     T: 'static + Send + Sync,
 {
-    fn stream_ref<F: 'static + Send + FnMut(&T) -> V, V: 'static + Send + Sync>(
+    fn stream_ref<F: 'static + Send + FnMut(&T) -> V, V: 'static + Send>(
         &self,
         mut func: F,
     ) -> impl 'static + Send + Stream<Item = V> {

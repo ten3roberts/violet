@@ -3,15 +3,15 @@ use glam::Vec2;
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, margin, max_size, min_size, offset, padding, rect},
+    components::{anchor, layout, offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
-    layout::{Alignment, Direction, FlowLayout, Layout, StackLayout},
+    layout::{Alignment, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     style::{
-        colors::{EERIE_BLACK_300, EERIE_BLACK_400},
-        Background, SizeExt, StyleExt, WidgetSize,
+        primary_background, secondary_background, spacing_medium, spacing_small, Background,
+        SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
-    Edges, Frame, Scope, Widget, WidgetCollection,
+    Frame, Scope, Widget, WidgetCollection,
 };
 
 /// Style for most container type widgets.
@@ -204,16 +204,16 @@ impl<W: Widget> Widget for Movable<W> {
             .set(offset(), Unit::default())
             .on_event(on_mouse_input(), {
                 let start_offset = start_offset.clone();
-                move |_, _, input| {
+                move |_, input| {
                     if input.state == ElementState::Pressed {
                         let cursor_pos = input.cursor.local_pos;
                         *start_offset.lock_mut() = cursor_pos;
                     }
                 }
             })
-            .on_event(on_cursor_move(), move |frame, entity, input| {
-                let rect = entity.get_copy(rect()).unwrap();
-                let anchor = entity
+            .on_event(on_cursor_move(), move |scope, input| {
+                let rect = scope.get_copy(rect()).unwrap();
+                let anchor = scope
                     .get_copy(anchor())
                     .unwrap_or_default()
                     .resolve(rect.size());
@@ -221,11 +221,32 @@ impl<W: Widget> Widget for Movable<W> {
                 let cursor_pos = input.local_pos + rect.min;
 
                 let new_offset = cursor_pos - start_offset.get() + anchor;
-                let new_offset = (self.on_move)(frame, new_offset);
-                entity.update_dedup(offset(), Unit::px(new_offset));
+                let new_offset = (self.on_move)(scope.frame(), new_offset);
+                scope.update_dedup(offset(), Unit::px(new_offset));
             });
 
         Stack::new(self.content).mount(scope)
+    }
+}
+
+pub struct Float<W> {
+    items: W,
+}
+
+impl<W> Float<W> {
+    pub fn new(items: W) -> Self {
+        Self { items }
+    }
+}
+
+impl<W> Widget for Float<W>
+where
+    W: WidgetCollection,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.items.attach(scope);
+
+        scope.set(layout(), Layout::Float(FloatLayout {}));
     }
 }
 
@@ -233,7 +254,7 @@ pub fn row<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Horizontal)
 }
 
-pub fn column<W: WidgetCollection>(widgets: W) -> List<W> {
+pub fn col<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Vertical)
 }
 
@@ -246,15 +267,15 @@ pub fn centered<W>(widget: W) -> Stack<W> {
 pub fn card<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
-        .with_background(Background::new(EERIE_BLACK_400))
-        .with_padding(Edges::even(4.0))
-        .with_margin(Edges::even(4.0))
+        .with_background(Background::new(secondary_background()))
+        .with_padding(spacing_medium())
+        .with_margin(spacing_medium())
 }
 
-pub fn card2<W>(widget: W) -> Stack<W> {
+pub fn pill<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
-        .with_background(Background::new(EERIE_BLACK_300))
-        .with_padding(Edges::even(4.0))
-        .with_margin(Edges::even(4.0))
+        .with_background(Background::new(primary_background()))
+        .with_padding(spacing_small())
+        .with_margin(spacing_small())
 }

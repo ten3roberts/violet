@@ -1,6 +1,15 @@
+#[doc(hidden)]
+pub use flax;
 use flax::Component;
 
 pub struct Atom<T>(pub(crate) Component<T>);
+
+impl<T> Atom<T> {
+    #[doc(hidden)]
+    pub fn from_component(component: Component<T>) -> Self {
+        Self(component)
+    }
+}
 
 impl<T> Clone for Atom<T> {
     fn clone(&self) -> Self {
@@ -23,14 +32,14 @@ macro_rules! declare_atom {
     ($(#[$outer:meta])* $vis: vis $name: ident: $ty: ty $(=> [$($metadata: ty),*])?, $($rest:tt)*) => {
         $(#[$outer])*
             $vis fn $name() -> $crate::atom::Atom<$ty> {
-                use flax::entity::EntityKind;
+                use $crate::atom::flax::entity::EntityKind;
 
-                static COMPONENT_ID: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new(flax::entity::EntityIndex::MAX);
-                static VTABLE: &flax::vtable::ComponentVTable<$ty> = flax::component_vtable!($name: $ty $(=> [$($metadata),*])?);
-                $crate::atom::Atom(flax::Component::static_init(&COMPONENT_ID, EntityKind::COMPONENT, VTABLE))
+                static COMPONENT_ID: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new($crate::atom::flax::entity::EntityIndex::MAX);
+                static VTABLE: &$crate::atom::flax::vtable::ComponentVTable<$ty> = $crate::atom::flax::component_vtable!($name: $ty $(=> [$($metadata),*])?);
+                $crate::atom::Atom::from_component($crate::atom::flax::Component::static_init(&COMPONENT_ID, EntityKind::COMPONENT, VTABLE))
             }
 
-        flax::component!{ $($rest)* }
+        $crate::atom::flax::component!{ $($rest)* }
     };
 
 }

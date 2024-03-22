@@ -1,6 +1,6 @@
 use std::task::Poll;
 
-use futures::Stream;
+use futures::{ready, Future, Stream};
 
 #[macro_export]
 macro_rules! to_owned {
@@ -10,7 +10,12 @@ macro_rules! to_owned {
 }
 
 /// Combines two streams yielding the latest value from each stream
-pub fn zip_latest_ref<A: Stream, B: Stream, F>(a: A, b: B, func: F) -> ZipLatest<A, B, F> {
+pub fn zip_latest_ref<A, B, F, V>(a: A, b: B, func: F) -> ZipLatest<A, B, F>
+where
+    A: Stream,
+    B: Stream,
+    F: Fn(&A::Item, &B::Item) -> V,
+{
     ZipLatest::new(a, b, func)
 }
 
@@ -80,4 +85,63 @@ where
             _ => Poll::Pending,
         }
     }
+}
+
+#[pin_project::pin_project]
+pub struct Throttle<S, F, C> {
+    #[pin]
+    stream: S,
+    #[pin]
+    fut: Option<F>,
+    throttle: C,
+}
+
+impl<S, F, C> Throttle<S, F, C> {
+    pub fn new(stream: S, throttle: C) -> Self {
+        Self {
+            stream,
+            fut: None,
+            throttle,
+        }
+    }
+}
+
+impl<S, F, C> Stream for Throttle<S, F, C>
+where
+    S: Stream,
+    F: Future<Output = ()>,
+    C: FnMut() -> F,
+{
+    type Item = S::Item;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let mut p = self.project();
+
+        if let Some(fut) = p.fut.as_mut().as_pin_mut() {
+            ready!(fut.poll(cx));
+            p.fut.set(None);
+        }
+
+        let item = ready!(p.stream.poll_next(cx));
+
+        if let Some(item) = item {
+            p.fut.set(Some((p.throttle)()));
+            Poll::Ready(Some(item))
+        } else {
+            Poll::Ready(None)
+        }
+    }
+}
+
+/// Throttles a stream with the provided future
+pub fn throttle<S, F, C>(stream: S, throttle: C) -> Throttle<S, F, C>
+where
+    S: Stream,
+    F: Future<Output = ()>,
+    C: FnMut() -> F,
+{
+    Throttle::new(stream, throttle)
 }

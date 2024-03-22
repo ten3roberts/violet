@@ -8,16 +8,13 @@ use glam::Vec2;
 use palette::{IntoColor, Oklab, Srgba};
 
 use crate::{
-    components::{color, draw_shape, margin, max_size, min_size, padding, size},
+    components::{color, draw_shape, margin, max_size, maximize, min_size, padding, size},
     shape::shape_rectangle,
     unit::Unit,
     Edges, Scope,
 };
 
-use self::colors::{
-    EERIE_BLACK_600, EERIE_BLACK_700, EERIE_BLACK_DEFAULT, JADE_400, JADE_600, JADE_DEFAULT,
-    LION_DEFAULT, PLATINUM_DEFAULT, REDWOOD_DEFAULT,
-};
+use self::colors::*;
 
 #[macro_export]
 /// Create a color from a hex string
@@ -57,6 +54,7 @@ pub struct WidgetSize {
     pub max_size: Option<Unit<Vec2>>,
     pub margin: Option<ValueOrRef<Edges>>,
     pub padding: Option<ValueOrRef<Edges>>,
+    pub maximize: Option<Vec2>,
 }
 
 impl WidgetSize {
@@ -75,7 +73,8 @@ impl WidgetSize {
             .set_opt(padding(), p)
             .set_opt(size(), self.size)
             .set_opt(min_size(), self.min_size)
-            .set_opt(max_size(), self.max_size);
+            .set_opt(max_size(), self.max_size)
+            .set_opt(maximize(), self.maximize);
     }
 
     /// Set the size
@@ -105,6 +104,12 @@ impl WidgetSize {
     /// Set the padding around inner content.
     pub fn with_padding(mut self, padding: impl Into<ValueOrRef<Edges>>) -> Self {
         self.padding = Some(padding.into());
+        self
+    }
+
+    /// Maximize the widget to the available size with the given weight.
+    pub fn with_maximize(mut self, maximize: Vec2) -> Self {
+        self.maximize = Some(maximize);
         self
     }
 }
@@ -170,6 +175,14 @@ pub trait SizeExt {
         self
     }
 
+    fn with_maximize(mut self, maximize: Vec2) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().maximize = Some(maximize);
+        self
+    }
+
     fn size_mut(&mut self) -> &mut WidgetSize;
 }
 
@@ -211,10 +224,7 @@ impl<T: Copy + ComponentValue> ValueOrRef<T> {
     pub(crate) fn resolve(self, stylesheet: EntityRef<'_>) -> T {
         match self {
             ValueOrRef::Value(value) => value,
-            ValueOrRef::Ref(component) => {
-                let value = stylesheet.get_copy(component).unwrap();
-                value
-            }
+            ValueOrRef::Ref(component) => stylesheet.get_copy(component).unwrap(),
         }
     }
 }
@@ -256,21 +266,22 @@ pub fn setup_stylesheet() -> EntityBuilder {
 
     builder
         // colors
-        .set(primary_background(), EERIE_BLACK_DEFAULT)
-        .set(primary_item(), PLATINUM_DEFAULT)
-        .set(secondary_background(), EERIE_BLACK_600)
-        .set(accent_background(), EERIE_BLACK_DEFAULT)
-        .set(accent_item(), JADE_DEFAULT)
-        .set(success_background(), EERIE_BLACK_DEFAULT)
-        .set(success_item(), JADE_DEFAULT)
-        .set(warning_background(), EERIE_BLACK_DEFAULT)
-        .set(warning_item(), LION_DEFAULT)
-        .set(danger_background(), EERIE_BLACK_DEFAULT)
-        .set(danger_item(), REDWOOD_DEFAULT)
-        .set(interactive_active(), JADE_DEFAULT)
-        .set(interactive_hover(), JADE_600)
-        .set(interactive_pressed(), JADE_400)
-        .set(interactive_inactive(), EERIE_BLACK_700)
+        .set(primary_background(), STONE_950)
+        .set(primary_item(), PLATINUM_100)
+        .set(secondary_background(), STONE_900)
+        .set(accent_background(), PLATINUM_800)
+        .set(accent_item(), EMERALD_500)
+        .set(success_background(), EMERALD_800)
+        .set(success_item(), EMERALD_500)
+        .set(warning_background(), AMBER_800)
+        .set(warning_item(), AMBER_500)
+        .set(danger_background(), REDWOOD_800)
+        .set(danger_item(), REDWOOD_400)
+        .set(interactive_active(), EMERALD_500)
+        .set(interactive_passive(), ZINC_800)
+        .set(interactive_hover(), EMERALD_800)
+        .set(interactive_pressed(), EMERALD_500)
+        .set(interactive_inactive(), ZINC_700)
         // spacing
         .set(spacing_small(), 4.0.into())
         .set(spacing_medium(), 8.0.into())
@@ -308,6 +319,7 @@ flax::component! {
 
     /// Used for the main parts of interactive elements
     pub interactive_active: Srgba,
+    pub interactive_passive: Srgba,
     pub interactive_inactive: Srgba,
     pub interactive_hover: Srgba,
     pub interactive_pressed: Srgba,

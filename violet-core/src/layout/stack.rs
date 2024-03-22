@@ -1,5 +1,5 @@
 use flax::{Entity, EntityRef, World};
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     Edges, Rect,
 };
 
-use super::{resolve_pos, update_subtree, Alignment, Block, Direction, LayoutLimits, Sizing};
+use super::{apply_layout, resolve_pos, Alignment, Block, LayoutLimits, QueryArgs, Sizing};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -98,7 +98,7 @@ impl StackLayout {
         preferred_size: Vec2,
     ) -> Block {
         puffin::profile_function!();
-        let _span = tracing::info_span!("StackLayout::apply").entered();
+        let _span = tracing::debug_span!("StackLayout::apply").entered();
 
         let mut bounds = Rect {
             min: Vec2::MAX,
@@ -117,7 +117,7 @@ impl StackLayout {
                     max_size: limits.max_size,
                 };
 
-                let block = update_subtree(world, &entity, content_area.size(), limits);
+                let block = apply_layout(world, &entity, content_area.size(), limits);
 
                 bounds = bounds.merge(block.rect.translate(content_area.min));
 
@@ -132,7 +132,7 @@ impl StackLayout {
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(preferred_size, content_area.min));
 
-        let mut can_grow = false;
+        let mut can_grow = BVec2::FALSE;
 
         let offset = resolve_pos(entity, content_area.size(), size);
         for (entity, block) in blocks {
@@ -151,7 +151,7 @@ impl StackLayout {
                 block.margin,
             ));
 
-            can_grow = can_grow || block.can_grow;
+            can_grow |= block.can_grow;
 
             // entity.update_dedup(components::rect(), block.rect.translate(offset));
             entity.update_dedup(components::rect(), block.rect);
@@ -173,20 +173,17 @@ impl StackLayout {
         &self,
         world: &World,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        squeeze: Direction,
+        args: QueryArgs,
         preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        let min_rect = Rect::from_size_pos(limits.min_size, content_area.min);
+        let min_rect = Rect::from_size(args.limits.min_size);
+
         let mut min_bounds = StackableBounds::from_rect(min_rect);
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);
 
-        let mut hints = SizingHints {
-            fixed_size: true,
-            can_grow: false,
-        };
+        let mut hints = SizingHints::default();
+        let mut maximize = Vec2::ZERO;
 
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
@@ -194,37 +191,37 @@ impl StackLayout {
             let sizing = query_size(
                 world,
                 &entity,
-                content_area.size(),
-                LayoutLimits {
-                    min_size: Vec2::ZERO,
-                    max_size: limits.max_size,
+                QueryArgs {
+                    limits: LayoutLimits {
+                        min_size: Vec2::ZERO,
+                        max_size: args.limits.max_size,
+                    },
+                    content_area: args.content_area,
+                    direction: args.direction,
                 },
-                squeeze,
             );
+
+            maximize += sizing.maximize;
 
             hints = hints.combine(sizing.hints);
 
-            min_bounds = min_bounds.merge(&StackableBounds::new(
-                sizing.min.translate(content_area.min),
-                sizing.margin,
-            ));
+            min_bounds = min_bounds.merge(&StackableBounds::new(sizing.min, sizing.margin));
 
-            preferred_bounds = preferred_bounds.merge(&StackableBounds::new(
-                sizing.preferred.translate(content_area.min),
-                sizing.margin,
-            ));
+            preferred_bounds =
+                preferred_bounds.merge(&StackableBounds::new(sizing.preferred, sizing.margin));
         }
 
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
 
         Sizing {
-            min: min_bounds.inner.max_size(limits.min_size),
+            min: min_bounds.inner.max_size(args.limits.min_size),
             // .clamp_size(limits.min_size, limits.max_size),
             preferred: preferred_bounds.inner.max_size(preferred_size),
             // .clamp_size(limits.min_size, limits.max_size),
             margin: min_margin.max(preferred_margin),
             hints,
+            maximize,
         }
     }
 }

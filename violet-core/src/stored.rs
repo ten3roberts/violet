@@ -178,6 +178,15 @@ pub struct UntypedHandle {
 }
 
 impl UntypedHandle {
+    pub fn new<T: 'static>(handle: Handle<T>) -> Self {
+        Self {
+            index: handle.index,
+            free_tx: handle.free_tx.clone(),
+            ty: TypeId::of::<T>(),
+            refs: handle.refs.clone(),
+        }
+    }
+
     pub fn downgrade(&self) -> WeakUntypedHandle {
         WeakUntypedHandle {
             index: self.index,

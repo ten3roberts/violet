@@ -8,6 +8,7 @@ use palette::Srgba;
 use crate::{
     assets::Asset,
     layout::{Layout, SizeResolver},
+    stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
     Edges, Frame, Rect,
@@ -27,6 +28,8 @@ component! {
 
     /// Specifies in screen space where the widget rect upper left corner is
     pub screen_position: Vec2 => [ Debuggable ],
+
+    pub rotation: f32 => [ Debuggable ],
 
     /// Offset the widget from its original position
     pub offset: Unit<Vec2> => [ Debuggable ],
@@ -48,7 +51,9 @@ component! {
     /// Constrain the aspect ratio of a widget
     pub aspect_ratio: f32 => [ Debuggable ],
 
-    /// Sets the anchor point withing the bounds of the widget where position is applied
+    /// Set the origin or anchor point of a widget.
+    ///
+    /// This determines the center of positioning and rotation
     pub anchor: Unit<Vec2> => [ Debuggable ],
 
 
@@ -65,6 +70,8 @@ component! {
     ///
     /// A margin is in essence a minimum allowed distance to another items bounds
     pub margin: Edges => [ Debuggable ],
+
+    pub maximize: Vec2 => [ Debuggable ],
 
     pub text: Vec<TextSegment> => [ ],
     pub text_wrap: Wrap => [ Debuggable ],
@@ -91,6 +98,8 @@ component! {
     pub(crate) atoms,
 
     pub on_animation_frame: OnAnimationFrame,
+
+    pub handles: Vec<UntypedHandle>,
 }
 
 pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration) + Send + Sync>;

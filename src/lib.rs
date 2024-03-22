@@ -5,3 +5,4 @@ pub use flax;
 pub use futures_signals;
 pub use glam;
 pub use palette;
+pub use web_time;

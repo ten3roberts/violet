@@ -4,11 +4,9 @@ use palette::Srgba;
 
 use crate::{
     assets::AssetKey,
-    components::{
-        self, aspect_ratio, color, draw_shape, font_size, min_size, size, text, text_wrap,
-    },
+    components::{self, color, draw_shape, font_size, text, text_wrap},
     shape,
-    style::{spacing_large, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
+    style::{colors::REDWOOD_500, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
@@ -50,11 +48,22 @@ impl SizeExt for Rectangle {
 
 pub struct Image<K> {
     image: K,
+    size: WidgetSize,
+    aspect_ratio: Option<f32>,
 }
 
 impl<K> Image<K> {
     pub fn new(image: K) -> Self {
-        Self { image }
+        Self {
+            image,
+            size: Default::default(),
+            aspect_ratio: None,
+        }
+    }
+
+    pub fn with_aspect_ratio(mut self, aspect_ratio: f32) -> Self {
+        self.aspect_ratio = Some(aspect_ratio);
+        self
     }
 }
 
@@ -65,15 +74,23 @@ where
     fn mount(self, scope: &mut Scope) {
         let image = scope.assets_mut().try_load(&self.image).ok();
         if let Some(image) = image {
+            self.size.mount(scope);
             scope
                 .set(color(), Srgba::new(1.0, 1.0, 1.0, 1.0))
                 .set(draw_shape(shape::shape_rectangle()), ())
-                .set(components::image(), image);
+                .set(components::image(), image)
+                .set_opt(components::aspect_ratio(), self.aspect_ratio);
         } else {
-            Text::new("Image not found")
-                .with_color(Srgba::new(1.0, 0.0, 0.0, 1.0))
+            label("Image not found")
+                .with_color(REDWOOD_500)
                 .mount(scope);
         }
+    }
+}
+
+impl<K> SizeExt for Image<K> {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
     }
 }
 
@@ -88,7 +105,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         Self {
             font_size: 16.0,
-            wrap: Wrap::WordOrGlyph,
+            wrap: Wrap::Word,
             color: None,
         }
     }
@@ -202,50 +219,5 @@ where
 
         scope.set(components::anchor(), self.anchor);
         scope.set(components::offset(), self.offset);
-    }
-}
-
-pub struct BoxSized<W> {
-    size: Unit<Vec2>,
-    min_size: Unit<Vec2>,
-    aspect_ratio: f32,
-    widget: W,
-}
-
-impl<W> BoxSized<W> {
-    pub fn new(widget: W) -> Self {
-        Self {
-            size: Unit::ZERO,
-            min_size: Unit::ZERO,
-            widget,
-            aspect_ratio: 0.0,
-        }
-    }
-
-    pub fn with_size(mut self, size: Unit<Vec2>) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn with_min_size(mut self, min_size: Unit<Vec2>) -> Self {
-        self.min_size = min_size;
-        self
-    }
-
-    /// Set the aspect ratio
-    pub fn with_aspect_ratio(mut self, aspect_ratio: f32) -> Self {
-        self.aspect_ratio = aspect_ratio;
-        self
-    }
-}
-
-impl<W: Widget> Widget for BoxSized<W> {
-    fn mount(self, scope: &mut Scope<'_>) {
-        self.widget.mount(scope);
-
-        scope
-            .set(size(), self.size)
-            .set(min_size(), self.min_size)
-            .set(aspect_ratio(), self.aspect_ratio);
     }
 }

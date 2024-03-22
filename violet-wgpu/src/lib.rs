@@ -10,4 +10,4 @@ mod texture;
 
 pub use graphics::Gpu;
 
-pub use app::App;
+pub use app::AppBuilder;

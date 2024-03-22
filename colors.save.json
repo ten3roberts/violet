@@ -1,0 +1,128 @@
+[
+  {
+    "color": {
+      "l": 0.49969554,
+      "chroma": 0.0,
+      "hue": 0.0
+    },
+    "falloff": 15.0,
+    "name": "Stone"
+  },
+  {
+    "color": {
+      "l": 0.5,
+      "chroma": 0.01,
+      "hue": 62.0
+    },
+    "falloff": 15.0,
+    "name": "Platinum"
+  },
+  {
+    "color": {
+      "l": 0.49287146,
+      "chroma": 0.017929163,
+      "hue": 270.86707
+    },
+    "falloff": 15.0,
+    "name": "Zinc"
+  },
+  {
+    "color": {
+      "l": 0.49898326,
+      "chroma": 0.1,
+      "hue": 7.0
+    },
+    "falloff": 15.0,
+    "name": "Cherry"
+  },
+  {
+    "color": {
+      "l": 0.50082797,
+      "chroma": 0.1,
+      "hue": 52.90864
+    },
+    "falloff": 15.0,
+    "name": "Copper"
+  },
+  {
+    "color": {
+      "l": 0.5,
+      "chroma": 0.165,
+      "hue": 27.0
+    },
+    "falloff": 15.0,
+    "name": "Redwood"
+  },
+  {
+    "color": {
+      "l": 0.50735986,
+      "chroma": 0.185,
+      "hue": 88.0
+    },
+    "falloff": 15.0,
+    "name": "Amber"
+  },
+  {
+    "color": {
+      "l": 0.51262295,
+      "chroma": 0.15,
+      "hue": 351.19986
+    },
+    "falloff": 15.0,
+    "name": "Rose"
+  },
+  {
+    "color": {
+      "l": 0.5,
+      "chroma": 0.225,
+      "hue": 130.0
+    },
+    "falloff": 15.0,
+    "name": "Forest"
+  },
+  {
+    "color": {
+      "l": 0.5,
+      "chroma": 0.27,
+      "hue": 173.0
+    },
+    "falloff": 15.0,
+    "name": "Emerald"
+  },
+  {
+    "color": {
+      "l": 0.57011175,
+      "chroma": 0.27,
+      "hue": 193.86102
+    },
+    "falloff": 15.0,
+    "name": "Teal"
+  },
+  {
+    "color": {
+      "l": 0.5,
+      "chroma": 0.27,
+      "hue": 262.0
+    },
+    "falloff": 15.0,
+    "name": "Ocean"
+  },
+  {
+    "color": {
+      "l": 0.50050735,
+      "chroma": 0.25,
+      "hue": 297.98505
+    },
+    "falloff": 15.0,
+    "name": "Violet"
+  },
+  {
+    "color": {
+      "l": 0.51195455,
+      "chroma": 0.23,
+      "hue": 312.22745
+    },
+    "falloff": 15.0,
+    "name": "Amethyst"
+  }
+]

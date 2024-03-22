@@ -131,7 +131,17 @@ pub struct Rect {
     pub max: Vec2,
 }
 
+impl Display for Rect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("({:?},{:?})", self.min, self.max))
+    }
+}
+
 impl Rect {
+    pub fn new(min: Vec2, max: Vec2) -> Self {
+        Self { min, max }
+    }
+
     pub const ZERO: Self = Self {
         min: Vec2::ZERO,
         max: Vec2::ZERO,
@@ -212,7 +222,7 @@ impl Rect {
     }
 
     #[must_use]
-    pub(crate) fn clamp_size(&self, min: Vec2, max: Vec2) -> Self {
+    pub fn clamp_size(&self, min: Vec2, max: Vec2) -> Self {
         let size = self.size().clamp(min, max);
         Self {
             min: self.min,

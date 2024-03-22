@@ -16,9 +16,7 @@ impl<C, U, F, G> State for FilterMap<C, U, F, G> {
     type Item = U;
 }
 
-impl<C: State, U, F: Fn(C::Item) -> Option<U>, G: Fn(U) -> Option<C::Item>>
-    FilterMap<C, U, F, G>
-{
+impl<C: State, U, F: Fn(C::Item) -> Option<U>, G: Fn(U) -> Option<C::Item>> FilterMap<C, U, F, G> {
     pub fn new(inner: C, conv_to: F, conv_from: G) -> Self {
         Self {
             inner,

@@ -8,33 +8,20 @@ use tracing_tree::HierarchicalLayer;
 
 use violet::core::{
     components,
-    style::{
-        colors::{
-            EERIE_BLACK_400, EERIE_BLACK_DEFAULT, JADE_100, JADE_DEFAULT, LION_DEFAULT,
-            REDWOOD_DEFAULT,
-        },
-        Background,
-    },
+    state::MapRef,
+    style::{Background, SizeExt},
+    text::Wrap,
     unit::Unit,
-    widget::{Rectangle, SignalWidget, Stack, Text, WidgetExt},
+    widget::{card, centered, col, label, row, Rectangle, SignalWidget, Slider, Text, WidgetExt},
     Edges, Scope, Widget,
 };
-use violet_core::{
-    state::MapRef,
-    style::{colors::DARK_CYAN_DEFAULT, SizeExt},
-    text::Wrap,
-    widget::{card, centered, column, row, Slider},
+use violet_core::style::{
+    colors::{AMBER_500, EMERALD_500, EMERALD_800, REDWOOD_500, TEAL_500},
+    primary_background,
 };
 use violet_wgpu::renderer::RendererConfig;
 
 const MARGIN_SM: Edges = Edges::even(4.0);
-
-fn label(text: impl Into<String>) -> Stack<Text> {
-    Stack::new(Text::new(text.into()))
-        .with_padding(MARGIN_SM)
-        .with_margin(MARGIN_SM)
-        .with_background(Background::new(EERIE_BLACK_400))
-}
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -48,7 +35,7 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::App::new()
+    violet_wgpu::AppBuilder::new()
         .with_renderer_config(RendererConfig { debug_mode: true })
         .run(MainApp)
 }
@@ -76,7 +63,7 @@ impl Widget for Vec2Editor {
         let x = MapRef::new(value.clone(), |v| &v.x, |v| &mut v.x);
         let y = MapRef::new(value.clone(), |v| &v.y, |v| &mut v.y);
 
-        column((
+        col((
             row((label(self.x_label), Slider::new(x, 0.0, 200.0))),
             row((label(self.y_label), Slider::new(y, 0.0, 200.0))),
         ))
@@ -89,8 +76,8 @@ impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
         let size = Mutable::new(vec2(100.0, 100.0));
 
-        column((
-            card(column((
+        col((
+            card(col((
                 Vec2Editor::new(size.clone(), "width", "height"),
                 SignalWidget::new(size.signal().map(|size| label(format!("Rectangle size: {size}")))),
             ))),
@@ -99,7 +86,7 @@ impl Widget for MainApp {
             // AnimatedSize,
         ))
         .contain_margins(true)
-        .with_background(Background::new(EERIE_BLACK_DEFAULT))
+        .with_background(Background::new(primary_background()))
         .mount(scope)
     }
 }
@@ -110,38 +97,35 @@ struct FlowSizing {
 
 impl Widget for FlowSizing {
     fn mount(self, scope: &mut Scope<'_>) {
-        let bg = Background::new(JADE_100);
+        let bg = Background::new(EMERALD_800);
 
         let content = (
-            SizedBox::new(JADE_DEFAULT, Unit::px(self.size)).with_name("EMERALD"),
-            SizedBox::new(REDWOOD_DEFAULT, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
-            SizedBox::new(
-                DARK_CYAN_DEFAULT,
-                Unit::rel2(0.0, 0.0) + Unit::px2(10.0, 50.0),
-            )
-            .with_name("DARK_CYAN"),
+            SizedBox::new(EMERALD_500, Unit::px(self.size)).with_name("EMERALD"),
+            SizedBox::new(REDWOOD_500, Unit::px2(50.0, 40.0)).with_name("REDWOOD"),
+            SizedBox::new(TEAL_500, Unit::rel2(0.0, 0.0) + Unit::px2(10.0, 50.0))
+                .with_name("DARK_CYAN"),
             AnimatedSize,
         );
 
-        column((
+        col((
             row((
-                card(column((
+                card(col((
                     label("Unconstrained list"),
                     row(content.clone()).with_background(bg),
                 ))),
-                card(column((
+                card(col((
                     label("Constrained list with min size"),
                     row(content.clone())
                         .with_background(bg)
                         .with_min_size(Unit::px2(100.0, 100.0)),
                 ))),
-                card(column((
+                card(col((
                     label("Constrained list with max size"),
                     row(content.clone())
                         .with_background(bg)
                         .with_max_size(Unit::px2(100.0, 100.0)),
                 ))),
-                card(column((
+                card(col((
                     label("Constrained list with max size"),
                     row(content.clone())
                         .with_background(bg)
@@ -150,23 +134,23 @@ impl Widget for FlowSizing {
                 ))),
             )),
             row((
-                card(column((
+                card(col((
                     label("Unconstrained stack"),
                     centered(content.clone()).with_background(bg),
                 ))),
-                card(column((
+                card(col((
                     label("Constrained stack with min size"),
                     centered(content.clone())
                         .with_background(bg)
                         .with_min_size(Unit::px2(100.0, 100.0)),
                 ))),
-                card(column((
+                card(col((
                     label("Constrained stack with max size"),
                     centered(content.clone())
                         .with_background(bg)
                         .with_max_size(Unit::px2(100.0, 100.0)),
                 ))),
-                card(column((
+                card(col((
                     label("Constrained stack with max size"),
                     centered(content.clone())
                         .with_background(bg)
@@ -221,7 +205,7 @@ impl Widget for AnimatedSize {
             }),
         );
 
-        Rectangle::new(LION_DEFAULT)
+        Rectangle::new(AMBER_500)
             .with_size(Default::default())
             .mount(scope)
     }

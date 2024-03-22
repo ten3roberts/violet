@@ -22,6 +22,7 @@ mod types;
 pub mod unit;
 pub mod utils;
 pub mod widget;
+pub mod io;
 
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;
