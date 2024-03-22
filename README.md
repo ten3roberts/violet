@@ -1,11 +1,13 @@
 ## Violet
-Retained mode GUI library focused on reactive and composable UI
+A retained mode GUI library focused on reactive and composable UI
 
 Violet aims to be a simple library of minimal parts that can be composed to create complex UIs.
 
 State and reactivity is managed locally using async Streams, such as signals or MPSC channels and `map` methods. This
 allows composing a declarative reactive UI where data flows naturally from source to destination without re-renders or
 useState hooks.
+
+![image](https://github.com/ten3roberts/violet/assets/25723553/e057405d-0acf-4f88-a86d-9106e4e912a5)
 
 ## Features
 - Declarative Widgets and reactive state
