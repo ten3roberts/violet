@@ -52,7 +52,7 @@ col((
 .contain_margins(true)
 ```
 
-![image](https://github.com/ten3roberts/violet/assets/25723553/cedecfb5-f76b-4a32-ac32-2abf94193acd)
+![image](https://github.com/ten3roberts/violet/assets/25723553/10e76b9a-8f2d-4b74-aaa7-b9faf04a22dc)
 
 ## Features
 - Declarative Widgets and reactive state
