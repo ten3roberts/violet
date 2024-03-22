@@ -440,5 +440,5 @@ impl<'de> Deserialize<'de> for HexColor {
 static TINTS: &[i32] = &[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
 /// Going from 0.0 to 1.0 is too dark to be perceptible in the higher ranges
-static TINT_MIN: f32 = 0.14;
+static TINT_MIN: f32 = 0.17;
 static TINT_MAX: f32 = 0.97;

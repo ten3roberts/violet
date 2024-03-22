@@ -30,38 +30,38 @@ pub trait State {
     /// This an be used to target a specific field of a struct or item in an array to transform.
     fn map_ref<F: Fn(&Self::Item) -> &U, G: Fn(&mut Self::Item) -> &mut U, U>(
         self,
-        f: F,
-        g: G,
+        conv_to: F,
+        conv_from: G,
     ) -> MapRef<Self, U, F, G>
     where
         Self: StateRef,
         Self: Sized,
     {
-        MapRef::new(self, f, g)
+        MapRef::new(self, conv_to, conv_from)
     }
 
     /// Map a state from one type to another
     fn map<F: Fn(Self::Item) -> U, G: Fn(U) -> Self::Item, U>(
         self,
-        f: F,
-        g: G,
+        conv_to: F,
+        conv_from: G,
     ) -> Map<Self, U, F, G>
     where
         Self: Sized,
     {
-        Map::new(self, f, g)
+        Map::new(self, conv_to, conv_from)
     }
 
     /// Map a state from one type to another through fallible conversion
     fn filter_map<F: Fn(Self::Item) -> Option<U>, G: Fn(U) -> Option<Self::Item>, U>(
         self,
-        f: F,
-        g: G,
+        conv_to: F,
+        conv_from: G,
     ) -> FilterMap<Self, U, F, G>
     where
         Self: Sized,
     {
-        FilterMap::new(self, f, g)
+        FilterMap::new(self, conv_to, conv_from)
     }
 
     fn dedup(self) -> Dedup<Self>

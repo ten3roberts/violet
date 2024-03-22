@@ -7,7 +7,52 @@ State and reactivity is managed locally using async Streams, such as signals or 
 allows composing a declarative reactive UI where data flows naturally from source to destination without re-renders or
 useState hooks.
 
-![image](https://github.com/ten3roberts/violet/assets/25723553/e057405d-0acf-4f88-a86d-9106e4e912a5)
+## Example
+```rust
+let name = Mutable::new("".to_string());
+let color = Mutable::new(Srgba::new(0.0, 0.61, 0.388, 1.0));
+
+// Map a `Mutable<Srgba>` into a `StateDuplex<f32>` for each field
+let r = color.clone().map_ref(|v| &v.red, |v| &mut v.red);
+let g = color.clone().map_ref(|v| &v.green, |v| &mut v.green);
+let b = color.clone().map_ref(|v| &v.blue, |v| &mut v.blue);
+
+let speed = Mutable::new(None as Option<f32>);
+
+col((
+    card(row((label("What is your name?"), TextInput::new(name)))),
+    card(col((
+        label("What is your favorite color?"),
+        SliderWithLabel::new(r, 0.0, 1.0).round(0.01),
+        SliderWithLabel::new(g, 0.0, 1.0).round(0.01),
+        SliderWithLabel::new(b, 0.0, 1.0).round(0.01),
+        StreamWidget(color.stream().map(|v| {
+            Rectangle::new(v)
+                .with_maximize(Vec2::X)
+                .with_min_size(Unit::px2(100.0, 100.0))
+        })),
+    ))),
+    card(row((
+        label("What is the airspeed velocity of an unladen swallow?"),
+        // Fallibly parse and fill in the None at the same time using the `State` trait
+        // combinators
+        TextInput::new(speed.clone().prevent_feedback().filter_map(
+            |v| v.map(|v| v.to_string()),
+            |v| Some(v.parse::<f32>().ok()),
+        )),
+        StreamWidget(speed.stream().map(|v| {
+            match v {
+                Some(v) => pill(Text::new(format!("{v} m/s"))),
+                None => pill(Text::new("×".to_string()))
+                    .with_background(Background::new(danger_background())),
+            }
+        })),
+    ))),
+))
+.contain_margins(true)
+```
+
+![image](https://github.com/ten3roberts/violet/assets/25723553/cedecfb5-f76b-4a32-ac32-2abf94193acd)
 
 ## Features
 - Declarative Widgets and reactive state

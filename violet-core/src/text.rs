@@ -77,7 +77,7 @@ impl TextSegment {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
-            family: FontFamily::Serif,
+            family: FontFamily::SansSerif,
             style: Style::Normal,
             weight: Weight::NORMAL,
             color: Srgba::new(1.0, 1.0, 1.0, 1.0),

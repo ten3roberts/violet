@@ -19,12 +19,14 @@ use violet_core::{
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
-    style::{setup_stylesheet, stylesheet},
+    style::{primary_background, setup_stylesheet, stylesheet, Background},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    to_owned, Frame, FutureEffect, Rect, Scope, Widget,
+    to_owned,
+    widget::col,
+    Frame, FutureEffect, Rect, Scope, Widget,
 };
 
 use crate::{
@@ -55,7 +57,10 @@ impl<W: Widget> Widget for Canvas<W> {
             .set_default(screen_position())
             .set_default(local_position());
 
-        scope.attach(self.root);
+        col(self.root)
+            .contain_margins(true)
+            .with_background(Background::new(primary_background()))
+            .mount(scope);
     }
 }
 

@@ -67,6 +67,7 @@ impl TextInput {
             content: Arc::new(content),
             style: Default::default(),
             size: WidgetSize::default()
+                .with_min_size(Unit::px2(16.0, 16.0))
                 .with_margin(spacing_small())
                 .with_padding(spacing_small()),
         }

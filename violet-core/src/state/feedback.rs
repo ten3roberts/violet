@@ -61,7 +61,8 @@ where
         self.inner
             .stream()
             .filter_map(move |v| {
-                let last_sent = last_sent.select_next_some().now_or_never().flatten();
+                let last_sent = last_sent.next().now_or_never().flatten().flatten();
+
                 if last_sent.as_ref() != Some(&v) {
                     ready(Some(v))
                 } else {
