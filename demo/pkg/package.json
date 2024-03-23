@@ -1,0 +1,23 @@
+{
+  "name": "violet-demo",
+  "collaborators": [
+    "Tei Roberts"
+  ],
+  "description": "Retained mode GUI library",
+  "version": "0.0.1",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ten3roberts/violet"
+  },
+  "files": [
+    "violet_demo_bg.wasm",
+    "violet_demo.js",
+    "violet_demo.d.ts"
+  ],
+  "module": "violet_demo.js",
+  "types": "violet_demo.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
