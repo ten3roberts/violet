@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title></title>
+        <link href="css/style.css" rel="stylesheet">
+        <style>
+
+        body {
+            padding: 0;
+            margin: 0px;
+            background-color: #222222;
+        }
+        .main-canvas {
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        </style>
+    </head>
+    <body>
+    <script type="module">
+        import init, { run } from './pkg/violet_demo.js';
+
+        async function start() {
+            await init();
+            run();
+        }
+
+        start();
+    </script> 
+    <canvas id="canvas" class="main-canvas"></canvas>
+    </body>
+</html>
