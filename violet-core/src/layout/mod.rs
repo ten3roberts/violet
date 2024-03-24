@@ -442,7 +442,7 @@ pub(crate) fn apply_layout(
 
     if let Some(value) = &cache.layout {
         if validate_cached_layout(value, limits, content_area, cache.hints.relative_size) {
-            tracing::debug!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
+            tracing::trace!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
 
             return value.value;
         }

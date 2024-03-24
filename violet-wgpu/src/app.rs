@@ -15,7 +15,7 @@ use winit::{
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, local_position, rect, screen_position},
+    components::{self, local_position, rect},
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
@@ -46,16 +46,7 @@ impl<W: Widget> Widget for Canvas<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
             .set(name(), "Canvas".into())
-            .set(stylesheet(self.stylesheet), ())
-            .set(
-                rect(),
-                Rect {
-                    min: Vec2::ZERO,
-                    max: self.size,
-                },
-            )
-            .set_default(screen_position())
-            .set_default(local_position());
+            .set(stylesheet(self.stylesheet), ());
 
         col(self.root)
             .contain_margins(true)
@@ -217,7 +208,7 @@ impl AppBuilder {
                         .borrow(&instance.frame.world)
                         .iter()
                         .count();
-                    tracing::info!(archetype_count = archetypes.len(), entity_count, pruned);
+                    tracing::debug!(archetype_count = archetypes.len(), entity_count, pruned);
                     // let report = instance.?stats.report();
 
                     // window.set_title(&format!(

@@ -6,11 +6,8 @@ use image::DynamicImage;
 use itertools::Itertools;
 use violet_core::{
     assets::Asset,
-    components::screen_rect,
-    layout::{
-        cache::{layout_cache, LayoutUpdate},
-        Direction,
-    },
+    components::{rect, transform},
+    layout::cache::{layout_cache, LayoutUpdate},
     stored::{self, Handle},
     Frame,
 };
@@ -201,13 +198,15 @@ impl DebugRenderer {
         });
 
         let objects = objects.filter_map(|(entity, shader, color)| {
-            let screen_rect = entity.get(screen_rect()).ok()?.align_to_grid();
+            let rect = entity.get_copy(rect()).ok()?.align_to_grid();
+            let transform = entity.get_copy(transform()).ok()?;
 
-            let model_matrix = Mat4::from_scale_rotation_translation(
-                screen_rect.size().extend(1.0),
-                Quat::IDENTITY,
-                screen_rect.pos().extend(0.2),
-            );
+            let model_matrix = transform * Mat4::from_scale(rect.size().extend(1.0));
+            // let model_matrix = Mat4::from_scale_rotation_translation(
+            //     screen_rect.size().extend(1.0),
+            //     Quat::IDENTITY,
+            //     screen_rect.pos().extend(0.2),
+            // );
 
             let object_data = ObjectData {
                 model_matrix,

@@ -176,6 +176,7 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
         }));
 
         Positioned::new(Rectangle::new(self.handle_color).with_min_size(self.handle_size))
+            .with_offset(Unit::px2(100.0, 10.0))
             .with_anchor(Unit::rel2(0.5, 0.0))
             .mount(scope)
     }

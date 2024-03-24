@@ -5,14 +5,14 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3Swizzles, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
-    components::{anchor, color, draw_shape, image, rotation, screen_rect},
+    components::{anchor, color, draw_shape, image, rect, rotation, screen_transform},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
     unit::Unit,
@@ -63,8 +63,10 @@ impl AssetKey<DynamicImage> for ImageFromColor {
 
 #[derive(Fetch)]
 struct RectObjectQuery {
-    screen_rect: Component<Rect>,
-    rotation: OptOr<Component<f32>, f32>,
+    transform: Component<Mat4>,
+    rect: Component<Rect>,
+    // screen_rect: Component<Rect>,
+    // rotation: OptOr<Component<f32>, f32>,
     anchor: OptOr<Component<Unit<Vec2>>, Unit<Vec2>>,
     // pos: Component<Vec2>,
     // local_pos: Component<Vec2>,
@@ -75,8 +77,10 @@ struct RectObjectQuery {
 impl RectObjectQuery {
     fn new() -> Self {
         Self {
-            screen_rect: screen_rect(),
-            rotation: rotation().opt_or(0.0),
+            // screen_rect: screen_rect(),
+            // rotation: rotation().opt_or(0.0),
+            rect: rect(),
+            transform: screen_transform(),
             anchor: anchor().opt_or_default(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
@@ -228,20 +232,19 @@ impl RectRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                tracing::debug!(color=%srgba_to_vec4(*item.color), ?item.screen_rect);
-                let rect = item.screen_rect.align_to_grid();
+                let rect = item.rect.align_to_grid();
 
                 // if rect.size().x < 0.01 || rect.size().y < 0.01 {
                 // tracing::warn!("rect too small to render");
                 //     return;
                 // }
 
-                let anchor = item.anchor.resolve(rect.size()).extend(0.0);
-
-                let model_matrix = Mat4::from_translation(rect.pos().extend(0.1) + anchor)
-                    * Mat4::from_rotation_z(*item.rotation)
-                    * Mat4::from_translation(-anchor)
-                    * Mat4::from_scale(rect.size().extend(1.0));
+                let model_matrix = *item.transform
+                    * Mat4::from_scale_rotation_translation(
+                        rect.size().extend(1.0),
+                        Quat::IDENTITY,
+                        rect.pos().extend(0.0),
+                    );
 
                 *item.object_data = ObjectData {
                     model_matrix,

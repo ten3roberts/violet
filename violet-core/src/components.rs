@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use flax::{component, Debuggable, Entity, EntityRef, Exclusive};
-use glam::Vec2;
+use glam::{Mat4, Vec2};
 use image::DynamicImage;
 use palette::Srgba;
 
@@ -21,18 +21,22 @@ component! {
 
     /// Defines the outer bounds of a widget relative to its position
     pub rect: Rect => [ Debuggable ],
-    pub screen_rect: Rect => [ Debuggable ],
 
-    /// Position relative to parent
+    /// Position relative to parent for layout position.
     pub local_position: Vec2 => [ Debuggable ],
-
-    /// Specifies in screen space where the widget rect upper left corner is
-    pub screen_position: Vec2 => [ Debuggable ],
 
     pub rotation: f32 => [ Debuggable ],
 
-    /// Offset the widget from its original position
+    /// Offset the widget from its original position.
+    ///
+    /// This influences the layout bounds and the final position of the widget, and will move other
+    /// widgets around in flow layouts.
     pub offset: Unit<Vec2> => [ Debuggable ],
+
+    /// Optional transform of the widget. Applied after layout
+    pub transform: Mat4,
+
+    pub screen_transform: Mat4,
 
     /// Explicit widget size. This will override the intrinsic size of the widget.
     ///

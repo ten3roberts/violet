@@ -135,6 +135,7 @@ impl StackLayout {
         let mut can_grow = BVec2::FALSE;
 
         let offset = resolve_pos(entity, content_area.size(), size);
+
         for (entity, block) in blocks {
             let block_size = block.rect.size();
             let offset = content_area.min
@@ -143,8 +144,6 @@ impl StackLayout {
                     self.horizontal_alignment.align_offset(size.x, block_size.x),
                     self.vertical_alignment.align_offset(size.y, block_size.y),
                 );
-
-            tracing::debug!(?offset, %entity);
 
             aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
                 block.rect.translate(offset),

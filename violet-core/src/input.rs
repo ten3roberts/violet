@@ -2,7 +2,7 @@ use flax::{
     component, components::child_of, entity_ids, fetch::Satisfied, filter::All, Component, Entity,
     EntityIds, EntityRef, Fetch, FetchExt, Query, Topo, World,
 };
-use glam::Vec2;
+use glam::{Mat4, Vec2, Vec3Swizzles};
 
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
@@ -12,7 +12,7 @@ use winit::{
 };
 
 use crate::{
-    components::{rect, screen_position, screen_rect},
+    components::{rect, screen_transform},
     scope::ScopeRef,
     Frame, Rect,
 };
@@ -23,7 +23,7 @@ pub struct Input {}
 struct IntersectQuery {
     id: EntityIds,
     rect: Component<Rect>,
-    screen_pos: Component<Vec2>,
+    screen_transform: Component<Mat4>,
     sticky: Satisfied<Component<()>>,
     focusable: Component<()>,
 }
@@ -33,7 +33,7 @@ impl IntersectQuery {
         Self {
             id: entity_ids(),
             rect: rect(),
-            screen_pos: screen_position(),
+            screen_transform: screen_transform(),
             sticky: focus_sticky().satisfied(),
             focusable: focusable(),
         }
@@ -71,9 +71,14 @@ impl InputState {
             .borrow(frame.world())
             .iter()
             .filter_map(|item| {
-                let local_pos = cursor_pos - *item.screen_pos;
+                let local_pos = item
+                    .screen_transform
+                    .inverse()
+                    .transform_point3(cursor_pos.extend(0.0))
+                    .xy();
+
                 if item.rect.contains_point(local_pos) {
-                    Some((item.id, (*item.screen_pos + item.rect.min)))
+                    Some((item.id, local_pos))
                 } else {
                     None
                 }
@@ -94,13 +99,13 @@ impl InputState {
 
         // Send the event to the intersected entity
 
-        if let Some((id, origin)) = intersect {
+        if let Some((id, local_pos)) = intersect {
             let entity = frame.world().entity(id).unwrap();
 
             let cursor = CursorMove {
                 modifiers: self.modifiers,
                 absolute_pos: self.pos,
-                local_pos: self.pos - origin,
+                local_pos,
             };
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
                 let s = ScopeRef::new(frame, entity);
@@ -121,7 +126,7 @@ impl InputState {
         self.pos = pos;
 
         if let Some(entity) = &self.focused(&frame.world) {
-            let screen_rect = entity.get_copy(screen_rect()).unwrap_or_default();
+            let transform = entity.get_copy(screen_transform()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
                 let s = ScopeRef::new(frame, *entity);
                 on_input(
@@ -129,7 +134,7 @@ impl InputState {
                     CursorMove {
                         modifiers: self.modifiers,
                         absolute_pos: pos,
-                        local_pos: pos - screen_rect.min,
+                        local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy(),
                     },
                 );
             }
@@ -206,6 +211,13 @@ pub struct CursorMove {
     pub local_pos: Vec2,
 }
 
+#[derive(Debug, Clone)]
+pub struct Scroll {
+    pub scroll_x: f32,
+    pub scroll_y: f32,
+    pub modifiers: ModifiersState,
+}
+
 pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 
@@ -221,4 +233,5 @@ component! {
     pub on_cursor_move: InputEventHandler<CursorMove>,
     pub on_mouse_input: InputEventHandler<MouseInput>,
     pub on_keyboard_input: InputEventHandler<KeyboardInput>,
+    pub on_scroll: InputEventHandler<Scroll>,
 }

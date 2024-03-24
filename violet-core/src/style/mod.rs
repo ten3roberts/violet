@@ -279,7 +279,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(danger_item(), REDWOOD_400)
         .set(interactive_active(), EMERALD_500)
         .set(interactive_passive(), ZINC_800)
-        .set(interactive_hover(), EMERALD_800)
+        .set(interactive_hover(), EMERALD_400)
         .set(interactive_pressed(), EMERALD_500)
         .set(interactive_inactive(), ZINC_700)
         // spacing

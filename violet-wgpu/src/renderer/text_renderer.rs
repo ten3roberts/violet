@@ -16,7 +16,7 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 use violet_core::{
     assets::AssetCache,
     components::{
-        color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_position, text,
+        color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_transform, text,
     },
     shape::shape_text,
     stored::{self, Handle},
@@ -43,7 +43,7 @@ use super::{DrawCommand, ObjectData, RendererStore};
 struct ObjectQuery {
     draw_shape: With,
     rect: Component<Rect>,
-    pos: Component<Vec2>,
+    transform: Component<Mat4>,
     object_data: Mutable<ObjectData>,
     color: OptOr<Component<Srgba>, Srgba>,
 }
@@ -53,7 +53,7 @@ impl ObjectQuery {
         Self {
             draw_shape: draw_shape(shape_text()).with(),
             rect: rect(),
-            pos: screen_position(),
+            transform: screen_transform(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
         }
@@ -409,12 +409,8 @@ impl TextRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                let rect = item.rect.translate(*item.pos).align_to_grid();
-                let model_matrix = Mat4::from_scale_rotation_translation(
-                    Vec3::ONE,
-                    Quat::IDENTITY,
-                    rect.pos().extend(0.1),
-                );
+                let rect = item.rect.align_to_grid();
+                let model_matrix = *item.transform;
 
                 *item.object_data = ObjectData {
                     model_matrix,

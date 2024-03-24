@@ -1,7 +1,6 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Weak},
-    thread::scope,
 };
 
 use atomic_refcell::AtomicRefCell;
@@ -12,22 +11,20 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
-    query::TopoBorrow,
     BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, Fetch, FetchExt, FetchItem,
-    Query, QueryBorrow, System, Topo, World,
+    Query, QueryBorrow, System, World,
 };
-use glam::Vec2;
+use glam::{Mat4, Vec2};
 
 use crate::{
     components::{
-        self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
+        self, children, layout_bounds, local_position, rect, screen_transform, text, transform,
     },
     layout::{
         apply_layout,
         cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdate},
         LayoutLimits,
     },
-    Rect,
 };
 
 pub fn hydrate_text() -> BoxedSystem {
@@ -46,9 +43,9 @@ pub fn hydrate_text() -> BoxedSystem {
 pub fn widget_template(entity: &mut EntityBuilder, name: String) {
     entity
         .set(flax::components::name(), name)
-        .set_default(screen_position())
+        .set_default(screen_transform())
+        .set_default(transform())
         .set_default(local_position())
-        .set_default(screen_rect())
         .set_default(rect());
 }
 
@@ -187,22 +184,19 @@ pub fn transform_system() -> BoxedSystem {
     System::builder()
         .with_query(
             Query::new((
-                screen_position().as_mut(),
-                screen_rect().as_mut(),
-                rect(),
+                screen_transform().as_mut(),
                 local_position(),
+                transform().opt_or_default(),
             ))
             .with_strategy(Dfs::new(child_of)),
         )
         .build(|mut query: DfsBorrow<_>| {
             query.traverse(
-                &Vec2::ZERO,
-                |(pos, screen_rect, rect, local_pos): (&mut Vec2, &mut Rect, &Rect, &Vec2),
-                 _,
-                 parent_pos| {
-                    *pos = *parent_pos + *local_pos;
-                    *screen_rect = rect.translate(*pos);
-                    *pos
+                &Mat4::IDENTITY,
+                |(screen_trans, local_pos, trans): (&mut Mat4, &Vec2, &Mat4), _, parent| {
+                    *screen_trans =
+                        *parent * *trans * Mat4::from_translation(local_pos.extend(0.0));
+                    *screen_trans
                 },
             );
         })

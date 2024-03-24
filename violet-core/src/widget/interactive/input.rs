@@ -3,7 +3,7 @@ use std::{fmt::Display, future::ready, str::FromStr, sync::Arc};
 
 use futures::StreamExt;
 use futures_signals::signal::{self, Mutable, SignalExt};
-use glam::{vec2, Vec2};
+use glam::{vec2, Mat4, Vec2, Vec3, Vec3Swizzles};
 use itertools::Itertools;
 use palette::{Srgba, WithAlpha};
 use web_time::Duration;
@@ -13,7 +13,7 @@ use winit::{
 };
 
 use crate::{
-    components::{self, screen_rect},
+    components::{self, screen_transform},
     editor::{CursorMove, EditAction, EditorAction, TextEditor},
     input::{
         focus_sticky, focusable, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
@@ -22,8 +22,8 @@ use crate::{
     io,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
-        interactive_active, interactive_hover, interactive_inactive, interactive_passive,
-        spacing_small, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        interactive_active, interactive_hover, interactive_passive, spacing_small, Background,
+        SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{CursorLocation, LayoutGlyphs, TextSegment},
     time::sleep,
@@ -98,7 +98,7 @@ impl Widget for TextInput {
             .style
             .selection_color
             .resolve(stylesheet)
-            .with_alpha(0.2);
+            .with_alpha(0.5);
 
         let (tx, rx) = flume::unbounded();
 
@@ -110,7 +110,7 @@ impl Widget for TextInput {
         let mut editor = TextEditor::new();
 
         let layout_glyphs = Mutable::new(None);
-        let text_bounds: Mutable<Option<Rect>> = Mutable::new(None);
+        let text_bounds: Mutable<Option<Mat4>> = Mutable::new(None);
 
         editor.set_cursor_at_end();
 
@@ -271,7 +271,8 @@ impl Widget for TextInput {
                     if let (Some(glyphs), Some(text_bounds)) = (&*glyphs, &*text_bounds.lock_ref())
                     {
                         if input.state == ElementState::Pressed {
-                            let text_pos = input.cursor.absolute_pos - text_bounds.min;
+                            let text_pos = input.cursor.absolute_pos
+                                - text_bounds.transform_point3(Vec3::ZERO).xy();
 
                             if let Some(hit) = glyphs.hit(text_pos) {
                                 dragging.set(Some(hit));
@@ -331,7 +332,7 @@ impl Widget for TextInput {
                 Text::rich([TextSegment::new(v)])
                     .with_font_size(self.style.font_size)
                     .monitor_signal(components::layout_glyphs(), layout_glyphs.clone())
-                    .monitor_signal(screen_rect(), text_bounds.clone())
+                    .monitor_signal(screen_transform(), text_bounds.clone())
             })),
             Float::new(SignalWidget(editor_props_rx)),
         ))
