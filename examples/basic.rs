@@ -88,5 +88,4 @@ fn app() -> impl Widget {
             })),
         ))),
     ))
-    .contain_margins(true)
 }

@@ -133,7 +133,7 @@ pub struct Rect {
 
 impl Display for Rect {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("({:?},{:?})", self.min, self.max))
+        f.write_fmt(format_args!("({},{})", self.min, self.max))
     }
 }
 
@@ -273,6 +273,13 @@ impl Rect {
     pub(crate) fn with_size(&self, size: Vec2) -> Self {
         let min = self.min;
         let max = min + size;
+        Rect { min, max }
+    }
+
+    pub(crate) fn intersect(&self, other: Rect) -> Rect {
+        let min = self.min.max(other.min).min(other.max);
+        let max = self.max.min(other.max).max(other.min);
+
         Rect { min, max }
     }
 }

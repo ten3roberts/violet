@@ -277,7 +277,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     // Check if cache is valid
     for cached in cache.get_query(args.direction) {
         if validate_cached_query(cached, limits, args.content_area) {
-            return cached.value;
+            // return cached.value;
         }
     }
 
@@ -408,7 +408,7 @@ pub(crate) fn apply_layout(
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
-    let _span = tracing::debug_span!("update_subtree", %entity).entered();
+    let _span = tracing::debug_span!("update_subtree", %limits, %content_area, %entity).entered();
 
     let query = (
         layout_cache().as_mut(),
@@ -442,9 +442,9 @@ pub(crate) fn apply_layout(
 
     if let Some(value) = &cache.layout {
         if validate_cached_layout(value, limits, content_area, cache.hints.relative_size) {
-            tracing::debug!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
+            tracing::trace!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
 
-            return value.value;
+            // return value.value;
         }
     }
 

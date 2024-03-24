@@ -1,8 +1,5 @@
-use flax::{
-    component, components::child_of, entity_ids, fetch::Satisfied, filter::All, Component, Entity,
-    EntityIds, EntityRef, Fetch, FetchExt, Query, Topo, World,
-};
-use glam::Vec2;
+use flax::{component, Entity, EntityRef, FetchExt, World};
+use glam::{Vec2, Vec3Swizzles};
 
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
@@ -12,33 +9,13 @@ use winit::{
 };
 
 use crate::{
-    components::{rect, screen_position, screen_rect},
+    components::{rect, screen_transform},
+    hierarchy::OrderedDfsIterator,
     scope::ScopeRef,
-    Frame, Rect,
+    Frame,
 };
 
 pub struct Input {}
-
-#[derive(Fetch)]
-struct IntersectQuery {
-    id: EntityIds,
-    rect: Component<Rect>,
-    screen_pos: Component<Vec2>,
-    sticky: Satisfied<Component<()>>,
-    focusable: Component<()>,
-}
-
-impl IntersectQuery {
-    pub fn new() -> Self {
-        Self {
-            id: entity_ids(),
-            rect: rect(),
-            screen_pos: screen_position(),
-            sticky: focus_sticky().satisfied(),
-            focusable: focusable(),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 struct FocusedEntity {
@@ -47,38 +24,43 @@ struct FocusedEntity {
 }
 
 pub struct InputState {
+    root: Entity,
     focused: Option<FocusedEntity>,
     pos: Vec2,
-    intersect_query: Query<IntersectQuery, All, Topo>,
     modifiers: ModifiersState,
 }
 
 impl InputState {
-    pub fn new(pos: Vec2) -> Self {
+    pub fn new(root: Entity, pos: Vec2) -> Self {
         Self {
             focused: None,
             pos,
-            intersect_query: Query::new(IntersectQuery::new()).topo(child_of),
             modifiers: Default::default(),
+            root,
         }
     }
 
-    pub fn on_mouse_input(&mut self, frame: &mut Frame, state: ElementState, button: MouseButton) {
-        let cursor_pos = self.pos;
+    fn find_intersect(&self, frame: &Frame, pos: Vec2) -> Option<(Entity, Vec2)> {
+        let query = (screen_transform(), rect()).filtered(focusable().with());
+        OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
+            .filter_map(|entity| {
+                let mut query = entity.query(&query);
+                let (transform, rect) = query.get()?;
 
-        let intersect = self
-            .intersect_query
-            .borrow(frame.world())
-            .iter()
-            .filter_map(|item| {
-                let local_pos = cursor_pos - *item.screen_pos;
-                if item.rect.contains_point(local_pos) {
-                    Some((item.id, (*item.screen_pos + item.rect.min)))
+                let local_pos = transform.inverse().transform_point3(pos.extend(0.0)).xy();
+
+                if rect.contains_point(local_pos) {
+                    Some((entity.id(), local_pos))
                 } else {
                     None
                 }
             })
-            .last();
+            .last()
+    }
+
+    pub fn on_mouse_input(&mut self, frame: &mut Frame, state: ElementState, button: MouseButton) {
+        let cursor_pos = self.pos;
+        let intersect = self.find_intersect(frame, cursor_pos);
 
         match (state, &self.focused, intersect) {
             // Focus changed
@@ -94,13 +76,13 @@ impl InputState {
 
         // Send the event to the intersected entity
 
-        if let Some((id, origin)) = intersect {
+        if let Some((id, local_pos)) = intersect {
             let entity = frame.world().entity(id).unwrap();
 
             let cursor = CursorMove {
                 modifiers: self.modifiers,
                 absolute_pos: self.pos,
-                local_pos: self.pos - origin,
+                local_pos,
             };
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
                 let s = ScopeRef::new(frame, entity);
@@ -121,7 +103,7 @@ impl InputState {
         self.pos = pos;
 
         if let Some(entity) = &self.focused(&frame.world) {
-            let screen_rect = entity.get_copy(screen_rect()).unwrap_or_default();
+            let transform = entity.get_copy(screen_transform()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
                 let s = ScopeRef::new(frame, *entity);
                 on_input(
@@ -129,7 +111,25 @@ impl InputState {
                     CursorMove {
                         modifiers: self.modifiers,
                         absolute_pos: pos,
-                        local_pos: pos - screen_rect.min,
+                        local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy(),
+                    },
+                );
+            }
+        }
+    }
+
+    pub fn on_scroll(&mut self, frame: &mut Frame, delta: Vec2) {
+        let intersect = self.find_intersect(frame, self.pos);
+
+        if let Some((id, _)) = intersect {
+            let entity = frame.world().entity(id).unwrap();
+            if let Ok(mut on_input) = entity.get_mut(on_scroll()) {
+                let s = ScopeRef::new(frame, entity);
+                on_input(
+                    &s,
+                    Scroll {
+                        delta,
+                        modifiers: self.modifiers,
                     },
                 );
             }
@@ -206,6 +206,12 @@ pub struct CursorMove {
     pub local_pos: Vec2,
 }
 
+#[derive(Debug, Clone)]
+pub struct Scroll {
+    pub delta: Vec2,
+    pub modifiers: ModifiersState,
+}
+
 pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 
@@ -221,4 +227,5 @@ component! {
     pub on_cursor_move: InputEventHandler<CursorMove>,
     pub on_mouse_input: InputEventHandler<MouseInput>,
     pub on_keyboard_input: InputEventHandler<KeyboardInput>,
+    pub on_scroll: InputEventHandler<Scroll>,
 }

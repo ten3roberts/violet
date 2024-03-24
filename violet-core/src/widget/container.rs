@@ -66,6 +66,11 @@ impl<W> Stack<W> {
         self.style.background = Some(background);
         self
     }
+
+    pub fn with_clip(mut self, clip: bool) -> Self {
+        self.layout.clip = clip;
+        self
+    }
 }
 
 impl<W> StyleExt for Stack<W> {
