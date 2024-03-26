@@ -1,11 +1,12 @@
 use futures_signals::signal::Mutable;
-use glam::Vec2;
+use glam::{BVec2, Vec2};
 use winit::event::ElementState;
 
 use crate::{
     components::{anchor, layout, offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::{Alignment, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
+    scope::ScopeRef,
     style::{
         primary_background, secondary_background, spacing_medium, spacing_small, Background,
         SizeExt, StyleExt, WidgetSize,
@@ -67,8 +68,8 @@ impl<W> Stack<W> {
         self
     }
 
-    pub fn with_clip(mut self, clip: bool) -> Self {
-        self.layout.clip = clip;
+    pub fn with_clip(mut self, clip: impl Into<BVec2>) -> Self {
+        self.layout.clip = clip.into();
         self
     }
 }
@@ -173,7 +174,7 @@ impl<W: WidgetCollection> Widget for List<W> {
     }
 }
 
-type OnMove = Box<dyn Send + Sync + FnMut(&Frame, Vec2) -> Vec2>;
+type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2>;
 
 /// Allows a widget to be dragged around using the mouse.
 ///
@@ -181,6 +182,7 @@ type OnMove = Box<dyn Send + Sync + FnMut(&Frame, Vec2) -> Vec2>;
 pub struct Movable<W> {
     content: W,
     on_move: OnMove,
+    size: WidgetSize,
 }
 
 impl<W> Movable<W> {
@@ -188,12 +190,13 @@ impl<W> Movable<W> {
         Self {
             content,
             on_move: Box::new(|_, v| v),
+            size: Default::default(),
         }
     }
 
     pub fn on_move(
         mut self,
-        on_move: impl 'static + Send + Sync + FnMut(&Frame, Vec2) -> Vec2,
+        on_move: impl 'static + Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2,
     ) -> Self {
         self.on_move = Box::new(on_move);
         self
@@ -211,6 +214,7 @@ impl<W: Widget> Widget for Movable<W> {
                 let start_offset = start_offset.clone();
                 move |_, input| {
                     if input.state == ElementState::Pressed {
+                        tracing::info!(%input.cursor.local_pos);
                         let cursor_pos = input.cursor.local_pos;
                         *start_offset.lock_mut() = cursor_pos;
                     }
@@ -226,11 +230,17 @@ impl<W: Widget> Widget for Movable<W> {
                 let cursor_pos = input.local_pos + rect.min;
 
                 let new_offset = cursor_pos - start_offset.get() + anchor;
-                let new_offset = (self.on_move)(scope.frame(), new_offset);
+                let new_offset = (self.on_move)(scope, new_offset);
                 scope.update_dedup(offset(), Unit::px(new_offset));
             });
 
-        Stack::new(self.content).mount(scope)
+        self.content.mount(scope)
+    }
+}
+
+impl<W> SizeExt for Movable<W> {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
     }
 }
 

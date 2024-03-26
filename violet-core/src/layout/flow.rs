@@ -214,7 +214,7 @@ impl AlignCursor {
                 block.rect.pad(&block.margin).size().dot(self.cross_axis),
             ) + start_margin;
 
-            // tracing::info!( main_pos, %cross_pos, ?block, "aligning");
+            // tracing::debug!( main_pos, %cross_pos, ?block, "aligning");
             placement_pos =
                 main_pos * self.axis + (self.cross_cursor + cross_pos) * self.cross_axis;
             // *self.axis + (self.cross_cursor + start_margin) * self.cross_axis;
@@ -235,7 +235,7 @@ impl AlignCursor {
                 .align_offset(self.cross_size, block.rect.size().dot(self.cross_axis))
                 * self.cross_axis;
 
-            // tracing::info!( main_pos, %cross_pos, ?block, "aligning");
+            // tracing::debug!( main_pos, %cross_pos, ?block, "aligning");
             placement_pos =
                 main_pos * self.axis + (self.cross_cursor + cross_pos) * self.cross_axis;
 
@@ -356,7 +356,8 @@ impl FlowLayout {
     ) -> Block {
         puffin::profile_function!();
         let _span =
-            tracing::info_span!("Flow::apply", %content_area, ?limits, flow=?self).entered();
+            tracing::debug_span!("Flow::apply", %entity, %content_area, ?limits, flow=?self)
+                .entered();
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
         // the direction of this axis.
@@ -371,7 +372,7 @@ impl FlowLayout {
             },
         );
 
-        // tracing::info!(?row.margin, "row margins to be contained");
+        // tracing::debug!(?row.margin, "row margins to be contained");
         self.distribute_children(world, entity, &row, content_area, limits, preferred_size)
     }
 
@@ -395,7 +396,7 @@ impl FlowLayout {
 
         // How much space there is left to distribute to the children
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
-        // tracing::info!(?distribute_size);
+        // tracing::debug!(?distribute_size);
 
         // Clipped maximum that we remap to
         let target_inner_size = distribute_size
@@ -454,7 +455,7 @@ impl FlowLayout {
 
                 let axis_sizing = given_size * axis;
 
-                // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
+                // tracing::debug!(ratio, %axis_sizing, block_min_size, target_inner_size);
 
                 assert!(
                     axis_sizing.dot(axis) >= block_min_size,
@@ -471,11 +472,18 @@ impl FlowLayout {
                 // accordingly.
                 //
                 // The child may return a size *less* than the specified limit
+                // let overflow_limit =
+                //     axis_sizing + (limits.overflow_limit - child_margin.size()) * cross_axis;
+                let overflow_limit = limits.overflow_limit;
+
+                tracing::debug!(%entity, ?overflow_limit, ?limits.overflow_limit);
+
                 let child_limits = if self.stretch {
                     let cross_size = cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
+                        overflow_limit,
                     }
                 } else {
                     let cross_size = available_size - child_margin.size();
@@ -483,6 +491,7 @@ impl FlowLayout {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: axis_sizing + cross_size * cross_axis,
+                        overflow_limit,
                     }
                 };
 
@@ -523,11 +532,11 @@ impl FlowLayout {
             self.cross_align,
         );
 
-        // tracing::info!(?blocks, "aligning blocks");
+        // tracing::debug!(?blocks, "aligning blocks");
         for (entity, block) in blocks {
             let pos = cursor.put(&block);
 
-            tracing::info!(%pos);
+            tracing::debug!(%pos);
 
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), pos);
@@ -542,7 +551,7 @@ impl FlowLayout {
             self.direction
                 .to_edges(cursor.main_margin, cursor.cross_margin(), self.reverse);
 
-        tracing::info!(%rect, %entity, %margin);
+        tracing::debug!(%rect, %entity, %margin, %limits);
 
         Block::new(rect, margin, can_grow)
     }
@@ -565,7 +574,7 @@ impl FlowLayout {
 
         // How much space there is left to distribute out
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
-        // tracing::info!(?distribute_size);
+        // tracing::debug!(?distribute_size);
 
         // Clipped maximum that we remap to
         let target_inner_size = distribute_size
@@ -637,13 +646,13 @@ impl FlowLayout {
                 }
 
                 let axis_sizing = given_size * axis;
-                // tracing::info!(ratio, %axis_sizing, block_min_size, target_inner_size);
+                // tracing::debug!(ratio, %axis_sizing, block_min_size, target_inner_size);
 
                 assert!(
                     axis_sizing.dot(axis) >= block_min_size,
                     "{axis_sizing} {block_min_size}"
                 );
-               // tracing::info!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
+               // tracing::debug!(%axis_sizing, block_min_size, remaining, "sizing: {}", ratio);
 
                 let child_margin = if self.contain_margins {
                     sizing.margin
@@ -651,6 +660,8 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
+                let overflow_limit =
+                    axis_sizing + (args.limits.overflow_limit - child_margin.size()) * cross_axis;
                 // Calculate hard sizing constraints ensure the children are laid out
                 // accordingly.
                 //
@@ -660,6 +671,7 @@ impl FlowLayout {
                     LayoutLimits {
                         min_size: cross_size*cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
+                        overflow_limit,
                     }
                 } else {
                     let cross_size = available_size - child_margin.size();
@@ -667,6 +679,7 @@ impl FlowLayout {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: axis_sizing + cross_size * cross_axis,
+                        overflow_limit,
                     }
                 };
 
@@ -773,13 +786,13 @@ impl FlowLayout {
                             limits: LayoutLimits {
                                 min_size: Vec2::ZERO,
                                 max_size: args.limits.max_size,
+                                overflow_limit: args.limits.max_size,
                             },
                             content_area: args.content_area,
                             direction: self.direction,
                         },
                     )
-                    .margin;
-                    Edges::ZERO
+                    .margin
                 } else {
                     Edges::ZERO
                 };
@@ -791,6 +804,7 @@ impl FlowLayout {
                         limits: LayoutLimits {
                             min_size: Vec2::ZERO,
                             max_size: args.limits.max_size - child_margin.size(),
+                            overflow_limit: args.limits.max_size - child_margin.size(),
                         },
                         content_area: args.content_area,
                         direction: self.direction,
@@ -847,7 +861,7 @@ impl FlowLayout {
         preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!(format!("{args:?}"));
-        let _span = tracing::info_span!("query_size", %args.limits).entered();
+        let _span = tracing::debug_span!("query_size", %args.limits).entered();
 
         // We want to query the min/preferred size in the direction orthogonal to the flows
         // layout
@@ -889,9 +903,9 @@ impl FlowLayout {
             },
         );
 
-        if true || row.hints.coupled_size {
+        if row.hints.coupled_size {
             let sizing = self.distribute_query(world, &row, args, preferred_size);
-            tracing::info!(?self.direction, %sizing.min, %sizing.preferred, %sizing.margin, "query");
+            tracing::debug!(?self.direction, %sizing.min, %sizing.preferred, %sizing.margin, "query");
             sizing
         } else {
             let (axis, cross) = self.direction.as_main_and_cross(self.reverse);

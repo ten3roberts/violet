@@ -38,6 +38,7 @@ impl FloatLayout {
             let limits = LayoutLimits {
                 min_size: Vec2::ZERO,
                 max_size: Vec2::INFINITY,
+                overflow_limit: Vec2::INFINITY,
             };
 
             let block = apply_layout(world, &entity, content_area.size(), limits);
@@ -71,6 +72,7 @@ impl FloatLayout {
                     limits: LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: Vec2::INFINITY,
+                        overflow_limit: Vec2::INFINITY,
                     },
                     content_area: args.content_area,
                     direction: Direction::Horizontal,

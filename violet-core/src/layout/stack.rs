@@ -29,7 +29,7 @@ use super::{apply_layout, resolve_pos, Alignment, Block, LayoutLimits, QueryArgs
 pub struct StackLayout {
     pub horizontal_alignment: Alignment,
     pub vertical_alignment: Alignment,
-    pub clip: bool,
+    pub clip: BVec2,
 }
 
 impl StackLayout {
@@ -43,11 +43,19 @@ impl StackLayout {
         preferred_size: Vec2,
     ) -> Block {
         puffin::profile_function!();
-        let _span = tracing::debug_span!("StackLayout::apply").entered();
+        let _span = tracing::debug_span!("StackLayout::apply", %self.clip, %entity).entered();
 
         let mut bounds = Rect {
             min: Vec2::MAX,
             max: Vec2::MIN,
+        };
+
+        let c = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
+        let child_limits = LayoutLimits {
+            min_size: Vec2::ZERO,
+            max_size: limits.max_size,
+            // overflow_limit: limits.max_size,
+            overflow_limit: Vec2::MAX * c + limits.overflow_limit * (1.0 - c),
         };
 
         let blocks = children
@@ -57,12 +65,8 @@ impl StackLayout {
 
                 // let pos = resolve_pos(&entity, content_area, preferred_size);
 
-                let limits = LayoutLimits {
-                    min_size: Vec2::ZERO,
-                    max_size: limits.max_size,
-                };
-
-                let block = apply_layout(world, &entity, content_area.size(), limits);
+                // tracing::info!(?child_limits, %self.clip, %c, "Applying stack layout");
+                let block = apply_layout(world, &entity, content_area.size(), child_limits);
 
                 bounds = bounds.merge(block.rect.translate(content_area.min));
 
@@ -90,11 +94,7 @@ impl StackLayout {
                     self.vertical_alignment.align_offset(size.y, block_size.y),
                 );
 
-            let clip_mask = if self.clip {
-                Rect::from_size(limits.max_size)
-            } else {
-                Rect::new(Vec2::MIN, Vec2::MAX)
-            };
+            let clip_mask = Rect::from_size(c * limits.max_size + Vec2::MAX * (1.0 - c));
 
             aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
                 block.rect.translate(offset),
@@ -104,8 +104,13 @@ impl StackLayout {
             can_grow |= block.can_grow;
 
             // entity.update_dedup(components::rect(), block.rect.translate(offset));
-            entity.update_dedup(components::rect(), block.rect);
-            entity.update_dedup(components::local_position(), offset);
+            entity.update_dedup(components::rect(), block.rect).unwrap();
+            entity
+                .update_dedup(components::local_position(), offset)
+                .unwrap();
+
+            // tracing::info!(%clip_mask, "updating clip mask");
+
             entity
                 .update_dedup(components::clip_mask(), clip_mask)
                 .unwrap();
@@ -114,9 +119,7 @@ impl StackLayout {
         // aligned_bounds.inner = aligned_bounds.inner.max_size(limits.min_size);
         let mut rect = aligned_bounds.inner.max_size(limits.min_size);
 
-        if self.clip {
-            rect = rect.clamp_size(limits.min_size, limits.max_size);
-        }
+        rect = rect.min_size(limits.max_size * c + Vec2::MAX * (1.0 - c));
 
         let margin = aligned_bounds.margin();
 
@@ -139,6 +142,14 @@ impl StackLayout {
         let mut hints = SizingHints::default();
         let mut maximize = Vec2::ZERO;
 
+        let c = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
+        let child_limits = LayoutLimits {
+            min_size: Vec2::ZERO,
+            max_size: args.limits.max_size,
+            // overflow_limit: args.limits.max_size,
+            overflow_limit: Vec2::MAX * c + args.limits.max_size * (1.0 - c),
+        };
+
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
@@ -146,10 +157,7 @@ impl StackLayout {
                 world,
                 &entity,
                 QueryArgs {
-                    limits: LayoutLimits {
-                        min_size: Vec2::ZERO,
-                        max_size: args.limits.max_size,
-                    },
+                    limits: child_limits,
                     content_area: args.content_area,
                     direction: args.direction,
                 },
@@ -173,18 +181,17 @@ impl StackLayout {
         let min = min_bounds.inner.max_size(args.limits.min_size);
         let preferred = preferred_bounds.inner.max_size(preferred_size);
 
-        let clamp_size = if self.clip {
-            args.limits.max_size
-        } else {
-            Vec2::MAX
-        };
+        let clamp_size = args.limits.max_size * c + Vec2::MAX * (1.0 - c);
+        // let clamp_size = args.limits.max_size;
 
         Sizing {
-            min: if self.clip {
-                min.with_size(Vec2::ZERO)
-            } else {
-                min.min_size(clamp_size)
-            },
+            min: min.min_size((1.0 - c) * min.size()),
+            // min: min.with_size(Vec2::ZERO),
+            // min: if self.clip {
+            //     min.with_size(Vec2::ZERO)
+            // } else {
+            //     min.min_size(clamp_size)
+            // },
             preferred: preferred.min_size(clamp_size),
             margin: min_margin.max(preferred_margin),
             hints,

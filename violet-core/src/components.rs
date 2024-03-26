@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use cosmic_text::LayoutLine;
 use flax::{component, Debuggable, Entity, EntityRef, Exclusive};
 use glam::{Mat4, Vec2};
 use image::DynamicImage;

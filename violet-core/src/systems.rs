@@ -166,8 +166,6 @@ pub fn layout_system(root: Entity) -> BoxedSystem {
 
             puffin::profile_scope!("layout_system");
 
-            tracing::info!(%canvas_rect, "apply_layout");
-
             for &child in children {
                 let entity = world.entity(child).unwrap();
 
@@ -178,10 +176,12 @@ pub fn layout_system(root: Entity) -> BoxedSystem {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: canvas_rect.size(),
+                        overflow_limit: canvas_rect.size(),
                     },
                 );
 
                 entity.update_dedup(components::rect(), res.rect);
+                entity.update_dedup(components::clip_mask(), res.rect);
             }
         })
         .boxed()
@@ -192,6 +192,7 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
     System::builder()
         .with_query(
             Query::new((
+                entity_refs(),
                 screen_transform().as_mut(),
                 screen_clip_mask().as_mut(),
                 clip_mask(),
@@ -204,7 +205,8 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
             query.traverse_from(
                 root,
                 &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX)),
-                |(screen_trans, screen_mask, &mask, &local_pos, &trans): (
+                |(entity, screen_trans, screen_mask, &mask, &local_pos, &trans): (
+                    EntityRef,
                     &mut Mat4,
                     &mut Rect,
                     &Rect,
@@ -218,7 +220,7 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
                     let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
                     *screen_mask = mask.translate(mask_offset).intersect(parent_mask);
 
-                    // tracing::info!(%screen_mask);
+                    // tracing::info!(%entity, %screen_mask);
 
                     *screen_trans = parent * local_transform;
 

@@ -7,6 +7,7 @@ use std::{
 use flax::{
     component::ComponentValue,
     components::{child_of, name},
+    error::MissingComponent,
     Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
 };
 use futures::{Future, Stream};
@@ -76,6 +77,18 @@ impl<'a> Scope<'a> {
     {
         self.data.set(component, value);
         self
+    }
+
+    pub fn update_dedup<T>(
+        &mut self,
+        component: Component<T>,
+        value: T,
+    ) -> Result<(), MissingComponent>
+    where
+        T: PartialEq + ComponentValue,
+    {
+        self.flush();
+        self.entity_mut().update_dedup(component, value)
     }
 
     /// Sets the components default value

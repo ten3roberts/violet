@@ -50,7 +50,7 @@ impl InputState {
                 let local_pos = transform.inverse().transform_point3(pos.extend(0.0)).xy();
 
                 if rect.contains_point(local_pos) {
-                    Some((entity.id(), local_pos))
+                    Some((entity.id(), local_pos - rect.min))
                 } else {
                     None
                 }
@@ -80,13 +80,14 @@ impl InputState {
         };
 
         // Send the event to the intersected entity
-        if let Some(id) = id {
-            let entity = frame.world().entity(id).unwrap();
+        if let Some(entity) = id.and_then(|id| frame.world().entity(id).ok()) {
             let screen_transform = entity.get_copy(screen_transform()).unwrap_or_default();
+            let rect = entity.get_copy(rect()).unwrap_or_default();
             let local_pos = screen_transform
                 .inverse()
                 .transform_point3(cursor_pos.extend(0.0))
-                .xy();
+                .xy()
+                - rect.min;
 
             let cursor = CursorMove {
                 modifiers: self.modifiers,
@@ -113,6 +114,7 @@ impl InputState {
 
         if let Some(entity) = &self.focused(&frame.world) {
             let transform = entity.get_copy(screen_transform()).unwrap_or_default();
+            let rect = entity.get_copy(rect()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
                 let s = ScopeRef::new(frame, *entity);
                 on_input(
@@ -120,7 +122,8 @@ impl InputState {
                     CursorMove {
                         modifiers: self.modifiers,
                         absolute_pos: pos,
-                        local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy(),
+                        local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy()
+                            - rect.min,
                     },
                 );
             }

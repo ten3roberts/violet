@@ -171,6 +171,7 @@ impl Display for Sizing {
 pub struct LayoutLimits {
     pub min_size: Vec2,
     pub max_size: Vec2,
+    pub overflow_limit: Vec2,
 }
 
 impl Default for LayoutLimits {
@@ -178,6 +179,7 @@ impl Default for LayoutLimits {
         Self {
             min_size: Vec2::ZERO,
             max_size: Vec2::INFINITY,
+            overflow_limit: Vec2::INFINITY,
         }
     }
 }
@@ -281,6 +283,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: args.limits.min_size.max(min_size),
         max_size: args.limits.max_size.min(max_size).max(min_size),
+        overflow_limit: args.limits.overflow_limit,
     };
 
     // Check if cache is valid
@@ -326,6 +329,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
                 limits: LayoutLimits {
                     min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                     max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
+                    overflow_limit: args.limits.overflow_limit,
                 },
                 content_area: args.content_area - padding.size(),
                 ..args
@@ -445,6 +449,7 @@ pub(crate) fn apply_layout(
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: limits.min_size.max(min_size),
         max_size: limits.max_size.min(max_size).max(min_size),
+        overflow_limit: limits.overflow_limit.min(max_size),
     };
 
     // Check if cache is still valid
@@ -499,6 +504,7 @@ pub(crate) fn apply_layout(
             LayoutLimits {
                 min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                 max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
+                overflow_limit: limits.overflow_limit,
             },
             resolved_size - padding.size(),
         );
@@ -550,8 +556,19 @@ pub(crate) fn apply_layout(
 
     entity.update_dedup(components::layout_bounds(), block.rect.size());
     entity
-        .update_dedup(components::layout_limits(), external_limits)
+        .update_dedup(components::layout_limits(), limits)
         .unwrap();
+
+    if limits.overflow_limit.x < block.rect.size().x
+        || limits.overflow_limit.y < block.rect.size().y
+    {
+        tracing::warn!(
+            %entity,
+            size=%block.rect.size(),
+            %external_limits,
+            "Widget size is exceeds constraints"
+        );
+    }
 
     // Widget size is limited by itself and is not affected by the size of the parent
     // if let Some(max_size) = max_size {

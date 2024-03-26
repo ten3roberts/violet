@@ -3,7 +3,7 @@ use std::sync::Arc;
 use web_time::{Duration, Instant};
 
 use flax::{components::name, entity_ids, Entity, Query, Schedule, World};
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
@@ -48,11 +48,8 @@ impl<W: Widget> Widget for Canvas<W> {
         scope
             .set(name(), "Canvas".into())
             .set(stylesheet(self.stylesheet), ())
-            .set_default(rect())
             .set(max_size(), Unit::px(self.size))
-            .set(size(), Unit::px(self.size))
-            .set_default(screen_transform())
-            .set_default(local_position());
+            .set(size(), Unit::px(self.size));
 
         scope.attach(
             Stack::new(
@@ -60,7 +57,7 @@ impl<W: Widget> Widget for Canvas<W> {
                     .contain_margins(true)
                     .with_background(Background::new(primary_background())),
             )
-            .with_clip(true),
+            .with_clip(BVec2::TRUE),
         );
     }
 }
@@ -334,11 +331,17 @@ impl App {
 
         let logical_size: LogicalSize<f32> = size.to_logical(self.scale_factor);
 
-        self.frame
-            .world_mut()
-            .set(
-                self.root,
+        let canvas = self.frame.world_mut().entity_mut(self.root).unwrap();
+        canvas
+            .update_dedup(
                 components::rect(),
+                Rect::from_size(vec2(logical_size.width, logical_size.height)),
+            )
+            .unwrap();
+
+        canvas
+            .update_dedup(
+                components::clip_mask(),
                 Rect::from_size(vec2(logical_size.width, logical_size.height)),
             )
             .unwrap();

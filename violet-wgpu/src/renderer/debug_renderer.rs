@@ -1,13 +1,13 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use flax::{fetch::entity_refs, Entity, Query};
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec3, Vec4};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
 use image::DynamicImage;
 use itertools::Itertools;
 use violet_core::{
     assets::Asset,
     components::{
-        layout_bounds, layout_limits, rect, screen_clip_mask, screen_transform, transform,
+        layout_bounds, layout_limits, max_size, rect, screen_clip_mask, screen_transform, transform,
     },
     layout::cache::{layout_cache, LayoutUpdate},
     stored::{self, Handle},
@@ -156,7 +156,7 @@ impl DebugRenderer {
         query
             .iter()
             .filter_map(|(entity, &limits, &rect)| {
-                let diff = rect.size() - limits.max_size;
+                let diff = (rect.size() - limits.overflow_limit).max(Vec2::ZERO);
 
                 let transform = entity.get_copy(screen_transform()).ok()?;
                 let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
@@ -167,13 +167,7 @@ impl DebugRenderer {
                 //     screen_rect.pos().extend(0.2),
                 // );
 
-                if diff.x > 0.0 {
-                    tracing::error!(%diff, %limits, %rect, "overflow detected");
-                    let rect = Rect::new(
-                        vec2(limits.max_size.x, rect.min.y),
-                        vec2(rect.max.x, rect.max.y),
-                    );
-
+                let mut draw = |rect: Rect| {
                     let model_matrix = transform
                         * Mat4::from_scale_rotation_translation(
                             rect.size().extend(1.0),
@@ -183,7 +177,7 @@ impl DebugRenderer {
 
                     let object_data = ObjectData {
                         model_matrix,
-                        color: vec4(1.0, 0.0, 0.0, 0.2),
+                        color: vec4(1.0, 0.0, 0.0, 0.5),
                     };
 
                     overflow.push((
@@ -196,6 +190,26 @@ impl DebugRenderer {
                         },
                         object_data,
                     ));
+                };
+
+                if diff.x > 0.0 {
+                    tracing::error!(%entity, %diff, %limits, %rect, "horizontal overflow detected");
+                    let rect = Rect::new(
+                        vec2(limits.overflow_limit.x, rect.min.y),
+                        vec2(rect.max.x, rect.max.y),
+                    );
+
+                    draw(rect);
+                }
+
+                if diff.y > 0.0 {
+                    tracing::error!(%entity, %diff, %limits, %rect, "vertical overflow detected");
+                    let rect = Rect::new(
+                        vec2(rect.min.x, limits.overflow_limit.y),
+                        vec2(rect.max.x, rect.max.y),
+                    );
+
+                    draw(rect);
                 }
 
                 Some(())
