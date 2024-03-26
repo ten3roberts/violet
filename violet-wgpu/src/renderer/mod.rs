@@ -323,14 +323,13 @@ impl MainRenderer {
             let shader = &self.store.shaders[shader];
             let bind_group = &self.store.bind_groups[bind_group];
 
-            let (mask_min, mask_max) = cmd.draw_cmd.clip_mask;
-            tracing::info!(%mask_min, %mask_max);
-            render_pass.set_scissor_rect(
-                mask_min.x,
-                mask_min.y,
-                mask_max.x - mask_min.x,
-                mask_max.y - mask_min.y,
-            );
+            // let (mask_min, mask_max) = cmd.draw_cmd.clip_mask;
+            // render_pass.set_scissor_rect(
+            //     mask_min.x,
+            //     mask_min.y,
+            //     mask_max.x - mask_min.x,
+            //     mask_max.y - mask_min.y,
+            // );
             render_pass.set_pipeline(shader.pipeline());
 
             render_pass.set_bind_group(0, &ctx.globals_bind_group, &[]);

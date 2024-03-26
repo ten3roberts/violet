@@ -6,10 +6,12 @@ use image::DynamicImage;
 use itertools::Itertools;
 use violet_core::{
     assets::Asset,
-    components::{rect, screen_clip_mask, transform},
+    components::{
+        layout_bounds, layout_limits, rect, screen_clip_mask, screen_transform, transform,
+    },
     layout::cache::{layout_cache, LayoutUpdate},
     stored::{self, Handle},
-    Frame,
+    Frame, Rect,
 };
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
@@ -37,6 +39,7 @@ pub struct DebugRenderer {
 
     corner_shader: stored::Handle<Shader>,
     border_shader: stored::Handle<Shader>,
+    solid_shader: stored::Handle<Shader>,
 
     layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
     layout_changes: BTreeMap<(Entity, LayoutUpdate), usize>,
@@ -97,6 +100,7 @@ impl DebugRenderer {
                 layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
+
         let border_shader = store.shaders.insert(Shader::new(
             &ctx.gpu,
             &ShaderDesc {
@@ -107,6 +111,18 @@ impl DebugRenderer {
                 layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
+
+        let solid_shader = store.shaders.insert(Shader::new(
+            &ctx.gpu,
+            &ShaderDesc {
+                label: "ShapeRenderer::shader",
+                source: include_str!("../../../assets/shaders/solid.wgsl"),
+                format: color_format,
+                vertex_layouts: &[Vertex::layout()],
+                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+            },
+        ));
+
         Self {
             white_image,
             layout,
@@ -118,6 +134,7 @@ impl DebugRenderer {
             layout_changes_rx,
             layout_changes: BTreeMap::new(),
             objects: Vec::new(),
+            solid_shader,
         }
     }
 
@@ -130,6 +147,60 @@ impl DebugRenderer {
         );
 
         self.objects.clear();
+
+        let mut overflow = Vec::new();
+
+        let mut query = Query::new((entity_refs(), layout_limits(), rect()));
+        let mut query = query.borrow(&frame.world);
+
+        query
+            .iter()
+            .filter_map(|(entity, &limits, &rect)| {
+                let diff = rect.size() - limits.max_size;
+
+                let transform = entity.get_copy(screen_transform()).ok()?;
+                let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
+
+                // let model_matrix = Mat4::from_scale_rotation_translation(
+                //     screen_rect.size().extend(1.0),
+                //     Quat::IDENTITY,
+                //     screen_rect.pos().extend(0.2),
+                // );
+
+                if diff.x > 0.0 {
+                    tracing::error!(%diff, %limits, %rect, "overflow detected");
+                    let rect = Rect::new(
+                        vec2(limits.max_size.x, rect.min.y),
+                        vec2(rect.max.x, rect.max.y),
+                    );
+
+                    let model_matrix = transform
+                        * Mat4::from_scale_rotation_translation(
+                            rect.size().extend(1.0),
+                            Quat::IDENTITY,
+                            rect.pos().extend(0.2),
+                        );
+
+                    let object_data = ObjectData {
+                        model_matrix,
+                        color: vec4(1.0, 0.0, 0.0, 0.2),
+                    };
+
+                    overflow.push((
+                        DrawCommand {
+                            shader: self.solid_shader.clone(),
+                            bind_group: self.bind_group.clone(),
+                            mesh: self.mesh.clone(),
+                            index_count: 6,
+                            clip_mask: (clip_mask.min.as_uvec2(), clip_mask.max.as_uvec2()),
+                        },
+                        object_data,
+                    ));
+                }
+
+                Some(())
+            })
+            .for_each(|_| {});
 
         let mut query = Query::new((entity_refs(), layout_cache()));
         let mut query = query.borrow(&frame.world);
@@ -197,34 +268,36 @@ impl DebugRenderer {
             Some((entity, &self.border_shader, color))
         });
 
-        let objects = objects.filter_map(|(entity, shader, color)| {
-            let rect = entity.get_copy(rect()).ok()?.align_to_grid();
-            let transform = entity.get_copy(transform()).ok()?;
-            let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
+        let objects = objects
+            .filter_map(|(entity, shader, color)| {
+                let rect = entity.get_copy(rect()).ok()?.align_to_grid();
+                let transform = entity.get_copy(screen_transform()).ok()?;
+                let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
 
-            let model_matrix = transform * Mat4::from_scale(rect.size().extend(1.0));
-            // let model_matrix = Mat4::from_scale_rotation_translation(
-            //     screen_rect.size().extend(1.0),
-            //     Quat::IDENTITY,
-            //     screen_rect.pos().extend(0.2),
-            // );
+                let model_matrix = transform
+                    * Mat4::from_scale_rotation_translation(
+                        rect.size().extend(1.0),
+                        Quat::IDENTITY,
+                        rect.pos().extend(0.2),
+                    );
 
-            let object_data = ObjectData {
-                model_matrix,
-                color,
-            };
+                let object_data = ObjectData {
+                    model_matrix,
+                    color,
+                };
 
-            Some((
-                DrawCommand {
-                    shader: shader.clone(),
-                    bind_group: self.bind_group.clone(),
-                    mesh: self.mesh.clone(),
-                    index_count: 6,
-                    clip_mask: (clip_mask.min.as_uvec2(), clip_mask.max.as_uvec2()),
-                },
-                object_data,
-            ))
-        });
+                Some((
+                    DrawCommand {
+                        shader: shader.clone(),
+                        bind_group: self.bind_group.clone(),
+                        mesh: self.mesh.clone(),
+                        index_count: 6,
+                        clip_mask: (clip_mask.min.as_uvec2(), clip_mask.max.as_uvec2()),
+                    },
+                    object_data,
+                ))
+            })
+            .chain(overflow);
 
         self.objects.clear();
         self.objects.extend(objects);

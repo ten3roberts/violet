@@ -167,10 +167,19 @@ impl Display for Sizing {
 /// Constraints for a child widget passed down from the parent.
 ///
 /// Allows for the parent to control the size of the children, such as stretching
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayoutLimits {
     pub min_size: Vec2,
     pub max_size: Vec2,
+}
+
+impl Default for LayoutLimits {
+    fn default() -> Self {
+        Self {
+            min_size: Vec2::ZERO,
+            max_size: Vec2::INFINITY,
+        }
+    }
 }
 
 impl Display for LayoutLimits {
@@ -271,13 +280,13 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     let mut limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: args.limits.min_size.max(min_size),
-        max_size: args.limits.max_size.min(max_size),
+        max_size: args.limits.max_size.min(max_size).max(min_size),
     };
 
     // Check if cache is valid
     for cached in cache.get_query(args.direction) {
         if validate_cached_query(cached, limits, args.content_area) {
-            // return cached.value;
+            return cached.value;
         }
     }
 
@@ -325,7 +334,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
         );
 
         Sizing {
-            margin: (sizing.margin).max(margin),
+            margin: (sizing.margin - padding).max(margin),
             min: sizing.min.pad(&padding),
             preferred: sizing.preferred.pad(&padding),
             hints: sizing.hints.combine(hints),
@@ -435,7 +444,7 @@ pub(crate) fn apply_layout(
     let limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: limits.min_size.max(min_size),
-        max_size: limits.max_size.min(max_size),
+        max_size: limits.max_size.min(max_size).max(min_size),
     };
 
     // Check if cache is still valid
@@ -444,7 +453,7 @@ pub(crate) fn apply_layout(
         if validate_cached_layout(value, limits, content_area, cache.hints.relative_size) {
             tracing::trace!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
 
-            // return value.value;
+            return value.value;
         }
     }
 
@@ -540,6 +549,9 @@ pub(crate) fn apply_layout(
     block.rect = block.rect.translate(offset);
 
     entity.update_dedup(components::layout_bounds(), block.rect.size());
+    entity
+        .update_dedup(components::layout_limits(), external_limits)
+        .unwrap();
 
     // Widget size is limited by itself and is not affected by the size of the parent
     // if let Some(max_size) = max_size {

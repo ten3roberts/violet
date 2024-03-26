@@ -15,9 +15,13 @@ use violet::core::{
 };
 use violet_core::{
     state::{State, StateStream},
-    style::{colors::AMBER_500, secondary_background, spacing_medium, Background},
-    widget::{label, Button, Checkbox, Scroll, StreamWidget},
+    style::{
+        colors::{AMBER_500, REDWOOD_500},
+        secondary_background, spacing_large, spacing_medium, Background,
+    },
+    widget::{label, Button, Checkbox, Scroll, Stack, StreamWidget},
 };
+use violet_wgpu::renderer::RendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -30,7 +34,9 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::AppBuilder::new().run(app())
+    violet_wgpu::AppBuilder::new()
+        .with_renderer_config(RendererConfig { debug_mode: true })
+        .run(app())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,30 +62,26 @@ fn app() -> impl Widget {
                 },
             ),
         ),
-        Scroll::new(
-            StreamWidget(color_space.stream().map(|color_space| {
-                col((0..180)
-                    .map(|v| {
-                        let hue = v as f32 * 2.0;
+        Scroll::new(StreamWidget(color_space.stream().map(|color_space| {
+            col((0..16)
+                .map(|v| {
+                    let hue = v as f32 * 2.0;
 
-                        let color: Srgba = match color_space {
-                            ColorSpace::Oklcha => Oklcha::new(0.5, 0.37, hue, 1.0).into_color(),
-                            ColorSpace::Hsv => Hsv::new(hue, 1.0, 1.0).into_color(),
-                            ColorSpace::Hsl => Hsl::new(hue, 1.0, 0.5).into_color(),
-                        };
+                    let color: Srgba = match color_space {
+                        ColorSpace::Oklcha => Oklcha::new(0.5, 0.37, hue, 1.0).into_color(),
+                        ColorSpace::Hsv => Hsv::new(hue, 1.0, 1.0).into_color(),
+                        ColorSpace::Hsl => Hsl::new(hue, 1.0, 0.5).into_color(),
+                    };
 
-                        Rectangle::new(color)
-                            // .with_margin(spacing_medium())
-                            .with_min_size(Unit::px2(100.0, 20.0))
-                            .with_maximize(Vec2::X)
-                    })
-                    .collect_vec())
-                .with_padding(spacing_medium())
-            })),
-            // .with_background(Background::new(violet_core::style::accent_background()))
-        ),
+                    Rectangle::new(color)
+                        .with_min_size(Unit::px2(10.0, 20.0))
+                        .with_maximize(Vec2::X)
+                })
+                .collect_vec())
+        }))),
         Button::label("Button"),
     ))
-    .with_background(Background::new(secondary_background()))
     .with_padding(spacing_medium())
+    .with_background(Background::new(secondary_background()))
+    // .with_padding(spacing_medium())
 }

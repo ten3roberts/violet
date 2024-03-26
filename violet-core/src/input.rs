@@ -62,22 +62,31 @@ impl InputState {
         let cursor_pos = self.pos;
         let intersect = self.find_intersect(frame, cursor_pos);
 
-        match (state, &self.focused, intersect) {
+        let id = match (state, &self.focused, intersect) {
             // Focus changed
-            (ElementState::Pressed, _, new) => self.set_focused(frame, new.map(|v| v.0)),
+            (ElementState::Pressed, _, new) => {
+                self.set_focused(frame, new.map(|v| v.0));
+                new.map(|v| v.0)
+            }
             // Released after focusing a widget
             (ElementState::Released, Some(cur), _) => {
+                let id = cur.id;
                 if !cur.sticky {
                     self.set_focused(frame, None);
                 }
+                Some(id)
             }
-            (ElementState::Released, _, _) => {}
-        }
+            (ElementState::Released, _, _) => None,
+        };
 
         // Send the event to the intersected entity
-
-        if let Some((id, local_pos)) = intersect {
+        if let Some(id) = id {
             let entity = frame.world().entity(id).unwrap();
+            let screen_transform = entity.get_copy(screen_transform()).unwrap_or_default();
+            let local_pos = screen_transform
+                .inverse()
+                .transform_point3(cursor_pos.extend(0.0))
+                .xy();
 
             let cursor = CursorMove {
                 modifiers: self.modifiers,

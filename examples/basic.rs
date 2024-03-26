@@ -1,35 +1,21 @@
-use flax::{components::name, FetchExt, Query};
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
-use glam::{vec2, Vec2};
-use itertools::Itertools;
-use palette::{Hsva, IntoColor, Srgba};
-use std::time::Duration;
+use glam::Vec2;
+use palette::Srgba;
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    components::{self, rect, size, text},
-    layout::{Alignment, Direction},
-    style::StyleExt,
-    text::{FontFamily, Style, TextSegment, Weight, Wrap},
-    time::interval,
-    unit::Unit,
-    widget::{Button, Image, List, Rectangle, Stack, Text, WidgetExt},
-    Scope, StreamEffect, Widget,
-};
-use violet_core::{
     state::{State, StateStream},
-    style::{
-        colors::{AMBER_500, EMERALD_500, TEAL_500},
-        danger_background, danger_item, primary_background, secondary_background, spacing_medium,
-        spacing_small, Background, SizeExt, ValueOrRef,
-    },
+    style::{danger_background, Background, SizeExt},
+    unit::Unit,
     widget::{
-        card, col, label, pill, row, ContainerStyle, SliderWithLabel, StreamWidget, TextInput,
+        card, col, label, pill, row, Rectangle, SliderWithLabel, StreamWidget, Text, TextInput,
     },
+    Widget,
 };
+use violet_wgpu::renderer::RendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -42,7 +28,9 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::AppBuilder::new().run(app())
+    violet_wgpu::AppBuilder::new()
+        .with_renderer_config(RendererConfig { debug_mode: true })
+        .run(app())
 }
 
 fn app() -> impl Widget {

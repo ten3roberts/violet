@@ -19,8 +19,8 @@ use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{
-        self, children, clip_mask, layout_bounds, local_position, rect, screen_clip_mask,
-        screen_transform, text, transform,
+        self, children, clip_mask, layout_bounds, layout_limits, local_position, rect,
+        screen_clip_mask, screen_transform, text, transform,
     },
     layout::{
         apply_layout,
@@ -50,6 +50,7 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
         .set_default(transform())
         .set_default(local_position())
         .set(clip_mask(), Rect::new(Vec2::MIN, Vec2::MAX))
+        .set_default(layout_limits())
         .set_default(screen_clip_mask())
         .set_default(rect());
 }
@@ -217,7 +218,7 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
                     let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
                     *screen_mask = mask.translate(mask_offset).intersect(parent_mask);
 
-                    tracing::info!(%screen_mask);
+                    // tracing::info!(%screen_mask);
 
                     *screen_trans = parent * local_transform;
 
