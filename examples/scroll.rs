@@ -1,14 +1,14 @@
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
-use glam::{vec2, BVec2, Vec2};
+use glam::{BVec2, Vec2};
 use itertools::Itertools;
-use palette::{FromColor, Hsl, Hsv, IntoColor, Oklcha, Srgba};
+use palette::{Hsl, Hsv, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    style::{spacing_small, SizeExt},
+    style::SizeExt,
     unit::Unit,
     widget::{col, Rectangle},
     Widget,
@@ -42,7 +42,6 @@ pub fn main() -> anyhow::Result<()> {
 enum ColorSpace {
     Oklcha,
     Hsv,
-    Hsl,
 }
 
 fn app() -> impl Widget {
@@ -74,7 +73,6 @@ fn app() -> impl Widget {
                             let color: Srgba = match color_space {
                                 ColorSpace::Oklcha => Oklcha::new(0.5, 0.37, hue, 1.0).into_color(),
                                 ColorSpace::Hsv => Hsv::new(hue, 1.0, 1.0).into_color(),
-                                ColorSpace::Hsl => Hsl::new(hue, 1.0, 0.5).into_color(),
                             };
 
                             Rectangle::new(color)

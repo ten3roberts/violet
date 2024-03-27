@@ -21,16 +21,16 @@ impl FloatLayout {
     pub(crate) fn apply(
         &self,
         world: &World,
-        entity: &EntityRef,
+        _: &EntityRef,
         children: &[Entity],
         args: LayoutArgs,
-        preferred_size: Vec2,
-        offset: Vec2,
+        _: Vec2,
+        _: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
 
-        let blocks = children.iter().for_each(|&child| {
+        children.iter().for_each(|&child| {
             let entity = world.entity(child).expect("invalid child");
 
             // let pos = resolve_pos(&entity, content_area, preferred_size);
@@ -62,10 +62,10 @@ impl FloatLayout {
         world: &World,
         children: &[Entity],
         args: QueryArgs,
-        preferred_size: Vec2,
+        _: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        let min_rect = Rect::from_size(args.limits.min_size);
+        // let min_rect = Rect::from_size(args.limits.min_size);
 
         let mut hints = SizingHints::default();
 

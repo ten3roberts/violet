@@ -12,7 +12,7 @@ use crate::{
         SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
-    Frame, Scope, Widget, WidgetCollection,
+    Scope, Widget, WidgetCollection,
 };
 
 /// Style for most container type widgets.
@@ -63,8 +63,8 @@ impl<W> Stack<W> {
         self
     }
 
-    pub fn with_background(mut self, background: Background) -> Self {
-        self.style.background = Some(background);
+    pub fn with_background(mut self, background: impl Into<Background>) -> Self {
+        self.style.background = Some(background.into());
         self
     }
 
@@ -143,8 +143,8 @@ impl<W: WidgetCollection> List<W> {
         self
     }
 
-    pub fn with_background(mut self, background: Background) -> Self {
-        self.style.background = Some(background);
+    pub fn with_background(mut self, background: impl Into<Background>) -> Self {
+        self.style.background = Some(background.into());
         self
     }
 }

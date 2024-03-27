@@ -107,6 +107,7 @@ tracing-tree.workspace = true
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ] }
+violet-demo = { path = "violet-demo" }
 
 
 [profile.dev.package.image]

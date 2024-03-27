@@ -1,10 +1,10 @@
 use futures::channel::oneshot;
+use parking_lot::Mutex;
 use std::sync::Arc;
 use web_time::{Duration, Instant};
 
 use flax::{components::name, entity_ids, Entity, Query, Schedule, World};
-use glam::{vec2, BVec2, Vec2};
-use parking_lot::Mutex;
+use glam::{vec2, Vec2};
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{Event, WindowEvent},
@@ -15,7 +15,7 @@ use winit::{
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, max_size, rect, size},
+    components::{self, max_size, size},
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
@@ -32,7 +32,7 @@ use violet_core::{
 
 use crate::{
     graphics::Gpu,
-    renderer::{GlobalBuffers, RendererConfig, RendererContext, WindowRenderer},
+    renderer::{RendererConfig, RendererContext, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
     text::TextSystem,
 };
@@ -116,14 +116,36 @@ impl AppBuilder {
 
         #[cfg(target_arch = "wasm32")]
         {
+            use wasm_bindgen::JsCast;
             use winit::platform::web::WindowExtWebSys;
             let canvas = window.canvas().expect("Missing window canvas");
-            let scale_factor = window.scale_factor();
-            let (w, h) = (canvas.client_width() * sf, canvas.client_height() * sf);
+            let sf = window.scale_factor() as f32;
+            let on_resize = move || {
+                let (w, h) = (
+                    (canvas.client_width() as f32 * sf) as u32,
+                    (canvas.client_height() as f32 * sf) as u32,
+                );
+                tracing::info!(w, h, sf, "setting canvas size");
 
-            canvas.set_width(w.try_into().unwrap());
-            canvas.set_height(h.try_into().unwrap());
-            window.request_inner_size(winit::dpi::PhysicalSize::new(w, h));
+                canvas.set_width(w as _);
+                canvas.set_height(h as _);
+            };
+
+            on_resize();
+
+            let window = web_sys::window().unwrap();
+            window
+                .add_event_listener_with_callback(
+                    "resize",
+                    wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::EventTarget)>::new(
+                        move |_: web_sys::EventTarget| {
+                            on_resize();
+                        },
+                    )
+                    .into_js_value()
+                    .unchecked_ref(),
+                )
+                .expect("Failed to add resize listener");
         }
 
         let stylesheet = setup_stylesheet().spawn(frame.world_mut());
@@ -255,11 +277,7 @@ impl AppBuilder {
                         vec2(position.x as f32, position.y as f32),
                     )
                 }
-                WindowEvent::MouseWheel {
-                    device_id,
-                    delta,
-                    phase,
-                } => {
+                WindowEvent::MouseWheel { delta, .. } => {
                     puffin::profile_scope!("MouseWheel");
                     match delta {
                         winit::event::MouseScrollDelta::LineDelta(x, y) => {
@@ -325,7 +343,13 @@ impl App {
         AppBuilder::new()
     }
 
-    pub fn on_resize(&mut self, physical_size: PhysicalSize<u32>) {
+    #[allow(unused_mut)]
+    pub fn on_resize(&mut self, mut physical_size: PhysicalSize<u32>) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            physical_size.width = physical_size.width.min(2048);
+            physical_size.height = physical_size.height.min(2048);
+        }
         self.window_size = physical_size;
         // self.scale_factor = 2.0;
 

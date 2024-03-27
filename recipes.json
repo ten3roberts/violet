@@ -55,15 +55,19 @@
         ]
     },
     "build web": {
-        "cmd": "wasm-pack build --target web --dev",
+        "cmd": "wasm-pack build --target web --dev --out-dir ./public/pkg",
         "cwd": "./violet-demo/"
     },
     "build web profile": {
-        "cmd": "wasm-pack build --target web --profiling",
+        "cmd": "wasm-pack build --target web --profiling --out-dir ./public/pkg",
+        "cwd": "./violet-demo/"
+    },
+    "build web release": {
+        "cmd": "wasm-pack build --target web --out-dir ./public/pkg",
         "cwd": "./violet-demo/"
     },
     "host": {
         "cmd": "python3 -m http.server 8080",
-        "cwd": "./violet-demo/"
+        "cwd": "./violet-demo/public"
     }
 }

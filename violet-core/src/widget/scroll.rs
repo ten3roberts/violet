@@ -6,7 +6,7 @@ use crate::{
     components::{min_size, offset, padding, rect, transform},
     input::{focusable, on_scroll},
     state::{StateMut, StateStream},
-    style::{accent_background, interactive_active, Background, SizeExt},
+    style::{interactive_active, SizeExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,

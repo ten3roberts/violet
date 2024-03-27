@@ -247,6 +247,18 @@ impl Background {
     }
 }
 
+impl From<Component<Srgba>> for Background {
+    fn from(v: Component<Srgba>) -> Self {
+        Self::new(v)
+    }
+}
+
+impl From<Srgba> for Background {
+    fn from(v: Srgba) -> Self {
+        Self::new(v)
+    }
+}
+
 pub enum Spacing {
     Small,
     Medium,

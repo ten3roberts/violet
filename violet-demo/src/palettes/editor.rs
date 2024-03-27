@@ -17,7 +17,7 @@ use violet::{
     palette::{rgb::Rgb, FromColor, IntoColor, OklabHue, Oklch, Srgb},
 };
 
-use crate::{color_hex, PaletteColor};
+use super::{color_hex, PaletteColor};
 
 #[derive(Debug, Clone, Copy)]
 enum EditorMode {

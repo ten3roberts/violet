@@ -3174,6 +3174,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-tree",
  "violet-core",
+ "violet-demo",
  "violet-wgpu",
  "web-time 1.0.0",
 ]

@@ -446,12 +446,13 @@ impl TextRenderer {
 
     pub(crate) fn resize(
         &mut self,
-        ctx: &RendererContext,
-        physical_size: winit::dpi::PhysicalSize<u32>,
+        _: &RendererContext,
+        _: winit::dpi::PhysicalSize<u32>,
         scale_factor: f64,
     ) {
         if self.scale_factor != scale_factor {
             self.mesh_generator.rasterizer.clear();
         }
+        self.scale_factor = scale_factor;
     }
 }
