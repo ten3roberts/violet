@@ -7,6 +7,8 @@ State and reactivity is managed locally using async Streams, such as signals or 
 allows composing a declarative reactive UI where data flows naturally from source to destination without re-renders or
 useState hooks.
 
+## [Live Demo](https://ten3roberts.github.io/violet/demo)
+
 ## Example
 ```rust
 let name = Mutable::new("".to_string());
@@ -58,13 +60,13 @@ col((
 - Declarative Widgets and reactive state
 - Flexible layout system for responsive layouts
 - Composable widgets
-- Async widgets
+- First class async and stream based widget reactivity
 - Thread local `!Send` + `!Sync` state and futures
 - Signal based state management
+- State and Stream morphisms
 - Wasm integration
 - State decomposition and composition
 - Renderer agnostic allowing embedding into other applications
-- ECS based widget and property system (with change detection, async subscriptions, hierarchies, and more)
 
 ## State Management
 
