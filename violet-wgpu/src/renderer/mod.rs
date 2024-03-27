@@ -6,7 +6,7 @@ use flax::{
     fetch::{entity_refs, EntityRefs, NthRelation},
     CommandBuffer, Component, Entity, Fetch, Query, QueryBorrow, RelationExt,
 };
-use glam::{vec4, Mat4, UVec2, Vec4};
+use glam::{vec4, Mat4, Vec2, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
@@ -15,7 +15,7 @@ use violet_core::{
     hierarchy::OrderedDfsIterator,
     layout::cache::LayoutUpdate,
     stored::{self, Store},
-    Frame,
+    Frame, Rect,
 };
 use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
 
@@ -56,25 +56,28 @@ pub struct RendererConfig {
 /// Contains the device, globals and mesh buffer
 pub struct RendererContext {
     pub gpu: Gpu,
-    pub globals: Globals,
-    pub globals_buffer: TypedBuffer<Globals>,
     pub mesh_buffer: MeshBuffer,
-    pub globals_bind_group: BindGroup,
-    pub globals_layout: BindGroupLayout,
 }
 
-impl RendererContext {
-    pub fn new(gpu: Gpu) -> Self {
+pub struct GlobalBuffers {
+    pub globals: Globals,
+    pub globals_buffer: TypedBuffer<Globals>,
+    pub bind_group: BindGroup,
+    pub layout: BindGroupLayout,
+}
+
+impl GlobalBuffers {
+    pub fn new(ctx: &mut RendererContext) -> Self {
         let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
             .bind_uniform_buffer(ShaderStages::VERTEX)
-            .build(&gpu);
+            .build(&ctx.gpu);
 
         let globals = Globals {
             projview: Mat4::IDENTITY,
         };
 
         let globals_buffer = TypedBuffer::new(
-            &gpu,
+            &ctx.gpu,
             "WindowRenderer::globals_buffer",
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             &[globals],
@@ -82,25 +85,29 @@ impl RendererContext {
 
         let globals_bind_group = BindGroupBuilder::new("WindowRenderer::globals")
             .bind_buffer(globals_buffer.buffer())
-            .build(&gpu, &globals_layout);
-
-        let mesh_buffer = MeshBuffer::new(&gpu, "MeshBuffer", 4);
+            .build(&ctx.gpu, &globals_layout);
 
         Self {
-            globals_layout,
             globals,
-            globals_bind_group,
             globals_buffer,
-            mesh_buffer,
-            gpu,
+            bind_group: globals_bind_group,
+            layout: globals_layout,
         }
+    }
+}
+
+impl RendererContext {
+    pub fn new(gpu: Gpu) -> Self {
+        let mesh_buffer = MeshBuffer::new(&gpu, "MeshBuffer", 4);
+
+        Self { mesh_buffer, gpu }
     }
 }
 
 const CHUNK_SIZE: usize = 32;
 
 /// Specifies what to use when drawing a single entity
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DrawCommand {
     pub(crate) shader: stored::Handle<Shader>,
     pub(crate) bind_group: stored::Handle<BindGroup>,
@@ -108,7 +115,7 @@ pub(crate) struct DrawCommand {
     pub(crate) mesh: Arc<MeshHandle>,
     /// TODO: generate inside renderer
     pub(crate) index_count: u32,
-    clip_mask: (UVec2, UVec2),
+    clip_mask: Rect,
 }
 
 /// Compatible draw commands are given an instance in the object buffer and merged together
@@ -164,6 +171,16 @@ fn create_object_bindings(
     (bind_group, object_buffer)
 }
 
+pub(crate) struct RendererProps<'a> {
+    pub root: Entity,
+    pub text_system: Arc<Mutex<TextSystem>>,
+    pub color_format: TextureFormat,
+    pub globals_layout: &'a BindGroupLayout,
+    pub layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
+    pub config: RendererConfig,
+    pub scale_factor: f64,
+}
+
 /// Draws shapes from the frame
 pub struct MainRenderer {
     store: RendererStore,
@@ -180,19 +197,12 @@ pub struct MainRenderer {
     debug_renderer: Option<DebugRenderer>,
 
     object_bind_group_layout: BindGroupLayout,
+    scale_factor: f64,
     root: Entity,
 }
 
 impl MainRenderer {
-    pub(crate) fn new(
-        frame: &mut Frame,
-        ctx: &mut RendererContext,
-        root: Entity,
-        text_system: Arc<Mutex<TextSystem>>,
-        color_format: TextureFormat,
-        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
-        config: RendererConfig,
-    ) -> Self {
+    pub(crate) fn new(frame: &mut Frame, ctx: &mut RendererContext, props: RendererProps) -> Self {
         let object_bind_group_layout =
             BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
                 .bind_uniform_buffer(ShaderStages::VERTEX)
@@ -217,38 +227,27 @@ impl MainRenderer {
             rect_renderer: RectRenderer::new(
                 ctx,
                 frame,
-                color_format,
+                &props,
                 &object_bind_group_layout,
                 &mut store,
             ),
-            text_renderer: TextRenderer::new(
-                ctx,
-                text_system,
-                color_format,
-                &object_bind_group_layout,
-                &mut store,
-            ),
-            debug_renderer: config.debug_mode.then(|| {
-                DebugRenderer::new(
-                    ctx,
-                    frame,
-                    color_format,
-                    &object_bind_group_layout,
-                    &mut store,
-                    layout_changes_rx,
-                )
+            text_renderer: TextRenderer::new(ctx, &props, &object_bind_group_layout, &mut store),
+            debug_renderer: props.config.debug_mode.then(|| {
+                DebugRenderer::new(ctx, frame, &props, &object_bind_group_layout, &mut store)
             }),
             store,
             register_objects,
             object_bind_group_layout,
             object_buffers: Vec::new(),
-            root,
+            root: props.root,
+            scale_factor: props.scale_factor,
         }
     }
 
     pub fn draw<'a>(
         &'a mut self,
         ctx: &'a mut RendererContext,
+        globals: &'a GlobalBuffers,
         frame: &mut Frame,
         render_pass: &mut RenderPass<'a>,
     ) -> anyhow::Result<()> {
@@ -316,6 +315,7 @@ impl MainRenderer {
         }
 
         puffin::profile_scope!("dispatch_draw_commands");
+        let sf = self.scale_factor as f32;
         self.commands.iter().for_each(|(chunk_index, cmd)| {
             let chunk = &self.object_buffers[*chunk_index];
             let shader = &cmd.draw_cmd.shader;
@@ -323,16 +323,21 @@ impl MainRenderer {
             let shader = &self.store.shaders[shader];
             let bind_group = &self.store.bind_groups[bind_group];
 
-            let (mask_min, mask_max) = cmd.draw_cmd.clip_mask;
+            let clip_mask = cmd
+                .draw_cmd
+                .clip_mask
+                .scale(Vec2::splat(sf))
+                .align_to_grid();
+
             render_pass.set_scissor_rect(
-                mask_min.x,
-                mask_min.y,
-                mask_max.x - mask_min.x,
-                mask_max.y - mask_min.y,
+                clip_mask.min.x as u32,
+                clip_mask.min.y as u32,
+                clip_mask.size().x as u32,
+                clip_mask.size().y as u32,
             );
             render_pass.set_pipeline(shader.pipeline());
 
-            render_pass.set_bind_group(0, &ctx.globals_bind_group, &[]);
+            render_pass.set_bind_group(0, &globals.bind_group, &[]);
             render_pass.set_bind_group(1, &chunk.0, &[]);
             render_pass.set_bind_group(2, bind_group, &[]);
 
@@ -347,6 +352,16 @@ impl MainRenderer {
         });
 
         Ok(())
+    }
+
+    fn resize(
+        &mut self,
+        ctx: &RendererContext,
+        physical_size: winit::dpi::PhysicalSize<u32>,
+        scale_factor: f64,
+    ) {
+        self.scale_factor = scale_factor;
+        self.text_renderer.resize(ctx, physical_size, scale_factor);
     }
 }
 

@@ -5,63 +5,71 @@ use flax::Entity;
 use glam::Mat4;
 use parking_lot::Mutex;
 use puffin::profile_scope;
-use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
+use wgpu::{BindGroupLayout, Operations, RenderPassDescriptor, StoreOp, SurfaceError};
 use winit::dpi::{LogicalSize, PhysicalSize};
 
 use violet_core::{layout::cache::LayoutUpdate, Frame};
 
-use crate::{graphics::Surface, text::TextSystem, Gpu};
+use crate::{graphics::Surface, text::TextSystem};
 
-use super::{MainRenderer, RendererConfig, RendererContext};
+use super::{GlobalBuffers, MainRenderer, RendererConfig, RendererContext, RendererProps};
 
 /// Renders to a window surface
 pub struct WindowRenderer {
-    surface: Surface,
-
     ctx: RendererContext,
-    widget_renderer: MainRenderer,
+    surface: Surface,
+    globals: GlobalBuffers,
+    main_renderer: MainRenderer,
 }
 
 impl WindowRenderer {
     pub fn new(
         frame: &mut Frame,
-        gpu: Gpu,
+        mut ctx: RendererContext,
         root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
         layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
+        scale_factor: f64,
         config: RendererConfig,
     ) -> Self {
-        let mut ctx = RendererContext::new(gpu);
-
+        let globals = GlobalBuffers::new(&mut ctx);
         let widget_renderer = MainRenderer::new(
             frame,
             &mut ctx,
-            root,
-            text_system,
-            surface.surface_format(),
-            layout_changes_rx,
-            config,
+            RendererProps {
+                root,
+                text_system,
+                color_format: surface.surface_format(),
+                globals_layout: &globals.layout,
+                layout_changes_rx,
+                config,
+                scale_factor,
+            },
         );
 
         Self {
             surface,
-            widget_renderer,
+            main_renderer: widget_renderer,
+            globals,
             ctx,
         }
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>, scale_factor: f64) {
-        let logical_size: LogicalSize<f32> = new_size.to_logical(scale_factor);
+    pub fn resize(&mut self, physical_size: PhysicalSize<u32>, scale_factor: f64) {
+        let logical_size: LogicalSize<f32> = physical_size.to_logical(scale_factor);
         let w = logical_size.width;
         let h = logical_size.height;
+        // tracing::info!("resizing canvas size to {w}x{h}");
 
-        self.ctx.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
-        self.ctx
+        self.globals.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
+        self.globals
             .globals_buffer
-            .write(&self.ctx.gpu.queue, 0, &[self.ctx.globals]);
+            .write(&self.ctx.gpu.queue, 0, &[self.globals.globals]);
 
-        self.surface.resize(&self.ctx.gpu, new_size);
+        self.main_renderer
+            .resize(&self.ctx, physical_size, scale_factor);
+        self.surface.resize(&self.ctx.gpu, physical_size);
     }
 
     pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<()> {
@@ -96,10 +104,9 @@ impl WindowRenderer {
                     resolve_target: None,
                     ops: Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            // #3b4141
-                            r: 0.04,
+                            r: 0.4,
                             g: 0.05,
-                            b: 0.05,
+                            b: 0.2,
                             a: 1.0,
                         }),
                         store: StoreOp::Store,
@@ -109,8 +116,8 @@ impl WindowRenderer {
                 ..Default::default()
             });
 
-            self.widget_renderer
-                .draw(&mut self.ctx, frame, &mut render_pass)
+            self.main_renderer
+                .draw(&mut self.ctx, &self.globals, frame, &mut render_pass)
                 .context("Failed to draw shapes")?;
         }
 

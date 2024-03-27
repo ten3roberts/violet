@@ -87,36 +87,16 @@ impl Layout {
         entity: &EntityRef,
         cache: &mut LayoutCache,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
+        args: LayoutArgs,
         preferred_size: Vec2,
+        offset: Vec2,
     ) -> Block {
         match self {
-            Layout::Stack(v) => v.apply(
-                world,
-                entity,
-                children,
-                content_area,
-                limits,
-                preferred_size,
-            ),
-            Layout::Flow(v) => v.apply(
-                world,
-                entity,
-                cache,
-                children,
-                content_area,
-                limits,
-                preferred_size,
-            ),
-            Layout::Float(v) => v.apply(
-                world,
-                entity,
-                children,
-                content_area,
-                limits,
-                preferred_size,
-            ),
+            Layout::Stack(v) => v.apply(world, entity, children, args, preferred_size, offset),
+            Layout::Flow(v) => {
+                v.apply(world, entity, cache, children, args, preferred_size, offset)
+            }
+            Layout::Float(v) => v.apply(world, entity, children, args, preferred_size, offset),
         }
     }
 
@@ -171,15 +151,13 @@ impl Display for Sizing {
 pub struct LayoutLimits {
     pub min_size: Vec2,
     pub max_size: Vec2,
-    pub overflow_limit: Vec2,
 }
 
 impl Default for LayoutLimits {
     fn default() -> Self {
         Self {
             min_size: Vec2::ZERO,
-            max_size: Vec2::INFINITY,
-            overflow_limit: Vec2::INFINITY,
+            max_size: Vec2::MAX,
         }
     }
 }
@@ -277,13 +255,12 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     let min_size = min_size.resolve(args.content_area);
     let max_size = max_size
         .map(|v| v.resolve(args.content_area))
-        .unwrap_or(Vec2::INFINITY);
+        .unwrap_or(Vec2::MAX);
 
     let mut limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: args.limits.min_size.max(min_size),
         max_size: args.limits.max_size.min(max_size).max(min_size),
-        overflow_limit: args.limits.overflow_limit,
     };
 
     // Check if cache is valid
@@ -329,7 +306,6 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
                 limits: LayoutLimits {
                     min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                     max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
-                    overflow_limit: args.limits.overflow_limit,
                 },
                 content_area: args.content_area - padding.size(),
                 ..args
@@ -406,22 +382,35 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     sizing
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayoutArgs {
+    // The size of the potentially available space for the subtree
+    pub content_area: Vec2,
+    pub limits: LayoutLimits,
+    pub overflow_limit: Vec2,
+}
+
+impl Default for LayoutArgs {
+    fn default() -> Self {
+        Self {
+            content_area: Vec2::ZERO,
+            limits: LayoutLimits::default(),
+            overflow_limit: Vec2::MAX,
+        }
+    }
+}
+
 /// Updates the layout of the given subtree given the passes constraints.
 ///
 /// Returns the outer bounds of the subtree.
 #[must_use = "This function does not mutate the entity"]
-pub(crate) fn apply_layout(
-    world: &World,
-    entity: &EntityRef,
-    // The size of the potentially available space for the subtree
-    content_area: Vec2,
-    limits: LayoutLimits,
-) -> Block {
+pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) -> Block {
     puffin::profile_function!(format!("{entity}"));
     // assert!(limits.min_size.x <= limits.max_size.x);
     // assert!(limits.min_size.y <= limits.max_size.y);
     // let _span = tracing::info_span!( "Updating subtree", %entity, ?constraints).entered();
-    let _span = tracing::debug_span!("update_subtree", %limits, %content_area, %entity).entered();
+    let _span =
+        tracing::debug_span!("update_subtree", %args.limits, %args.content_area, %entity).entered();
 
     let query = (
         layout_cache().as_mut(),
@@ -439,24 +428,22 @@ pub(crate) fn apply_layout(
     let (cache, &margin, &padding, min_size, max_size, size, size_resolver, children, layout) =
         query.get().unwrap();
 
-    let min_size = min_size.resolve(content_area);
+    let min_size = min_size.resolve(args.content_area);
     let max_size = max_size
-        .map(|v| v.resolve(content_area))
-        .unwrap_or(Vec2::INFINITY);
+        .map(|v| v.resolve(args.content_area))
+        .unwrap_or(Vec2::MAX);
 
-    let external_limits = limits;
     let limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
-        min_size: limits.min_size.max(min_size),
-        max_size: limits.max_size.min(max_size).max(min_size),
-        overflow_limit: limits.overflow_limit.min(max_size),
+        min_size: args.limits.min_size.max(min_size),
+        max_size: args.limits.max_size.min(max_size).max(min_size),
     };
 
     // Check if cache is still valid
 
     if let Some(value) = &cache.layout {
-        if validate_cached_layout(value, limits, content_area, cache.hints.relative_size) {
-            tracing::trace!(%entity, %value.value.rect, %value.value.can_grow, "found valid cached layout");
+        if validate_cached_layout(value, limits, args.content_area, cache.hints.relative_size) {
+            tracing::debug!(%entity, %value.value.rect, %value.value.can_grow, %args.limits, "found valid cached layout");
 
             return value.value;
         }
@@ -471,7 +458,7 @@ pub(crate) fn apply_layout(
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    let mut resolved_size = size.resolve(content_area);
+    let mut resolved_size = size.resolve(args.content_area).max(limits.min_size);
 
     let maximized = entity.get_copy(maximize()).unwrap_or_default();
 
@@ -485,9 +472,11 @@ pub(crate) fn apply_layout(
 
     let can_maximize = maximized.cmpgt(Vec2::ZERO);
 
+    tracing::debug!(%entity, %resolved_size, %limits, %args.limits);
+
     let can_grow = BVec2::new(
-        resolved_size.x > external_limits.max_size.x,
-        resolved_size.y > external_limits.max_size.y,
+        resolved_size.x > args.limits.max_size.x,
+        resolved_size.y > args.limits.max_size.y,
     ) | can_maximize;
 
     // tracing::trace!(%entity, ?resolved_size, ?external_max_size, %can_grow);
@@ -500,23 +489,29 @@ pub(crate) fn apply_layout(
             entity,
             cache,
             children,
-            Rect::from_size(content_area).inset(&padding),
-            LayoutLimits {
-                min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
-                max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
-                overflow_limit: limits.overflow_limit,
+            LayoutArgs {
+                // The size of the potentially available space for the subtree
+                content_area: args.content_area - padding.size(),
+                limits: LayoutLimits {
+                    min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
+                    max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
+                },
+                overflow_limit: (args.overflow_limit - padding.size())
+                    .max(Vec2::ZERO)
+                    .min(max_size),
             },
             resolved_size - padding.size(),
+            vec2(padding.left, padding.top),
         );
 
-        block.rect = block.rect.pad(&padding);
-
-        block.margin = (block.margin - padding).max(margin);
-
-        block
+        Block {
+            rect: block.rect.pad(&padding),
+            margin: (block.margin - padding).max(margin),
+            can_grow: block.can_grow | can_grow,
+        }
     } else if let [child] = children {
         let child = world.entity(*child).unwrap();
-        let block = apply_layout(world, &child, content_area, limits);
+        let block = apply_layout(world, &child, args);
 
         child.update_dedup(components::rect(), block.rect);
         block
@@ -524,7 +519,7 @@ pub(crate) fn apply_layout(
         assert_eq!(children, [], "Widget with children must have a layout");
 
         let (intrinsic_size, instrinsic_can_grow) = size_resolver
-            .map(|v| v.apply(entity, content_area, limits))
+            .map(|v| v.apply(entity, args))
             .unwrap_or((Vec2::ZERO, BVec2::FALSE));
 
         let size = intrinsic_size.max(resolved_size);
@@ -551,22 +546,21 @@ pub(crate) fn apply_layout(
     let constraints = Constraints::from_entity(entity);
     block.rect = block.rect.with_size(constraints.apply(block.rect.size()));
 
-    let offset = resolve_pos(entity, content_area, block.rect.size());
+    let offset = resolve_pos(entity, args.content_area, block.rect.size());
     block.rect = block.rect.translate(offset);
 
     entity.update_dedup(components::layout_bounds(), block.rect.size());
     entity
-        .update_dedup(components::layout_limits(), limits)
+        .update_dedup(components::layout_args(), args)
         .unwrap();
 
-    if limits.overflow_limit.x < block.rect.size().x
-        || limits.overflow_limit.y < block.rect.size().y
-    {
+    if args.overflow_limit.x < block.rect.size().x || args.overflow_limit.y < block.rect.size().y {
         tracing::warn!(
             %entity,
             size=%block.rect.size(),
-            %external_limits,
-            "Widget size is exceeds constraints"
+            %args.limits,
+            %args.overflow_limit,
+            "Widget size exceeds constraints"
         );
     }
 
@@ -586,8 +580,8 @@ pub(crate) fn apply_layout(
 
     // validate_block(entity, &block, limits);
 
-    tracing::debug!(%limits, %content_area, %block.can_grow, %block.rect, "caching layout");
-    cache.insert_layout(CachedValue::new(limits, content_area, block));
+    tracing::debug!(%limits, %args.content_area, %block.can_grow, %block.rect, "caching layout");
+    cache.insert_layout(CachedValue::new(limits, args.content_area, block));
 
     block
 }
@@ -602,12 +596,7 @@ pub trait SizeResolver: Send + Sync {
     fn query(&mut self, entity: &EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints);
 
     /// Uses the current constraints to determine the size of the widget
-    fn apply(
-        &mut self,
-        entity: &EntityRef,
-        content_area: Vec2,
-        limits: LayoutLimits,
-    ) -> (Vec2, BVec2);
+    fn apply(&mut self, entity: &EntityRef, args: LayoutArgs) -> (Vec2, BVec2);
 }
 
 #[derive(Debug)]

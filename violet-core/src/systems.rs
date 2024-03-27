@@ -19,13 +19,13 @@ use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{
-        self, children, clip_mask, layout_bounds, layout_limits, local_position, rect,
+        self, children, clip_mask, layout_args, layout_bounds, local_position, rect,
         screen_clip_mask, screen_transform, text, transform,
     },
     layout::{
         apply_layout,
         cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdate},
-        LayoutLimits,
+        LayoutArgs, LayoutLimits,
     },
     Rect,
 };
@@ -50,7 +50,7 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
         .set_default(transform())
         .set_default(local_position())
         .set(clip_mask(), Rect::new(Vec2::MIN, Vec2::MAX))
-        .set_default(layout_limits())
+        .set_default(layout_args())
         .set_default(screen_clip_mask())
         .set_default(rect());
 }
@@ -172,10 +172,12 @@ pub fn layout_system(root: Entity) -> BoxedSystem {
                 let res = apply_layout(
                     world,
                     &entity,
-                    canvas_rect.size(),
-                    LayoutLimits {
-                        min_size: Vec2::ZERO,
-                        max_size: canvas_rect.size(),
+                    LayoutArgs {
+                        content_area: canvas_rect.size(),
+                        limits: LayoutLimits {
+                            min_size: Vec2::ZERO,
+                            max_size: canvas_rect.size(),
+                        },
                         overflow_limit: canvas_rect.size(),
                     },
                 );

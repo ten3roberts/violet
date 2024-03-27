@@ -15,11 +15,11 @@ use winit::{
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, local_position, max_size, rect, screen_transform, size},
+    components::{self, max_size, rect, size},
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
-    style::{primary_background, setup_stylesheet, stylesheet, Background},
+    style::{primary_background, setup_stylesheet, stylesheet, Background, SizeExt},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
@@ -32,7 +32,7 @@ use violet_core::{
 
 use crate::{
     graphics::Gpu,
-    renderer::{RendererConfig, WindowRenderer},
+    renderer::{GlobalBuffers, RendererConfig, RendererContext, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
     text::TextSystem,
 };
@@ -51,14 +51,12 @@ impl<W: Widget> Widget for Canvas<W> {
             .set(max_size(), Unit::px(self.size))
             .set(size(), Unit::px(self.size));
 
-        scope.attach(
-            Stack::new(
-                col(self.root)
-                    .contain_margins(true)
-                    .with_background(Background::new(primary_background())),
-            )
-            .with_clip(BVec2::TRUE),
-        );
+        scope.attach(Stack::new(
+            col(self.root)
+                .contain_margins(true)
+                .with_maximize(Vec2::ONE)
+                .with_background(Background::new(primary_background())),
+        ));
     }
 }
 
@@ -120,7 +118,8 @@ impl AppBuilder {
         {
             use winit::platform::web::WindowExtWebSys;
             let canvas = window.canvas().expect("Missing window canvas");
-            let (w, h) = (canvas.client_width(), canvas.client_height());
+            let scale_factor = window.scale_factor();
+            let (w, h) = (canvas.client_width() * sf, canvas.client_height() * sf);
 
             canvas.set_width(w.try_into().unwrap());
             canvas.set_height(h.try_into().unwrap());
@@ -153,17 +152,18 @@ impl AppBuilder {
         frame.spawn(FutureEffect::new(Gpu::with_surface(window.clone()), {
             to_owned![text_system];
             move |frame: &mut Frame, (gpu, surface)| {
-                renderer_tx
-                    .send(WindowRenderer::new(
-                        frame,
-                        gpu,
-                        root,
-                        text_system.clone(),
-                        surface,
-                        layout_changes_rx.clone(),
-                        self.renderer_config,
-                    ))
-                    .ok();
+                let ctx = RendererContext::new(gpu);
+                let renderer = WindowRenderer::new(
+                    frame,
+                    ctx,
+                    root,
+                    text_system.clone(),
+                    surface,
+                    layout_changes_rx.clone(),
+                    1.0,
+                    self.renderer_config,
+                );
+                renderer_tx.send(renderer).ok();
             }
         }));
 
@@ -201,9 +201,9 @@ impl AppBuilder {
             Event::AboutToWait => {
                 puffin::profile_scope!("AboutToWait");
 
-                if let Some(mut window_renderer) = renderer_rx.try_recv().ok().flatten() {
-                    window_renderer.resize(instance.window_size, instance.scale_factor);
-                    instance.renderer = Some(window_renderer);
+                if let Some(mut renderer) = renderer_rx.try_recv().ok().flatten() {
+                    renderer.resize(instance.window_size, instance.scale_factor);
+                    instance.renderer = Some(renderer);
                 }
 
                 instance.update();
@@ -249,6 +249,7 @@ impl AppBuilder {
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     puffin::profile_scope!("CursorMoved");
+                    let position = position.to_logical::<f32>(instance.scale_factor);
                     input_state.on_cursor_move(
                         &mut instance.frame,
                         vec2(position.x as f32, position.y as f32),
@@ -324,12 +325,13 @@ impl App {
         AppBuilder::new()
     }
 
-    pub fn on_resize(&mut self, size: PhysicalSize<u32>) {
-        self.window_size = size;
+    pub fn on_resize(&mut self, physical_size: PhysicalSize<u32>) {
+        self.window_size = physical_size;
+        // self.scale_factor = 2.0;
 
-        tracing::info!(?size, self.scale_factor, "Resizing window");
+        tracing::info!(?physical_size, self.scale_factor, "Resizing window");
 
-        let logical_size: LogicalSize<f32> = size.to_logical(self.scale_factor);
+        let logical_size: LogicalSize<f32> = physical_size.to_logical(self.scale_factor);
 
         let canvas = self.frame.world_mut().entity_mut(self.root).unwrap();
         canvas
@@ -349,7 +351,7 @@ impl App {
         self.schedule.execute_seq(&mut self.frame.world).unwrap();
 
         if let Some(renderer) = &mut self.renderer {
-            renderer.resize(size, self.scale_factor);
+            renderer.resize(physical_size, self.scale_factor);
         }
     }
 

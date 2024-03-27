@@ -263,6 +263,14 @@ impl Rect {
         }
     }
 
+    #[must_use]
+    pub fn scale(&self, scale: Vec2) -> Self {
+        Self {
+            min: self.min * scale,
+            max: self.max * scale,
+        }
+    }
+
     pub fn clip(&self, mask: Rect) -> Rect {
         let min = self.min.max(mask.min);
         let max = self.max.min(mask.max);

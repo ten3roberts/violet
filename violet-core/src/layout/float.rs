@@ -7,7 +7,7 @@ use crate::{
     Edges, Rect,
 };
 
-use super::{apply_layout, Block, LayoutLimits, QueryArgs, Sizing};
+use super::{apply_layout, Block, LayoutArgs, LayoutLimits, QueryArgs, Sizing};
 
 /// A floating layout positions its children similar to the stack layout, but it does grow to accommodate the children.
 ///
@@ -23,9 +23,9 @@ impl FloatLayout {
         world: &World,
         entity: &EntityRef,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
+        args: LayoutArgs,
         preferred_size: Vec2,
+        offset: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
@@ -37,11 +37,18 @@ impl FloatLayout {
 
             let limits = LayoutLimits {
                 min_size: Vec2::ZERO,
-                max_size: Vec2::INFINITY,
-                overflow_limit: Vec2::INFINITY,
+                max_size: Vec2::MAX,
             };
 
-            let block = apply_layout(world, &entity, content_area.size(), limits);
+            let block = apply_layout(
+                world,
+                &entity,
+                LayoutArgs {
+                    content_area: args.content_area,
+                    limits,
+                    overflow_limit: Vec2::MAX,
+                },
+            );
 
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), Vec2::ZERO);
@@ -71,8 +78,7 @@ impl FloatLayout {
                 QueryArgs {
                     limits: LayoutLimits {
                         min_size: Vec2::ZERO,
-                        max_size: Vec2::INFINITY,
-                        overflow_limit: Vec2::INFINITY,
+                        max_size: Vec2::MAX,
                     },
                     content_area: args.content_area,
                     direction: Direction::Horizontal,

@@ -1,6 +1,6 @@
 use glam::{vec2, BVec2, Vec2};
 
-use crate::layout::{Direction, QueryArgs, SizeResolver, SizingHints};
+use crate::layout::{Direction, LayoutArgs, QueryArgs, SizeResolver, SizingHints};
 
 pub struct FixedAreaConstraint {
     pub area: f32,
@@ -45,13 +45,8 @@ impl SizeResolver for FixedAreaConstraint {
         )
     }
 
-    fn apply(
-        &mut self,
-        _: &flax::EntityRef,
-        _: Vec2,
-        limits: crate::layout::LayoutLimits,
-    ) -> (Vec2, BVec2) {
-        let width = (limits.max_size.x / self.unit_size).floor().max(1.0);
+    fn apply(&mut self, _: &flax::EntityRef, args: LayoutArgs) -> (Vec2, BVec2) {
+        let width = (args.limits.max_size.x / self.unit_size).floor().max(1.0);
 
         let height = (self.area / width).ceil();
 

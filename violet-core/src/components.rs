@@ -8,7 +8,7 @@ use palette::Srgba;
 
 use crate::{
     assets::Asset,
-    layout::{Layout, LayoutLimits, SizeResolver},
+    layout::{Layout, LayoutArgs, LayoutLimits, SizeResolver},
     stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
@@ -90,7 +90,7 @@ component! {
     /// different wrapping, and therefore final size.
     pub layout_bounds: Vec2 => [ Debuggable ],
 
-    pub layout_limits: LayoutLimits => [ Debuggable ],
+    pub layout_args: LayoutArgs => [ Debuggable ],
 
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],

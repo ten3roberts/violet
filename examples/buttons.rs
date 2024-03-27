@@ -85,7 +85,7 @@ impl Widget for MainApp {
                     )),
                     row((
                         Text::new("Count"),
-                        SliderWithLabel::new(count, 1, 2).editable(true),
+                        SliderWithLabel::new(count, 1, 8).editable(true),
                     )),
                 )),
                 SignalWidget::new(item_list),

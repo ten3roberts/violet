@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 
 use violet_core::{
     components::font_size,
-    layout::{LayoutLimits, QueryArgs, SizeResolver, SizingHints},
+    layout::{LayoutArgs, QueryArgs, SizeResolver, SizingHints},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };
@@ -114,14 +114,9 @@ impl SizeResolver for TextSizeResolver {
         )
     }
 
-    fn apply(
-        &mut self,
-        entity: &flax::EntityRef,
-        content_area: Vec2,
-        limits: LayoutLimits,
-    ) -> (Vec2, BVec2) {
+    fn apply(&mut self, entity: &flax::EntityRef, args: LayoutArgs) -> (Vec2, BVec2) {
         puffin::profile_scope!("TextSizeResolver::apply");
-        let _span = tracing::debug_span!("TextSizeResolver::apply", ?content_area).entered();
+        let _span = tracing::debug_span!("TextSizeResolver::apply", ?args).entered();
 
         let query = (text_buffer_state().as_mut(), font_size());
 
@@ -137,10 +132,10 @@ impl SizeResolver for TextSizeResolver {
             font_size,
             // Add a little leeway, because an exact fit from the query may miss the last
             // word/glyph
-            limits.max_size.max(vec2(0.0, line_height)) + vec2(5.0, 5.0),
+            args.limits.max_size.max(vec2(0.0, line_height)) + vec2(5.0, 5.0),
         );
 
-        if size.x > limits.max_size.x || size.y > limits.max_size.y {
+        if size.x > args.limits.max_size.x || size.y > args.limits.max_size.y {
             // tracing::error!(%entity, text=?state.text(), %size, %limits.max_size, "Text overflowed");
         }
 
@@ -163,9 +158,7 @@ impl TextSizeResolver {
 
         let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
 
-        let metrics = Metrics::new(font_size, font_size);
-        buffer.set_metrics(metrics);
-        buffer.set_size(size.x, size.y);
+        buffer.set_metrics_and_size(Metrics::new(font_size, font_size), size.x, size.y);
 
         buffer.shape_until_scroll(true);
 

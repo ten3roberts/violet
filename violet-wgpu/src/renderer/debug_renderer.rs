@@ -6,14 +6,15 @@ use image::DynamicImage;
 use itertools::Itertools;
 use violet_core::{
     assets::Asset,
-    components::{
-        layout_bounds, layout_limits, max_size, rect, screen_clip_mask, screen_transform, transform,
+    components::{layout_args, rect, screen_clip_mask, screen_transform},
+    layout::{
+        cache::{layout_cache, LayoutUpdate},
+        Direction,
     },
-    layout::cache::{layout_cache, LayoutUpdate},
     stored::{self, Handle},
     Frame, Rect,
 };
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages};
 
 use crate::{
     graphics::{
@@ -24,10 +25,7 @@ use crate::{
     renderer::RendererContext,
 };
 
-use super::{
-    rect_renderer::ImageFromColor,
-    {DrawCommand, ObjectData, RendererStore},
-};
+use super::{rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererProps, RendererStore};
 
 pub struct DebugRenderer {
     white_image: Asset<DynamicImage>,
@@ -50,10 +48,9 @@ impl DebugRenderer {
     pub fn new(
         ctx: &mut RendererContext,
         frame: &Frame,
-        color_format: TextureFormat,
+        props: &RendererProps,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
-        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
@@ -95,9 +92,9 @@ impl DebugRenderer {
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/debug_indicator.wgsl"),
-                format: color_format,
+                format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
 
@@ -106,9 +103,9 @@ impl DebugRenderer {
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/border_shader.wgsl"),
-                format: color_format,
+                format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
 
@@ -117,9 +114,9 @@ impl DebugRenderer {
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/solid.wgsl"),
-                format: color_format,
+                format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
 
@@ -131,7 +128,7 @@ impl DebugRenderer {
             mesh,
             corner_shader,
             border_shader,
-            layout_changes_rx,
+            layout_changes_rx: props.layout_changes_rx.clone(),
             layout_changes: BTreeMap::new(),
             objects: Vec::new(),
             solid_shader,
@@ -150,13 +147,13 @@ impl DebugRenderer {
 
         let mut overflow = Vec::new();
 
-        let mut query = Query::new((entity_refs(), layout_limits(), rect()));
+        let mut query = Query::new((entity_refs(), layout_args(), rect()));
         let mut query = query.borrow(&frame.world);
 
         query
             .iter()
-            .filter_map(|(entity, &limits, &rect)| {
-                let diff = (rect.size() - limits.overflow_limit).max(Vec2::ZERO);
+            .filter_map(|(entity, &args, &rect)| {
+                let diff = (rect.size() - args.overflow_limit).max(Vec2::ZERO);
 
                 let transform = entity.get_copy(screen_transform()).ok()?;
                 let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
@@ -186,16 +183,16 @@ impl DebugRenderer {
                             bind_group: self.bind_group.clone(),
                             mesh: self.mesh.clone(),
                             index_count: 6,
-                            clip_mask: (clip_mask.min.as_uvec2(), clip_mask.max.as_uvec2()),
+                            clip_mask,
                         },
                         object_data,
                     ));
                 };
 
                 if diff.x > 0.0 {
-                    tracing::error!(%entity, %diff, %limits, %rect, "horizontal overflow detected");
+                    // tracing::error!(%entity, %diff, ?args, %rect, "horizontal overflow detected");
                     let rect = Rect::new(
-                        vec2(limits.overflow_limit.x, rect.min.y),
+                        vec2(args.overflow_limit.x, rect.min.y),
                         vec2(rect.max.x, rect.max.y),
                     );
 
@@ -203,9 +200,9 @@ impl DebugRenderer {
                 }
 
                 if diff.y > 0.0 {
-                    tracing::error!(%entity, %diff, %limits, %rect, "vertical overflow detected");
+                    // tracing::error!(%entity, %diff, ?args, %rect, "vertical overflow detected");
                     let rect = Rect::new(
-                        vec2(rect.min.x, limits.overflow_limit.y),
+                        vec2(rect.min.x, args.overflow_limit.y),
                         vec2(rect.max.x, rect.max.y),
                     );
 
@@ -219,44 +216,44 @@ impl DebugRenderer {
         let mut query = Query::new((entity_refs(), layout_cache()));
         let mut query = query.borrow(&frame.world);
 
-        // let clamped_indicators = query.iter().filter_map(|(entity, v)| {
-        //     let can_grow_vert = if v
-        //         .get_query(Direction::Vertical)
-        //         .as_ref()
-        //         .is_some_and(|v| v.value.hints.can_grow.any())
-        //     {
-        //         vec3(0.5, 0.0, 0.0)
-        //     } else {
-        //         Vec3::ZERO
-        //     };
+        let clamped_indicators = query.iter().filter_map(|(entity, v)| {
+            let can_grow_vert = if v
+                .get_query(Direction::Vertical)
+                .iter()
+                .any(|v| v.value.hints.can_grow.any())
+            {
+                vec3(0.5, 0.0, 0.0)
+            } else {
+                Vec3::ZERO
+            };
 
-        //     let can_grow_hor = if v
-        //         .get_query(Direction::Horizontal)
-        //         .as_ref()
-        //         .is_some_and(|v| v.value.hints.can_grow.any())
-        //     {
-        //         vec3(0.0, 0.5, 0.0)
-        //     } else {
-        //         Vec3::ZERO
-        //     };
+            let can_grow_hor = if v
+                .get_query(Direction::Horizontal)
+                .iter()
+                .any(|v| v.value.hints.can_grow.any())
+            {
+                vec3(0.0, 0.5, 0.0)
+            } else {
+                Vec3::ZERO
+            };
 
-        //     let can_grow = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
-        //         vec3(0.0, 0.0, 0.5)
-        //     } else {
-        //         Vec3::ZERO
-        //     };
+            let can_grow = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
+                vec3(0.0, 0.0, 0.5)
+            } else {
+                Vec3::ZERO
+            };
 
-        //     let color: Vec3 = [can_grow_vert, can_grow_hor, can_grow].into_iter().sum();
+            let color: Vec3 = [can_grow_vert, can_grow_hor, can_grow].into_iter().sum();
 
-        //     if color == Vec3::ZERO {
-        //         None
-        //     } else {
-        //         Some((entity, &self.corner_shader, color.extend(1.0)))
-        //     }
-        // });
+            if color == Vec3::ZERO {
+                None
+            } else {
+                Some((entity, &self.corner_shader, color.extend(1.0)))
+            }
+        });
 
-        let mut query = Query::new((entity_refs(), layout_cache()));
-        let mut query = query.borrow(&frame.world);
+        // let mut query = Query::new((entity_refs(), layout_cache()));
+        // let mut query = query.borrow(&frame.world);
 
         // let fixed_indicators = query.iter().filter_map(|(entity, v)| {
         //     let color = if v.fixed_size() {
@@ -282,7 +279,8 @@ impl DebugRenderer {
             Some((entity, &self.border_shader, color))
         });
 
-        let objects = objects
+        let objects = clamped_indicators
+            .chain(objects)
             .filter_map(|(entity, shader, color)| {
                 let rect = entity.get_copy(rect()).ok()?.align_to_grid();
                 let transform = entity.get_copy(screen_transform()).ok()?;
@@ -306,7 +304,7 @@ impl DebugRenderer {
                         bind_group: self.bind_group.clone(),
                         mesh: self.mesh.clone(),
                         index_count: 6,
-                        clip_mask: (clip_mask.min.as_uvec2(), clip_mask.max.as_uvec2()),
+                        clip_mask,
                     },
                     object_data,
                 ))

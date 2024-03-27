@@ -30,7 +30,7 @@ use crate::{
     Gpu,
 };
 
-use super::{DrawCommand, ObjectData, RendererStore};
+use super::{DrawCommand, ObjectData, RendererProps, RendererStore};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ImageFromColor(pub [u8; 4]);
@@ -129,7 +129,7 @@ impl RectRenderer {
     pub fn new(
         ctx: &mut RendererContext,
         frame: &Frame,
-        color_format: TextureFormat,
+        props: &RendererProps,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
@@ -165,9 +165,9 @@ impl RectRenderer {
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/solid.wgsl"),
-                format: color_format,
+                format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
 
@@ -220,7 +220,7 @@ impl RectRenderer {
                         shader: self.shader.clone(),
                         mesh: self.mesh.clone(),
                         index_count: 6,
-                        clip_mask: (item.clip_mask.min.as_uvec2(), item.clip_mask.max.as_uvec2()),
+                        clip_mask: *item.clip_mask,
                     },
                 );
             });

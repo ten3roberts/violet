@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
+use image::flat::NormalForm;
 use itertools::Itertools;
 
 use crate::{
@@ -14,8 +15,8 @@ use crate::{
 };
 
 use super::{
-    apply_layout, cache::LayoutCache, resolve_pos, Block, Direction, LayoutLimits, QueryArgs,
-    Sizing,
+    apply_layout, cache::LayoutCache, resolve_pos, Block, Direction, LayoutArgs, LayoutLimits,
+    QueryArgs, Sizing,
 };
 
 #[derive(Debug, Clone)]
@@ -350,13 +351,13 @@ impl FlowLayout {
         entity: &EntityRef,
         cache: &mut LayoutCache,
         children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
+        args: LayoutArgs,
         preferred_size: Vec2,
+        offset: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let _span =
-            tracing::debug_span!("Flow::apply", %entity, %content_area, ?limits, flow=?self)
+            tracing::debug_span!("Flow::apply", %entity, %args.content_area, ?args.limits, flow=?self)
                 .entered();
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
@@ -366,14 +367,14 @@ impl FlowLayout {
             cache,
             children,
             QueryArgs {
-                limits,
-                content_area: content_area.size(),
+                limits: args.limits,
+                content_area: args.content_area,
                 direction: self.direction,
             },
         );
 
         // tracing::debug!(?row.margin, "row margins to be contained");
-        self.distribute_children(world, entity, &row, content_area, limits, preferred_size)
+        self.distribute_children(world, entity, &row, args, preferred_size, offset)
     }
 
     fn distribute_children(
@@ -381,9 +382,9 @@ impl FlowLayout {
         world: &World,
         entity: &EntityRef,
         row: &Row,
-        content_area: Rect,
-        limits: LayoutLimits,
+        args: LayoutArgs,
         preferred_size: Vec2,
+        offset: Vec2,
     ) -> Block {
         puffin::profile_function!();
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
@@ -400,15 +401,15 @@ impl FlowLayout {
 
         // Clipped maximum that we remap to
         let target_inner_size = distribute_size
-            .min(limits.max_size.dot(axis) - minimum_inner_size)
+            .min(args.limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
 
-        let remaining_size = (limits.max_size.dot(axis) - preferred_inner_size).max(0.0);
+        let remaining_size = (args.limits.max_size.dot(axis) - preferred_inner_size).max(0.0);
 
         // for cross
-        let available_size = limits.max_size;
+        let available_size = args.limits.max_size;
 
-        let mut cursor = QueryCursor::new(content_area.min, axis, cross_axis, self.contain_margins);
+        let mut cursor = QueryCursor::new(offset, axis, cross_axis, self.contain_margins);
 
         // Reset to local
         let mut sum = 0.0;
@@ -472,18 +473,16 @@ impl FlowLayout {
                 // accordingly.
                 //
                 // The child may return a size *less* than the specified limit
-                // let overflow_limit =
-                //     axis_sizing + (limits.overflow_limit - child_margin.size()) * cross_axis;
-                let overflow_limit = limits.overflow_limit;
+                let overflow_limit = (args.overflow_limit.dot(axis) - cursor.main_cursor) * axis
+                    + (args.overflow_limit - child_margin.size()) * cross_axis;
 
-                tracing::debug!(%entity, ?overflow_limit, ?limits.overflow_limit);
+                // tracing::info!("overflow limit: {}", overflow_limit);
 
                 let child_limits = if self.stretch {
                     let cross_size = cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
                         min_size: cross_size * cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
-                        overflow_limit,
                     }
                 } else {
                     let cross_size = available_size - child_margin.size();
@@ -491,12 +490,19 @@ impl FlowLayout {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: axis_sizing + cross_size * cross_axis,
-                        overflow_limit,
                     }
                 };
 
                 // let local_rect = widget_outer_bounds(world, &child, size);
-                let block = apply_layout(world, &entity, content_area.size(), child_limits);
+                let block = apply_layout(
+                    world,
+                    &entity,
+                    LayoutArgs {
+                        content_area: args.content_area,
+                        limits: child_limits,
+                        overflow_limit,
+                    },
+                );
 
                 can_grow |= block.can_grow;
                 tracing::debug!(?block, "updated subtree");
@@ -513,13 +519,13 @@ impl FlowLayout {
 
         // Apply alignment offsets
         let start = match (self.direction, self.reverse) {
-            (Direction::Horizontal, false) => content_area.min,
-            (Direction::Vertical, false) => content_area.min,
-            (Direction::Horizontal, true) => vec2(content_area.max.x, content_area.min.y),
-            (Direction::Vertical, true) => vec2(content_area.min.x, content_area.max.y),
+            (Direction::Horizontal, false) => offset,
+            (Direction::Vertical, false) => offset,
+            (Direction::Horizontal, true) => vec2(args.limits.max_size.x, offset.y),
+            (Direction::Vertical, true) => vec2(offset.x, args.limits.max_size.y),
         };
 
-        let offset = resolve_pos(entity, content_area.size(), line_size);
+        let offset = resolve_pos(entity, args.content_area, line_size);
         let start = start + offset;
 
         // Do layout one last time for alignment
@@ -545,13 +551,13 @@ impl FlowLayout {
         let rect = cursor
             .finish()
             .max_size(preferred_size)
-            .max_size(limits.min_size);
+            .max_size(args.limits.min_size);
 
         let margin =
             self.direction
                 .to_edges(cursor.main_margin, cursor.cross_margin(), self.reverse);
 
-        tracing::debug!(%rect, %entity, %margin, %limits);
+        tracing::debug!(%rect, %entity, %margin, %args.limits);
 
         Block::new(rect, margin, can_grow)
     }
@@ -660,8 +666,6 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
-                let overflow_limit =
-                    axis_sizing + (args.limits.overflow_limit - child_margin.size()) * cross_axis;
                 // Calculate hard sizing constraints ensure the children are laid out
                 // accordingly.
                 //
@@ -671,7 +675,6 @@ impl FlowLayout {
                     LayoutLimits {
                         min_size: cross_size*cross_axis,
                         max_size: axis_sizing + cross_size * cross_axis,
-                        overflow_limit,
                     }
                 } else {
                     let cross_size = available_size - child_margin.size();
@@ -679,7 +682,6 @@ impl FlowLayout {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: axis_sizing + cross_size * cross_axis,
-                        overflow_limit,
                     }
                 };
 
@@ -786,7 +788,6 @@ impl FlowLayout {
                             limits: LayoutLimits {
                                 min_size: Vec2::ZERO,
                                 max_size: args.limits.max_size,
-                                overflow_limit: args.limits.max_size,
                             },
                             content_area: args.content_area,
                             direction: self.direction,
@@ -804,7 +805,6 @@ impl FlowLayout {
                         limits: LayoutLimits {
                             min_size: Vec2::ZERO,
                             max_size: args.limits.max_size - child_margin.size(),
-                            overflow_limit: args.limits.max_size - child_margin.size(),
                         },
                         content_area: args.content_area,
                         direction: self.direction,

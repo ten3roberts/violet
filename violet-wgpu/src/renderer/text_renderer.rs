@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cosmic_text::{Buffer, CacheKey, Placement};
+use cosmic_text::{Buffer, CacheKey, Metrics, Placement};
 use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
@@ -16,12 +16,11 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 use violet_core::{
     assets::AssetCache,
     components::{
-        color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_clip_mask,
-        screen_transform, text,
+        color, draw_shape, font_size, layout_bounds, rect, screen_clip_mask, screen_transform, text,
     },
     shape::shape_text,
     stored::{self, Handle},
-    text::{LayoutGlyphs, TextSegment},
+    text::TextSegment,
     Frame, Rect,
 };
 
@@ -38,7 +37,7 @@ use crate::{
     Gpu,
 };
 
-use super::{DrawCommand, ObjectData, RendererStore};
+use super::{DrawCommand, ObjectData, RendererProps, RendererStore};
 
 #[derive(Fetch)]
 struct ObjectQuery {
@@ -122,6 +121,10 @@ impl FontRasterizer {
         Ok(())
     }
 
+    pub fn clear(&mut self) {
+        self.rasterized.atlas.glyphs.clear();
+    }
+
     pub fn get_glyph(&self, glyph: CacheKey) -> Option<&(Placement, GlyphLocation)> {
         self.rasterized.atlas.glyphs.get(&glyph)
     }
@@ -135,6 +138,7 @@ struct MeshGenerator {
 impl MeshGenerator {
     fn new(
         ctx: &mut RendererContext,
+        globals_layout: &BindGroupLayout,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
@@ -151,7 +155,7 @@ impl MeshGenerator {
                 source: include_str!("../../../assets/shaders/text.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, object_layout, &text_layout],
+                layouts: &[&globals_layout, object_layout, &text_layout],
             },
         ));
 
@@ -179,6 +183,7 @@ impl MeshGenerator {
         // text: &str,
         mesh: &mut Arc<MeshHandle>,
         store: &mut RendererStore,
+        scale_factor: f64,
     ) -> u32 {
         puffin::profile_function!();
         // let rasterized = self
@@ -189,6 +194,7 @@ impl MeshGenerator {
 
         // let color = cosmic_text::Color::rgb(0xFF, 0xFF, 0xFF);
 
+        let sf = scale_factor as f32;
         let mut missing = Vec::new();
         loop {
             for run in buffer.layout_runs() {
@@ -219,21 +225,21 @@ impl MeshGenerator {
                     vertices.extend_from_slice(&[
                         // Bottom left
                         Vertex::new(
-                            vec3(x, y + placement.height as f32, 0.0),
+                            vec3(x, y + placement.height as f32, 0.0) / sf,
                             color,
                             vec2(uv_min.x, uv_max.y),
                         ),
                         Vertex::new(
-                            vec3(x + placement.width as f32, y + placement.height as f32, 0.0),
+                            vec3(x + placement.width as f32, y + placement.height as f32, 0.0) / sf,
                             color,
                             vec2(uv_max.x, uv_max.y),
                         ),
                         Vertex::new(
-                            vec3(x + placement.width as f32, y, 0.0),
+                            vec3(x + placement.width as f32, y, 0.0) / sf,
                             color,
                             vec2(uv_max.x, uv_min.y),
                         ),
-                        Vertex::new(vec3(x, y, 0.0), color, vec2(uv_min.x, uv_min.y)),
+                        Vertex::new(vec3(x, y, 0.0) / sf, color, vec2(uv_min.x, uv_min.y)),
                     ]);
                 }
             }
@@ -284,10 +290,7 @@ pub(crate) struct TextMeshQuery {
     text: Component<Vec<TextSegment>>,
     #[fetch(ignore)]
     layout_bounds: Component<Vec2>,
-    #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
-    // #[fetch(ignore)]
-    layout_glyphs: Opt<Mutable<LayoutGlyphs>>,
 
     clip_mask: Component<Rect>,
 }
@@ -303,7 +306,6 @@ impl TextMeshQuery {
             layout_bounds: layout_bounds(),
             font_size: font_size().opt_or(16.0),
             state: text_buffer_state().as_mut(),
-            layout_glyphs: layout_glyphs().as_mut().opt(),
             clip_mask: screen_clip_mask(),
         }
     }
@@ -321,22 +323,29 @@ pub(crate) struct TextRenderer {
 
     object_query: Query<ObjectQuery, (All, With)>,
     mesh_query: Query<<TextMeshQuery as TransformFetch<Modified>>::Output, All>,
+    scale_factor: f64,
 }
 
 impl TextRenderer {
     pub(crate) fn new(
         ctx: &mut RendererContext,
-        text_system: Arc<Mutex<TextSystem>>,
-        color_format: TextureFormat,
+        props: &RendererProps,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
-        let mesh_generator = MeshGenerator::new(ctx, color_format, object_layout, store);
+        let mesh_generator = MeshGenerator::new(
+            ctx,
+            &props.globals_layout,
+            props.color_format,
+            object_layout,
+            store,
+        );
         Self {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
             mesh_query: Query::new(TextMeshQuery::new().modified()),
-            text_system,
+            text_system: props.text_system.clone(),
+            scale_factor: props.scale_factor,
         }
     }
 
@@ -363,7 +372,16 @@ impl TextRenderer {
                 {
                     let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);
 
-                    buffer.set_size(item.layout_bounds.x + 5.0, item.layout_bounds.y + 5.0);
+                    let sf = self.scale_factor as f32;
+                    buffer.set_metrics_and_size(
+                        Metrics {
+                            font_size: item.font_size * sf,
+                            line_height: item.font_size * sf,
+                        },
+                        (item.rect.size().x + 5.0) * sf,
+                        (item.rect.size().y + 5.0) * sf,
+                    );
+                    // buffer.set_size(item.layout_bounds.x + 5.0, item.layout_bounds.y + 5.0);
 
                     buffer.shape_until_scroll(true);
                 }
@@ -382,11 +400,8 @@ impl TextRenderer {
                     &mut item.state.buffer,
                     text_mesh,
                     store,
+                    self.scale_factor,
                 );
-
-                if let Some(v) = item.layout_glyphs {
-                    *v = item.state.layout_glyphs();
-                }
 
                 cmd.set(
                     item.id,
@@ -396,7 +411,7 @@ impl TextRenderer {
                         shader: self.mesh_generator.shader.clone(),
                         mesh: text_mesh.clone(),
                         index_count,
-                        clip_mask: (item.clip_mask.min.as_uvec2(), item.clip_mask.max.as_uvec2()),
+                        clip_mask: *item.clip_mask,
                     },
                 );
 
@@ -415,12 +430,28 @@ impl TextRenderer {
             .iter()
             .for_each(|item| {
                 let rect = item.rect.align_to_grid();
-                let model_matrix = *item.transform;
+                let model_matrix = *item.transform
+                    * Mat4::from_scale_rotation_translation(
+                        Vec3::ONE,
+                        Quat::IDENTITY,
+                        rect.pos().extend(0.0),
+                    );
 
                 *item.object_data = ObjectData {
                     model_matrix,
                     color: srgba_to_vec4(*item.color),
                 };
             })
+    }
+
+    pub(crate) fn resize(
+        &mut self,
+        ctx: &RendererContext,
+        physical_size: winit::dpi::PhysicalSize<u32>,
+        scale_factor: f64,
+    ) {
+        if self.scale_factor != scale_factor {
+            self.mesh_generator.rasterizer.clear();
+        }
     }
 }

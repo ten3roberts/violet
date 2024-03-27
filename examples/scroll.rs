@@ -15,14 +15,9 @@ use violet::core::{
 };
 use violet_core::{
     state::{State, StateStream},
-    style::{
-        colors::{AMBER_500, REDWOOD_500},
-        secondary_background, spacing_large, spacing_medium, Background,
-    },
+    style::{secondary_background, spacing_medium, Background},
     utils::zip_latest,
-    widget::{
-        label, Button, Checkbox, ScrollArea, SliderWithLabel, Stack, StreamWidget, WidgetExt,
-    },
+    widget::{label, Button, Checkbox, ScrollArea, SliderWithLabel, StreamWidget, WidgetExt},
 };
 use violet_wgpu::renderer::RendererConfig;
 
@@ -52,7 +47,7 @@ enum ColorSpace {
 
 fn app() -> impl Widget {
     let color_space = Mutable::new(ColorSpace::Oklcha);
-    let segments = Mutable::new(8);
+    let segments = Mutable::new(128);
     col((
         Checkbox::label(
             "Oklch",

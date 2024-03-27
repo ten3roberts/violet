@@ -40,10 +40,19 @@ impl InputState {
         }
     }
 
-    fn find_intersect(&self, frame: &Frame, pos: Vec2) -> Option<(Entity, Vec2)> {
+    fn find_intersect(
+        &self,
+        frame: &Frame,
+        pos: Vec2,
+        mut filter: impl FnMut(&EntityRef) -> bool,
+    ) -> Option<(Entity, Vec2)> {
         let query = (screen_transform(), rect()).filtered(focusable().with());
         OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
             .filter_map(|entity| {
+                if !filter(&entity) {
+                    return None;
+                }
+
                 let mut query = entity.query(&query);
                 let (transform, rect) = query.get()?;
 
@@ -60,7 +69,7 @@ impl InputState {
 
     pub fn on_mouse_input(&mut self, frame: &mut Frame, state: ElementState, button: MouseButton) {
         let cursor_pos = self.pos;
-        let intersect = self.find_intersect(frame, cursor_pos);
+        let intersect = self.find_intersect(frame, cursor_pos, |_| true);
 
         let id = match (state, &self.focused, intersect) {
             // Focus changed
@@ -131,7 +140,7 @@ impl InputState {
     }
 
     pub fn on_scroll(&mut self, frame: &mut Frame, delta: Vec2) {
-        let intersect = self.find_intersect(frame, self.pos);
+        let intersect = self.find_intersect(frame, self.pos, |v| v.has(on_scroll()));
 
         if let Some((id, _)) = intersect {
             let entity = frame.world().entity(id).unwrap();

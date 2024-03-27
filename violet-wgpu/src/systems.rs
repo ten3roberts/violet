@@ -7,11 +7,12 @@ use flax::{
     BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
     QueryBorrow, System,
 };
+use glam::Vec2;
 use parking_lot::Mutex;
 
 use puffin::profile_scope;
 use violet_core::{
-    components::{font_size, layout_glyphs, rect, size_resolver, text, text_wrap},
+    components::{font_size, layout_bounds, layout_glyphs, rect, size_resolver, text, text_wrap},
     text::{LayoutGlyphs, TextSegment},
     Rect,
 };
@@ -26,8 +27,9 @@ use super::{
 #[derive(Fetch)]
 #[fetch(transforms = [Modified])]
 struct TextBufferQuery {
-    #[fetch(ignore)]
     state: Mutable<TextBufferState>,
+    layout_glyphs: Mutable<LayoutGlyphs>,
+    layout_bounds: Component<Vec2>,
     text: Component<Vec<TextSegment>>,
     rect: Component<Rect>,
     font_size: Component<f32>,
@@ -38,10 +40,12 @@ impl TextBufferQuery {
     fn new() -> Self {
         Self {
             state: text_buffer_state().as_mut(),
+            layout_bounds: layout_bounds(),
             text: text(),
             rect: rect(),
             font_size: font_size(),
             wrap: text_wrap().opt_or(Wrap::Word),
+            layout_glyphs: layout_glyphs().as_mut(),
         }
     }
 }
@@ -57,23 +61,27 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                 puffin::profile_scope!("update_text_buffers");
                 let text_system = &mut *text_system.lock();
                 query.iter().for_each(|item| {
-                    let buffer = &mut item.state.buffer;
-                    let metrics = Metrics::new(*item.font_size, *item.font_size);
-
-                    buffer.set_metrics(&mut text_system.font_system, metrics);
-                    buffer.set_wrap(&mut text_system.font_system, *item.wrap);
-
-                    let metrics = Metrics::new(*item.font_size, *item.font_size);
-                    buffer.set_metrics(&mut text_system.font_system, metrics);
                     item.state
                         .update_text(&mut text_system.font_system, item.text);
 
                     let buffer = &mut item.state.buffer;
-                    let size = item.rect.size();
+                    buffer.set_wrap(&mut text_system.font_system, *item.wrap);
 
-                    buffer.set_size(&mut text_system.font_system, size.x, size.y);
+                    // let size = item.rect.size();
 
-                    buffer.shape_until_scroll(&mut text_system.font_system, true);
+                    let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);
+                    buffer.set_metrics_and_size(
+                        Metrics {
+                            font_size: *item.font_size,
+                            line_height: *item.font_size,
+                        },
+                        item.rect.size().x,
+                        item.rect.size().y,
+                    );
+
+                    buffer.shape_until_scroll(true);
+
+                    *item.layout_glyphs = item.state.layout_glyphs();
                 });
             },
         )
