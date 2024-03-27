@@ -16,7 +16,8 @@ use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages,
 use violet_core::{
     assets::AssetCache,
     components::{
-        color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_position, text,
+        color, draw_shape, font_size, layout_bounds, layout_glyphs, rect, screen_clip_mask,
+        screen_transform, text,
     },
     shape::shape_text,
     stored::{self, Handle},
@@ -43,7 +44,7 @@ use super::{DrawCommand, ObjectData, RendererStore};
 struct ObjectQuery {
     draw_shape: With,
     rect: Component<Rect>,
-    pos: Component<Vec2>,
+    transform: Component<Mat4>,
     object_data: Mutable<ObjectData>,
     color: OptOr<Component<Srgba>, Srgba>,
 }
@@ -53,7 +54,7 @@ impl ObjectQuery {
         Self {
             draw_shape: draw_shape(shape_text()).with(),
             rect: rect(),
-            pos: screen_position(),
+            transform: screen_transform(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
         }
@@ -285,8 +286,10 @@ pub(crate) struct TextMeshQuery {
     layout_bounds: Component<Vec2>,
     #[fetch(ignore)]
     font_size: OptOr<Component<f32>, f32>,
-    #[fetch(ignore)]
+    // #[fetch(ignore)]
     layout_glyphs: Opt<Mutable<LayoutGlyphs>>,
+
+    clip_mask: Component<Rect>,
 }
 
 impl TextMeshQuery {
@@ -301,6 +304,7 @@ impl TextMeshQuery {
             font_size: font_size().opt_or(16.0),
             state: text_buffer_state().as_mut(),
             layout_glyphs: layout_glyphs().as_mut().opt(),
+            clip_mask: screen_clip_mask(),
         }
     }
 }
@@ -392,6 +396,7 @@ impl TextRenderer {
                         shader: self.mesh_generator.shader.clone(),
                         mesh: text_mesh.clone(),
                         index_count,
+                        clip_mask: (item.clip_mask.min.as_uvec2(), item.clip_mask.max.as_uvec2()),
                     },
                 );
 
@@ -409,12 +414,8 @@ impl TextRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                let rect = item.rect.translate(*item.pos).align_to_grid();
-                let model_matrix = Mat4::from_scale_rotation_translation(
-                    Vec3::ONE,
-                    Quat::IDENTITY,
-                    rect.pos().extend(0.1),
-                );
+                let rect = item.rect.align_to_grid();
+                let model_matrix = *item.transform;
 
                 *item.object_data = ObjectData {
                     model_matrix,

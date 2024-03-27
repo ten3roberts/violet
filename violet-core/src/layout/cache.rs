@@ -159,14 +159,7 @@ pub(crate) fn validate_cached_layout(
 
     let size = value.rect.size().min(cache.limits.max_size);
 
-    // tracing::debug!( ?size, %cache.limits.max_size, %limits.max_size, "validate_cached_layout");
-
-    #[allow(clippy::nonminimal_bool)]
-    if value.can_grow.x && cache.limits.max_size.x < limits.max_size.x
-        || (value.can_grow.x && cache.limits.max_size.y < limits.max_size.y)
-    {
-        // tracing::info!(%value.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated layout by can_grow");
-    }
+    // tracing::info!( %size, %cache.limits.max_size, %limits.max_size, "validate_cached_layout");
 
     size.x >= limits.min_size.x - LAYOUT_TOLERANCE
         && size.y >= limits.min_size.y - LAYOUT_TOLERANCE

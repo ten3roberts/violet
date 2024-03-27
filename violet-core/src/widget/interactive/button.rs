@@ -133,14 +133,15 @@ impl<W: Widget> Widget for Button<W> {
     }
 }
 
-pub struct Checkbox {
+pub struct Checkbox<W = ()> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     style: ButtonStyle,
     size: WidgetSize,
+    label: W,
 }
 
-impl Checkbox {
-    pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
+impl<W: WidgetCollection> Checkbox<W> {
+    pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
             style: Default::default(),
@@ -148,11 +149,21 @@ impl Checkbox {
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_min_size(Unit::px2(28.0, 28.0)),
+            label,
         }
     }
 }
 
-impl Widget for Checkbox {
+impl Checkbox<Text> {
+    pub fn label(
+        label: impl Into<String>,
+        state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
+    ) -> Self {
+        Self::new(Text::new(label.into()), state)
+    }
+}
+
+impl<W: WidgetCollection> Widget for Checkbox<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
@@ -179,7 +190,7 @@ impl Widget for Checkbox {
                 }
             });
 
-        Stack::new(())
+        Stack::new(self.label)
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal_color)),
             })
@@ -209,6 +220,14 @@ impl<W: WidgetCollection> Radio<W> {
                 .with_min_size(Unit::px2(28.0, 28.0)),
             label,
         }
+    }
+}
+impl Radio<Text> {
+    pub fn label(
+        label: impl Into<String>,
+        state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
+    ) -> Self {
+        Self::new(Text::new(label.into()), state)
     }
 }
 

@@ -1,7 +1,6 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Weak},
-    thread::scope,
 };
 
 use atomic_refcell::AtomicRefCell;
@@ -11,16 +10,17 @@ use flax::{
     components::child_of,
     entity_ids,
     events::{EventData, EventSubscriber},
+    fetch::entity_refs,
     filter::Or,
-    query::TopoBorrow,
-    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, Fetch, FetchExt, FetchItem,
-    Query, QueryBorrow, System, Topo, World,
+    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, EntityRef, Fetch, FetchExt,
+    FetchItem, Query, QueryBorrow, System, World,
 };
-use glam::Vec2;
+use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{
-        self, children, layout_bounds, local_position, rect, screen_position, screen_rect, text,
+        self, children, clip_mask, layout_bounds, layout_limits, local_position, rect,
+        screen_clip_mask, screen_transform, text, transform,
     },
     layout::{
         apply_layout,
@@ -46,9 +46,12 @@ pub fn hydrate_text() -> BoxedSystem {
 pub fn widget_template(entity: &mut EntityBuilder, name: String) {
     entity
         .set(flax::components::name(), name)
-        .set_default(screen_position())
+        .set_default(screen_transform())
+        .set_default(transform())
         .set_default(local_position())
-        .set_default(screen_rect())
+        .set(clip_mask(), Rect::new(Vec2::MIN, Vec2::MAX))
+        .set_default(layout_limits())
+        .set_default(screen_clip_mask())
         .set_default(rect());
 }
 
@@ -173,36 +176,55 @@ pub fn layout_system(root: Entity) -> BoxedSystem {
                     LayoutLimits {
                         min_size: Vec2::ZERO,
                         max_size: canvas_rect.size(),
+                        overflow_limit: canvas_rect.size(),
                     },
                 );
 
                 entity.update_dedup(components::rect(), res.rect);
+                entity.update_dedup(components::clip_mask(), res.rect);
             }
         })
         .boxed()
 }
 
 /// Updates the apparent screen position of entities based on the hierarchy
-pub fn transform_system() -> BoxedSystem {
+pub fn transform_system(root: Entity) -> BoxedSystem {
     System::builder()
         .with_query(
             Query::new((
-                screen_position().as_mut(),
-                screen_rect().as_mut(),
-                rect(),
+                entity_refs(),
+                screen_transform().as_mut(),
+                screen_clip_mask().as_mut(),
+                clip_mask(),
                 local_position(),
+                transform().opt_or_default(),
             ))
             .with_strategy(Dfs::new(child_of)),
         )
-        .build(|mut query: DfsBorrow<_>| {
-            query.traverse(
-                &Vec2::ZERO,
-                |(pos, screen_rect, rect, local_pos): (&mut Vec2, &mut Rect, &Rect, &Vec2),
+        .build(move |mut query: DfsBorrow<_>| {
+            query.traverse_from(
+                root,
+                &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX)),
+                |(entity, screen_trans, screen_mask, &mask, &local_pos, &trans): (
+                    EntityRef,
+                    &mut Mat4,
+                    &mut Rect,
+                    &Rect,
+                    &Vec2,
+                    &Mat4,
+                ),
                  _,
-                 parent_pos| {
-                    *pos = *parent_pos + *local_pos;
-                    *screen_rect = rect.translate(*pos);
-                    *pos
+                 &(parent, parent_mask)| {
+                    let local_transform = Mat4::from_translation(local_pos.extend(0.0)) * trans;
+
+                    let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
+                    *screen_mask = mask.translate(mask_offset).intersect(parent_mask);
+
+                    // tracing::info!(%entity, %screen_mask);
+
+                    *screen_trans = parent * local_transform;
+
+                    (*screen_trans, *screen_mask)
                 },
             );
         })

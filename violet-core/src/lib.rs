@@ -7,7 +7,9 @@ pub mod editor;
 pub mod effect;
 pub mod executor;
 mod frame;
+pub mod hierarchy;
 pub mod input;
+pub mod io;
 pub mod layout;
 mod scope;
 pub mod shape;
@@ -22,7 +24,6 @@ mod types;
 pub mod unit;
 pub mod utils;
 pub mod widget;
-pub mod io;
 
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;

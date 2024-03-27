@@ -1,13 +1,14 @@
 use std::time::Duration;
 
+use cosmic_text::LayoutLine;
 use flax::{component, Debuggable, Entity, EntityRef, Exclusive};
-use glam::Vec2;
+use glam::{Mat4, Vec2};
 use image::DynamicImage;
 use palette::Srgba;
 
 use crate::{
     assets::Asset,
-    layout::{Layout, SizeResolver},
+    layout::{Layout, LayoutLimits, SizeResolver},
     stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
@@ -21,18 +22,25 @@ component! {
 
     /// Defines the outer bounds of a widget relative to its position
     pub rect: Rect => [ Debuggable ],
-    pub screen_rect: Rect => [ Debuggable ],
+    /// Clips rendering to the bounds of the widget, relative to the widget itself
+    pub clip_mask: Rect => [ Debuggable ],
 
-    /// Position relative to parent
+    /// The merged clip mask of the widget and its parents
+    pub screen_clip_mask: Rect => [ Debuggable ],
+
+    /// Position relative to parent for layout position.
     pub local_position: Vec2 => [ Debuggable ],
 
-    /// Specifies in screen space where the widget rect upper left corner is
-    pub screen_position: Vec2 => [ Debuggable ],
-
-    pub rotation: f32 => [ Debuggable ],
-
-    /// Offset the widget from its original position
+    /// Offset the widget from its original position.
+    ///
+    /// This influences the layout bounds and the final position of the widget, and will move other
+    /// widgets around in flow layouts.
     pub offset: Unit<Vec2> => [ Debuggable ],
+
+    /// Optional transform of the widget. Applied after layout
+    pub transform: Mat4,
+
+    pub screen_transform: Mat4,
 
     /// Explicit widget size. This will override the intrinsic size of the widget.
     ///
@@ -81,6 +89,8 @@ component! {
     /// of the size query are stored and used instead of the snug-fitted rect which will cause a
     /// different wrapping, and therefore final size.
     pub layout_bounds: Vec2 => [ Debuggable ],
+
+    pub layout_limits: LayoutLimits => [ Debuggable ],
 
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],

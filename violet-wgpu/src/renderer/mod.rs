@@ -4,15 +4,15 @@ use bytemuck::Zeroable;
 use flax::{
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
-    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
+    CommandBuffer, Component, Entity, Fetch, Query, QueryBorrow, RelationExt,
 };
-use glam::{vec4, Mat4, Vec4};
+use glam::{vec4, Mat4, UVec2, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
-use smallvec::{smallvec, SmallVec};
 use violet_core::{
-    components::{children, draw_shape},
+    components::draw_shape,
+    hierarchy::OrderedDfsIterator,
     layout::cache::LayoutUpdate,
     stored::{self, Store},
     Frame,
@@ -108,6 +108,7 @@ pub(crate) struct DrawCommand {
     pub(crate) mesh: Arc<MeshHandle>,
     /// TODO: generate inside renderer
     pub(crate) index_count: u32,
+    clip_mask: (UVec2, UVec2),
 }
 
 /// Compatible draw commands are given an instance in the object buffer and merged together
@@ -275,21 +276,19 @@ impl MainRenderer {
             puffin::profile_scope!("create_draw_commands");
             let query = DrawQuery::new();
 
-            let commands = RendererIter {
-                world: &frame.world,
-                stack: smallvec![frame.world.entity(self.root).unwrap()],
-            }
-            .filter_map(|entity| {
-                let mut query = entity.query(&query);
-                let item = query.get()?;
+            let commands =
+                OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
+                    .filter_map(|entity| {
+                        let mut query = entity.query(&query);
+                        let item = query.get()?;
 
-                Some((item.draw_cmd.clone(), *item.object_data))
-            })
-            .chain(
-                self.debug_renderer
-                    .iter()
-                    .flat_map(|v| v.draw_commands().iter().cloned()),
-            );
+                        Some((item.draw_cmd.clone(), *item.object_data))
+                    })
+                    .chain(
+                        self.debug_renderer
+                            .iter()
+                            .flat_map(|v| v.draw_commands().iter().cloned()),
+                    );
 
             self.commands.clear();
             self.object_data.clear();
@@ -324,6 +323,13 @@ impl MainRenderer {
             let shader = &self.store.shaders[shader];
             let bind_group = &self.store.bind_groups[bind_group];
 
+            let (mask_min, mask_max) = cmd.draw_cmd.clip_mask;
+            render_pass.set_scissor_rect(
+                mask_min.x,
+                mask_min.y,
+                mask_max.x - mask_min.x,
+                mask_max.y - mask_min.y,
+            );
             render_pass.set_pipeline(shader.pipeline());
 
             render_pass.set_bind_group(0, &ctx.globals_bind_group, &[]);
@@ -394,29 +400,6 @@ pub(crate) struct ObjectData {
     pub(crate) color: Vec4,
 }
 
-struct RendererIter<'a> {
-    world: &'a World,
-    // queue: VecDeque<EntityRef<'a>>,
-    stack: SmallVec<[EntityRef<'a>; 16]>,
-}
-
-impl<'a> Iterator for RendererIter<'a> {
-    type Item = EntityRef<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let entity = self.stack.pop()?;
-        if let Ok(children) = entity.get(children()) {
-            self.stack.extend(
-                children
-                    .iter()
-                    .rev()
-                    .map(|&id| self.world.entity(id).unwrap()),
-            );
-        }
-
-        Some(entity)
-    }
-}
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 /// TODO: move to main renderer

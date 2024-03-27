@@ -3,7 +3,7 @@ use std::sync::Arc;
 use web_time::{Duration, Instant};
 
 use flax::{components::name, entity_ids, Entity, Query, Schedule, World};
-use glam::{vec2, Vec2};
+use glam::{vec2, BVec2, Vec2};
 use parking_lot::Mutex;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
@@ -15,7 +15,7 @@ use winit::{
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, local_position, rect, screen_position},
+    components::{self, local_position, max_size, rect, screen_transform, size},
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
@@ -25,7 +25,8 @@ use violet_core::{
         transform_system,
     },
     to_owned,
-    widget::col,
+    unit::Unit,
+    widget::{col, Stack},
     Frame, FutureEffect, Rect, Scope, Widget,
 };
 
@@ -47,20 +48,17 @@ impl<W: Widget> Widget for Canvas<W> {
         scope
             .set(name(), "Canvas".into())
             .set(stylesheet(self.stylesheet), ())
-            .set(
-                rect(),
-                Rect {
-                    min: Vec2::ZERO,
-                    max: self.size,
-                },
-            )
-            .set_default(screen_position())
-            .set_default(local_position());
+            .set(max_size(), Unit::px(self.size))
+            .set(size(), Unit::px(self.size));
 
-        col(self.root)
-            .contain_margins(true)
-            .with_background(Background::new(primary_background()))
-            .mount(scope);
+        scope.attach(
+            Stack::new(
+                col(self.root)
+                    .contain_margins(true)
+                    .with_background(Background::new(primary_background())),
+            )
+            .with_clip(BVec2::TRUE),
+        );
     }
 }
 
@@ -129,8 +127,6 @@ impl AppBuilder {
             window.request_inner_size(winit::dpi::PhysicalSize::new(w, h));
         }
 
-        let mut input_state = InputState::new(Vec2::ZERO);
-
         let stylesheet = setup_stylesheet().spawn(frame.world_mut());
 
         let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
@@ -142,6 +138,8 @@ impl AppBuilder {
             size: vec2(0.0, 0.0),
             root,
         });
+
+        let mut input_state = InputState::new(root, Vec2::ZERO);
 
         tracing::info!("creating gpu");
         let window = Arc::new(window);
@@ -179,7 +177,7 @@ impl AppBuilder {
             .with_system(update_text_buffers(text_system.clone()))
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(layout_system(root))
-            .with_system(transform_system());
+            .with_system(transform_system(root));
 
         let start_time = Instant::now();
 
@@ -217,7 +215,7 @@ impl AppBuilder {
                         .borrow(&instance.frame.world)
                         .iter()
                         .count();
-                    tracing::info!(archetype_count = archetypes.len(), entity_count, pruned);
+                    tracing::debug!(archetype_count = archetypes.len(), entity_count, pruned);
                     // let report = instance.?stats.report();
 
                     // window.set_title(&format!(
@@ -255,6 +253,19 @@ impl AppBuilder {
                         &mut instance.frame,
                         vec2(position.x as f32, position.y as f32),
                     )
+                }
+                WindowEvent::MouseWheel {
+                    device_id,
+                    delta,
+                    phase,
+                } => {
+                    puffin::profile_scope!("MouseWheel");
+                    match delta {
+                        winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                            input_state.on_scroll(&mut instance.frame, vec2(x, y))
+                        }
+                        winit::event::MouseScrollDelta::PixelDelta(_) => todo!(),
+                    }
                 }
                 WindowEvent::ScaleFactorChanged {
                     scale_factor: s, ..
@@ -320,14 +331,22 @@ impl App {
 
         let logical_size: LogicalSize<f32> = size.to_logical(self.scale_factor);
 
-        self.frame
-            .world_mut()
-            .set(
-                self.root,
+        let canvas = self.frame.world_mut().entity_mut(self.root).unwrap();
+        canvas
+            .update_dedup(
                 components::rect(),
                 Rect::from_size(vec2(logical_size.width, logical_size.height)),
             )
             .unwrap();
+
+        canvas
+            .update_dedup(
+                components::clip_mask(),
+                Rect::from_size(vec2(logical_size.width, logical_size.height)),
+            )
+            .unwrap();
+
+        self.schedule.execute_seq(&mut self.frame.world).unwrap();
 
         if let Some(renderer) = &mut self.renderer {
             renderer.resize(size, self.scale_factor);
