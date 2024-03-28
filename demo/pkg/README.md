@@ -10,8 +10,12 @@ useState hooks.
 ## [Live Demo](https://ten3roberts.github.io/violet/demo)
 
 ## Example
+
+![image](https://github.com/ten3roberts/violet/assets/25723553/b9882e28-9e4b-49be-8dcc-9c12d42e12b1)
+
 ```rust
 let name = Mutable::new("".to_string());
+let quest = Mutable::new("".to_string());
 let color = Mutable::new(Srgba::new(0.0, 0.61, 0.388, 1.0));
 
 // Map a `Mutable<Srgba>` into a `StateDuplex<f32>` for each field
@@ -23,8 +27,9 @@ let speed = Mutable::new(None as Option<f32>);
 
 col((
     card(row((label("What is your name?"), TextInput::new(name)))),
+    card(row((label("What is your quest?"), TextInput::new(quest)))),
     card(col((
-        label("What is your favorite color?"),
+        label("What is your favorite colour?"),
         SliderWithLabel::new(r, 0.0, 1.0).round(0.01),
         SliderWithLabel::new(g, 0.0, 1.0).round(0.01),
         SliderWithLabel::new(b, 0.0, 1.0).round(0.01),
@@ -45,15 +50,15 @@ col((
         StreamWidget(speed.stream().map(|v| {
             match v {
                 Some(v) => pill(Text::new(format!("{v} m/s"))),
-                None => pill(Text::new("×".to_string()))
-                    .with_background(Background::new(danger_background())),
+                None => pill(Text::rich([
+                    TextSegment::new("×").with_weight(violet::core::text::Weight::BOLD)
+                ]))
+                .with_background(danger_surface()),
             }
         })),
     ))),
 ))
 ```
-
-![image](https://github.com/ten3roberts/violet/assets/25723553/10e76b9a-8f2d-4b74-aaa7-b9faf04a22dc)
 
 ## Features
 - Declarative Widgets and reactive state
