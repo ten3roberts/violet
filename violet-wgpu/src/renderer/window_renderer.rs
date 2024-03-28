@@ -12,11 +12,11 @@ use violet_core::{layout::cache::LayoutUpdate, Frame};
 
 use crate::{graphics::Surface, text::TextSystem};
 
-use super::{GlobalBuffers, MainRenderer, RendererConfig, RendererContext, RendererProps};
+use super::{GlobalBuffers, Gpu, MainRenderer, RendererConfig, RendererProps};
 
 /// Renders to a window surface
 pub struct WindowRenderer {
-    ctx: RendererContext,
+    gpu: Gpu,
     surface: Surface,
     globals: GlobalBuffers,
     main_renderer: MainRenderer,
@@ -25,7 +25,7 @@ pub struct WindowRenderer {
 impl WindowRenderer {
     pub fn new(
         frame: &mut Frame,
-        mut ctx: RendererContext,
+        mut gpu: Gpu,
         root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
@@ -33,15 +33,15 @@ impl WindowRenderer {
         scale_factor: f64,
         config: RendererConfig,
     ) -> Self {
-        let globals = GlobalBuffers::new(&mut ctx);
+        let mut globals = GlobalBuffers::new(&mut gpu);
         let widget_renderer = MainRenderer::new(
             frame,
-            &mut ctx,
+            &mut gpu,
             RendererProps {
                 root,
                 text_system,
                 color_format: surface.surface_format(),
-                globals_layout: &globals.layout,
+                globals: &mut globals,
                 layout_changes_rx,
                 config,
                 scale_factor,
@@ -52,7 +52,7 @@ impl WindowRenderer {
             surface,
             main_renderer: widget_renderer,
             globals,
-            ctx,
+            gpu,
         }
     }
 
@@ -65,11 +65,11 @@ impl WindowRenderer {
         self.globals.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
         self.globals
             .globals_buffer
-            .write(&self.ctx.gpu.queue, 0, &[self.globals.globals]);
+            .write(&self.gpu.queue, 0, &[self.globals.globals]);
 
         self.main_renderer
-            .resize(&self.ctx, physical_size, scale_factor);
-        self.surface.resize(&self.ctx.gpu, physical_size);
+            .resize(&self.gpu, physical_size, scale_factor);
+        self.surface.resize(&self.gpu, physical_size);
     }
 
     pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<()> {
@@ -80,7 +80,7 @@ impl WindowRenderer {
         let target = match self.surface.get_current_texture() {
             Ok(v) => v,
             Err(SurfaceError::Lost | SurfaceError::Outdated) => {
-                self.surface.reconfigure(&self.ctx.gpu);
+                self.surface.reconfigure(&self.gpu);
                 return Ok(());
             }
             Err(err) => return Err(err).context("Failed to acquire surface texture"),
@@ -88,13 +88,12 @@ impl WindowRenderer {
 
         let view = target.texture.create_view(&Default::default());
 
-        let mut encoder =
-            self.ctx
-                .gpu
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("WindowRenderer::draw"),
-                });
+        let mut encoder = self
+            .gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("WindowRenderer::draw"),
+            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -117,13 +116,13 @@ impl WindowRenderer {
             });
 
             self.main_renderer
-                .draw(&mut self.ctx, &self.globals, frame, &mut render_pass)
+                .draw(&self.gpu, &mut self.globals, frame, &mut render_pass)
                 .context("Failed to draw shapes")?;
         }
 
         {
             profile_scope!("submit");
-            self.ctx.gpu.queue.submit([encoder.finish()]);
+            self.gpu.queue.submit([encoder.finish()]);
             target.present();
         }
 

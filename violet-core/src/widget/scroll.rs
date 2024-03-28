@@ -15,6 +15,9 @@ use crate::{
 
 use super::{Float, Movable, Rectangle, Stack};
 
+/// Wraps a widget in a scroll area.
+///
+/// Scroll bars will be shown if the content is larger than the available space.
 pub struct ScrollArea<W> {
     items: W,
     directions: BVec2,

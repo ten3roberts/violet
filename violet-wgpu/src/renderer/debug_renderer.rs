@@ -20,7 +20,7 @@ use crate::{
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-    renderer::RendererContext,
+    renderer::Gpu,
 };
 
 use super::{rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererProps, RendererStore};
@@ -41,21 +41,21 @@ pub struct DebugRenderer {
 
 impl DebugRenderer {
     pub fn new(
-        ctx: &mut RendererContext,
+        gpu: &mut Gpu,
         frame: &Frame,
-        props: &RendererProps,
+        props: &mut RendererProps,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(&ctx.gpu);
+            .build(gpu);
 
         let white_image = frame.assets.load(&ImageFromColor([255, 255, 255, 255]));
-        let texture = Texture::from_image(&ctx.gpu, &white_image);
+        let texture = Texture::from_image(gpu, &white_image);
 
-        let sampler = ctx.gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 16,
             mag_filter: wgpu::FilterMode::Linear,
@@ -68,7 +68,7 @@ impl DebugRenderer {
             BindGroupBuilder::new("DebugRenderer::textured_bind_group")
                 .bind_sampler(&sampler)
                 .bind_texture(&texture.view(&Default::default()))
-                .build(&ctx.gpu, &layout),
+                .build(gpu, &layout),
         );
 
         let vertices = [
@@ -80,38 +80,38 @@ impl DebugRenderer {
 
         let indices = [0, 1, 2, 2, 3, 0];
 
-        let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
+        let mesh = Arc::new(props.globals.mesh_buffer.insert(gpu, &vertices, &indices));
 
         let corner_shader = store.shaders.insert(Shader::new(
-            &ctx.gpu,
+            gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/debug_indicator.wgsl"),
                 format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
             },
         ));
 
         let border_shader = store.shaders.insert(Shader::new(
-            &ctx.gpu,
+            gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/border_shader.wgsl"),
                 format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
             },
         ));
 
         let solid_shader = store.shaders.insert(Shader::new(
-            &ctx.gpu,
+            gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/solid.wgsl"),
                 format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
             },
         ));
 

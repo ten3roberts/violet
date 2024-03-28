@@ -24,7 +24,10 @@ use violet_core::{
     Frame, Rect,
 };
 
-use crate::{components, font::FontAtlas, graphics::BindGroupBuilder, text::TextSystem};
+use crate::{
+    components, font::FontAtlas, graphics::BindGroupBuilder, mesh_buffer::MeshBuffer,
+    text::TextSystem,
+};
 
 use crate::{
     components::{draw_cmd, object_data, text_buffer_state, text_mesh},
@@ -32,12 +35,11 @@ use crate::{
     graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
     mesh_buffer::MeshHandle,
     renderer::srgba_to_vec4,
-    renderer::RendererContext,
     text::TextBufferState,
     Gpu,
 };
 
-use super::{DrawCommand, ObjectData, RendererProps, RendererStore};
+use super::{DrawCommand, GlobalBuffers, ObjectData, RendererProps, RendererStore};
 
 #[derive(Fetch)]
 struct ObjectQuery {
@@ -93,7 +95,7 @@ impl FontRasterizer {
     pub fn add_glyphs(
         &mut self,
         assets: &AssetCache,
-        ctx: &mut RendererContext,
+        gpu: &Gpu,
         text_system: &mut TextSystem,
         new_glyphs: &[CacheKey],
         store: &mut RendererStore,
@@ -107,13 +109,13 @@ impl FontRasterizer {
             .chain(new_glyphs)
             .copied();
 
-        let atlas = FontAtlas::new(assets, &ctx.gpu, text_system, glyphs)?;
+        let atlas = FontAtlas::new(assets, gpu, text_system, glyphs)?;
 
         let bind_group = store.bind_groups.insert(
             BindGroupBuilder::new("TextRenderer::bind_group")
                 .bind_sampler(&self.sampler)
                 .bind_texture(&atlas.texture.view(&Default::default()))
-                .build(&ctx.gpu, &self.text_layout),
+                .build(gpu, &self.text_layout),
         );
 
         self.rasterized = RasterizedFont { atlas, bind_group };
@@ -137,7 +139,7 @@ struct MeshGenerator {
 
 impl MeshGenerator {
     fn new(
-        ctx: &mut RendererContext,
+        gpu: &mut Gpu,
         globals_layout: &BindGroupLayout,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
@@ -146,10 +148,10 @@ impl MeshGenerator {
         let text_layout = BindGroupLayoutBuilder::new("TextRenderer::text_layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(&ctx.gpu);
+            .build(gpu);
 
         let shader = store.shaders.insert(Shader::new(
-            &ctx.gpu,
+            gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/text.wgsl"),
@@ -159,7 +161,7 @@ impl MeshGenerator {
             },
         ));
 
-        let sampler = Arc::new(ctx.gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = Arc::new(gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 1,
             mag_filter: wgpu::FilterMode::Nearest,
@@ -169,14 +171,15 @@ impl MeshGenerator {
         }));
 
         Self {
-            rasterizer: FontRasterizer::new(&ctx.gpu, sampler, text_layout, store),
+            rasterizer: FontRasterizer::new(gpu, sampler, text_layout, store),
             shader,
         }
     }
 
     fn update_mesh(
         &mut self,
-        ctx: &mut RendererContext,
+        gpu: &Gpu,
+        mesh_buffer: &mut MeshBuffer,
         assets: &AssetCache,
         text_system: &mut TextSystem,
         buffer: &mut Buffer,
@@ -250,7 +253,7 @@ impl MeshGenerator {
             tracing::debug!(?missing, "Adding missing glyphs");
             vertices.clear();
             self.rasterizer
-                .add_glyphs(assets, ctx, text_system, &missing, store)
+                .add_glyphs(assets, gpu, text_system, &missing, store)
                 .unwrap();
             missing.clear();
         }
@@ -262,9 +265,9 @@ impl MeshGenerator {
             .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
             .collect_vec();
 
-        *mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
+        *mesh = Arc::new(mesh_buffer.insert(gpu, &vertices, &indices));
         // if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
-        //     ctx.mesh_buffer.write(&ctx.gpu, mesh, &vertices, &indices);
+        //     ctx.mesh_buffer.write(&gpu, mesh, &vertices, &indices);
         // } else {
         // }
 
@@ -328,14 +331,14 @@ pub(crate) struct TextRenderer {
 
 impl TextRenderer {
     pub(crate) fn new(
-        ctx: &mut RendererContext,
+        gpu: &mut Gpu,
         props: &RendererProps,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
         let mesh_generator = MeshGenerator::new(
-            ctx,
-            &props.globals_layout,
+            gpu,
+            &props.globals.layout,
             props.color_format,
             object_layout,
             store,
@@ -351,7 +354,8 @@ impl TextRenderer {
 
     pub fn update_meshes(
         &mut self,
-        ctx: &mut RendererContext,
+        gpu: &Gpu,
+        globals: &mut GlobalBuffers,
         frame: &mut Frame,
         store: &mut RendererStore,
     ) {
@@ -390,11 +394,12 @@ impl TextRenderer {
 
                 let text_mesh = match item.text_mesh {
                     Some(v) => v,
-                    None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
+                    None => new_mesh.insert(Arc::new(globals.mesh_buffer.allocate(gpu, 0, 0))),
                 };
 
                 let index_count = self.mesh_generator.update_mesh(
-                    ctx,
+                    gpu,
+                    &mut globals.mesh_buffer,
                     &frame.assets,
                     text_system,
                     &mut item.state.buffer,
@@ -444,12 +449,7 @@ impl TextRenderer {
             })
     }
 
-    pub(crate) fn resize(
-        &mut self,
-        _: &RendererContext,
-        _: winit::dpi::PhysicalSize<u32>,
-        scale_factor: f64,
-    ) {
+    pub(crate) fn resize(&mut self, _: &Gpu, _: winit::dpi::PhysicalSize<u32>, scale_factor: f64) {
         if self.scale_factor != scale_factor {
             self.mesh_generator.rasterizer.clear();
         }

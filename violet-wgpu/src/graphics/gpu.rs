@@ -1,68 +1,24 @@
 use std::sync::Arc;
 
-use wgpu::{Adapter, Backends, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat};
+use wgpu::{Backends, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat};
 use winit::{dpi::PhysicalSize, window::Window};
 
-/// Represents the Gpu and graphics state
+/// Represents the basic graphics state, such as the device and queue.
 #[derive(Debug)]
 pub struct Gpu {
-    pub adapter: Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-}
-
-pub struct Surface {
-    size: Option<PhysicalSize<u32>>,
-    surface: wgpu::Surface<'static>,
-    config: SurfaceConfiguration,
-}
-
-impl Surface {
-    pub fn get_current_texture(&self) -> Result<SurfaceTexture, SurfaceError> {
-        self.surface.get_current_texture()
-    }
-
-    pub fn surface_config(&self) -> &SurfaceConfiguration {
-        &self.config
-    }
-
-    pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
-        tracing::info_span!("resize", ?new_size);
-        if Some(new_size) == self.size {
-            tracing::info!(size=?new_size, "Duplicate resize message ignored");
-            return;
-        }
-
-        if new_size.width > 0 && new_size.height > 0 {
-            // self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.size = Some(new_size);
-            self.reconfigure(gpu);
-        } else {
-            self.size = None;
-        }
-    }
-
-    pub fn has_size(&self) -> bool {
-        self.size.is_some()
-    }
-
-    pub fn reconfigure(&mut self, gpu: &Gpu) {
-        self.surface.configure(&gpu.device, &self.config);
-    }
-
-    pub fn surface_format(&self) -> TextureFormat {
-        self.config.format
-    }
-
-    pub fn size(&self) -> Option<PhysicalSize<u32>> {
-        self.size
-    }
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
 }
 
 impl Gpu {
-    // Creating some of the wgpu types requires async code
+    /// Creates a new GPu instaence from an aready existing device and queue.
+    ///
+    /// This is used to embed Violet within an already existing wgpu application.
+    pub fn from_device(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+        Self { device, queue }
+    }
+
+    /// Creates a new Gpu instance with a surface.
     pub async fn with_surface(window: Arc<Window>) -> (Self, Surface) {
         tracing::info!("creating with surface");
 
@@ -137,9 +93,8 @@ impl Gpu {
 
         (
             Self {
-                adapter,
-                device,
-                queue,
+                device: Arc::new(device),
+                queue: Arc::new(queue),
             },
             Surface {
                 surface,
@@ -152,4 +107,53 @@ impl Gpu {
     // pub fn surface_caps(&self) -> &SurfaceCapabilities {
     //     &self.surface_caps
     // }
+}
+pub struct Surface {
+    size: Option<PhysicalSize<u32>>,
+    surface: wgpu::Surface<'static>,
+    config: SurfaceConfiguration,
+}
+
+impl Surface {
+    pub fn get_current_texture(&self) -> Result<SurfaceTexture, SurfaceError> {
+        self.surface.get_current_texture()
+    }
+
+    pub fn surface_config(&self) -> &SurfaceConfiguration {
+        &self.config
+    }
+
+    pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
+        tracing::info_span!("resize", ?new_size);
+        if Some(new_size) == self.size {
+            tracing::info!(size=?new_size, "Duplicate resize message ignored");
+            return;
+        }
+
+        if new_size.width > 0 && new_size.height > 0 {
+            // self.size = new_size;
+            self.config.width = new_size.width;
+            self.config.height = new_size.height;
+            self.size = Some(new_size);
+            self.reconfigure(gpu);
+        } else {
+            self.size = None;
+        }
+    }
+
+    pub fn has_size(&self) -> bool {
+        self.size.is_some()
+    }
+
+    pub fn reconfigure(&mut self, gpu: &Gpu) {
+        self.surface.configure(&gpu.device, &self.config);
+    }
+
+    pub fn surface_format(&self) -> TextureFormat {
+        self.config.format
+    }
+
+    pub fn size(&self) -> Option<PhysicalSize<u32>> {
+        self.size
+    }
 }

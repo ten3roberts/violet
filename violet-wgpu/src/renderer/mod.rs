@@ -53,31 +53,28 @@ pub struct RendererConfig {
     pub debug_mode: bool,
 }
 
-/// Contains the device, globals and mesh buffer
-pub struct RendererContext {
-    pub gpu: Gpu,
-    pub mesh_buffer: MeshBuffer,
-}
-
+/// Contains global state to be shared between the renderers, such as global uniforms for cameras
+/// and scene properties.
 pub struct GlobalBuffers {
     pub globals: Globals,
     pub globals_buffer: TypedBuffer<Globals>,
     pub bind_group: BindGroup,
     pub layout: BindGroupLayout,
+    pub mesh_buffer: MeshBuffer,
 }
 
 impl GlobalBuffers {
-    pub fn new(ctx: &mut RendererContext) -> Self {
+    pub fn new(gpu: &mut Gpu) -> Self {
         let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
             .bind_uniform_buffer(ShaderStages::VERTEX)
-            .build(&ctx.gpu);
+            .build(gpu);
 
         let globals = Globals {
             projview: Mat4::IDENTITY,
         };
 
         let globals_buffer = TypedBuffer::new(
-            &ctx.gpu,
+            gpu,
             "WindowRenderer::globals_buffer",
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             &[globals],
@@ -85,22 +82,17 @@ impl GlobalBuffers {
 
         let globals_bind_group = BindGroupBuilder::new("WindowRenderer::globals")
             .bind_buffer(globals_buffer.buffer())
-            .build(&ctx.gpu, &globals_layout);
+            .build(gpu, &globals_layout);
+
+        let mesh_buffer = MeshBuffer::new(gpu, "MeshBuffer", 4);
 
         Self {
             globals,
             globals_buffer,
             bind_group: globals_bind_group,
             layout: globals_layout,
+            mesh_buffer,
         }
-    }
-}
-
-impl RendererContext {
-    pub fn new(gpu: Gpu) -> Self {
-        let mesh_buffer = MeshBuffer::new(&gpu, "MeshBuffer", 4);
-
-        Self { mesh_buffer, gpu }
     }
 }
 
@@ -153,12 +145,12 @@ impl DrawQuery {
 }
 
 fn create_object_bindings(
-    ctx: &mut RendererContext,
+    gpu: &Gpu,
     bind_group_layout: &BindGroupLayout,
     object_count: usize,
 ) -> (BindGroup, TypedBuffer<ObjectData>) {
     let object_buffer = TypedBuffer::new_uninit(
-        &ctx.gpu,
+        gpu,
         "ShapeRenderer::object_buffer",
         BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         object_count,
@@ -166,7 +158,7 @@ fn create_object_bindings(
 
     let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
         .bind_buffer(object_buffer.buffer())
-        .build(&ctx.gpu, bind_group_layout);
+        .build(gpu, bind_group_layout);
 
     (bind_group, object_buffer)
 }
@@ -175,7 +167,7 @@ pub(crate) struct RendererProps<'a> {
     pub root: Entity,
     pub text_system: Arc<Mutex<TextSystem>>,
     pub color_format: TextureFormat,
-    pub globals_layout: &'a BindGroupLayout,
+    pub globals: &'a mut GlobalBuffers,
     pub layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
     pub config: RendererConfig,
     pub scale_factor: f64,
@@ -202,11 +194,11 @@ pub struct MainRenderer {
 }
 
 impl MainRenderer {
-    pub(crate) fn new(frame: &mut Frame, ctx: &mut RendererContext, props: RendererProps) -> Self {
+    pub(crate) fn new(frame: &mut Frame, gpu: &mut Gpu, mut props: RendererProps) -> Self {
         let object_bind_group_layout =
             BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
                 .bind_uniform_buffer(ShaderStages::VERTEX)
-                .build(&ctx.gpu);
+                .build(gpu);
 
         let register_objects = flax::system::System::builder()
             .with_cmd_mut()
@@ -221,19 +213,25 @@ impl MainRenderer {
         let mut store = RendererStore::default();
 
         Self {
-            quad: Mesh::quad(&ctx.gpu),
+            quad: Mesh::quad(gpu),
             object_data: Vec::new(),
             commands: Vec::new(),
             rect_renderer: RectRenderer::new(
-                ctx,
+                gpu,
                 frame,
-                &props,
+                &mut props,
                 &object_bind_group_layout,
                 &mut store,
             ),
-            text_renderer: TextRenderer::new(ctx, &props, &object_bind_group_layout, &mut store),
+            text_renderer: TextRenderer::new(gpu, &props, &object_bind_group_layout, &mut store),
             debug_renderer: props.config.debug_mode.then(|| {
-                DebugRenderer::new(ctx, frame, &props, &object_bind_group_layout, &mut store)
+                DebugRenderer::new(
+                    gpu,
+                    frame,
+                    &mut props,
+                    &object_bind_group_layout,
+                    &mut store,
+                )
             }),
             store,
             register_objects,
@@ -246,8 +244,8 @@ impl MainRenderer {
 
     pub fn draw<'a>(
         &'a mut self,
-        ctx: &'a mut RendererContext,
-        globals: &'a GlobalBuffers,
+        gpu: &'a Gpu,
+        globals: &'a mut GlobalBuffers,
         frame: &mut Frame,
         render_pass: &mut RenderPass<'a>,
     ) -> anyhow::Result<()> {
@@ -259,13 +257,13 @@ impl MainRenderer {
 
         {
             puffin::profile_scope!("update_renderers");
-            self.rect_renderer.update(&ctx.gpu, frame);
+            self.rect_renderer.update(gpu, frame);
             self.rect_renderer
-                .build_commands(&ctx.gpu, frame, &mut self.store);
+                .build_commands(gpu, frame, &mut self.store);
 
             self.text_renderer
-                .update_meshes(ctx, frame, &mut self.store);
-            self.text_renderer.update(&ctx.gpu, frame);
+                .update_meshes(gpu, globals, frame, &mut self.store);
+            self.text_renderer.update(gpu, frame);
             if let Some(debug_renderer) = &mut self.debug_renderer {
                 debug_renderer.update(frame);
             }
@@ -299,7 +297,7 @@ impl MainRenderer {
             if num_chunks > self.object_buffers.len() {
                 self.object_buffers
                     .extend((self.object_buffers.len()..num_chunks).map(|_| {
-                        create_object_bindings(ctx, &self.object_bind_group_layout, CHUNK_SIZE)
+                        create_object_bindings(gpu, &self.object_bind_group_layout, CHUNK_SIZE)
                     }))
             }
 
@@ -308,10 +306,10 @@ impl MainRenderer {
                 .chunks(CHUNK_SIZE)
                 .zip(&self.object_buffers)
             {
-                buffer.write(&ctx.gpu.queue, 0, objects);
+                buffer.write(&gpu.queue, 0, objects);
             }
 
-            ctx.mesh_buffer.bind(render_pass);
+            globals.mesh_buffer.bind(render_pass);
         }
 
         puffin::profile_scope!("dispatch_draw_commands");
@@ -356,7 +354,7 @@ impl MainRenderer {
 
     fn resize(
         &mut self,
-        ctx: &RendererContext,
+        ctx: &Gpu,
         physical_size: winit::dpi::PhysicalSize<u32>,
         scale_factor: f64,
     ) {

@@ -26,8 +26,7 @@ use crate::{
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-    renderer::{srgba_to_vec4, RendererContext},
-    Gpu,
+    renderer::{srgba_to_vec4, Gpu},
 };
 
 use super::{DrawCommand, ObjectData, RendererProps, RendererStore};
@@ -127,20 +126,20 @@ pub struct RectRenderer {
 
 impl RectRenderer {
     pub fn new(
-        ctx: &mut RendererContext,
+        gpu: &mut Gpu,
         frame: &Frame,
-        props: &RendererProps,
+        props: &mut RendererProps,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(&ctx.gpu);
+            .build(gpu);
 
         let white_image = frame.assets.load(&ImageFromColor([255, 255, 255, 255]));
 
-        let sampler = ctx.gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 16,
             mag_filter: wgpu::FilterMode::Linear,
@@ -158,16 +157,16 @@ impl RectRenderer {
 
         let indices = [0, 1, 2, 2, 3, 0];
 
-        let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
+        let mesh = Arc::new(props.globals.mesh_buffer.insert(gpu, &vertices, &indices));
 
         let shader = store.shaders.insert(Shader::new(
-            &ctx.gpu,
+            gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/solid.wgsl"),
                 format: props.color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
             },
         ));
 

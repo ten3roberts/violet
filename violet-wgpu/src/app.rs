@@ -32,7 +32,7 @@ use violet_core::{
 
 use crate::{
     graphics::Gpu,
-    renderer::{RendererConfig, RendererContext, WindowRenderer},
+    renderer::{RendererConfig, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
     text::TextSystem,
 };
@@ -174,10 +174,9 @@ impl AppBuilder {
         frame.spawn(FutureEffect::new(Gpu::with_surface(window.clone()), {
             to_owned![text_system];
             move |frame: &mut Frame, (gpu, surface)| {
-                let ctx = RendererContext::new(gpu);
                 let renderer = WindowRenderer::new(
                     frame,
-                    ctx,
+                    gpu,
                     root,
                     text_system.clone(),
                     surface,
