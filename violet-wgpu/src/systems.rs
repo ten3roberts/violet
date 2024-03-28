@@ -27,8 +27,11 @@ use super::{
 #[derive(Fetch)]
 #[fetch(transforms = [Modified])]
 struct TextBufferQuery {
+    #[fetch(ignore)]
     state: Mutable<TextBufferState>,
+    #[fetch(ignore)]
     layout_glyphs: Mutable<LayoutGlyphs>,
+
     layout_bounds: Component<Vec2>,
     text: Component<Vec<TextSegment>>,
     rect: Component<Rect>,

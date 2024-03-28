@@ -1,12 +1,12 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     sync::{Arc, Weak},
 };
 
 use atomic_refcell::AtomicRefCell;
 use flax::{
     archetype::Storage,
-    component::ComponentValue,
+    component::{ComponentDesc, ComponentKey, ComponentValue},
     components::child_of,
     entity_ids,
     events::{EventData, EventSubscriber},
@@ -15,6 +15,7 @@ use flax::{
     Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
+use itertools::Itertools;
 
 use crate::{
     components::{
@@ -101,6 +102,7 @@ pub fn invalidate_cached_layout_system(world: &mut World) -> BoxedSystem {
     let dirty = Arc::new(AtomicRefCell::new(HashSet::new()));
 
     let invalidator = QueryInvalidator {
+        // name_map: components.iter().map(|v| (v.key(), v.clone())).collect(),
         dirty: Arc::downgrade(&dirty),
     };
 
@@ -120,6 +122,7 @@ pub fn invalidate_cached_layout_system(world: &mut World) -> BoxedSystem {
 }
 
 struct QueryInvalidator {
+    // name_map: BTreeMap<ComponentKey, ComponentDesc>,
     dirty: Weak<AtomicRefCell<HashSet<Entity>>>,
 }
 
@@ -133,14 +136,17 @@ impl QueryInvalidator {
 
 impl EventSubscriber for QueryInvalidator {
     fn on_added(&self, _: &Storage, event: &EventData) {
+        // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "added");
         self.mark_dirty(event.ids);
     }
 
     fn on_modified(&self, event: &EventData) {
+        // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "modified");
         self.mark_dirty(event.ids);
     }
 
     fn on_removed(&self, _: &Storage, event: &EventData) {
+        // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "removed");
         self.mark_dirty(event.ids);
     }
 

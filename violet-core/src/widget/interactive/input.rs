@@ -177,9 +177,8 @@ impl Widget for TextInput {
                             // text_content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
                         }
                         new_glyphs = layout_glyphs.select_next_some() => {
-                                glyphs = new_glyphs;
-
-                            }
+                            glyphs = new_glyphs;
+                        }
                     }
 
                     if let Some(glyphs) = &glyphs {
@@ -260,8 +259,15 @@ impl Widget for TextInput {
         scope
             .set(focusable(), ())
             .set(focus_sticky(), ())
-            .on_event(on_focus(), move |_, focus| {
-                focused.set(focus);
+            .on_event(on_focus(), {
+                to_owned![tx];
+                move |_, focus| {
+                    focused.set(focus);
+
+                    if !focus {
+                        tx.send(Action::Editor(EditorAction::SelectionClear)).ok();
+                    }
+                }
             })
             .on_event(on_mouse_input(), {
                 to_owned![layout_glyphs, text_bounds, tx, dragging];
@@ -275,15 +281,13 @@ impl Widget for TextInput {
                                 - text_bounds.transform_point3(Vec3::ZERO).xy();
 
                             if let Some(hit) = glyphs.hit(text_pos) {
-                                dragging.set(Some(hit));
+                                dragging.set(Some((input.cursor.local_pos, hit)));
                                 tx.send(Action::Editor(EditorAction::CursorMove(
                                     CursorMove::SetPosition(hit),
                                 )))
                                 .ok();
                                 tx.send(Action::Editor(EditorAction::SelectionClear)).ok();
                             }
-
-                            tracing::info!(?input, "click");
                         } else {
                             dragging.set(None)
                         }
@@ -295,23 +299,28 @@ impl Widget for TextInput {
                 move |_, input| {
                     let dragging = dragging.get();
 
-                    if let Some(dragging) = dragging {
-                        let glyphs = layout_glyphs.lock_ref();
+                    let Some((drag_start, dragging)) = dragging else {
+                        return;
+                    };
 
-                        if let Some(glyphs) = &*glyphs {
-                            let text_pos = input.local_pos;
+                    if input.local_pos.distance(drag_start) < 5.0 {
+                        return;
+                    }
 
-                            tracing::info!(?text_pos);
-                            if let Some(hit) = glyphs.hit(text_pos) {
-                                tx.send(Action::Editor(EditorAction::SelectionMove(
-                                    CursorMove::SetPosition(dragging),
-                                )))
-                                .ok();
-                                tx.send(Action::Editor(EditorAction::CursorMove(
-                                    CursorMove::SetPosition(hit),
-                                )))
-                                .ok();
-                            }
+                    let glyphs = layout_glyphs.lock_ref();
+
+                    if let Some(glyphs) = &*glyphs {
+                        let text_pos = input.local_pos;
+
+                        if let Some(hit) = glyphs.hit(text_pos) {
+                            tx.send(Action::Editor(EditorAction::SelectionMove(
+                                CursorMove::SetPosition(dragging),
+                            )))
+                            .ok();
+                            tx.send(Action::Editor(EditorAction::CursorMove(
+                                CursorMove::SetPosition(hit),
+                            )))
+                            .ok();
                         }
                     }
                 }
@@ -335,7 +344,7 @@ impl Widget for TextInput {
                     .monitor_signal(components::layout_glyphs(), layout_glyphs.clone())
                     .monitor_signal(screen_transform(), text_bounds.clone())
             })),
-            Float::new(SignalWidget(editor_props_rx)),
+            Float::new(StreamWidget(editor_props_rx.to_stream())),
         ))
         .with_background(self.style.background)
         .with_size_props(self.size)

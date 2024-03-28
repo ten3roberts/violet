@@ -582,7 +582,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
 
     // validate_block(entity, &block, limits);
 
-    tracing::debug!(%limits, %args.content_area, %block.can_grow, %block.rect, "caching layout");
+    // tracing::info!(%entity, %limits, %args.content_area, %block.can_grow, %block.rect, ?cache.layout, "caching layout");
     cache.insert_layout(CachedValue::new(limits, args.content_area, block));
 
     block

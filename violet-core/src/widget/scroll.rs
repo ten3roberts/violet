@@ -60,7 +60,7 @@ impl<W: Widget> Widget for ScrollArea<W> {
         let outer_size = Mutable::new(Vec2::ZERO);
 
         let scroll_pos = Mutable::new(Vec2::ZERO);
-        let sensitivity = vec2(32.0, -32.0);
+        let sensitivity = vec2(1.0, -1.0);
         scope.on_event(on_scroll(), {
             to_owned![size, outer_size, scroll_pos];
             move |_, scroll| {

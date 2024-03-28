@@ -126,7 +126,6 @@ impl AppBuilder {
                     (canvas.client_width() as f32 * sf) as u32,
                     (canvas.client_height() as f32 * sf) as u32,
                 );
-                tracing::info!(w, h, sf, "setting canvas size");
 
                 canvas.set_width(w as _);
                 canvas.set_height(h as _);
@@ -282,9 +281,14 @@ impl AppBuilder {
                     puffin::profile_scope!("MouseWheel");
                     match delta {
                         winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                            input_state.on_scroll(&mut instance.frame, vec2(x, y))
+                            const LINE_SIZE: f32 = 16.0;
+                            input_state
+                                .on_scroll(&mut instance.frame, vec2(x * LINE_SIZE, y * LINE_SIZE))
                         }
-                        winit::event::MouseScrollDelta::PixelDelta(_) => todo!(),
+                        winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                            let pos = pos.to_logical::<f32>(instance.scale_factor);
+                            input_state.on_scroll(&mut instance.frame, vec2(pos.x, pos.y))
+                        }
                     }
                 }
                 WindowEvent::ScaleFactorChanged {
@@ -344,15 +348,8 @@ impl App {
         AppBuilder::new()
     }
 
-    #[allow(unused_mut)]
-    pub fn on_resize(&mut self, mut physical_size: PhysicalSize<u32>) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            physical_size.width = physical_size.width.min(2048);
-            physical_size.height = physical_size.height.min(2048);
-        }
+    pub fn on_resize(&mut self, physical_size: PhysicalSize<u32>) {
         self.window_size = physical_size;
-        // self.scale_factor = 2.0;
 
         tracing::info!(?physical_size, self.scale_factor, "Resizing window");
 
