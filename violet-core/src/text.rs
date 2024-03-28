@@ -5,10 +5,12 @@ use std::{
     borrow::{Borrow, Cow},
     fmt::Display,
     ops::Index,
-    sync::Arc,
 };
 
-use crate::Rect;
+use crate::{
+    style::{primary_element, ValueOrRef},
+    Rect,
+};
 
 #[derive(Debug, Clone)]
 // Inspired by: https://github.com/pop-os/cosmic-text
@@ -70,7 +72,7 @@ pub struct TextSegment {
     pub family: FontFamily,
     pub style: Style,
     pub weight: Weight,
-    pub color: Srgba,
+    pub color: ValueOrRef<Srgba>,
 }
 
 impl TextSegment {
@@ -80,7 +82,7 @@ impl TextSegment {
             family: FontFamily::SansSerif,
             style: Style::Normal,
             weight: Weight::NORMAL,
-            color: Srgba::new(1.0, 1.0, 1.0, 1.0),
+            color: primary_element().into(),
         }
     }
 
@@ -99,8 +101,8 @@ impl TextSegment {
         self
     }
 
-    pub fn with_color(mut self, color: Srgba) -> Self {
-        self.color = color;
+    pub fn with_color(mut self, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        self.color = color.into();
         self
     }
 }
@@ -120,6 +122,7 @@ pub struct LayoutGlyph {
 #[derive(Debug, Clone)]
 pub struct LayoutLineGlyphs {
     pub row: usize,
+    /// Bounds relative to the line itself
     pub bounds: Rect,
     pub start: usize,
     pub end: usize,
@@ -128,30 +131,36 @@ pub struct LayoutLineGlyphs {
 
 #[derive(Debug, Clone)]
 pub struct LayoutGlyphs {
-    lines: Arc<[LayoutLineGlyphs]>,
-    line_height: f32,
+    pub rows: Vec<Vec<LayoutLineGlyphs>>,
+    pub line_height: f32,
 }
 
 impl Default for LayoutGlyphs {
     fn default() -> Self {
         Self {
-            lines: Vec::new().into(),
+            rows: Vec::new(),
             line_height: 0.0,
         }
     }
 }
 
 impl LayoutGlyphs {
-    pub fn new(lines: Vec<LayoutLineGlyphs>, line_height: f32) -> Self {
-        Self {
-            lines: lines.into(),
-            line_height,
-        }
+    pub fn new(rows: Vec<Vec<LayoutLineGlyphs>>, line_height: f32) -> Self {
+        Self { rows, line_height }
+    }
+
+    pub fn set_row(&mut self, row: usize, mut lines: Vec<LayoutLineGlyphs>) {
+        self.rows
+            .extend((self.rows.len()..=row).map(|_| Vec::new()));
+
+        lines.iter_mut().for_each(|v| v.row = row);
+        self.rows[row] = lines;
     }
 
     pub fn hit(&self, pos: Vec2) -> Option<CursorLocation> {
-        self.lines
+        self.rows
             .iter()
+            .flatten()
             .enumerate()
             .find(|&(ln, _)| {
                 let h = ln as f32 * self.line_height;
@@ -180,25 +189,23 @@ impl LayoutGlyphs {
     /// Returns the line and glyph index for the given cursor location
     pub fn to_glyph_boundary(&self, cursor: CursorLocation) -> Option<Vec2> {
         for (ln, line) in self.find_lines_indices(cursor.row) {
-            if line.row == cursor.row {
-                for glyph in &line.glyphs {
-                    if glyph.start == cursor.col {
-                        return Some(vec2(glyph.bounds.min.x, ln as f32 * self.line_height));
-                    }
+            for glyph in &line.glyphs {
+                if glyph.start == cursor.col {
+                    return Some(vec2(glyph.bounds.min.x, ln as f32 * self.line_height));
                 }
+            }
 
-                // Account for end-of-run whitespace which are not present as glyphs in the final
-                // layout.
-                if let (Some(last_glyph), Some(next_line)) =
-                    (line.glyphs.last(), self.lines.get(ln + 1))
+            // Account for end-of-run whitespace which are not present as glyphs in the final
+            // layout.
+            if let (Some(last_glyph), Some(next_line)) =
+                (line.glyphs.last(), self.lines().nth(ln + 1))
+            {
+                if next_line
+                    .glyphs
+                    .first()
+                    .is_some_and(|v| v.start == cursor.col + 1)
                 {
-                    if next_line
-                        .glyphs
-                        .first()
-                        .is_some_and(|v| v.start == cursor.col + 1)
-                    {
-                        return Some(vec2(last_glyph.bounds.max.x, ln as f32 * self.line_height));
-                    }
+                    return Some(vec2(last_glyph.bounds.max.x, ln as f32 * self.line_height));
                 }
             }
         }
@@ -208,29 +215,23 @@ impl LayoutGlyphs {
 
     /// Returns all layout lines for the specified row
     pub fn find_lines(&self, row: usize) -> impl Iterator<Item = &LayoutLineGlyphs> {
-        self.lines
-            .iter()
-            .skip_while(move |v| v.row < row)
-            .take_while(move |v| v.row == row)
+        self.rows.get(row).into_iter().flatten()
     }
 
     pub fn find_lines_indices(
         &self,
         row: usize,
     ) -> impl Iterator<Item = (usize, &LayoutLineGlyphs)> {
-        self.lines
+        self.rows
             .iter()
+            .flatten()
             .enumerate()
             .skip_while(move |(_, v)| v.row < row)
             .take_while(move |(_, v)| v.row == row)
     }
 
-    pub fn line_height(&self) -> f32 {
-        self.line_height
-    }
-
-    pub fn lines(&self) -> &[LayoutLineGlyphs] {
-        self.lines.as_ref()
+    pub fn lines(&self) -> impl Iterator<Item = &LayoutLineGlyphs> {
+        self.rows.iter().flatten()
     }
 }
 
@@ -242,19 +243,19 @@ impl Index<usize> for LayoutLineGlyphs {
     }
 }
 
-impl Index<usize> for LayoutGlyphs {
-    type Output = LayoutLineGlyphs;
+// impl Index<usize> for LayoutGlyphs {
+//     type Output = LayoutLineGlyphs;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.lines[index]
-    }
-}
+//     fn index(&self, index: usize) -> &Self::Output {
+//         &self.lines[index]
+//     }
+// }
 
 impl Index<LayoutCursorLocation> for LayoutGlyphs {
     type Output = LayoutGlyph;
 
     fn index(&self, index: LayoutCursorLocation) -> &Self::Output {
-        &self.lines[index.line_index][index.index]
+        &self.lines().nth(index.line_index).unwrap()[index.index]
     }
 }
 

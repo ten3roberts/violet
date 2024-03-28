@@ -28,6 +28,7 @@ slab.workspace = true
 tynm.workspace = true
 arrayvec.workspace = true
 sync_wrapper.workspace = true
+ropey.workspace = true
 
 bytemuck.workspace = true
 palette.workspace = true

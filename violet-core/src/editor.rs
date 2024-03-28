@@ -1,3 +1,5 @@
+use std::{fmt::Display, ops::RangeInclusive};
+
 use itertools::Itertools;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -6,6 +8,12 @@ use crate::text::CursorLocation;
 #[derive(Default, Debug)]
 pub struct EditorLine {
     text: String,
+}
+
+impl Display for EditorLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
+    }
 }
 
 impl EditorLine {
@@ -70,6 +78,15 @@ impl EditorLine {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextChange {
+    Insert(CursorLocation, CursorLocation),
+    Delete(CursorLocation, CursorLocation),
+    DeleteLine(usize),
+}
+
+pub type OnChange = Box<dyn Send + Sync + FnMut(&[EditorLine], TextChange)>;
+
 /// The core text editor buffer
 pub struct TextEditor {
     text: Vec<EditorLine>,
@@ -77,6 +94,7 @@ pub struct TextEditor {
     ///
     cursor: CursorLocation,
     selection: Option<CursorLocation>,
+    on_change: OnChange,
 }
 
 /// Movement action for the cursor
@@ -107,11 +125,12 @@ pub enum EditorAction<S = String> {
 }
 
 impl TextEditor {
-    pub fn new() -> Self {
+    pub fn new(on_change: impl 'static + Send + Sync + FnMut(&[EditorLine], TextChange)) -> Self {
         Self {
             cursor: CursorLocation { row: 0, col: 0 },
             text: vec![EditorLine::default()],
             selection: None,
+            on_change: Box::new(on_change),
         }
     }
 
@@ -175,7 +194,7 @@ impl TextEditor {
                     .line()
                     .words()
                     .find_or_last(|(i, _)| *i >= self.cursor.col);
-                tracing::info!(?word, "current word");
+                tracing::debug!(?word, "current word");
                 if let Some((i, word)) = word {
                     CursorLocation {
                         row: cursor.row,
@@ -192,7 +211,7 @@ impl TextEditor {
                         .words()
                         .rev()
                         .find(|(i, _)| *i < self.cursor.col);
-                    tracing::info!(?word, "current word");
+                    tracing::debug!(?word, "current word");
                     if let Some((i, _)) = word {
                         CursorLocation {
                             row: cursor.row,
@@ -221,6 +240,10 @@ impl TextEditor {
         }
     }
 
+    pub fn on_change(&mut self, change: TextChange) {
+        (self.on_change)(&self.text, change.clone());
+    }
+
     pub fn edit<S: AsRef<str>>(&mut self, action: EditAction<S>) {
         if !self.past_eol() {
             assert!(
@@ -233,6 +256,8 @@ impl TextEditor {
             EditAction::InsertText(text) => {
                 self.delete_selected_text();
                 let mut insert_lines = text.as_ref().lines();
+
+                let start = self.cursor;
 
                 if let Some(text) = insert_lines.next() {
                     let col = self.insert_column();
@@ -250,24 +275,33 @@ impl TextEditor {
                     self.cursor.row += 1;
                     self.cursor.col = text.graphemes(true).count();
                 }
+
+                self.on_change(TextChange::Insert(start, self.cursor));
             }
             EditAction::DeleteBackwardChar => {
                 if self.delete_selected_text() {
                     return;
                 }
-                if self.cursor.col > 0 {
+                let beg = self.cursor;
+                tracing::debug!(?self.cursor);
+
+                let line = &mut self.text[self.cursor.row];
+                if self.cursor.col > 0 && !line.is_empty() {
                     let col = self.cursor.col;
                     let current_grapheme =
-                        find_before(self.line().graphemes(), col).map(|(i, v)| (i, v.len()));
+                        find_before(line.graphemes(), col).map(|(i, v)| (i, v.len()));
 
                     if let Some((i, l)) = current_grapheme {
-                        let line = &mut self.text[self.cursor.row];
-                        tracing::info!("deleting grapheme at {}..{}", i, i + l);
+                        tracing::debug!("deleting grapheme at {}..{}", i, i + l);
                         line.drain(i..(i + l));
                         self.cursor.col -= l;
+                        self.on_change(TextChange::Delete(self.cursor, beg));
                     }
                 } else if self.cursor.row > 0 {
                     let line = self.text.remove(self.cursor.row);
+                    tracing::debug!("deleting line {}", self.cursor.row);
+                    self.on_change(TextChange::DeleteLine(self.cursor.row));
+
                     self.cursor.row -= 1;
                     self.cursor.col = self.text[self.cursor.row].len();
                     self.text[self.cursor.row].push_str(&line.text);
@@ -277,8 +311,9 @@ impl TextEditor {
                 if self.delete_selected_text() {
                     return;
                 }
+
                 let line = &mut self.text[self.cursor.row];
-                if self.cursor.col > 0 {
+                if self.cursor.col > 0 && !line.is_empty() {
                     let graphemes = line.graphemes().peekable();
                     let mut word_begin = 0;
                     let mut in_word = false;
@@ -295,8 +330,11 @@ impl TextEditor {
                             in_word = false;
                         }
                     }
+
+                    let beg = self.cursor;
                     line.drain(word_begin..self.cursor.col);
                     self.cursor.col = word_begin;
+                    self.on_change(TextChange::Delete(self.cursor, beg));
                 } else if self.cursor.row > 0 {
                     let last_word_end = self.text[self.cursor.row - 1].len();
 
@@ -304,11 +342,13 @@ impl TextEditor {
 
                     prev[prev.len() - 1].push_str(&cur[0].text);
                     self.text.remove(self.cursor.row);
+                    self.on_change(TextChange::DeleteLine(self.cursor.row));
                     self.cursor.row -= 1;
                     self.cursor.col = last_word_end;
                 }
             }
             EditAction::InsertLine => {
+                let start = self.cursor;
                 self.delete_selected_text();
                 let col = self.insert_column();
                 let line = &mut self.text[self.cursor.row];
@@ -319,11 +359,14 @@ impl TextEditor {
 
                 self.cursor.row += 1;
                 self.cursor.col = 0;
+
+                self.on_change(TextChange::Insert(start, self.cursor));
             }
             EditAction::DeleteLine => {
                 if self.delete_selected_text() {
                     return;
                 }
+
                 if self.cursor.row == 0 && self.text.len() == 1 {
                     self.text[0].clear();
                     self.cursor.col = 0;
@@ -331,8 +374,12 @@ impl TextEditor {
                     self.text.remove(self.cursor.row);
                     self.cursor.col = self.cursor.col.min(self.text[self.cursor.row].len())
                 }
+
+                self.on_change(TextChange::DeleteLine(self.cursor.row));
             }
         }
+
+        tracing::debug!(lines = ?self.text, "text lines after edit");
     }
 
     pub fn apply_action<S: AsRef<str>>(&mut self, action: EditorAction<S>) {
@@ -436,9 +483,33 @@ impl TextEditor {
         if start.row == end.row {
             self.text[start.row].text.drain(start.col..end.col);
         } else {
+            let len = self.text[start.row].len();
+
             self.text[start.row].text.truncate(start.col);
+            self.on_change(TextChange::Delete(
+                start,
+                CursorLocation {
+                    row: start.row,
+                    col: start.col + len - start.col,
+                },
+            ));
+
             self.text[end.row].text.drain(0..end.col);
+
+            let len = self.text[end.row].len();
+            self.on_change(TextChange::Delete(
+                end,
+                CursorLocation {
+                    row: end.row,
+                    col: end.col + len - end.col,
+                },
+            ));
+
             self.text.drain(start.row + 1..end.row);
+
+            for row in start.row + 1..end.row {
+                self.on_change(TextChange::DeleteLine(row));
+            }
         }
 
         self.cursor = start;
@@ -460,12 +531,6 @@ impl TextEditor {
     }
 }
 
-impl Default for TextEditor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 fn find_before<T>(
     iter: impl DoubleEndedIterator<Item = (usize, T)>,
     col: usize,
@@ -479,7 +544,7 @@ mod tests {
 
     #[test]
     fn editor() {
-        let mut editor = TextEditor::new();
+        let mut editor = TextEditor::new(|_, _| {});
         editor.edit(EditAction::InsertText("This is some text"));
         assert_eq!(editor.lines_str().collect_vec(), &["This is some text"]);
 

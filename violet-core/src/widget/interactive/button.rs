@@ -107,8 +107,8 @@ impl<W: Widget> Widget for Button<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let pressed_color = self.style.pressed_color.resolve(stylesheet);
-        let normal_color = self.style.normal_color.resolve(stylesheet);
+        let pressed_color = self.style.pressed_color.resolve(&stylesheet);
+        let normal_color = self.style.normal_color.resolve(&stylesheet);
 
         scope
             .set(focusable(), ())
@@ -166,8 +166,8 @@ impl<W: WidgetCollection> Widget for Checkbox<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let pressed_color = self.style.pressed_color.resolve(stylesheet);
-        let normal_color = self.style.normal_color.resolve(stylesheet);
+        let pressed_color = self.style.pressed_color.resolve(&stylesheet);
+        let normal_color = self.style.normal_color.resolve(&stylesheet);
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
@@ -234,8 +234,8 @@ impl<W: WidgetCollection> Widget for Radio<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let pressed_color = self.style.pressed_color.resolve(stylesheet);
-        let normal_color = self.style.normal_color.resolve(stylesheet);
+        let pressed_color = self.style.pressed_color.resolve(&stylesheet);
+        let normal_color = self.style.normal_color.resolve(&stylesheet);
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {

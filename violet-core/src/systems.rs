@@ -82,7 +82,7 @@ pub fn templating_system(layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)
         .boxed()
 }
 
-/// Invalidates layout caches
+/// Invalidates layout caches when own properties change
 pub fn invalidate_cached_layout_system(world: &mut World) -> BoxedSystem {
     let components = [
         components::min_size().key(),

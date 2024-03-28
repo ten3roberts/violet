@@ -3,13 +3,14 @@ use std::sync::Arc;
 use cosmic_text::{
     fontdb::Source, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
 };
+use flax::EntityRef;
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
 
 use violet_core::{
-    components::font_size,
+    components::{font_size, layout_glyphs},
     layout::{LayoutArgs, QueryArgs, SizeResolver, SizingHints},
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
@@ -139,6 +140,12 @@ impl SizeResolver for TextSizeResolver {
             // tracing::error!(%entity, text=?state.text(), %size, %limits.max_size, "Text overflowed");
         }
 
+        let glyphs = state.layout_glyphs();
+
+        tracing::info!(lines=?glyphs.rows.iter().map(|v| v.len()).collect::<Vec<_>>(), "updating layout glyphs");
+
+        *entity.get_mut(layout_glyphs()).unwrap() = glyphs;
+
         (size, can_grow)
     }
 }
@@ -211,12 +218,17 @@ impl TextBufferState {
         }
     }
 
-    pub(crate) fn update_text(&mut self, font_system: &mut FontSystem, text: &[TextSegment]) {
+    pub(crate) fn update_text(
+        &mut self,
+        stylesheet: &EntityRef,
+        font_system: &mut FontSystem,
+        text: &[TextSegment],
+    ) {
         puffin::profile_function!();
         self.buffer.set_rich_text(
             font_system,
             text.iter().map(|v| {
-                let color: Srgba<u8> = v.color.into_format();
+                let color: Srgba<u8> = v.color.resolve(stylesheet).into_format();
 
                 (
                     &*v.text,
@@ -237,66 +249,63 @@ impl TextBufferState {
         );
     }
 
-    pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
+    pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = Vec<LayoutLineGlyphs>> + '_ {
         puffin::profile_function!();
         let lh = self.buffer.metrics().line_height;
 
-        let mut result = Vec::new();
+        self.buffer
+            .lines
+            .iter()
+            .enumerate()
+            .map(move |(row, line)| {
+                let mut current_offset = 0;
 
-        let mut ln = 0;
-        for (row, line) in self.buffer.lines.iter().enumerate() {
-            let mut current_offset = 0;
-
-            let mut glyph_index = 0;
-            let Some(layout) = line.layout_opt().as_ref() else {
-                continue;
-            };
-
-            result.extend(layout.iter().map(|run| {
-                let top = ln as f32 * lh;
-                let bottom = top + lh;
-
-                ln += 1;
-
-                let start = current_offset;
-                let glyphs = run
-                    .glyphs
-                    .iter()
-                    .map(|glyph| {
-                        let index = glyph_index;
-                        glyph_index += 1;
-
-                        current_offset = glyph.end;
-
-                        violet_core::text::LayoutGlyph {
-                            index,
-                            start: glyph.start,
-                            end: glyph.end,
-                            bounds: Rect {
-                                min: vec2(glyph.x, top),
-                                max: vec2(glyph.x + glyph.w, bottom),
-                            },
-                        }
-                    })
-                    .collect_vec();
-
-                let bounds = if let (Some(l), Some(r)) = (glyphs.first(), glyphs.last()) {
-                    l.bounds.merge(r.bounds)
-                } else {
-                    Rect::ZERO
+                let mut glyph_index = 0;
+                let Some(layout) = line.layout_opt().as_ref() else {
+                    return Vec::new();
                 };
 
-                LayoutLineGlyphs {
-                    row,
-                    bounds,
-                    glyphs,
-                    start,
-                    end: current_offset,
-                }
-            }));
-        }
+                layout
+                    .iter()
+                    .map(|run| {
+                        let start = current_offset;
+                        let glyphs = run
+                            .glyphs
+                            .iter()
+                            .map(|glyph| {
+                                let index = glyph_index;
+                                glyph_index += 1;
 
-        result.into_iter()
+                                current_offset = glyph.end;
+
+                                violet_core::text::LayoutGlyph {
+                                    index,
+                                    start: glyph.start,
+                                    end: glyph.end,
+                                    bounds: Rect {
+                                        min: vec2(glyph.x, 0.0),
+                                        max: vec2(glyph.x + glyph.w, lh),
+                                    },
+                                }
+                            })
+                            .collect_vec();
+
+                        let bounds = if let (Some(l), Some(r)) = (glyphs.first(), glyphs.last()) {
+                            l.bounds.merge(r.bounds)
+                        } else {
+                            Rect::ZERO
+                        };
+
+                        LayoutLineGlyphs {
+                            row,
+                            bounds,
+                            glyphs,
+                            start,
+                            end: current_offset,
+                        }
+                    })
+                    .collect_vec()
+            })
     }
 
     pub(crate) fn layout_glyphs(&mut self) -> LayoutGlyphs {

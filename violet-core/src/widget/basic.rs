@@ -32,7 +32,7 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         self.size.mount(scope);
 
-        let c = self.color.resolve(scope.stylesheet());
+        let c = self.color.resolve(&scope.stylesheet());
 
         scope
             .set(draw_shape(shape::shape_rectangle()), ())

@@ -91,6 +91,18 @@ impl<'a> Scope<'a> {
         self.entity_mut().update_dedup(component, value)
     }
 
+    pub fn update<T, U>(
+        &mut self,
+        component: Component<T>,
+        f: impl FnOnce(&mut T) -> U,
+    ) -> Result<U, MissingComponent>
+    where
+        T: ComponentValue,
+    {
+        self.flush();
+        self.entity_mut().update(component, f)
+    }
+
     /// Sets the components default value
     pub fn set_default<T>(&mut self, component: Component<T>) -> &mut Self
     where

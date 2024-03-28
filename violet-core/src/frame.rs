@@ -1,9 +1,12 @@
+use std::future::ready;
+
 use atomic_refcell::AtomicRef;
 use flax::{
     component::ComponentValue,
     events::{Event, EventSubscriber},
     Component, Entity, World,
 };
+use futures::StreamExt;
 
 use crate::{
     assets::AssetCache,
@@ -97,9 +100,9 @@ impl Frame {
         self.spawn_scoped(
             id,
             StreamEffect::new(
-                rx.into_stream(),
+                rx.into_stream().filter(move |v| ready(v.id == id)),
                 move |scope: &mut Scope<'_>, value: Event| {
-                    assert!(scope.id() == value.id);
+                    assert_eq!(scope.id(), value.id);
                     on_change(scope.entity().get(component).ok().as_deref());
                 },
             ),

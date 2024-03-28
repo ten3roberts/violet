@@ -80,6 +80,7 @@ web-sys = { version = "0.3", features = ["Clipboard"] }
 tracing-tree = "0.3"
 heck = "0.5"
 ordered-float = "4.2"
+ropey = "1.6"
 
 [dependencies]
 violet-wgpu = { path = "violet-wgpu" }

@@ -65,8 +65,8 @@ impl WidgetSize {
     pub fn mount(&self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let m = self.margin.map(|v| v.resolve(stylesheet));
-        let p = self.padding.map(|v| v.resolve(stylesheet));
+        let m = self.margin.map(|v| v.resolve(&stylesheet));
+        let p = self.padding.map(|v| v.resolve(&stylesheet));
 
         scope
             .set_opt(margin(), m)
@@ -221,7 +221,7 @@ impl<T> From<T> for ValueOrRef<T> {
 }
 
 impl<T: Copy + ComponentValue> ValueOrRef<T> {
-    pub(crate) fn resolve(self, stylesheet: EntityRef<'_>) -> T {
+    pub fn resolve(self, stylesheet: &EntityRef<'_>) -> T {
         match self {
             ValueOrRef::Value(value) => value,
             ValueOrRef::Ref(component) => stylesheet.get_copy(component).unwrap(),
@@ -242,7 +242,7 @@ impl Background {
     }
 
     pub fn mount(self, scope: &mut Scope) {
-        let c = self.color.resolve(scope.stylesheet());
+        let c = self.color.resolve(&scope.stylesheet());
         scope.set(draw_shape(shape_rectangle()), ()).set(color(), c);
     }
 }

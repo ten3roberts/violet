@@ -14,7 +14,7 @@ use winit::{
 
 use crate::{
     components::{self, screen_transform},
-    editor::{CursorMove, EditAction, EditorAction, TextEditor},
+    editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
         focus_sticky, focusable, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
@@ -25,14 +25,12 @@ use crate::{
         interactive_active, interactive_hover, interactive_passive, spacing_small, Background,
         SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
-    text::{CursorLocation, LayoutGlyphs, TextSegment},
+    text::{CursorLocation, LayoutGlyphs},
     time::sleep,
     to_owned,
     unit::Unit,
     utils::throttle,
-    widget::{
-        row, Float, NoOp, Positioned, Rectangle, SignalWidget, Stack, StreamWidget, Text, WidgetExt,
-    },
+    widget::{col, row, Float, NoOp, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
     Rect, Scope, Widget,
 };
 
@@ -93,23 +91,40 @@ impl Widget for TextInput {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let cursor_color = self.style.cursor_color.resolve(stylesheet);
+        let cursor_color = self.style.cursor_color.resolve(&stylesheet);
         let selection_color = self
             .style
             .selection_color
-            .resolve(stylesheet)
+            .resolve(&stylesheet)
             .with_alpha(0.2);
 
         let (tx, rx) = flume::unbounded();
 
         let focused = Mutable::new(false);
 
-        // Internal text to keep track of non-bijective text changes, such as incomplete numeric
-        // input
-        let text_content = Mutable::new(String::new());
-        let mut editor = TextEditor::new();
+        let (dirty_tx, dirty_rx) = flume::unbounded();
 
-        let layout_glyphs = Mutable::new(None);
+        let mut editor = TextEditor::new(move |text, change| match change {
+            TextChange::Insert(start, end) => {
+                for row in start.row..=end.row {
+                    dirty_tx
+                        .send((row, Some(text[row].as_str().to_string())))
+                        .ok();
+                }
+            }
+            TextChange::Delete(start, end) => {
+                for row in start.row..=end.row {
+                    dirty_tx
+                        .send((row, Some(text[row].as_str().to_string())))
+                        .ok();
+                }
+            }
+            TextChange::DeleteLine(row) => {
+                dirty_tx.send((row, None)).ok();
+            }
+        });
+
+        let layout_glyphs = Mutable::new(Default::default());
         let text_bounds: Mutable<Option<Mat4>> = Mutable::new(None);
 
         editor.set_cursor_at_end();
@@ -128,11 +143,10 @@ impl Widget for TextInput {
         scope.spawn({
             let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream().fuse();
             let mut focused_signal = focused.stream().fuse();
-            to_owned![text_content];
             async move {
                 let mut rx = rx.into_stream().fuse();
 
-                let mut glyphs: Option<LayoutGlyphs> = None;
+                let mut glyphs: LayoutGlyphs = LayoutGlyphs::default();
 
                 let mut new_text =
                     throttle(content.stream(), || sleep(Duration::from_millis(100))).fuse();
@@ -145,7 +159,6 @@ impl Widget for TextInput {
                         }
                         new_text = new_text.select_next_some() => {
                             editor.set_text(new_text.split('\n'));
-                            text_content.send(new_text);
                         }
                         action = rx.select_next_some() => {
                             match action {
@@ -168,88 +181,80 @@ impl Widget for TextInput {
                                 }
                             }
 
-                            let mut text = text_content.lock_mut();
-                            text.clear();
-                            #[allow(unstable_name_collisions)]
-                            text.extend(editor.lines().iter().map(|v| v.text()).intersperse("\n"));
-
                             content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
-                            // text_content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
                         }
                         new_glyphs = layout_glyphs.select_next_some() => {
+                            // tracing::info!("new glyphs");
                             glyphs = new_glyphs;
                         }
                     }
 
-                    if let Some(glyphs) = &glyphs {
-                        let cursor_pos = calculate_position(glyphs, editor.cursor());
+                    let cursor_pos = calculate_position(&glyphs, editor.cursor());
+                    tracing::info!(?cursor_pos);
 
-                        let selection = if let Some((start, end)) = editor.selection_bounds() {
-                            tracing::info!(?start, ?end, "selection");
+                    let selection = if let Some((start, end)) = editor.selection_bounds() {
+                        // tracing::info!(?start, ?end, "selection");
 
-                            let selected_lines =
-                                glyphs.lines().iter().enumerate().filter(|(_, v)| {
-                                    tracing::info!(?v.row);
-                                    v.row >= start.row && v.row <= end.row
-                                });
+                        let selected_lines = glyphs.lines().enumerate().filter(|(_, v)| {
+                            // tracing::info!(?v.row);
+                            v.row >= start.row && v.row <= end.row
+                        });
 
-                            let selection = selected_lines
-                                .filter_map(|(ln, v)| {
-                                    tracing::info!(?ln, glyphs = v.glyphs.len());
+                        let selection = selected_lines
+                            .filter_map(|(ln, v)| {
+                                // tracing::info!(?ln, glyphs = v.glyphs.len());
 
-                                    let left = if v.row == start.row {
-                                        v.glyphs.iter().find(|v| {
-                                            v.start >= start.col
-                                                && (start.row != end.row || v.start < end.col)
-                                        })
-                                    } else {
-                                        // None
-                                        v.glyphs.first()
-                                    }?;
-                                    let right = if v.row == end.row {
-                                        v.glyphs.iter().rev().find(|v| {
-                                            v.end <= end.col
-                                                && (start.row != end.row || v.end > start.col)
-                                        })
-                                    } else {
-                                        // None
-                                        v.glyphs.last()
-                                    }?;
+                                let left = if v.row == start.row {
+                                    v.glyphs.iter().find(|v| {
+                                        v.start >= start.col
+                                            && (start.row != end.row || v.start < end.col)
+                                    })
+                                } else {
+                                    // None
+                                    v.glyphs.first()
+                                }?;
+                                let right = if v.row == end.row {
+                                    v.glyphs.iter().rev().find(|v| {
+                                        v.end <= end.col
+                                            && (start.row != end.row || v.end > start.col)
+                                    })
+                                } else {
+                                    // None
+                                    v.glyphs.last()
+                                }?;
 
-                                    // dbg!(left, right);
+                                // dbg!(left, right);
 
-                                    let rect = Rect::new(
-                                        left.bounds.min - vec2(0.0, 2.0),
-                                        right.bounds.max + vec2(0.0, 2.0),
-                                    );
+                                let rect = Rect::new(
+                                    left.bounds.min + vec2(0.0, ln as f32 * glyphs.line_height),
+                                    right.bounds.max + vec2(0.0, ln as f32 * glyphs.line_height),
+                                );
 
-                                    Some(
-                                        Positioned::new(
-                                            Rectangle::new(selection_color)
-                                                .with_min_size(Unit::px(rect.size())),
-                                        )
-                                        .with_offset(Unit::px(rect.pos())),
+                                Some(
+                                    Positioned::new(
+                                        Rectangle::new(selection_color)
+                                            .with_min_size(Unit::px(rect.size())),
                                     )
-                                })
-                                .collect_vec();
-
-                            Some(Stack::new(selection))
-                        } else {
-                            None
-                        };
-                        let props = Stack::new((
-                            focused.then(|| {
-                                Positioned::new(
-                                    Rectangle::new(cursor_color)
-                                        .with_min_size(Unit::px2(2.0, 16.0)),
+                                    .with_offset(Unit::px(rect.pos())),
                                 )
-                                .with_offset(Unit::px(cursor_pos))
-                            }),
-                            selection,
-                        ));
+                            })
+                            .collect_vec();
 
-                        editor_props_tx.send(Box::new(props)).ok();
-                    }
+                        Some(Stack::new(selection))
+                    } else {
+                        None
+                    };
+                    let props = Stack::new((
+                        focused.then(|| {
+                            Positioned::new(
+                                Rectangle::new(cursor_color).with_min_size(Unit::px2(2.0, 16.0)),
+                            )
+                            .with_offset(Unit::px(cursor_pos))
+                        }),
+                        selection,
+                    ));
+
+                    editor_props_tx.send(Box::new(props)).ok();
                 }
             }
         });
@@ -272,10 +277,9 @@ impl Widget for TextInput {
             .on_event(on_mouse_input(), {
                 to_owned![layout_glyphs, text_bounds, tx, dragging];
                 move |_, input| {
-                    let glyphs = layout_glyphs.lock_ref();
+                    if let Some(text_bounds) = &*text_bounds.lock_ref() {
+                        let glyphs = layout_glyphs.lock_ref();
 
-                    if let (Some(glyphs), Some(text_bounds)) = (&*glyphs, &*text_bounds.lock_ref())
-                    {
                         if input.state == ElementState::Pressed {
                             let text_pos = input.cursor.absolute_pos
                                 - text_bounds.transform_point3(Vec3::ZERO).xy();
@@ -309,19 +313,17 @@ impl Widget for TextInput {
 
                     let glyphs = layout_glyphs.lock_ref();
 
-                    if let Some(glyphs) = &*glyphs {
-                        let text_pos = input.local_pos;
+                    let text_pos = input.local_pos;
 
-                        if let Some(hit) = glyphs.hit(text_pos) {
-                            tx.send(Action::Editor(EditorAction::SelectionMove(
-                                CursorMove::SetPosition(dragging),
-                            )))
-                            .ok();
-                            tx.send(Action::Editor(EditorAction::CursorMove(
-                                CursorMove::SetPosition(hit),
-                            )))
-                            .ok();
-                        }
+                    if let Some(hit) = glyphs.hit(text_pos) {
+                        tx.send(Action::Editor(EditorAction::SelectionMove(
+                            CursorMove::SetPosition(dragging),
+                        )))
+                        .ok();
+                        tx.send(Action::Editor(EditorAction::CursorMove(
+                            CursorMove::SetPosition(hit),
+                        )))
+                        .ok();
                     }
                 }
             })
@@ -337,18 +339,74 @@ impl Widget for TextInput {
             });
 
         Stack::new((
-            StreamWidget(text_content.stream().map(move |v| {
-                to_owned![text_bounds];
-                Text::rich([TextSegment::new(v)])
-                    .with_font_size(self.style.font_size)
-                    .monitor_signal(components::layout_glyphs(), layout_glyphs.clone())
-                    .monitor_signal(screen_transform(), text_bounds.clone())
-            })),
+            TextContent {
+                rx: dirty_rx,
+                font_size: self.style.font_size,
+                text_bounds: text_bounds.clone(),
+                layout_glyphs: layout_glyphs.clone(),
+            },
             Float::new(StreamWidget(editor_props_rx.to_stream())),
         ))
         .with_background(self.style.background)
         .with_size_props(self.size)
         .mount(scope)
+    }
+}
+
+struct TextContent {
+    rx: flume::Receiver<(usize, Option<String>)>,
+    font_size: f32,
+    text_bounds: Mutable<Option<Mat4>>,
+    layout_glyphs: Mutable<LayoutGlyphs>,
+}
+
+impl Widget for TextContent {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let create_row = move |row, text| {
+            let layout_glyphs = self.layout_glyphs.clone();
+            Text::new(text).with_font_size(self.font_size).monitor(
+                components::layout_glyphs(),
+                Box::new(move |glyphs| {
+                    if let Some(new) = glyphs {
+                        tracing::info!(?row, lines = new.rows[0].len(), "new glyphs");
+                        let glyphs = &mut *layout_glyphs.lock_mut();
+
+                        glyphs.set_row(row, new.rows[0].clone());
+                        glyphs.line_height = new.line_height;
+                    }
+                }),
+            )
+        };
+
+        let mut text_items = vec![scope.attach(create_row(0, String::new()))];
+
+        scope.spawn_stream(self.rx.into_stream(), move |scope, (row, text)| {
+            if let Some(text) = text {
+                if let Some(&id) = text_items.get(row) {
+                    // Access and update the text widget
+                    let mut scope = scope.frame_mut().scoped(id).unwrap();
+
+                    tracing::info!(?text, "updating row");
+
+                    scope
+                        .update(components::text(), |v| v[0].text = text)
+                        .expect("No text");
+                } else {
+                    let id = scope.attach(create_row(row, text));
+
+                    text_items.push(id);
+                }
+            } else {
+                // Lines were deleted
+                tracing::info!("removing line");
+                let id = text_items.remove(row);
+                scope.detach(id);
+            }
+        });
+
+        col(())
+            .monitor_signal(screen_transform(), self.text_bounds.clone())
+            .mount(scope);
     }
 }
 
@@ -363,10 +421,14 @@ pub fn calculate_position(glyphs: &LayoutGlyphs, cursor: CursorLocation) -> Vec2
     if let Some(loc) = glyphs.to_glyph_boundary(cursor) {
         loc
     } else {
+        tracing::info!("not on a glyph boundary");
         glyphs
             .find_lines_indices(cursor.row)
             .last()
-            .map(|(ln, line)| vec2(line.bounds.max.x, ln as f32 * glyphs.line_height()))
+            .map(|(ln, line)| {
+                tracing::info!(ln, %line.bounds);
+                vec2(line.bounds.max.x, ln as f32 * glyphs.line_height)
+            })
             .unwrap_or_default()
     }
 }
