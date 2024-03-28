@@ -8,8 +8,8 @@ use crate::{
     scope::ScopeRef,
     state::{StateDuplex, StateStream, WatchState},
     style::{
-        danger_item, interactive_passive, interactive_pressed, spacing_medium, success_item,
-        warning_item, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        danger_element, interactive_passive, interactive_pressed, spacing_medium, success_element,
+        warning_element, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     unit::Unit,
     widget::{ContainerStyle, Stack, Text},
@@ -67,17 +67,17 @@ impl<W> Button<W> {
     }
 
     pub fn success(mut self) -> Self {
-        self.style.normal_color = success_item().into();
+        self.style.normal_color = success_element().into();
         self
     }
 
     pub fn danger(mut self) -> Self {
-        self.style.normal_color = danger_item().into();
+        self.style.normal_color = danger_element().into();
         self
     }
 
     pub fn warning(mut self) -> Self {
-        self.style.normal_color = warning_item().into();
+        self.style.normal_color = warning_element().into();
         self
     }
 }

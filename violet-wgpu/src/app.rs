@@ -19,14 +19,14 @@ use violet_core::{
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
-    style::{primary_background, setup_stylesheet, stylesheet, Background, SizeExt},
+    style::{primary_surface, setup_stylesheet, stylesheet, Background, SizeExt},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
     to_owned,
     unit::Unit,
-    widget::{col, Stack},
+    widget::{col, WidgetExt},
     Frame, FutureEffect, Rect, Scope, Widget,
 };
 
@@ -51,12 +51,13 @@ impl<W: Widget> Widget for Canvas<W> {
             .set(max_size(), Unit::px(self.size))
             .set(size(), Unit::px(self.size));
 
-        scope.attach(Stack::new(
+        scope.attach(
             col(self.root)
                 .contain_margins(true)
                 .with_maximize(Vec2::ONE)
-                .with_background(Background::new(primary_background())),
-        ));
+                .with_background(Background::new(primary_surface()))
+                .with_name("CanvasColumn"),
+        );
     }
 }
 
@@ -211,7 +212,7 @@ impl AppBuilder {
             renderer: None,
             root,
             scale_factor: window.scale_factor(),
-            stats: AppStats::new(60),
+            stats: AppStats::new(16),
             current_time: start_time,
             start_time,
             executor,
@@ -436,7 +437,7 @@ impl Default for AppBuilder {
     }
 }
 
-struct AppStats {
+pub struct AppStats {
     frames: Vec<AppFrame>,
     max_frames: usize,
 }
@@ -456,7 +457,7 @@ impl AppStats {
         self.frames.push(AppFrame { frame_time });
     }
 
-    fn report(&self) -> StatsReport {
+    pub fn report(&self) -> StatsReport {
         let average = self
             .frames
             .iter()

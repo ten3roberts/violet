@@ -8,7 +8,7 @@ use crate::{
     layout::{Alignment, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        primary_background, secondary_background, spacing_medium, spacing_small, Background,
+        primary_surface, secondary_surface, spacing_medium, spacing_small, Background,
         SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
@@ -282,7 +282,7 @@ pub fn centered<W>(widget: W) -> Stack<W> {
 pub fn card<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
-        .with_background(Background::new(secondary_background()))
+        .with_background(Background::new(secondary_surface()))
         .with_padding(spacing_medium())
         .with_margin(spacing_medium())
 }
@@ -290,7 +290,7 @@ pub fn card<W>(widget: W) -> Stack<W> {
 pub fn pill<W>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
-        .with_background(Background::new(primary_background()))
+        .with_background(Background::new(primary_surface()))
         .with_padding(spacing_small())
         .with_margin(spacing_small())
 }

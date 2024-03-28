@@ -15,7 +15,7 @@ use violet::core::{
     Scope, Widget,
 };
 use violet_core::{
-    style::{self, primary_background, secondary_background, spacing_small, Background, SizeExt},
+    style::{self, primary_surface, secondary_surface, spacing_small, Background, SizeExt},
     text::Wrap,
     widget::{card, col, label, row, Button, ButtonStyle, SliderWithLabel, TextInput},
 };
@@ -61,21 +61,21 @@ impl Widget for MainApp {
                 col((
                     Button::label("Button"),
                     Button::label("Button").with_style(ButtonStyle {
-                        normal_color: style::success_item().into(),
+                        normal_color: style::success_element().into(),
                         ..Default::default()
                     }),
                     Button::label("Warning").with_style(ButtonStyle {
-                        normal_color: style::warning_item().into(),
+                        normal_color: style::warning_element().into(),
                         ..Default::default()
                     }),
                     Button::label("Error").with_style(ButtonStyle {
-                        normal_color: style::danger_item().into(),
+                        normal_color: style::danger_element().into(),
                         ..Default::default()
                     }),
                 ))
                 .with_stretch(true),
             ),
-            Rectangle::new(secondary_background())
+            Rectangle::new(secondary_surface())
                 .with_size(Unit::rel2(1.0, 0.0) + Unit::px2(0.0, 1.0)),
             card(col((
                 col((
@@ -103,7 +103,7 @@ impl Widget for MainApp {
             .map(|color| Tints { color })
             .collect_vec()),
         ))
-        .with_background(Background::new(primary_background()))
+        .with_background(Background::new(primary_surface()))
         .contain_margins(true)
         .mount(scope)
     }

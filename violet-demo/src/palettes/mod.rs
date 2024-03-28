@@ -11,7 +11,7 @@ use violet::{
         layout::Alignment,
         state::{State, StateMut, StateStream, StateStreamRef},
         style::{
-            danger_item, primary_background, success_item, warning_item, Background, SizeExt,
+            danger_element, primary_surface, success_element, warning_element, Background, SizeExt,
             ValueOrRef,
         },
         time::{interval, sleep},
@@ -63,7 +63,7 @@ impl Widget for App {
             .with_horizontal_alignment(Alignment::End),
         ))
         .with_size(Unit::rel2(1.0, 1.0))
-        .with_background(Background::new(primary_background()))
+        .with_background(Background::new(primary_surface()))
         .mount(scope);
     }
 }
@@ -241,6 +241,7 @@ struct Notification {
     kind: NotificationKind,
 }
 
+#[allow(dead_code)]
 pub enum NotificationKind {
     Info,
     Warning,
@@ -249,12 +250,6 @@ pub enum NotificationKind {
 
 pub struct Notifications<S> {
     items: S,
-}
-
-impl<S> Notifications<S> {
-    pub fn new(items: S) -> Self {
-        Self { items }
-    }
 }
 
 impl<S> Widget for Notifications<S>
@@ -269,9 +264,9 @@ where
                 .iter()
                 .map(|(_, v): &(f32, Notification)| {
                     let color = match v.kind {
-                        NotificationKind::Info => success_item(),
-                        NotificationKind::Warning => warning_item(),
-                        NotificationKind::Error => danger_item(),
+                        NotificationKind::Info => success_element(),
+                        NotificationKind::Warning => warning_element(),
+                        NotificationKind::Error => danger_element(),
                     };
                     card(label(v.message.clone())).with_background(Background::new(color))
                 })

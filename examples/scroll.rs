@@ -2,7 +2,7 @@ use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{BVec2, Vec2};
 use itertools::Itertools;
-use palette::{Hsl, Hsv, IntoColor, Oklcha, Srgba};
+use palette::{Hsv, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
@@ -15,7 +15,7 @@ use violet::core::{
 };
 use violet_core::{
     state::{State, StateStream},
-    style::{secondary_background, spacing_medium, Background},
+    style::{secondary_surface, spacing_medium, Background},
     utils::zip_latest,
     widget::{label, Button, Checkbox, ScrollArea, SliderWithLabel, StreamWidget, WidgetExt},
 };
@@ -88,6 +88,6 @@ fn app() -> impl Widget {
         Button::label("Button"),
     ))
     .with_padding(spacing_medium())
-    .with_background(Background::new(secondary_background()))
+    .with_background(Background::new(secondary_surface()))
     // .with_padding(spacing_medium())
 }

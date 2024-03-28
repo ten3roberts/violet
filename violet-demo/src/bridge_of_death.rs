@@ -3,7 +3,8 @@ use glam::Vec2;
 use violet::{
     core::{
         state::{State, StateStream},
-        style::{danger_background, Background, SizeExt},
+        style::{danger_surface, SizeExt},
+        text::TextSegment,
         unit::Unit,
         widget::{
             card, col, label, pill, row, Rectangle, SliderWithLabel, StreamWidget, Text, TextInput,
@@ -51,8 +52,10 @@ pub fn app() -> impl Widget {
             StreamWidget(speed.stream().map(|v| {
                 match v {
                     Some(v) => pill(Text::new(format!("{v} m/s"))),
-                    None => pill(Text::new("×".to_string()))
-                        .with_background(Background::new(danger_background())),
+                    None => pill(Text::rich([
+                        TextSegment::new("×").with_weight(violet::core::text::Weight::BOLD)
+                    ]))
+                    .with_background(danger_surface()),
                 }
             })),
         ))),

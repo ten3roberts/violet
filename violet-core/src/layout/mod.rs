@@ -13,7 +13,7 @@ use crate::{
         self, anchor, aspect_ratio, children, layout, max_size, maximize, min_size, offset,
         padding, size, size_resolver,
     },
-    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
+    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue, LAYOUT_TOLERANCE},
     Edges, Rect,
 };
 
@@ -484,7 +484,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
 
     let mut block = if let Some(layout) = layout {
-        let mut block = layout.apply(
+        let block = layout.apply(
             world,
             entity,
             cache,
@@ -554,7 +554,9 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         .update_dedup(components::layout_args(), args)
         .unwrap();
 
-    if args.overflow_limit.x < block.rect.size().x || args.overflow_limit.y < block.rect.size().y {
+    if block.rect.size().x > args.overflow_limit.x + LAYOUT_TOLERANCE
+        || block.rect.size().y > args.overflow_limit.y + LAYOUT_TOLERANCE
+    {
         tracing::warn!(
             %entity,
             size=%block.rect.size(),

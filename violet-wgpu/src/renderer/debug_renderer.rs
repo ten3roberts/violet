@@ -2,10 +2,8 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use flax::{fetch::entity_refs, Entity, Query};
 use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
-use image::DynamicImage;
 use itertools::Itertools;
 use violet_core::{
-    assets::Asset,
     components::{layout_args, rect, screen_clip_mask, screen_transform},
     layout::{
         cache::{layout_cache, LayoutUpdate},
@@ -28,10 +26,7 @@ use crate::{
 use super::{rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererProps, RendererStore};
 
 pub struct DebugRenderer {
-    white_image: Asset<DynamicImage>,
-    layout: BindGroupLayout,
     bind_group: Handle<BindGroup>,
-    sampler: wgpu::Sampler,
 
     mesh: Arc<MeshHandle>,
 
@@ -121,10 +116,7 @@ impl DebugRenderer {
         ));
 
         Self {
-            white_image,
-            layout,
             bind_group,
-            sampler,
             mesh,
             corner_shader,
             border_shader,

@@ -3,7 +3,7 @@ use glam::Vec2;
 use violet::{
     core::{
         state::{State, StateStream},
-        style::{accent_background, spacing_small, SizeExt},
+        style::{accent_surface, SizeExt},
         widget::{col, row, Radio, StreamWidget, WidgetExt},
         Widget,
     },
@@ -12,7 +12,7 @@ use violet::{
 };
 use wasm_bindgen_futures::wasm_bindgen;
 
-pub mod basic;
+pub mod bridge_of_death;
 mod palettes;
 
 #[cfg(target_arch = "wasm32")]
@@ -41,6 +41,8 @@ fn setup() {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn setup() {
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
     tracing_subscriber::registry()
         .with(
             tracing_tree::HierarchicalLayer::default()
@@ -88,11 +90,10 @@ fn app() -> impl Widget {
                 ),
             ),
         ))
-        .with_background(accent_background()))
-        .with_maximize(Vec2::X)
-        .with_padding(spacing_small()),
+        .with_background(accent_surface()))
+        .with_maximize(Vec2::X),
         StreamWidget(state.stream().map(|v| match v {
-            DemoState::Basic => basic::app().boxed(),
+            DemoState::Basic => bridge_of_death::app().boxed(),
             DemoState::PaletteEditor => palettes::App.boxed(),
         })),
     ))

@@ -8,7 +8,7 @@ use flax::{
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages};
 
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},

@@ -278,17 +278,17 @@ pub fn setup_stylesheet() -> EntityBuilder {
 
     builder
         // colors
-        .set(primary_background(), STONE_950)
-        .set(primary_item(), PLATINUM_100)
-        .set(secondary_background(), STONE_900)
-        .set(accent_background(), PLATINUM_800)
-        .set(accent_item(), EMERALD_500)
-        .set(success_background(), EMERALD_800)
-        .set(success_item(), EMERALD_500)
-        .set(warning_background(), AMBER_800)
-        .set(warning_item(), AMBER_500)
-        .set(danger_background(), REDWOOD_800)
-        .set(danger_item(), REDWOOD_400)
+        .set(primary_surface(), STONE_950)
+        .set(primary_element(), PLATINUM_100)
+        .set(secondary_surface(), STONE_900)
+        .set(accent_surface(), PLATINUM_800)
+        .set(accent_element(), EMERALD_500)
+        .set(success_surface(), EMERALD_800)
+        .set(success_element(), EMERALD_500)
+        .set(warning_surface(), AMBER_800)
+        .set(warning_element(), AMBER_500)
+        .set(danger_surface(), REDWOOD_800)
+        .set(danger_element(), REDWOOD_500)
         .set(interactive_active(), EMERALD_500)
         .set(interactive_passive(), ZINC_800)
         .set(interactive_hover(), EMERALD_400)
@@ -309,24 +309,24 @@ pub fn setup_stylesheet() -> EntityBuilder {
 flax::component! {
     pub stylesheet(id): () => [ Exclusive ],
     /// The primary surface color
-    pub primary_background: Srgba,
-    pub primary_item: Srgba,
+    pub primary_surface: Srgba,
+    pub primary_element: Srgba,
 
     /// Used for secondary surfaces, such as card backgrounds
-    pub secondary_background: Srgba,
+    pub secondary_surface: Srgba,
     pub secondary_item: Srgba,
 
-    pub accent_background: Srgba,
-    pub accent_item: Srgba,
+    pub accent_surface: Srgba,
+    pub accent_element: Srgba,
 
-    pub success_background: Srgba,
-    pub success_item: Srgba,
+    pub success_surface: Srgba,
+    pub success_element: Srgba,
 
-    pub warning_background: Srgba,
-    pub warning_item: Srgba,
+    pub warning_surface: Srgba,
+    pub warning_element: Srgba,
 
-    pub danger_background: Srgba,
-    pub danger_item: Srgba,
+    pub danger_surface: Srgba,
+    pub danger_element: Srgba,
 
 
     /// Used for the main parts of interactive elements

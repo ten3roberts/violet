@@ -3,7 +3,7 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    style::{colors::EMERALD_500, secondary_background, spacing_medium, Background, SizeExt},
+    style::{colors::EMERALD_500, secondary_surface, spacing_medium, Background, SizeExt},
     unit::Unit,
     widget::{Positioned, Rectangle, Stack},
     Widget,
@@ -33,5 +33,5 @@ fn app() -> impl Widget {
         .with_offset(Unit::px2(10.0, 10.0)),
     )
     .with_padding(spacing_medium())
-    .with_background(Background::new(secondary_background()))
+    .with_background(Background::new(secondary_surface()))
 }

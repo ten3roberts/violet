@@ -5,7 +5,7 @@ use flax::Entity;
 use glam::Mat4;
 use parking_lot::Mutex;
 use puffin::profile_scope;
-use wgpu::{BindGroupLayout, Operations, RenderPassDescriptor, StoreOp, SurfaceError};
+use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
 use winit::dpi::{LogicalSize, PhysicalSize};
 
 use violet_core::{layout::cache::LayoutUpdate, Frame};

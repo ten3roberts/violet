@@ -17,5 +17,5 @@ pub fn main() -> anyhow::Result<()> {
 
     violet_wgpu::AppBuilder::new()
         .with_renderer_config(RendererConfig { debug_mode: false })
-        .run(violet_demo::basic::app())
+        .run(violet_demo::bridge_of_death::app())
 }

@@ -119,7 +119,7 @@ opt-level = 2
 [profile.dev.package.puffin]
 opt-level = 2
 
-[profile.dev.package.puffin_server]
+[profile.dev.package.puffin_http]
 opt-level = 2
 
 [profile.dev.package.cosmic-text]
@@ -129,4 +129,5 @@ opt-level = 2
 palette = { git = "https://github.com/Ogeon/palette" }
 
 [profile.release]
-debug = true
+opt-level = 2
+# debug = true

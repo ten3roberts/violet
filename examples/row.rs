@@ -5,7 +5,7 @@ use tracing_tree::HierarchicalLayer;
 
 use violet::core::{style::Background, unit::Unit, widget::Rectangle, Scope, Widget};
 use violet_core::{
-    style::{accent_item, primary_background, spacing_small, SizeExt},
+    style::{accent_element, primary_surface, spacing_small, SizeExt},
     widget::{centered, col, row, Image, Stack},
 };
 use violet_wgpu::renderer::RendererConfig;
@@ -57,7 +57,7 @@ impl Widget for MainApp {
                 row((0..4)
                     .map(|_| Box::new(Stack::new(Item)) as Box<dyn Widget>)
                     .chain([Box::new(
-                        centered((Rectangle::new(accent_item())
+                        centered((Rectangle::new(accent_element())
                             .with_maximize(vec2(1.0, 0.0))
                             .with_size(Unit::px2(0.0, 50.0))
                             .with_max_size(Unit::px2(1000.0, 100.0)),))
@@ -69,7 +69,7 @@ impl Widget for MainApp {
             // .with_padding(spacing_medium())
             .contain_margins(true),
         )
-        .with_background(Background::new(primary_background()))
+        .with_background(Background::new(primary_surface()))
         .mount(scope)
     }
 }

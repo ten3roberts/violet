@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use cosmic_text::LayoutLine;
 use flax::{component, Debuggable, Entity, EntityRef, Exclusive};
 use glam::{Mat4, Vec2};
 use image::DynamicImage;
@@ -8,7 +7,7 @@ use palette::Srgba;
 
 use crate::{
     assets::Asset,
-    layout::{Layout, LayoutArgs, LayoutLimits, SizeResolver},
+    layout::{Layout, LayoutArgs, SizeResolver},
     stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,

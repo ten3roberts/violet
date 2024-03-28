@@ -10,10 +10,9 @@ use flax::{
     components::child_of,
     entity_ids,
     events::{EventData, EventSubscriber},
-    fetch::entity_refs,
     filter::Or,
-    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, EntityRef, Fetch, FetchExt,
-    FetchItem, Query, QueryBorrow, System, World,
+    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, Fetch, FetchExt, FetchItem,
+    Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
@@ -194,7 +193,6 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
     System::builder()
         .with_query(
             Query::new((
-                entity_refs(),
                 screen_transform().as_mut(),
                 screen_clip_mask().as_mut(),
                 clip_mask(),
@@ -207,8 +205,7 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
             query.traverse_from(
                 root,
                 &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX)),
-                |(entity, screen_trans, screen_mask, &mask, &local_pos, &trans): (
-                    EntityRef,
+                |(screen_trans, screen_mask, &mask, &local_pos, &trans): (
                     &mut Mat4,
                     &mut Rect,
                     &Rect,
@@ -221,8 +218,6 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
 
                     let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
                     *screen_mask = mask.translate(mask_offset).intersect(parent_mask);
-
-                    // tracing::info!(%entity, %screen_mask);
 
                     *screen_trans = parent * local_transform;
 

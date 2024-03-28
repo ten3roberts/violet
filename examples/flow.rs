@@ -7,7 +7,6 @@ use violet::core::{
     widget::{col, row, Button},
     Edges, Widget,
 };
-use violet_core::unit::Unit;
 use violet_wgpu::renderer::RendererConfig;
 
 pub fn main() -> anyhow::Result<()> {

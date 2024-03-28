@@ -237,14 +237,6 @@ impl TextBufferState {
         );
     }
 
-    fn text(&self) -> Vec<String> {
-        self.buffer
-            .lines
-            .iter()
-            .map(|v| v.text().to_owned())
-            .collect::<Vec<_>>()
-    }
-
     pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {
         puffin::profile_function!();
         let lh = self.buffer.metrics().line_height;

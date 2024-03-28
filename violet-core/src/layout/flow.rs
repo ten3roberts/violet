@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
-use image::flat::NormalForm;
 use itertools::Itertools;
 
 use crate::{
@@ -100,21 +99,6 @@ impl QueryCursor {
         (placement_pos, cross_size)
     }
 
-    fn rect(&self) -> Rect {
-        let cross_cursor = self.cross_cursor + self.cross_size;
-
-        let main_cursor = if self.contain_margins {
-            self.main_cursor + self.pending_margin
-        } else {
-            self.main_cursor
-        };
-
-        Rect::from_two_points(
-            self.start,
-            main_cursor * self.axis + cross_cursor * self.cross_axis,
-        )
-    }
-
     /// Finishes the current line and moves the cursor to the next
     fn finish(&mut self) -> Rect {
         self.cross_cursor += self.cross_size;
@@ -203,7 +187,7 @@ impl AlignCursor {
         self.main_cursor += advance; // + block.rect.support(-self.axis);
 
         // Cross axis margin calculation
-        let (start_margin, end_margin) = block.margin.in_axis(self.cross_axis);
+        let (start_margin, _) = block.margin.in_axis(self.cross_axis);
 
         let placement_pos;
 
@@ -257,21 +241,6 @@ impl AlignCursor {
         self.main_cursor += extent;
 
         placement_pos
-    }
-
-    fn rect(&self) -> Rect {
-        let cross_cursor = self.cross_cursor + self.cross_size;
-
-        let main_cursor = if self.contain_margins {
-            self.main_cursor + self.pending_margin
-        } else {
-            self.main_cursor
-        };
-
-        Rect::from_two_points(
-            self.start,
-            main_cursor * self.axis + cross_cursor * self.cross_axis,
-        )
     }
 
     /// Finishes the current line and moves the cursor to the next
@@ -702,7 +671,6 @@ impl FlowLayout {
                 min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.can_grow));
                 cursor.put(&Block::new(sizing.preferred, sizing.margin, sizing.hints.can_grow));
 
-                tracing::debug!(min_cursor=%min_cursor.rect().size(), cursor=%cursor.rect().size(), "cursor");
                 sizing
             }).collect_vec();
 
@@ -753,7 +721,7 @@ impl FlowLayout {
         puffin::profile_function!();
         if let Some(value) = cache.query_row.as_ref() {
             if validate_cached_row(value, args.limits, args.content_area) {
-                // return value.value.clone();
+                return value.value.clone();
             }
         }
 

@@ -40,3 +40,7 @@ heck.workspace = true
 
 [package.metadata.wasm-pack.profile.profiling]
 wasm-opt = false
+
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-O4']
