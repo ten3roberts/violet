@@ -9,7 +9,7 @@ use palette::{Srgba, WithAlpha};
 use web_time::Duration;
 use winit::{
     event::ElementState,
-    keyboard::{Key, NamedKey},
+    keyboard::{Key, ModifiersState, NamedKey},
 };
 
 use crate::{
@@ -106,17 +106,13 @@ impl Widget for TextInput {
 
         let mut editor = TextEditor::new(move |text, change| match change {
             TextChange::Insert(start, end) => {
-                for row in start.row..=end.row {
-                    dirty_tx
-                        .send((row, Some(text[row].as_str().to_string())))
-                        .ok();
+                for (row, text) in text.iter().enumerate().take(end.row + 1).skip(start.row) {
+                    dirty_tx.send((row, Some(text.as_str().to_string()))).ok();
                 }
             }
             TextChange::Delete(start, end) => {
-                for row in start.row..=end.row {
-                    dirty_tx
-                        .send((row, Some(text[row].as_str().to_string())))
-                        .ok();
+                for (row, text) in text.iter().enumerate().take(end.row + 1).skip(start.row) {
+                    dirty_tx.send((row, Some(text.as_str().to_string()))).ok();
                 }
             }
             TextChange::DeleteLine(row) => {
@@ -184,26 +180,20 @@ impl Widget for TextInput {
                             content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
                         }
                         new_glyphs = layout_glyphs.select_next_some() => {
-                            // tracing::info!("new glyphs");
                             glyphs = new_glyphs;
                         }
                     }
 
                     let cursor_pos = calculate_position(&glyphs, editor.cursor());
-                    tracing::info!(?cursor_pos);
 
                     let selection = if let Some((start, end)) = editor.selection_bounds() {
-                        // tracing::info!(?start, ?end, "selection");
-
-                        let selected_lines = glyphs.lines().enumerate().filter(|(_, v)| {
-                            // tracing::info!(?v.row);
-                            v.row >= start.row && v.row <= end.row
-                        });
+                        let selected_lines = glyphs
+                            .lines()
+                            .enumerate()
+                            .filter(|(_, v)| v.row >= start.row && v.row <= end.row);
 
                         let selection = selected_lines
                             .filter_map(|(ln, v)| {
-                                // tracing::info!(?ln, glyphs = v.glyphs.len());
-
                                 let left = if v.row == start.row {
                                     v.glyphs.iter().find(|v| {
                                         v.start >= start.col
@@ -284,13 +274,20 @@ impl Widget for TextInput {
                             let text_pos = input.cursor.absolute_pos
                                 - text_bounds.transform_point3(Vec3::ZERO).xy();
 
+                            // If shift-clicking, start selecting the region between the current
+                            // cursor and the new clicked position
+                            if input.modifiers.shift_key() {
+                                tx.send(Action::Editor(EditorAction::SelectionStart)).ok();
+                            } else {
+                                tx.send(Action::Editor(EditorAction::SelectionClear)).ok();
+                            }
+
                             if let Some(hit) = glyphs.hit(text_pos) {
-                                dragging.set(Some((input.cursor.local_pos, hit)));
+                                dragging.set(Some(input.cursor.local_pos));
                                 tx.send(Action::Editor(EditorAction::CursorMove(
                                     CursorMove::SetPosition(hit),
                                 )))
                                 .ok();
-                                tx.send(Action::Editor(EditorAction::SelectionClear)).ok();
                             }
                         } else {
                             dragging.set(None)
@@ -303,7 +300,7 @@ impl Widget for TextInput {
                 move |_, input| {
                     let dragging = dragging.get();
 
-                    let Some((drag_start, dragging)) = dragging else {
+                    let Some(drag_start) = dragging else {
                         return;
                     };
 
@@ -316,10 +313,7 @@ impl Widget for TextInput {
                     let text_pos = input.local_pos;
 
                     if let Some(hit) = glyphs.hit(text_pos) {
-                        tx.send(Action::Editor(EditorAction::SelectionMove(
-                            CursorMove::SetPosition(dragging),
-                        )))
-                        .ok();
+                        tx.send(Action::Editor(EditorAction::SelectionStart)).ok();
                         tx.send(Action::Editor(EditorAction::CursorMove(
                             CursorMove::SetPosition(hit),
                         )))
@@ -331,9 +325,9 @@ impl Widget for TextInput {
                 to_owned![tx];
                 move |_, input| {
                     if input.event.state == ElementState::Pressed {
-                        if let Some(action) = handle_input(input) {
-                            tx.send(action).ok();
-                        }
+                        handle_input(input, |v| {
+                            tx.send(v).ok();
+                        })
                     }
                 }
             });
@@ -368,7 +362,7 @@ impl Widget for TextContent {
                 components::layout_glyphs(),
                 Box::new(move |glyphs| {
                     if let Some(new) = glyphs {
-                        tracing::info!(?row, lines = new.rows[0].len(), "new glyphs");
+                        tracing::debug!(?row, lines = new.rows[0].len(), "new glyphs");
                         let glyphs = &mut *layout_glyphs.lock_mut();
 
                         glyphs.set_row(row, new.rows[0].clone());
@@ -386,7 +380,7 @@ impl Widget for TextContent {
                     // Access and update the text widget
                     let mut scope = scope.frame_mut().scoped(id).unwrap();
 
-                    tracing::info!(?text, "updating row");
+                    tracing::debug!(?text, "updating row");
 
                     scope
                         .update(components::text(), |v| v[0].text = text)
@@ -398,7 +392,7 @@ impl Widget for TextContent {
                 }
             } else {
                 // Lines were deleted
-                tracing::info!("removing line");
+                tracing::debug!("removing line");
                 let id = text_items.remove(row);
                 scope.detach(id);
             }
@@ -421,7 +415,7 @@ pub fn calculate_position(glyphs: &LayoutGlyphs, cursor: CursorLocation) -> Vec2
     if let Some(loc) = glyphs.to_glyph_boundary(cursor) {
         loc
     } else {
-        tracing::info!("not on a glyph boundary");
+        tracing::debug!("not on a glyph boundary");
         glyphs
             .find_lines_indices(cursor.row)
             .last()
@@ -433,63 +427,62 @@ pub fn calculate_position(glyphs: &LayoutGlyphs, cursor: CursorLocation) -> Vec2
     }
 }
 
-fn handle_input(input: KeyboardInput) -> Option<Action> {
+fn handle_cursor_move(key: NamedKey, mods: ModifiersState) -> Option<CursorMove> {
+    let ctrl = mods.control_key();
+    match key {
+        NamedKey::ArrowLeft if ctrl => Some(CursorMove::BackwardWord),
+        NamedKey::ArrowRight if ctrl => Some(CursorMove::ForwardWord),
+        NamedKey::ArrowLeft => Some(CursorMove::Left),
+        NamedKey::ArrowRight => Some(CursorMove::Right),
+        NamedKey::ArrowUp => Some(CursorMove::Up),
+        NamedKey::ArrowDown => Some(CursorMove::Down),
+        _ => None,
+    }
+}
+
+fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
     let ctrl = input.modifiers.control_key();
     if let Key::Named(key) = input.event.logical_key {
+        if let Some(m) = handle_cursor_move(key, input.modifiers) {
+            if input.modifiers.shift_key() {
+                send(Action::Editor(EditorAction::SelectionStart));
+            } else {
+                send(Action::Editor(EditorAction::SelectionClear));
+            }
+
+            return send(Action::Editor(EditorAction::CursorMove(m)));
+        }
+
         match key {
             NamedKey::Backspace if ctrl => {
-                return Some(Action::Editor(EditorAction::Edit(
+                return send(Action::Editor(EditorAction::Edit(
                     EditAction::DeleteBackwardWord,
                 )))
             }
             NamedKey::Backspace => {
-                return Some(Action::Editor(EditorAction::Edit(
+                return send(Action::Editor(EditorAction::Edit(
                     EditAction::DeleteBackwardChar,
                 )))
             }
             NamedKey::Enter => {
-                return Some(Action::Editor(EditorAction::Edit(EditAction::InsertLine)))
-            }
-            NamedKey::ArrowLeft if ctrl => {
-                return Some(Action::Editor(EditorAction::CursorMove(
-                    CursorMove::BackwardWord,
-                )))
-            }
-            NamedKey::ArrowRight if ctrl => {
-                return Some(Action::Editor(EditorAction::CursorMove(
-                    CursorMove::ForwardWord,
-                )))
-            }
-            NamedKey::ArrowLeft => {
-                return Some(Action::Editor(EditorAction::CursorMove(CursorMove::Left)))
-            }
-            NamedKey::ArrowRight => {
-                return Some(Action::Editor(EditorAction::CursorMove(CursorMove::Right)))
-            }
-            NamedKey::ArrowUp => {
-                return Some(Action::Editor(EditorAction::CursorMove(CursorMove::Up)))
-            }
-            NamedKey::ArrowDown => {
-                return Some(Action::Editor(EditorAction::CursorMove(CursorMove::Down)))
+                return send(Action::Editor(EditorAction::Edit(EditAction::InsertLine)))
             }
             _ => {}
         }
     } else if let Key::Character(c) = input.event.logical_key {
         match &*c {
-            "c" if ctrl => return Some(Action::Copy),
-            "v" if ctrl => return Some(Action::Paste),
-            "x" if ctrl => return Some(Action::Cut),
+            "c" if ctrl => return send(Action::Copy),
+            "v" if ctrl => return send(Action::Paste),
+            "x" if ctrl => return send(Action::Cut),
             _ => {}
         }
     }
 
     if let Some(text) = input.event.text {
-        return Some(Action::Editor(EditorAction::Edit(EditAction::InsertText(
+        send(Action::Editor(EditorAction::Edit(EditAction::InsertText(
             text.into(),
         ))));
     }
-
-    None
 }
 
 pub struct InputField<V> {
@@ -519,12 +512,8 @@ impl<V: 'static + Display + FromStr> Widget for InputField<V> {
                 .signal_cloned()
                 .dedupe_cloned()
                 .to_stream()
-                .filter_map(|v| {
-                    tracing::info!(?v, "Parsing");
-                    ready(v.trim().parse().ok())
-                })
+                .filter_map(|v| ready(v.trim().parse().ok()))
                 .for_each(move |v| {
-                    tracing::info!("Parsed: {}", v);
                     value.send(v);
                     async {}
                 }),

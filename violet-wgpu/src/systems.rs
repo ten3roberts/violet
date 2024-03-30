@@ -71,9 +71,9 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                 puffin::profile_scope!("update_text_buffers");
                 let text_system = &mut *text_system.lock();
                 query.iter().for_each(|((stylesheet_id, &()), item)| {
-                    let _span = tracing::info_span!("update_text_buffers", %item.id).entered();
+                    let _span = tracing::debug_span!("update_text_buffers", %item.id).entered();
 
-                    tracing::info!(?item.text);
+                    tracing::debug!(?item.text);
 
                     let stylesheet = world.entity(stylesheet_id).unwrap();
 

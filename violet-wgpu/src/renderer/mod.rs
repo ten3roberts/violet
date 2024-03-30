@@ -223,7 +223,12 @@ impl MainRenderer {
                 &object_bind_group_layout,
                 &mut store,
             ),
-            text_renderer: TextRenderer::new(gpu, &props, &object_bind_group_layout, &mut store),
+            text_renderer: TextRenderer::new(
+                gpu,
+                &mut props,
+                &object_bind_group_layout,
+                &mut store,
+            ),
             debug_renderer: props.config.debug_mode.then(|| {
                 DebugRenderer::new(
                     gpu,

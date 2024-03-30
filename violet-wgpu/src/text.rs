@@ -142,7 +142,7 @@ impl SizeResolver for TextSizeResolver {
 
         let glyphs = state.layout_glyphs();
 
-        tracing::info!(lines=?glyphs.rows.iter().map(|v| v.len()).collect::<Vec<_>>(), "updating layout glyphs");
+        // tracing::trace!(lines=?glyphs.rows.iter().map(|v| v.len()).collect::<Vec<_>>(), "updating layout glyphs");
 
         *entity.get_mut(layout_glyphs()).unwrap() = glyphs;
 

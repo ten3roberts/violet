@@ -135,11 +135,13 @@ impl FontRasterizer {
 struct MeshGenerator {
     rasterizer: FontRasterizer,
     shader: Handle<Shader>,
+    empty_buffer: Arc<MeshHandle>,
 }
 
 impl MeshGenerator {
     fn new(
         gpu: &mut Gpu,
+        mesh_buffer: &mut MeshBuffer,
         globals_layout: &BindGroupLayout,
         color_format: TextureFormat,
         object_layout: &BindGroupLayout,
@@ -170,9 +172,11 @@ impl MeshGenerator {
             ..Default::default()
         }));
 
+        let sentinel = Arc::new(mesh_buffer.allocate(&gpu, 0, 0));
         Self {
             rasterizer: FontRasterizer::new(gpu, sampler, text_layout, store),
             shader,
+            empty_buffer: sentinel,
         }
     }
 
@@ -265,11 +269,13 @@ impl MeshGenerator {
             .flat_map(|i| [i, 1 + i, 2 + i, 2 + i, 3 + i, i])
             .collect_vec();
 
-        *mesh = Arc::new(mesh_buffer.insert(gpu, &vertices, &indices));
-        // if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
-        //     ctx.mesh_buffer.write(&gpu, mesh, &vertices, &indices);
-        // } else {
-        // }
+        // Replace the mesh *before* assignment to free up the previous space
+        if mesh.vb().size() >= vertices.len() && mesh.ib().size() >= indices.len() {
+            mesh_buffer.write(gpu, mesh, &vertices, &indices);
+        } else {
+            *mesh = self.empty_buffer.clone();
+            *mesh = Arc::new(mesh_buffer.insert(gpu, &vertices, &indices));
+        }
 
         indices.len() as u32
     }
@@ -281,20 +287,17 @@ impl MeshGenerator {
 pub(crate) struct TextMeshQuery {
     #[fetch(ignore)]
     draw_shape: With,
-    #[fetch(ignore)]
     id: EntityIds,
-    #[fetch(ignore)]
     text_mesh: Opt<Mutable<Arc<MeshHandle>>>,
 
-    #[fetch(ignore)]
     state: Mutable<TextBufferState>,
 
     rect: Component<Rect>,
     text: Component<Vec<TextSegment>>,
-    #[fetch(ignore)]
     layout_bounds: Component<Vec2>,
     font_size: OptOr<Component<f32>, f32>,
 
+    // #[fetch(ignore)]
     clip_mask: Component<Rect>,
 }
 
@@ -332,12 +335,13 @@ pub(crate) struct TextRenderer {
 impl TextRenderer {
     pub(crate) fn new(
         gpu: &mut Gpu,
-        props: &RendererProps,
+        props: &mut RendererProps,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
         let mesh_generator = MeshGenerator::new(
             gpu,
+            &mut props.globals.mesh_buffer,
             &props.globals.layout,
             props.color_format,
             object_layout,
@@ -370,7 +374,9 @@ impl TextRenderer {
             .into_iter()
             .rev()
             .for_each(|item| {
-                let _span = tracing::debug_span!( "update_mesh", %item.id).entered();
+                let _span = tracing::debug_span!("update_mesh").entered();
+
+                // tracing::info!(%item.id, "update text mesh");
 
                 // Update intrinsic sizes
                 {
@@ -382,8 +388,8 @@ impl TextRenderer {
                             font_size: item.font_size * sf,
                             line_height: item.font_size * sf,
                         },
-                        (item.rect.size().x + 5.0) * sf,
-                        (item.rect.size().y + 5.0) * sf,
+                        (item.layout_bounds.x + 5.0) * sf,
+                        (item.layout_bounds.y + 5.0) * sf,
                     );
                     // buffer.set_size(item.layout_bounds.x + 5.0, item.layout_bounds.y + 5.0);
 

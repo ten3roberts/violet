@@ -119,6 +119,7 @@ pub enum EditAction<S = String> {
 pub enum EditorAction<S = String> {
     CursorMove(CursorMove),
     SelectionMove(CursorMove),
+    SelectionStart,
     SelectionClear,
     Edit(EditAction<S>),
     SetText(Vec<S>),
@@ -156,14 +157,14 @@ impl TextEditor {
                 if let Some((i, _)) = self
                     .line()
                     .graphemes()
-                    .take_while(|(i, _)| *i < self.cursor.col)
+                    .take_while(|(i, _)| *i < cursor.col)
                     .last()
                 {
                     CursorLocation {
                         row: cursor.row,
                         col: i,
                     }
-                } else if self.cursor.row > 0 {
+                } else if cursor.row > 0 {
                     CursorLocation {
                         row: cursor.row - 1,
                         col: self.line().len(),
@@ -173,14 +174,14 @@ impl TextEditor {
                 }
             }
             CursorMove::Right => {
-                let next_glyph = self.line().graphemes().find(|(i, _)| *i == self.cursor.col);
+                let next_glyph = self.line().graphemes().find(|(i, _)| *i == cursor.col);
 
                 if let Some((i, g)) = next_glyph {
                     CursorLocation {
                         row: cursor.row,
                         col: i + g.len(),
                     }
-                } else if self.cursor.row < self.text.len() - 1 {
+                } else if cursor.row < self.text.len() - 1 {
                     CursorLocation {
                         row: cursor.row + 1,
                         col: 0,
@@ -190,10 +191,7 @@ impl TextEditor {
                 }
             }
             CursorMove::ForwardWord => {
-                let word = self
-                    .line()
-                    .words()
-                    .find_or_last(|(i, _)| *i >= self.cursor.col);
+                let word = self.line().words().find_or_last(|(i, _)| *i >= cursor.col);
                 tracing::debug!(?word, "current word");
                 if let Some((i, word)) = word {
                     CursorLocation {
@@ -205,12 +203,8 @@ impl TextEditor {
                 }
             }
             CursorMove::BackwardWord => {
-                if self.cursor.col > 0 {
-                    let word = self
-                        .line()
-                        .words()
-                        .rev()
-                        .find(|(i, _)| *i < self.cursor.col);
+                if cursor.col > 0 {
+                    let word = self.line().words().rev().find(|(i, _)| *i < cursor.col);
                     tracing::debug!(?word, "current word");
                     if let Some((i, _)) = word {
                         CursorLocation {
@@ -220,7 +214,7 @@ impl TextEditor {
                     } else {
                         cursor
                     }
-                } else if self.cursor.row > 0 {
+                } else if cursor.row > 0 {
                     CursorLocation {
                         row: cursor.row - 1,
                         col: self.line().len(),
@@ -297,14 +291,18 @@ impl TextEditor {
                         self.cursor.col -= l;
                         self.on_change(TextChange::Delete(self.cursor, beg));
                     }
-                } else if self.cursor.row > 0 {
+                }
+                // Deleting the beginning of the line
+                else if self.cursor.row > 0 {
                     let line = self.text.remove(self.cursor.row);
                     tracing::debug!("deleting line {}", self.cursor.row);
                     self.on_change(TextChange::DeleteLine(self.cursor.row));
 
-                    self.cursor.row -= 1;
-                    self.cursor.col = self.text[self.cursor.row].len();
-                    self.text[self.cursor.row].push_str(&line.text);
+                    if self.cursor.row > 0 {
+                        self.cursor.row -= 1;
+                        self.cursor.col = self.text[self.cursor.row].len();
+                        self.text[self.cursor.row].push_str(&line.text);
+                    }
                 }
             }
             EditAction::DeleteBackwardWord => {
@@ -385,10 +383,15 @@ impl TextEditor {
     pub fn apply_action<S: AsRef<str>>(&mut self, action: EditorAction<S>) {
         match action {
             EditorAction::CursorMove(m) => self.move_cursor(m),
+            EditorAction::SelectionMove(m) => self.move_selection(m),
             EditorAction::Edit(e) => self.edit(e),
             EditorAction::SetText(v) => self.set_text(v.iter().map(|v| v.as_ref())),
-            EditorAction::SelectionMove(m) => self.move_selection(m),
             EditorAction::SelectionClear => self.clear_selection(),
+            EditorAction::SelectionStart => {
+                if self.selection.is_none() {
+                    self.selection = Some(self.cursor);
+                }
+            }
         }
     }
 
@@ -482,17 +485,23 @@ impl TextEditor {
 
         if start.row == end.row {
             self.text[start.row].text.drain(start.col..end.col);
+            self.on_change(TextChange::Delete(start, end));
         } else {
+            let mut drain_offset = 1;
             let len = self.text[start.row].len();
 
-            self.text[start.row].text.truncate(start.col);
-            self.on_change(TextChange::Delete(
-                start,
-                CursorLocation {
-                    row: start.row,
-                    col: start.col + len - start.col,
-                },
-            ));
+            if start.col > 0 {
+                self.text[start.row].text.truncate(start.col);
+                self.on_change(TextChange::Delete(
+                    start,
+                    CursorLocation {
+                        row: start.row,
+                        col: start.col + len - start.col,
+                    },
+                ));
+            } else {
+                drain_offset = 0;
+            }
 
             self.text[end.row].text.drain(0..end.col);
 
@@ -505,10 +514,10 @@ impl TextEditor {
                 },
             ));
 
-            self.text.drain(start.row + 1..end.row);
+            self.text.drain(start.row + drain_offset..end.row);
 
-            for row in start.row + 1..end.row {
-                self.on_change(TextChange::DeleteLine(row));
+            for _ in start.row + drain_offset..end.row {
+                self.on_change(TextChange::DeleteLine(drain_offset));
             }
         }
 

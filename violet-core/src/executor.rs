@@ -11,6 +11,7 @@ use std::{
 };
 
 use futures::task::{waker, ArcWake, AtomicWaker};
+use itertools::Itertools;
 use parking_lot::Mutex;
 use slotmap::{new_key_type, SlotMap};
 
@@ -176,7 +177,26 @@ impl<Data> Executor<Data> {
     pub fn tick(&mut self, data: &mut Data) {
         puffin::profile_function!();
         assert!(self.processing.is_empty());
+        let iterations = 0;
         loop {
+            if iterations > 100 {
+                let tasks = self
+                    .tasks
+                    .iter()
+                    .map(|(id, (task, _))| {
+                        format!(
+                            "Task {:?} effect: {}",
+                            id,
+                            task.effect.label().unwrap_or_default()
+                        )
+                    })
+                    .collect_vec();
+                panic!(
+                    "Executor tick loop exceeded 100 iterations. Tasks: {:?}",
+                    tasks
+                );
+            }
+
             puffin::profile_scope!("tick");
             // Add new tasks
             self.processing
