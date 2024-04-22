@@ -61,17 +61,17 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly wasm_bindgen__convert__closures__invoke1_mut__h1ec55bf175af4315: (a: number, b: number, c: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke0_mut__h92a80897349a757a: (a: number, b: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke2_mut__h27bd16a8f2f34f27: (a: number, b: number, c: number, d: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke0_mut__h6d6ba48c13f15cfa: (a: number, b: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke0_mut__h79e1fb3f03545366: (a: number, b: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke1_mut__h37c57556e7e7cd85: (a: number, b: number, c: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke0_mut__hf5cd5a642adf0408: (a: number, b: number) => void;
-  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h75d38e4d2ad3cee1: (a: number, b: number, c: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke1_mut__h22cc9e778d20855c: (a: number, b: number, c: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke0_mut__h9b40ec7a42833caa: (a: number, b: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__had7b6ca45127dd40: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke0_mut__h6958d67084932634: (a: number, b: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke0_mut__h840f3d9383154bde: (a: number, b: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke1_mut__h593642b41ec7113b: (a: number, b: number, c: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke0_mut__he33e6181b1250440: (a: number, b: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hec775276b522b0ed: (a: number, b: number, c: number) => void;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
-  readonly wasm_bindgen__convert__closures__invoke2_mut__h011f9b09e3e36e23: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__hbca9aa8e5da3d303: (a: number, b: number, c: number, d: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
