@@ -408,6 +408,8 @@ impl TextEditor {
     }
 
     pub fn set_text<'a>(&mut self, text: impl IntoIterator<Item = &'a str>) {
+        let old_lines = self.text.len();
+
         let at_end_col = self.cursor.col >= self.text[self.cursor.row].len();
         let at_end_row = self.cursor.row >= self.text.len() - 1;
 
@@ -423,6 +425,18 @@ impl TextEditor {
 
         if at_end_col {
             self.cursor.col = self.text[self.cursor.row].len();
+        }
+
+        self.on_change(TextChange::Insert(
+            CursorLocation { row: 0, col: 0 },
+            CursorLocation {
+                row: self.text.len() - 1,
+                col: self.text[self.text.len() - 1].len(),
+            },
+        ));
+
+        for i in self.text.len()..old_lines {
+            self.on_change(TextChange::DeleteLine(i));
         }
     }
 
