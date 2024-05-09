@@ -338,6 +338,7 @@ impl MainRenderer {
                 clip_mask.size().x as u32,
                 clip_mask.size().y as u32,
             );
+
             render_pass.set_pipeline(shader.pipeline());
 
             render_pass.set_bind_group(0, &globals.bind_group, &[]);

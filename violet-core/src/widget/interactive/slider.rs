@@ -8,15 +8,15 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{offset, rect},
+    components::{offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
     layout::Alignment,
     state::{State, StateDuplex, StateStream},
-    style::{interactive_active, interactive_passive, spacing_small, SizeExt, StyleExt},
+    style::{interactive_active, interactive_passive, spacing_small, SizeExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,
-    widget::{row, ContainerStyle, Positioned, Rectangle, Stack, StreamWidget, Text},
+    widget::{row, Float, Positioned, Rectangle, Stack, StreamWidget, Text},
     Scope, StreamEffect, Widget,
 };
 
@@ -103,7 +103,13 @@ impl<V: SliderValue> Widget for Slider<V> {
             dst: &dyn StateDuplex<Item = V>,
         ) {
             let rect = entity.get_copy(rect()).unwrap();
-            let value = (input.local_pos.x / rect.size().x).clamp(0.0, 1.0) * (max - min) + min;
+            let padding = entity.get_copy(padding()).unwrap_or_default();
+
+            let value = ((input.local_pos.x - padding.left) / (rect.size().x - padding.size().x))
+                .clamp(0.0, 1.0)
+                * (max - min)
+                + min;
+
             dst.send(V::from_progress(value));
         }
 
@@ -136,11 +142,10 @@ impl<V: SliderValue> Widget for Slider<V> {
                 move |scope, input| update(scope, input, min, max, &*value)
             });
 
-        Stack::new(handle)
+        Stack::new(Float::new(handle))
+            .with_min_size(handle_size)
             .with_vertical_alignment(Alignment::Center)
-            .with_style(ContainerStyle {
-                ..Default::default()
-            })
+            .with_padding(spacing_small())
             .with_margin(spacing_small())
             .mount(scope)
     }
@@ -176,8 +181,8 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
         }));
 
         Positioned::new(Rectangle::new(self.handle_color).with_min_size(self.handle_size))
-            .with_offset(Unit::px2(100.0, 10.0))
-            .with_anchor(Unit::rel2(0.5, 0.0))
+            .with_offset(Unit::px2(0.0, 0.0))
+            .with_anchor(Unit::rel2(0.5, 0.5))
             .mount(scope)
     }
 }

@@ -60,7 +60,11 @@ impl Gpu {
                     // WebGL doesn't support all of wgpu's features, so if
                     // we're building for the web we'll have to disable some.
                     required_limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
+                        wgpu::Limits {
+                            // Support higher resolution displays, may not be supported on all devices.
+                            max_texture_dimension_2d: 4096,
+                            ..wgpu::Limits::downlevel_webgl2_defaults()
+                        }
                     } else {
                         wgpu::Limits::default()
                     },
