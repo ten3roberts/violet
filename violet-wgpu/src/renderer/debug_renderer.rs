@@ -7,7 +7,7 @@ use itertools::Itertools;
 use violet_core::{
     assets::Asset,
     components::{rect, transform},
-    layout::cache::{layout_cache, LayoutUpdate},
+    layout::cache::{layout_cache, LayoutUpdateEvent},
     stored::{self, Handle},
     Frame,
 };
@@ -38,8 +38,8 @@ pub struct DebugRenderer {
     corner_shader: stored::Handle<Shader>,
     border_shader: stored::Handle<Shader>,
 
-    layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
-    layout_changes: BTreeMap<(Entity, LayoutUpdate), usize>,
+    layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
+    layout_changes: BTreeMap<(Entity, LayoutUpdateEvent), usize>,
     objects: Vec<(DrawCommand, ObjectData)>,
 }
 
@@ -50,7 +50,7 @@ impl DebugRenderer {
         color_format: TextureFormat,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
-        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
@@ -240,10 +240,10 @@ impl DebugRenderer {
     }
 }
 
-fn indicator_color(layout: &LayoutUpdate) -> Vec4 {
+fn indicator_color(layout: &LayoutUpdateEvent) -> Vec4 {
     match layout {
-        LayoutUpdate::Explicit => vec4(1.0, 0.0, 0.0, 1.0),
-        LayoutUpdate::SizeQueryUpdate => vec4(0.0, 1.0, 0.0, 1.0),
-        LayoutUpdate::LayoutUpdate => vec4(0.0, 0.0, 1.0, 1.0),
+        LayoutUpdateEvent::Explicit => vec4(1.0, 0.0, 0.0, 1.0),
+        LayoutUpdateEvent::SizeQueryUpdate => vec4(0.0, 1.0, 0.0, 1.0),
+        LayoutUpdateEvent::LayoutUpdate => vec4(0.0, 0.0, 1.0, 1.0),
     }
 }

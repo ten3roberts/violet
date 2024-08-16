@@ -19,7 +19,7 @@ use violet_core::{
     text::Wrap,
     widget::{card, col, label, row, Button, ButtonStyle, SliderWithLabel, TextInput},
 };
-use violet_wgpu::renderer::RendererConfig;
+use violet_wgpu::renderer::MainRendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -34,7 +34,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     violet_wgpu::AppBuilder::new()
-        .with_renderer_config(RendererConfig { debug_mode: false })
+        .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(MainApp)
 }
 

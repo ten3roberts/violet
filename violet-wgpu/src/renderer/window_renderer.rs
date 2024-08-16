@@ -5,21 +5,21 @@ use flax::Entity;
 use glam::Mat4;
 use parking_lot::Mutex;
 use puffin::profile_scope;
-use wgpu::{Operations, RenderPassDescriptor, StoreOp, SurfaceError};
+use wgpu::SurfaceError;
 use winit::dpi::{LogicalSize, PhysicalSize};
 
-use violet_core::{layout::cache::LayoutUpdate, Frame};
+use violet_core::{layout::cache::LayoutUpdateEvent, Frame};
 
 use crate::{graphics::Surface, text::TextSystem, Gpu};
 
-use super::{MainRenderer, RendererConfig, RendererContext};
+use super::{MainRenderer, MainRendererConfig, RendererContext};
 
 /// Renders to a window surface
 pub struct WindowRenderer {
     surface: Surface,
 
     ctx: RendererContext,
-    widget_renderer: MainRenderer,
+    main_renderer: MainRenderer,
 }
 
 impl WindowRenderer {
@@ -29,8 +29,8 @@ impl WindowRenderer {
         root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         surface: Surface,
-        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
-        config: RendererConfig,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
+        config: MainRendererConfig,
     ) -> Self {
         let mut ctx = RendererContext::new(gpu);
 
@@ -46,7 +46,7 @@ impl WindowRenderer {
 
         Self {
             surface,
-            widget_renderer,
+            main_renderer: widget_renderer,
             ctx,
         }
     }
@@ -78,6 +78,8 @@ impl WindowRenderer {
             Err(err) => return Err(err).context("Failed to acquire surface texture"),
         };
 
+        self.main_renderer.update(&mut self.ctx, frame)?;
+
         let view = target.texture.create_view(&Default::default());
 
         let mut encoder =
@@ -88,31 +90,9 @@ impl WindowRenderer {
                     label: Some("WindowRenderer::draw"),
                 });
 
-        {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("WindowRenderer::draw"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            // #3b4141
-                            r: 0.04,
-                            g: 0.05,
-                            b: 0.05,
-                            a: 1.0,
-                        }),
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                ..Default::default()
-            });
-
-            self.widget_renderer
-                .draw(&mut self.ctx, frame, &mut render_pass)
-                .context("Failed to draw shapes")?;
-        }
+        self.main_renderer
+            .draw(&mut self.ctx, frame, &mut encoder, &view)
+            .context("Failed to draw shapes")?;
 
         {
             profile_scope!("submit");

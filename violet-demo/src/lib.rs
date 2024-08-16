@@ -31,7 +31,7 @@ use violet::{
     futures_signals::signal::Mutable,
     palette::{IntoColor, Oklch, Srgb},
     web_time::Duration,
-    wgpu::{app::App, renderer::RendererConfig},
+    wgpu::{app::AppInstance, renderer::MainRendererConfig},
 };
 use wasm_bindgen::prelude::*;
 
@@ -74,9 +74,9 @@ fn setup() {
 pub fn run() {
     setup();
 
-    App::builder()
+    AppInstance::builder()
         .with_title("Palette Editor")
-        .with_renderer_config(RendererConfig { debug_mode: false })
+        .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(MainApp)
         .unwrap();
 }

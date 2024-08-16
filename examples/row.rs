@@ -8,7 +8,7 @@ use violet_core::{
     style::{accent_item, primary_background, spacing_small, SizeExt},
     widget::{centered, col, row, Image, Stack},
 };
-use violet_wgpu::renderer::RendererConfig;
+use violet_wgpu::renderer::MainRendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -23,7 +23,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     violet_wgpu::AppBuilder::new()
-        .with_renderer_config(RendererConfig { debug_mode: true })
+        .with_renderer_config(MainRendererConfig { debug_mode: true })
         .run(MainApp)
 }
 

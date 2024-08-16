@@ -22,7 +22,7 @@ use crate::{
     },
     layout::{
         apply_layout,
-        cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdate},
+        cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdateEvent},
         LayoutLimits,
     },
 };
@@ -49,7 +49,7 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
         .set_default(rect());
 }
 
-pub fn templating_system(layout_changes_tx: flume::Sender<(Entity, LayoutUpdate)>) -> BoxedSystem {
+pub fn templating_system(layout_changes_tx: flume::Sender<(Entity, LayoutUpdateEvent)>) -> BoxedSystem {
     let query = Query::new(entity_ids()).filter(Or((rect().with(), layout_cache().without())));
 
     System::builder()

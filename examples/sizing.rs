@@ -19,7 +19,7 @@ use violet_core::style::{
     colors::{AMBER_500, EMERALD_500, EMERALD_800, REDWOOD_500, TEAL_500},
     primary_background,
 };
-use violet_wgpu::renderer::RendererConfig;
+use violet_wgpu::renderer::MainRendererConfig;
 
 const MARGIN_SM: Edges = Edges::even(4.0);
 
@@ -36,7 +36,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     violet_wgpu::AppBuilder::new()
-        .with_renderer_config(RendererConfig { debug_mode: true })
+        .with_renderer_config(MainRendererConfig { debug_mode: true })
         .run(MainApp)
 }
 

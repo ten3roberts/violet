@@ -23,7 +23,7 @@ impl<T> CachedValue<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum LayoutUpdate {
+pub enum LayoutUpdateEvent {
     SizeQueryUpdate,
     LayoutUpdate,
     Explicit,
@@ -33,12 +33,12 @@ pub struct LayoutCache {
     pub(crate) query: [Vec<CachedValue<Sizing>>; 2],
     pub(crate) query_row: Option<CachedValue<Row>>,
     pub(crate) layout: Option<CachedValue<Block>>,
-    on_invalidated: Option<Box<dyn Fn(LayoutUpdate) + Send + Sync>>,
+    on_invalidated: Option<Box<dyn Fn(LayoutUpdateEvent) + Send + Sync>>,
     pub(crate) hints: SizingHints,
 }
 
 impl LayoutCache {
-    pub fn new(on_invalidated: Option<Box<dyn Fn(LayoutUpdate) + Send + Sync>>) -> Self {
+    pub fn new(on_invalidated: Option<Box<dyn Fn(LayoutUpdateEvent) + Send + Sync>>) -> Self {
         Self {
             query: Default::default(),
             query_row: None,
@@ -50,7 +50,7 @@ impl LayoutCache {
 
     pub fn invalidate(&mut self) {
         if let Some(f) = self.on_invalidated.as_ref() {
-            f(LayoutUpdate::Explicit)
+            f(LayoutUpdateEvent::Explicit)
         }
 
         self.query = Default::default();
@@ -68,21 +68,21 @@ impl LayoutCache {
         v.insert(0, value);
 
         if let Some(f) = self.on_invalidated.as_ref() {
-            f(LayoutUpdate::SizeQueryUpdate)
+            f(LayoutUpdateEvent::SizeQueryUpdate)
         }
     }
 
     pub(crate) fn insert_query_row(&mut self, value: CachedValue<Row>) {
         self.query_row = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
-            f(LayoutUpdate::SizeQueryUpdate)
+            f(LayoutUpdateEvent::SizeQueryUpdate)
         }
     }
 
     pub(crate) fn insert_layout(&mut self, value: CachedValue<Block>) {
         self.layout = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
-            f(LayoutUpdate::LayoutUpdate)
+            f(LayoutUpdateEvent::LayoutUpdate)
         }
     }
 

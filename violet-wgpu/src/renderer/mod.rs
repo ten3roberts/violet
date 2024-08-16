@@ -13,11 +13,14 @@ use parking_lot::Mutex;
 use smallvec::{smallvec, SmallVec};
 use violet_core::{
     components::{children, draw_shape},
-    layout::cache::LayoutUpdate,
+    layout::cache::LayoutUpdateEvent,
     stored::{self, Store},
     Frame,
 };
-use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
+use wgpu::{
+    BindGroup, BindGroupLayout, BufferUsages, CommandEncoder, Operations, RenderPassDescriptor,
+    ShaderStages, StoreOp, TextureFormat, TextureView,
+};
 
 use crate::{
     components::{draw_cmd, object_data},
@@ -44,7 +47,7 @@ mod window_renderer;
 pub use window_renderer::WindowRenderer;
 
 #[derive(Debug, Clone, Default)]
-pub struct RendererConfig {
+pub struct MainRendererConfig {
     /// Enables the debug renderer for extra information during development:
     /// - Draw layout invalidations using slanted corners of combined colors
     ///     - Red: direct invalidation due to change of a widgets size
@@ -53,7 +56,7 @@ pub struct RendererConfig {
     pub debug_mode: bool,
 }
 
-/// Contains the device, globals and mesh buffer
+/// Contains the global rendering state and buffers
 pub struct RendererContext {
     pub gpu: Gpu,
     pub globals: Globals,
@@ -64,6 +67,7 @@ pub struct RendererContext {
 }
 
 impl RendererContext {
+    /// Creates a new renderer context from the provided gpu
     pub fn new(gpu: Gpu) -> Self {
         let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
             .bind_uniform_buffer(ShaderStages::VERTEX)
@@ -163,7 +167,7 @@ fn create_object_bindings(
     (bind_group, object_buffer)
 }
 
-/// Draws shapes from the frame
+/// Main renderer for a frame
 pub struct MainRenderer {
     store: RendererStore,
     quad: Mesh,
@@ -183,17 +187,17 @@ pub struct MainRenderer {
 }
 
 impl MainRenderer {
-    pub(crate) fn new(
+    pub fn new(
         frame: &mut Frame,
         ctx: &mut RendererContext,
         root: Entity,
         text_system: Arc<Mutex<TextSystem>>,
         color_format: TextureFormat,
-        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
-        config: RendererConfig,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
+        config: MainRendererConfig,
     ) -> Self {
         let object_bind_group_layout =
-            BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
+            BindGroupLayoutBuilder::new("MainRenderer::object_bind_group_layout")
                 .bind_uniform_buffer(ShaderStages::VERTEX)
                 .build(&ctx.gpu);
 
@@ -245,31 +249,57 @@ impl MainRenderer {
         }
     }
 
+    /// Updates renderer state before draw
+    pub fn update(&mut self, ctx: &mut RendererContext, frame: &mut Frame) -> anyhow::Result<()> {
+        self.register_objects.run(&mut frame.world)?;
+        self.rect_renderer.update(&ctx.gpu, frame);
+        self.rect_renderer
+            .build_commands(&ctx.gpu, frame, &mut self.store);
+
+        self.text_renderer
+            .update_meshes(ctx, frame, &mut self.store);
+
+        self.text_renderer.update(&ctx.gpu, frame);
+
+        if let Some(debug_renderer) = &mut self.debug_renderer {
+            debug_renderer.update(frame);
+        }
+
+        Ok(())
+    }
+
+    /// Draws the frame using the provided render pass
+    ///
+    /// **Note**: provided render pass target must match the provided target texture format
     pub fn draw<'a>(
         &'a mut self,
         ctx: &'a mut RendererContext,
         frame: &mut Frame,
-        render_pass: &mut RenderPass<'a>,
+        encoder: &mut CommandEncoder,
+        target_view: &TextureView,
     ) -> anyhow::Result<()> {
         puffin::profile_function!();
-        let _span = tracing::info_span!("draw").entered();
-        self.quad.bind(render_pass);
 
-        self.register_objects.run(&mut frame.world)?;
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("MainRenderer::draw"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target_view,
+                resolve_target: None,
+                ops: Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.0,
+                    }),
+                    store: StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            ..Default::default()
+        });
 
-        {
-            puffin::profile_scope!("update_renderers");
-            self.rect_renderer.update(&ctx.gpu, frame);
-            self.rect_renderer
-                .build_commands(&ctx.gpu, frame, &mut self.store);
-
-            self.text_renderer
-                .update_meshes(ctx, frame, &mut self.store);
-            self.text_renderer.update(&ctx.gpu, frame);
-            if let Some(debug_renderer) = &mut self.debug_renderer {
-                debug_renderer.update(frame);
-            }
-        }
+        self.quad.bind(&mut render_pass);
 
         {
             puffin::profile_scope!("create_draw_commands");
@@ -313,7 +343,7 @@ impl MainRenderer {
                 buffer.write(&ctx.gpu.queue, 0, objects);
             }
 
-            ctx.mesh_buffer.bind(render_pass);
+            ctx.mesh_buffer.bind(&mut render_pass);
         }
 
         puffin::profile_scope!("dispatch_draw_commands");
@@ -357,11 +387,6 @@ fn collect_draw_commands(
             .enumerate()
             .map(|(i, (draw_cmd, object))| {
                 objects.push(object);
-                // let first_instance = instance_index as u32;
-                // instance_index += 1;
-                // objects.push(*item.object_data);
-
-                // let draw_cmd = item.draw_cmd;
                 InstancedDrawCommand {
                     draw_cmd: draw_cmd.clone(),
                     first_instance: i as u32,
@@ -396,7 +421,6 @@ pub(crate) struct ObjectData {
 
 struct RendererIter<'a> {
     world: &'a World,
-    // queue: VecDeque<EntityRef<'a>>,
     stack: SmallVec<[EntityRef<'a>; 16]>,
 }
 
