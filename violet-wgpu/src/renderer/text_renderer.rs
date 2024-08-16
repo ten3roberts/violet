@@ -7,7 +7,7 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
+use glam::{vec2, vec3, Mat4, Vec2, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
@@ -359,7 +359,10 @@ impl TextRenderer {
                 {
                     let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);
 
-                    buffer.set_size(item.layout_bounds.x + 5.0, item.layout_bounds.y + 5.0);
+                    buffer.set_size(
+                        Some(item.layout_bounds.x + 5.0),
+                        Some(item.layout_bounds.y + 5.0),
+                    );
 
                     buffer.shape_until_scroll(true);
                 }
@@ -409,7 +412,8 @@ impl TextRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                let rect = item.rect.align_to_grid();
+                // TODO: alignment
+                // let rect = item.rect.align_to_grid();
                 let model_matrix = *item.transform;
 
                 *item.object_data = ObjectData {

@@ -71,7 +71,7 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                     let buffer = &mut item.state.buffer;
                     let size = item.rect.size();
 
-                    buffer.set_size(&mut text_system.font_system, size.x, size.y);
+                    buffer.set_size(&mut text_system.font_system, Some(size.x), Some(size.y));
 
                     buffer.shape_until_scroll(&mut text_system.font_system, true);
                 });

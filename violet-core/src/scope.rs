@@ -17,7 +17,7 @@ use crate::{
     components::{children, handles},
     effect::Effect,
     input::InputEventHandler,
-    stored::{Handle, UntypedHandle, WeakHandle},
+    stored::{UntypedHandle, WeakHandle},
     style::get_stylesheet_from_entity,
     systems::widget_template,
     Frame, FutureEffect, StreamEffect, Widget,
@@ -297,7 +297,7 @@ impl<'a> ScopeRef<'a> {
 
     /// Returns the active stylesheet for this scope
     pub fn stylesheet(&self) -> EntityRef {
-        get_stylesheet_from_entity(&self.entity())
+        get_stylesheet_from_entity(self.entity())
     }
 
     /// Spawns an effect scoped to the lifetime of this entity and scope

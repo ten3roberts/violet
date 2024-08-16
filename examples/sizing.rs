@@ -13,15 +13,13 @@ use violet::core::{
     text::Wrap,
     unit::Unit,
     widget::{card, centered, col, label, row, Rectangle, SignalWidget, Slider, Text, WidgetExt},
-    Edges, Scope, Widget,
+    Scope, Widget,
 };
 use violet_core::style::{
     colors::{AMBER_500, EMERALD_500, EMERALD_800, REDWOOD_500, TEAL_500},
     primary_background,
 };
 use violet_wgpu::renderer::MainRendererConfig;
-
-const MARGIN_SM: Edges = Edges::even(4.0);
 
 pub fn main() -> anyhow::Result<()> {
     registry()

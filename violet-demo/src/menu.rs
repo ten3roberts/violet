@@ -1,11 +1,8 @@
-use std::collections::BTreeMap;
-
 use anyhow::Context;
 use flume::Sender;
 use futures::Future;
 use heck::ToKebabCase;
 use indexmap::IndexMap;
-use itertools::Itertools;
 use rfd::AsyncFileDialog;
 use violet::{
     core::{
@@ -14,7 +11,7 @@ use violet::{
         Widget,
     },
     futures_signals::signal::Mutable,
-    palette::{num::Sqrt, FromColor, IntoColor, Oklch, Srgb},
+    palette::{FromColor, Srgb},
 };
 
 use crate::{local_dir, HexColor, Notification, NotificationKind, PaletteColor, TINTS};

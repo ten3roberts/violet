@@ -1,34 +1,15 @@
-use flax::{components::name, FetchExt, Query};
-use futures::StreamExt;
-use futures_signals::signal::Mutable;
-use glam::{vec2, Vec2};
+use glam::Vec2;
 use itertools::Itertools;
-use palette::{FromColor, Hsva, IntoColor, Oklch, Oklcha, Srgba};
-use std::time::Duration;
+use palette::{FromColor, Oklcha, Srgba};
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    components::{self, rect, size, text},
-    layout::{Alignment, Direction},
-    style::StyleExt,
-    text::{FontFamily, Style, TextSegment, Weight, Wrap},
-    time::interval,
+    style::{spacing_small, SizeExt},
     unit::Unit,
-    widget::{Button, Image, List, Rectangle, Stack, Text, WidgetExt},
-    Scope, StreamEffect, Widget,
-};
-use violet_core::{
-    state::{State, StateStream},
-    style::{
-        colors::{AMBER_500, EMERALD_500, TEAL_500},
-        danger_background, danger_item, primary_background, secondary_background, spacing_medium,
-        spacing_small, Background, SizeExt, ValueOrRef,
-    },
-    widget::{
-        card, col, label, pill, row, ContainerStyle, SliderWithLabel, StreamWidget, TextInput,
-    },
+    widget::{col, Rectangle},
+    Widget,
 };
 
 pub fn main() -> anyhow::Result<()> {

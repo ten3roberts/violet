@@ -73,6 +73,14 @@ impl Direction {
     }
 }
 
+pub(crate) struct ApplyLayoutArgs<'a> {
+    cache: &'a mut LayoutCache,
+    children: &'a [Entity],
+    content_area: Rect,
+    limits: LayoutLimits,
+    preferred_size: Vec2,
+}
+
 #[derive(Debug, Clone)]
 pub enum Layout {
     Stack(StackLayout),
@@ -81,42 +89,11 @@ pub enum Layout {
 }
 
 impl Layout {
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        entity: &EntityRef,
-        cache: &mut LayoutCache,
-        children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        preferred_size: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, ctx: ApplyLayoutArgs) -> Block {
         match self {
-            Layout::Stack(v) => v.apply(
-                world,
-                entity,
-                children,
-                content_area,
-                limits,
-                preferred_size,
-            ),
-            Layout::Flow(v) => v.apply(
-                world,
-                entity,
-                cache,
-                children,
-                content_area,
-                limits,
-                preferred_size,
-            ),
-            Layout::Float(v) => v.apply(
-                world,
-                entity,
-                children,
-                content_area,
-                limits,
-                preferred_size,
-            ),
+            Layout::Stack(v) => v.apply(world, entity, ctx),
+            Layout::Flow(v) => v.apply(world, entity, ctx),
+            Layout::Float(v) => v.apply(world, entity, ctx),
         }
     }
 
@@ -484,14 +461,16 @@ pub(crate) fn apply_layout(
         let mut block = layout.apply(
             world,
             entity,
-            cache,
-            children,
-            Rect::from_size(content_area).inset(&padding),
-            LayoutLimits {
-                min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
-                max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
+            ApplyLayoutArgs {
+                cache,
+                children,
+                content_area: Rect::from_size(content_area).inset(&padding),
+                limits: LayoutLimits {
+                    min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
+                    max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
+                },
+                preferred_size: resolved_size - padding.size(),
             },
-            resolved_size - padding.size(),
         );
 
         block.rect = block.rect.pad(&padding);

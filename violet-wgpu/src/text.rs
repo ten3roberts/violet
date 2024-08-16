@@ -165,7 +165,7 @@ impl TextSizeResolver {
 
         let metrics = Metrics::new(font_size, font_size);
         buffer.set_metrics(metrics);
-        buffer.set_size(size.x, size.y);
+        buffer.set_size(Some(size.x), Some(size.y));
 
         buffer.shape_until_scroll(true);
 
@@ -242,14 +242,6 @@ impl TextBufferState {
             Attrs::new(),
             Shaping::Advanced,
         );
-    }
-
-    fn text(&self) -> Vec<String> {
-        self.buffer
-            .lines
-            .iter()
-            .map(|v| v.text().to_owned())
-            .collect::<Vec<_>>()
     }
 
     pub(crate) fn to_layout_lines(&self) -> impl Iterator<Item = LayoutLineGlyphs> + '_ {

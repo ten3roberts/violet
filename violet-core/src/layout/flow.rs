@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    apply_layout, cache::LayoutCache, resolve_pos, Block, Direction, LayoutLimits, QueryArgs,
-    Sizing,
+    apply_layout, cache::LayoutCache, resolve_pos, ApplyLayoutArgs, Block, Direction, LayoutLimits,
+    QueryArgs, Sizing,
 };
 
 #[derive(Debug, Clone)]
@@ -181,34 +181,32 @@ impl FlowLayout {
     /// Position and size the children of the given entity using all the provided available space
     ///
     /// Returns the inner rect
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        entity: &EntityRef,
-        cache: &mut LayoutCache,
-        children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        preferred_size: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, args: ApplyLayoutArgs) -> Block {
         puffin::profile_function!();
-        let _span = tracing::debug_span!("Flow::apply", ?limits, flow=?self).entered();
+        let _span = tracing::debug_span!("Flow::apply", ?args.limits, flow=?self).entered();
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
         // the direction of this axis.
         let row = self.query_row(
             world,
-            cache,
-            children,
+            args.cache,
+            args.children,
             QueryArgs {
-                limits,
-                content_area: content_area.size(),
+                limits: args.limits,
+                content_area: args.content_area.size(),
                 direction: self.direction,
             },
         );
 
         // tracing::info!(?row.margin, "row margins to be contained");
-        self.distribute_children(world, entity, &row, content_area, limits, preferred_size)
+        self.distribute_children(
+            world,
+            entity,
+            &row,
+            args.content_area,
+            args.limits,
+            args.preferred_size,
+        )
     }
 
     fn distribute_children(

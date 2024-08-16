@@ -7,7 +7,7 @@ use crate::{
     Edges, Rect,
 };
 
-use super::{apply_layout, Block, LayoutLimits, QueryArgs, Sizing};
+use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 
 /// A floating layout positions its children similar to the stack layout, but it does grow to accommodate the children.
 ///
@@ -18,19 +18,11 @@ use super::{apply_layout, Block, LayoutLimits, QueryArgs, Sizing};
 pub struct FloatLayout {}
 
 impl FloatLayout {
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        entity: &EntityRef,
-        children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        preferred_size: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, _: &EntityRef, args: ApplyLayoutArgs) -> Block {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
 
-        let blocks = children.iter().for_each(|&child| {
+        args.children.iter().for_each(|&child| {
             let entity = world.entity(child).expect("invalid child");
 
             // let pos = resolve_pos(&entity, content_area, preferred_size);
@@ -40,7 +32,7 @@ impl FloatLayout {
                 max_size: Vec2::INFINITY,
             };
 
-            let block = apply_layout(world, &entity, content_area.size(), limits);
+            let block = apply_layout(world, &entity, args.content_area.size(), limits);
 
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), Vec2::ZERO);
@@ -54,10 +46,10 @@ impl FloatLayout {
         world: &World,
         children: &[Entity],
         args: QueryArgs,
-        preferred_size: Vec2,
+        _: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        let min_rect = Rect::from_size(args.limits.min_size);
+        // let min_rect = Rect::from_size(args.limits.min_size);
 
         let mut hints = SizingHints::default();
 

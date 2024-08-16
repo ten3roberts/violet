@@ -5,14 +5,14 @@ use flax::{
     filter::{All, With},
     CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3Swizzles, Vec4};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
-    components::{anchor, color, draw_shape, image, rect, rotation, screen_transform},
+    components::{anchor, color, draw_shape, image, rect, screen_transform},
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
     unit::Unit,
@@ -165,7 +165,7 @@ impl RectRenderer {
                 source: include_str!("../../../assets/shaders/solid.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&ctx.globals_layout, object_bind_group_layout, &layout],
             },
         ));
 

@@ -27,7 +27,7 @@ impl<W: Widget> Widget for Scroll<W> {
         let scroll_pos = Mutable::new(Vec2::ZERO);
         scope.on_event(on_scroll(), {
             to_owned![scroll_pos];
-            move |scope, scroll| {
+            move |_, scroll| {
                 scroll_pos.set(vec2(scroll.scroll_x, scroll.scroll_y));
             }
         });

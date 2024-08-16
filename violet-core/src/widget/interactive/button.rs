@@ -8,9 +8,8 @@ use crate::{
     scope::ScopeRef,
     state::{StateDuplex, StateStream, WatchState},
     style::{
-        danger_item, interactive_inactive, interactive_passive, interactive_pressed,
-        spacing_medium, success_item, warning_item, Background, SizeExt, StyleExt, ValueOrRef,
-        WidgetSize,
+        danger_item, interactive_passive, interactive_pressed, spacing_medium, success_item,
+        warning_item, Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     unit::Unit,
     widget::{ContainerStyle, Stack, Text},

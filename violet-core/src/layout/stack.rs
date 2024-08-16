@@ -8,7 +8,9 @@ use crate::{
     Edges, Rect,
 };
 
-use super::{apply_layout, resolve_pos, Alignment, Block, LayoutLimits, QueryArgs, Sizing};
+use super::{
+    apply_layout, resolve_pos, Alignment, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing,
+};
 
 #[derive(Debug)]
 pub struct StackableBounds {
@@ -88,15 +90,7 @@ pub struct StackLayout {
 }
 
 impl StackLayout {
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        entity: &EntityRef,
-        children: &[Entity],
-        content_area: Rect,
-        limits: LayoutLimits,
-        preferred_size: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, args: ApplyLayoutArgs) -> Block {
         puffin::profile_function!();
         let _span = tracing::debug_span!("StackLayout::apply").entered();
 
@@ -105,7 +99,8 @@ impl StackLayout {
             max: Vec2::MIN,
         };
 
-        let blocks = children
+        let blocks = args
+            .children
             .iter()
             .map(|&child| {
                 let entity = world.entity(child).expect("invalid child");
@@ -114,31 +109,33 @@ impl StackLayout {
 
                 let limits = LayoutLimits {
                     min_size: Vec2::ZERO,
-                    max_size: limits.max_size,
+                    max_size: args.limits.max_size,
                 };
 
-                let block = apply_layout(world, &entity, content_area.size(), limits);
+                let block = apply_layout(world, &entity, args.content_area.size(), limits);
 
-                bounds = bounds.merge(block.rect.translate(content_area.min));
+                bounds = bounds.merge(block.rect.translate(args.content_area.min));
 
                 (entity, block)
             })
             .collect_vec();
 
         // The size used for alignment calculation
-        let size = bounds.size().max(preferred_size);
+        let size = bounds.size().max(args.preferred_size);
         // .clamp(limits.min_size, limits.max_size);
 
-        let mut aligned_bounds =
-            StackableBounds::from_rect(Rect::from_size_pos(preferred_size, content_area.min));
+        let mut aligned_bounds = StackableBounds::from_rect(Rect::from_size_pos(
+            args.preferred_size,
+            args.content_area.min,
+        ));
 
         let mut can_grow = BVec2::FALSE;
 
-        let offset = resolve_pos(entity, content_area.size(), size);
+        let offset = resolve_pos(entity, args.content_area.size(), size);
 
         for (entity, block) in blocks {
             let block_size = block.rect.size();
-            let offset = content_area.min
+            let offset = args.content_area.min
                 + offset
                 + vec2(
                     self.horizontal_alignment.align_offset(size.x, block_size.x),
@@ -158,7 +155,7 @@ impl StackLayout {
         }
 
         // aligned_bounds.inner = aligned_bounds.inner.max_size(limits.min_size);
-        let rect = aligned_bounds.inner.max_size(limits.min_size);
+        let rect = aligned_bounds.inner.max_size(args.limits.min_size);
 
         let margin = aligned_bounds.margin();
 
