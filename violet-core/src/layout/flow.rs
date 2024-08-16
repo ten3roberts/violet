@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    apply_layout, cache::LayoutCache, resolve_pos, Block, Direction, LayoutArgs, LayoutLimits,
-    QueryArgs, Sizing,
+    apply_layout, cache::LayoutCache, resolve_pos, ApplyLayoutArgs, Block, Direction, LayoutArgs,
+    LayoutLimits, QueryArgs, Sizing,
 };
 
 #[derive(Debug, Clone)]
@@ -314,27 +314,16 @@ impl FlowLayout {
     /// Position and size the children of the given entity using all the provided available space
     ///
     /// Returns the inner rect
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        entity: &EntityRef,
-        cache: &mut LayoutCache,
-        children: &[Entity],
-        args: LayoutArgs,
-        preferred_size: Vec2,
-        offset: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, args: ApplyLayoutArgs) -> Block {
         puffin::profile_function!();
-        let _span =
-            tracing::debug_span!("Flow::apply", %entity, %args.content_area, ?args.limits, flow=?self)
-                .entered();
+        let _span = tracing::debug_span!("Flow::apply", ?args.limits, flow=?self).entered();
 
         // Query the minimum and preferred size of this flow layout, optimizing for minimum size in
         // the direction of this axis.
         let row = self.query_row(
             world,
-            cache,
-            children,
+            args.cache,
+            args.children,
             QueryArgs {
                 limits: args.limits,
                 content_area: args.content_area,
@@ -342,8 +331,18 @@ impl FlowLayout {
             },
         );
 
-        // tracing::debug!(?row.margin, "row margins to be contained");
-        self.distribute_children(world, entity, &row, args, preferred_size, offset)
+        // tracing::info!(?row.margin, "row margins to be contained");
+        self.distribute_children(
+            world,
+            entity,
+            &row,
+            LayoutArgs {
+                content_area: args.content_area,
+                limits: args.limits,
+            },
+            args.preferred_size,
+            args.offset,
+        )
     }
 
     fn distribute_children(
@@ -442,8 +441,6 @@ impl FlowLayout {
                 // accordingly.
                 //
                 // The child may return a size *less* than the specified limit
-                let overflow_limit = (args.overflow_limit.dot(axis) - cursor.main_cursor) * axis
-                    + (args.overflow_limit - child_margin.size()) * cross_axis;
 
                 // tracing::info!("overflow limit: {}", overflow_limit);
 
@@ -469,7 +466,6 @@ impl FlowLayout {
                     LayoutArgs {
                         content_area: args.content_area,
                         limits: child_limits,
-                        overflow_limit,
                     },
                 );
 

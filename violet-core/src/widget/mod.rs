@@ -60,6 +60,8 @@ where
     }
 }
 
+pub type OnChangeCallback<T> = dyn Fn(Option<&T>);
+
 pub trait WidgetExt: Widget + Sized {
     fn boxed<'a>(self) -> Box<dyn 'a + Widget>
     where
@@ -78,7 +80,7 @@ pub trait WidgetExt: Widget + Sized {
     fn monitor<T: ComponentValue>(
         self,
         component: Component<T>,
-        on_change: Box<dyn Fn(Option<&T>)>,
+        on_change: Box<OnChangeCallback<T>>,
     ) -> Monitor<Self, T> {
         Monitor {
             widget: self,
@@ -105,7 +107,7 @@ pub trait WidgetExt: Widget + Sized {
 pub struct Monitor<W, T> {
     widget: W,
     component: Component<T>,
-    on_change: Box<dyn Fn(Option<&T>)>,
+    on_change: Box<OnChangeCallback<T>>,
 }
 
 impl<W: Widget, T: Clone + ComponentValue> Widget for Monitor<W, T> {

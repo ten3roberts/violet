@@ -146,7 +146,7 @@ pub fn rgb_editor(color: Mutable<PaletteColor>) -> impl Widget {
     let rgb_color = Arc::new(
         color
             .map_ref(|v| &v.color, |v| &mut v.color)
-            .map(|v| Rgb::from_color(v), |v: Rgb| Oklch::from_color(v))
+            .map(Rgb::from_color, |v: Rgb| Oklch::from_color(v))
             .memo(Default::default()),
     );
 

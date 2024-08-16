@@ -388,8 +388,8 @@ impl TextRenderer {
                             font_size: item.font_size * sf,
                             line_height: item.font_size * sf,
                         },
-                        (item.layout_bounds.x + 5.0) * sf,
-                        (item.layout_bounds.y + 5.0) * sf,
+                        Some((item.layout_bounds.x + 5.0) * sf),
+                        Some((item.layout_bounds.y + 5.0) * sf),
                     );
                     // buffer.set_size(item.layout_bounds.x + 5.0, item.layout_bounds.y + 5.0);
 

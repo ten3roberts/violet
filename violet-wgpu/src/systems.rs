@@ -95,7 +95,7 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                     //     item.layout_bounds.y + 5.0,
                     // );
 
-                    // buffer.shape_until_scroll(true);
+                    // buffer.set_size(&mut text_system.font_system, Some(size.x), Some(size.y));
 
                     // *item.layout_glyphs = item.state.layout_glyphs();
                 });

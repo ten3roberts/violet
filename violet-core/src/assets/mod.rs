@@ -12,7 +12,6 @@ pub mod cell;
 pub mod fs;
 mod handle;
 pub mod map;
-mod provider;
 pub use handle::Asset;
 use image::{DynamicImage, ImageError, ImageResult};
 
@@ -175,9 +174,6 @@ mod tests {
 
     #[test]
     fn asset_cache() {
-        #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-        struct Key(String);
-
         impl AssetKey<()> for Path {
             type Error = Infallible;
 

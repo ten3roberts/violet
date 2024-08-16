@@ -1,16 +1,11 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use flax::{fetch::entity_refs, Entity, Query};
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
-use image::DynamicImage;
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec4};
 use itertools::Itertools;
 use violet_core::{
-    assets::Asset,
     components::{layout_args, rect, screen_clip_mask, screen_transform},
-    layout::{
-        cache::{layout_cache, LayoutUpdateEvent},
-        Direction,
-    },
+    layout::cache::{layout_cache, LayoutUpdateEvent},
     stored::{self, Handle},
     Frame, Rect,
 };
@@ -29,14 +24,10 @@ use super::{
 };
 
 pub struct DebugRenderer {
-    white_image: Asset<DynamicImage>,
-    layout: BindGroupLayout,
     bind_group: Handle<BindGroup>,
-    sampler: wgpu::Sampler,
 
     mesh: Arc<MeshHandle>,
 
-    corner_shader: stored::Handle<Shader>,
     border_shader: stored::Handle<Shader>,
     solid_shader: stored::Handle<Shader>,
 
@@ -89,16 +80,17 @@ impl DebugRenderer {
 
         let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
 
-        let corner_shader = store.shaders.insert(Shader::new(
-            &ctx.gpu,
-            &ShaderDesc {
-                label: "ShapeRenderer::shader",
-                source: include_str!("../../../assets/shaders/debug_indicator.wgsl"),
-                format: color_format,
-                vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
-            },
-        ));
+        // let corner_shader = store.shaders.insert(Shader::new(
+        //     &ctx.gpu,
+        //     &ShaderDesc {
+        //         label: "ShapeRenderer::shader",
+        //         source: include_str!("../../../assets/shaders/debug_indicator.wgsl"),
+        //         format: color_format,
+        //         vertex_layouts: &[Vertex::layout()],
+        //         layouts: &[&ctx.globals_layout, object_bind_group_layout, &layout],
+        //     },
+        // ));
+
         let border_shader = store.shaders.insert(Shader::new(
             &ctx.gpu,
             &ShaderDesc {
@@ -106,16 +98,12 @@ impl DebugRenderer {
                 source: include_str!("../../../assets/shaders/border_shader.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
+                layouts: &[&ctx.globals_layout, object_bind_group_layout, &layout],
             },
         ));
         Self {
-            white_image,
-            layout,
             bind_group,
-            sampler,
             mesh,
-            corner_shader,
             border_shader,
             layout_changes_rx,
             layout_changes: BTreeMap::new(),
@@ -142,8 +130,6 @@ impl DebugRenderer {
         query
             .iter()
             .filter_map(|(entity, &args, &rect)| {
-                let diff = (rect.size() - args.overflow_limit).max(Vec2::ZERO);
-
                 let transform = entity.get_copy(screen_transform()).ok()?;
                 let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
 
@@ -178,83 +164,12 @@ impl DebugRenderer {
                     ));
                 };
 
-                if diff.x > 0.0 {
-                    // tracing::error!(%entity, %diff, ?args, %rect, "horizontal overflow detected");
-                    let rect = Rect::new(
-                        vec2(args.overflow_limit.x, rect.min.y),
-                        vec2(rect.max.x, rect.max.y),
-                    );
-
-                    draw(rect);
-                }
-
-                if diff.y > 0.0 {
-                    // tracing::error!(%entity, %diff, ?args, %rect, "vertical overflow detected");
-                    let rect = Rect::new(
-                        vec2(rect.min.x, args.overflow_limit.y),
-                        vec2(rect.max.x, rect.max.y),
-                    );
-
-                    draw(rect);
-                }
-
                 Some(())
             })
             .for_each(|_| {});
 
         let mut query = Query::new((entity_refs(), layout_cache()));
-        let mut query = query.borrow(&frame.world);
-
-        let clamped_indicators = query.iter().filter_map(|(entity, v)| {
-            let can_grow_vert = if v
-                .get_query(Direction::Vertical)
-                .iter()
-                .any(|v| v.value.hints.can_grow.any())
-            {
-                vec3(0.5, 0.0, 0.0)
-            } else {
-                Vec3::ZERO
-            };
-
-            let can_grow_hor = if v
-                .get_query(Direction::Horizontal)
-                .iter()
-                .any(|v| v.value.hints.can_grow.any())
-            {
-                vec3(0.0, 0.5, 0.0)
-            } else {
-                Vec3::ZERO
-            };
-
-            let can_grow = if v.layout().is_some_and(|v| v.value.can_grow.any()) {
-                vec3(0.0, 0.0, 0.5)
-            } else {
-                Vec3::ZERO
-            };
-
-            let color: Vec3 = [can_grow_vert, can_grow_hor, can_grow].into_iter().sum();
-
-            if color == Vec3::ZERO {
-                None
-            } else {
-                Some((entity, &self.corner_shader, color.extend(1.0)))
-            }
-        });
-
-        // let mut query = Query::new((entity_refs(), layout_cache()));
-        // let mut query = query.borrow(&frame.world);
-
-        // let fixed_indicators = query.iter().filter_map(|(entity, v)| {
-        //     let color = if v.fixed_size() {
-        //         vec4(1.0, 1.0, 0.0, 1.0)
-        //     } else {
-        //         return None;
-        //     };
-
-        //     Some((entity, color))
-        // });
-
-        let groups = self.layout_changes.iter().group_by(|v| v.0 .0);
+        let groups = self.layout_changes.iter().chunk_by(|v| v.0 .0);
 
         let objects = groups.into_iter().filter_map(|(id, group)| {
             let color: Vec4 = group
@@ -268,8 +183,7 @@ impl DebugRenderer {
             Some((entity, &self.border_shader, color))
         });
 
-        let objects = clamped_indicators
-            .chain(objects)
+        let objects = objects
             .filter_map(|(entity, shader, color)| {
                 let rect = entity.get_copy(rect()).ok()?.align_to_grid();
                 let transform = entity.get_copy(screen_transform()).ok()?;

@@ -3,11 +3,11 @@ use glam::{BVec2, Vec2};
 
 use crate::{
     components,
-    layout::{query_size, Direction, SizingHints},
+    layout::{query_size, Direction, LayoutArgs, SizingHints},
     Edges, Rect,
 };
 
-use super::{apply_layout, Block, LayoutArgs, LayoutLimits, QueryArgs, Sizing};
+use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 
 /// A floating layout positions its children similar to the stack layout, but it does grow to accommodate the children.
 ///
@@ -18,19 +18,11 @@ use super::{apply_layout, Block, LayoutArgs, LayoutLimits, QueryArgs, Sizing};
 pub struct FloatLayout {}
 
 impl FloatLayout {
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        _: &EntityRef,
-        children: &[Entity],
-        args: LayoutArgs,
-        _: Vec2,
-        _: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, _: &EntityRef, args: ApplyLayoutArgs) -> Block {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
 
-        children.iter().for_each(|&child| {
+        args.children.iter().for_each(|&child| {
             let entity = world.entity(child).expect("invalid child");
 
             // let pos = resolve_pos(&entity, content_area, preferred_size);
@@ -46,7 +38,6 @@ impl FloatLayout {
                 LayoutArgs {
                     content_area: args.content_area,
                     limits,
-                    overflow_limit: Vec2::MAX,
                 },
             );
 

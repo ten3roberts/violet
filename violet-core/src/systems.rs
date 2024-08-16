@@ -184,7 +184,6 @@ pub fn layout_system(root: Entity) -> BoxedSystem {
                             min_size: Vec2::ZERO,
                             max_size: canvas_rect.size(),
                         },
-                        overflow_limit: canvas_rect.size(),
                     },
                 );
 

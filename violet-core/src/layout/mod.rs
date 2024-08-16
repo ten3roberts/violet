@@ -73,6 +73,15 @@ impl Direction {
     }
 }
 
+pub(crate) struct ApplyLayoutArgs<'a> {
+    cache: &'a mut LayoutCache,
+    children: &'a [Entity],
+    content_area: Vec2,
+    limits: LayoutLimits,
+    preferred_size: Vec2,
+    offset: Vec2,
+}
+
 #[derive(Debug, Clone)]
 pub enum Layout {
     Stack(StackLayout),
@@ -81,22 +90,11 @@ pub enum Layout {
 }
 
 impl Layout {
-    pub(crate) fn apply(
-        &self,
-        world: &World,
-        entity: &EntityRef,
-        cache: &mut LayoutCache,
-        children: &[Entity],
-        args: LayoutArgs,
-        preferred_size: Vec2,
-        offset: Vec2,
-    ) -> Block {
+    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, ctx: ApplyLayoutArgs) -> Block {
         match self {
-            Layout::Stack(v) => v.apply(world, entity, children, args, preferred_size, offset),
-            Layout::Flow(v) => {
-                v.apply(world, entity, cache, children, args, preferred_size, offset)
-            }
-            Layout::Float(v) => v.apply(world, entity, children, args, preferred_size, offset),
+            Layout::Stack(v) => v.apply(world, entity, ctx),
+            Layout::Flow(v) => v.apply(world, entity, ctx),
+            Layout::Float(v) => v.apply(world, entity, ctx),
         }
     }
 
@@ -387,7 +385,6 @@ pub struct LayoutArgs {
     // The size of the potentially available space for the subtree
     pub content_area: Vec2,
     pub limits: LayoutLimits,
-    pub overflow_limit: Vec2,
 }
 
 impl Default for LayoutArgs {
@@ -395,7 +392,6 @@ impl Default for LayoutArgs {
         Self {
             content_area: Vec2::ZERO,
             limits: LayoutLimits::default(),
-            overflow_limit: Vec2::MAX,
         }
     }
 }
@@ -487,21 +483,17 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         let block = layout.apply(
             world,
             entity,
-            cache,
-            children,
-            LayoutArgs {
-                // The size of the potentially available space for the subtree
-                content_area: args.content_area - padding.size(),
+            ApplyLayoutArgs {
+                cache,
+                children,
+                content_area: args.content_area,
                 limits: LayoutLimits {
                     min_size: (limits.min_size - padding.size()).max(Vec2::ZERO),
                     max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
                 },
-                overflow_limit: (args.overflow_limit - padding.size())
-                    .max(Vec2::ZERO)
-                    .min(max_size),
+                preferred_size: resolved_size - padding.size(),
+                offset: vec2(padding.left, padding.top),
             },
-            resolved_size - padding.size(),
-            vec2(padding.left, padding.top),
         );
 
         Block {
@@ -554,17 +546,17 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         .update_dedup(components::layout_args(), args)
         .unwrap();
 
-    if block.rect.size().x > args.overflow_limit.x + LAYOUT_TOLERANCE
-        || block.rect.size().y > args.overflow_limit.y + LAYOUT_TOLERANCE
-    {
-        tracing::warn!(
-            %entity,
-            size=%block.rect.size(),
-            %args.limits,
-            %args.overflow_limit,
-            "Widget size exceeds constraints"
-        );
-    }
+    // if block.rect.size().x > args.overflow_limit.x + LAYOUT_TOLERANCE
+    //     || block.rect.size().y > args.overflow_limit.y + LAYOUT_TOLERANCE
+    // {
+    //     tracing::warn!(
+    //         %entity,
+    //         size=%block.rect.size(),
+    //         %args.limits,
+    //         %args.overflow_limit,
+    //         "Widget size exceeds constraints"
+    //     );
+    // }
 
     // Widget size is limited by itself and is not affected by the size of the parent
     // if let Some(max_size) = max_size {
