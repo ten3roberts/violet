@@ -1,5 +1,3 @@
-use std::usize;
-
 use futures_signals::{map_ref, signal::Mutable};
 
 use itertools::Itertools;
@@ -19,7 +17,7 @@ use violet_core::{
     text::Wrap,
     widget::{card, col, label, row, Button, ButtonStyle, SliderWithLabel, TextInput},
 };
-use violet_wgpu::renderer::RendererConfig;
+use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -33,8 +31,8 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::AppBuilder::new()
-        .with_renderer_config(RendererConfig { debug_mode: false })
+    AppBuilder::new()
+        .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(MainApp)
 }
 

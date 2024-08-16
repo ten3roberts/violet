@@ -4,20 +4,23 @@ use bytemuck::Zeroable;
 use flax::{
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
-    CommandBuffer, Component, Entity, Fetch, Query, QueryBorrow, RelationExt,
+    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
 };
 use glam::{vec4, Mat4, Vec2, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
+use smallvec::SmallVec;
 use violet_core::{
-    components::draw_shape,
-    hierarchy::OrderedDfsIterator,
-    layout::cache::LayoutUpdate,
+    components::{children, draw_shape},
+    layout::cache::LayoutUpdateEvent,
     stored::{self, Store},
     Frame, Rect,
 };
-use wgpu::{BindGroup, BindGroupLayout, BufferUsages, RenderPass, ShaderStages, TextureFormat};
+use wgpu::{
+    BindGroup, BindGroupLayout, BufferUsages, CommandEncoder, Operations, RenderPassDescriptor,
+    ShaderStages, StoreOp, TextureFormat, TextureView,
+};
 
 use crate::{
     components::{draw_cmd, object_data},
@@ -44,7 +47,7 @@ mod window_renderer;
 pub use window_renderer::WindowRenderer;
 
 #[derive(Debug, Clone, Default)]
-pub struct RendererConfig {
+pub struct MainRendererConfig {
     /// Enables the debug renderer for extra information during development:
     /// - Draw layout invalidations using slanted corners of combined colors
     ///     - Red: direct invalidation due to change of a widgets size
@@ -53,28 +56,29 @@ pub struct RendererConfig {
     pub debug_mode: bool,
 }
 
-/// Contains global state to be shared between the renderers, such as global uniforms for cameras
-/// and scene properties.
-pub struct GlobalBuffers {
+/// Contains the global rendering state and buffers
+pub struct RendererContext {
+    pub gpu: Gpu,
     pub globals: Globals,
     pub globals_buffer: TypedBuffer<Globals>,
-    pub bind_group: BindGroup,
-    pub layout: BindGroupLayout,
     pub mesh_buffer: MeshBuffer,
+    pub globals_bind_group: BindGroup,
+    pub globals_layout: BindGroupLayout,
 }
 
-impl GlobalBuffers {
-    pub fn new(gpu: &mut Gpu) -> Self {
+impl RendererContext {
+    /// Creates a new renderer context from the provided gpu
+    pub fn new(gpu: Gpu) -> Self {
         let globals_layout = BindGroupLayoutBuilder::new("WindowRenderer::globals_layout")
             .bind_uniform_buffer(ShaderStages::VERTEX)
-            .build(gpu);
+            .build(&gpu);
 
         let globals = Globals {
             projview: Mat4::IDENTITY,
         };
 
         let globals_buffer = TypedBuffer::new(
-            gpu,
+            &gpu,
             "WindowRenderer::globals_buffer",
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             &[globals],
@@ -82,16 +86,17 @@ impl GlobalBuffers {
 
         let globals_bind_group = BindGroupBuilder::new("WindowRenderer::globals")
             .bind_buffer(globals_buffer.buffer())
-            .build(gpu, &globals_layout);
+            .build(&gpu, &globals_layout);
 
-        let mesh_buffer = MeshBuffer::new(gpu, "MeshBuffer", 4);
+        let mesh_buffer = MeshBuffer::new(&gpu, "MeshBuffer", 4);
 
         Self {
+            globals_layout,
             globals,
+            globals_bind_group,
             globals_buffer,
-            bind_group: globals_bind_group,
-            layout: globals_layout,
             mesh_buffer,
+            gpu,
         }
     }
 }
@@ -145,12 +150,12 @@ impl DrawQuery {
 }
 
 fn create_object_bindings(
-    gpu: &Gpu,
+    ctx: &mut RendererContext,
     bind_group_layout: &BindGroupLayout,
     object_count: usize,
 ) -> (BindGroup, TypedBuffer<ObjectData>) {
     let object_buffer = TypedBuffer::new_uninit(
-        gpu,
+        &ctx.gpu,
         "ShapeRenderer::object_buffer",
         BufferUsages::UNIFORM | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         object_count,
@@ -158,22 +163,12 @@ fn create_object_bindings(
 
     let bind_group = BindGroupBuilder::new("ShapeRenderer::object_bind_group")
         .bind_buffer(object_buffer.buffer())
-        .build(gpu, bind_group_layout);
+        .build(&ctx.gpu, bind_group_layout);
 
     (bind_group, object_buffer)
 }
 
-pub(crate) struct RendererProps<'a> {
-    pub root: Entity,
-    pub text_system: Arc<Mutex<TextSystem>>,
-    pub color_format: TextureFormat,
-    pub globals: &'a mut GlobalBuffers,
-    pub layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
-    pub config: RendererConfig,
-    pub scale_factor: f64,
-}
-
-/// Draws shapes from the frame
+/// Main renderer for a frame
 pub struct MainRenderer {
     store: RendererStore,
     quad: Mesh,
@@ -194,11 +189,19 @@ pub struct MainRenderer {
 }
 
 impl MainRenderer {
-    pub(crate) fn new(frame: &mut Frame, gpu: &mut Gpu, mut props: RendererProps) -> Self {
+    pub fn new(
+        frame: &mut Frame,
+        ctx: &mut RendererContext,
+        root: Entity,
+        text_system: Arc<Mutex<TextSystem>>,
+        color_format: TextureFormat,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
+        config: MainRendererConfig,
+    ) -> Self {
         let object_bind_group_layout =
-            BindGroupLayoutBuilder::new("ShapeRenderer::object_bind_group_layout")
+            BindGroupLayoutBuilder::new("MainRenderer::object_bind_group_layout")
                 .bind_uniform_buffer(ShaderStages::VERTEX)
-                .build(gpu);
+                .build(&ctx.gpu);
 
         let register_objects = flax::system::System::builder()
             .with_cmd_mut()
@@ -213,84 +216,113 @@ impl MainRenderer {
         let mut store = RendererStore::default();
 
         Self {
-            quad: Mesh::quad(gpu),
+            quad: Mesh::quad(&ctx.gpu),
             object_data: Vec::new(),
             commands: Vec::new(),
             rect_renderer: RectRenderer::new(
-                gpu,
+                ctx,
                 frame,
-                &mut props,
+                color_format,
                 &object_bind_group_layout,
                 &mut store,
             ),
             text_renderer: TextRenderer::new(
-                gpu,
-                &mut props,
+                ctx,
+                text_system,
+                color_format,
                 &object_bind_group_layout,
                 &mut store,
             ),
-            debug_renderer: props.config.debug_mode.then(|| {
+            debug_renderer: config.debug_mode.then(|| {
                 DebugRenderer::new(
-                    gpu,
+                    ctx,
                     frame,
-                    &mut props,
+                    color_format,
                     &object_bind_group_layout,
                     &mut store,
+                    layout_changes_rx,
                 )
             }),
             store,
             register_objects,
             object_bind_group_layout,
             object_buffers: Vec::new(),
-            root: props.root,
-            scale_factor: props.scale_factor,
+            root,
+            scale_factor: 1.0,
         }
     }
 
+    /// Updates renderer state before draw
+    pub fn update(&mut self, ctx: &mut RendererContext, frame: &mut Frame) -> anyhow::Result<()> {
+        self.register_objects.run(&mut frame.world)?;
+        self.rect_renderer.update(&ctx.gpu, frame);
+        self.rect_renderer
+            .build_commands(&ctx.gpu, frame, &mut self.store);
+
+        self.text_renderer
+            .update_meshes(ctx, frame, &mut self.store);
+
+        self.text_renderer.update(&ctx.gpu, frame);
+
+        if let Some(debug_renderer) = &mut self.debug_renderer {
+            debug_renderer.update(frame);
+        }
+
+        Ok(())
+    }
+
+    /// Draws the frame using the provided render pass
+    ///
+    /// **Note**: provided render pass target must match the provided target texture format
     pub fn draw<'a>(
         &'a mut self,
-        gpu: &'a Gpu,
-        globals: &'a mut GlobalBuffers,
+        ctx: &'a mut RendererContext,
         frame: &mut Frame,
-        render_pass: &mut RenderPass<'a>,
+        encoder: &mut CommandEncoder,
+        target_view: &TextureView,
     ) -> anyhow::Result<()> {
         puffin::profile_function!();
-        let _span = tracing::info_span!("draw").entered();
-        self.quad.bind(render_pass);
 
-        self.register_objects.run(&mut frame.world)?;
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("MainRenderer::draw"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target_view,
+                resolve_target: None,
+                ops: Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.0,
+                    }),
+                    store: StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            ..Default::default()
+        });
 
-        {
-            puffin::profile_scope!("update_renderers");
-            self.rect_renderer.update(gpu, frame);
-            self.rect_renderer
-                .build_commands(gpu, frame, &mut self.store);
-
-            self.text_renderer
-                .update_meshes(gpu, globals, frame, &mut self.store);
-            self.text_renderer.update(gpu, frame);
-            if let Some(debug_renderer) = &mut self.debug_renderer {
-                debug_renderer.update(frame);
-            }
-        }
+        self.quad.bind(&mut render_pass);
 
         {
             puffin::profile_scope!("create_draw_commands");
             let query = DrawQuery::new();
 
-            let commands =
-                OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
-                    .filter_map(|entity| {
-                        let mut query = entity.query(&query);
-                        let item = query.get()?;
+            let commands = RendererIter {
+                world: &frame.world,
+                stack: smallvec::smallvec![frame.world.entity(self.root).unwrap()],
+            }
+            .filter_map(|entity| {
+                let mut query = entity.query(&query);
+                let item = query.get()?;
 
-                        Some((item.draw_cmd.clone(), *item.object_data))
-                    })
-                    .chain(
-                        self.debug_renderer
-                            .iter()
-                            .flat_map(|v| v.draw_commands().iter().cloned()),
-                    );
+                Some((item.draw_cmd.clone(), *item.object_data))
+            })
+            .chain(
+                self.debug_renderer
+                    .iter()
+                    .flat_map(|v| v.draw_commands().iter().cloned()),
+            );
 
             self.commands.clear();
             self.object_data.clear();
@@ -302,7 +334,7 @@ impl MainRenderer {
             if num_chunks > self.object_buffers.len() {
                 self.object_buffers
                     .extend((self.object_buffers.len()..num_chunks).map(|_| {
-                        create_object_bindings(gpu, &self.object_bind_group_layout, CHUNK_SIZE)
+                        create_object_bindings(ctx, &self.object_bind_group_layout, CHUNK_SIZE)
                     }))
             }
 
@@ -311,10 +343,10 @@ impl MainRenderer {
                 .chunks(CHUNK_SIZE)
                 .zip(&self.object_buffers)
             {
-                buffer.write(&gpu.queue, 0, objects);
+                buffer.write(&ctx.gpu.queue, 0, objects);
             }
 
-            globals.mesh_buffer.bind(render_pass);
+            ctx.mesh_buffer.bind(&mut render_pass);
         }
 
         puffin::profile_scope!("dispatch_draw_commands");
@@ -341,7 +373,7 @@ impl MainRenderer {
 
             render_pass.set_pipeline(shader.pipeline());
 
-            render_pass.set_bind_group(0, &globals.bind_group, &[]);
+            render_pass.set_bind_group(0, &ctx.globals_bind_group, &[]);
             render_pass.set_bind_group(1, &chunk.0, &[]);
             render_pass.set_bind_group(2, bind_group, &[]);
 
@@ -382,11 +414,6 @@ fn collect_draw_commands(
             .enumerate()
             .map(|(i, (draw_cmd, object))| {
                 objects.push(object);
-                // let first_instance = instance_index as u32;
-                // instance_index += 1;
-                // objects.push(*item.object_data);
-
-                // let draw_cmd = item.draw_cmd;
                 InstancedDrawCommand {
                     draw_cmd: draw_cmd.clone(),
                     first_instance: i as u32,
@@ -417,6 +444,29 @@ fn collect_draw_commands(
 pub(crate) struct ObjectData {
     pub(crate) model_matrix: Mat4,
     pub(crate) color: Vec4,
+}
+
+struct RendererIter<'a> {
+    world: &'a World,
+    stack: SmallVec<[EntityRef<'a>; 16]>,
+}
+
+impl<'a> Iterator for RendererIter<'a> {
+    type Item = EntityRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entity = self.stack.pop()?;
+        if let Ok(children) = entity.get(children()) {
+            self.stack.extend(
+                children
+                    .iter()
+                    .rev()
+                    .map(|&id| self.world.entity(id).unwrap()),
+            );
+        }
+
+        Some(entity)
+    }
 }
 
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

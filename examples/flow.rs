@@ -7,7 +7,7 @@ use violet::core::{
     widget::{col, row, Button},
     Edges, Widget,
 };
-use violet_wgpu::renderer::RendererConfig;
+use violet_wgpu::renderer::MainRendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -21,7 +21,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     violet_wgpu::AppBuilder::new()
-        .with_renderer_config(RendererConfig { debug_mode: true })
+        .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(app())
 }
 

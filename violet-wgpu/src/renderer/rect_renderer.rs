@@ -8,7 +8,7 @@ use flax::{
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
@@ -26,10 +26,11 @@ use crate::{
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-    renderer::{srgba_to_vec4, Gpu},
+    renderer::{srgba_to_vec4, RendererContext},
+    Gpu,
 };
 
-use super::{DrawCommand, ObjectData, RendererProps, RendererStore};
+use super::{DrawCommand, ObjectData, RendererStore};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ImageFromColor(pub [u8; 4]);
@@ -126,20 +127,20 @@ pub struct RectRenderer {
 
 impl RectRenderer {
     pub fn new(
-        gpu: &mut Gpu,
+        ctx: &mut RendererContext,
         frame: &Frame,
-        props: &mut RendererProps,
+        color_format: TextureFormat,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(gpu);
+            .build(&ctx.gpu);
 
         let white_image = frame.assets.load(&ImageFromColor([255, 255, 255, 255]));
 
-        let sampler = gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = ctx.gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 16,
             mag_filter: wgpu::FilterMode::Linear,
@@ -157,16 +158,16 @@ impl RectRenderer {
 
         let indices = [0, 1, 2, 2, 3, 0];
 
-        let mesh = Arc::new(props.globals.mesh_buffer.insert(gpu, &vertices, &indices));
+        let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
 
         let shader = store.shaders.insert(Shader::new(
-            gpu,
+            &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/solid.wgsl"),
-                format: props.color_format,
+                format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
+                layouts: &[&ctx.globals_layout, object_bind_group_layout, &layout],
             },
         ));
 

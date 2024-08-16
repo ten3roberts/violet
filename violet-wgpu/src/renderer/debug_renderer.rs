@@ -2,17 +2,19 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use flax::{fetch::entity_refs, Entity, Query};
 use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
+use image::DynamicImage;
 use itertools::Itertools;
 use violet_core::{
+    assets::Asset,
     components::{layout_args, rect, screen_clip_mask, screen_transform},
     layout::{
-        cache::{layout_cache, LayoutUpdate},
+        cache::{layout_cache, LayoutUpdateEvent},
         Direction,
     },
     stored::{self, Handle},
     Frame, Rect,
 };
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use crate::{
     graphics::{
@@ -20,13 +22,17 @@ use crate::{
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-    renderer::Gpu,
 };
 
-use super::{rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererProps, RendererStore};
+use super::{
+    rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererContext, RendererStore,
+};
 
 pub struct DebugRenderer {
+    white_image: Asset<DynamicImage>,
+    layout: BindGroupLayout,
     bind_group: Handle<BindGroup>,
+    sampler: wgpu::Sampler,
 
     mesh: Arc<MeshHandle>,
 
@@ -34,28 +40,29 @@ pub struct DebugRenderer {
     border_shader: stored::Handle<Shader>,
     solid_shader: stored::Handle<Shader>,
 
-    layout_changes_rx: flume::Receiver<(Entity, LayoutUpdate)>,
-    layout_changes: BTreeMap<(Entity, LayoutUpdate), usize>,
+    layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
+    layout_changes: BTreeMap<(Entity, LayoutUpdateEvent), usize>,
     objects: Vec<(DrawCommand, ObjectData)>,
 }
 
 impl DebugRenderer {
     pub fn new(
-        gpu: &mut Gpu,
+        ctx: &mut RendererContext,
         frame: &Frame,
-        props: &mut RendererProps,
+        color_format: TextureFormat,
         object_bind_group_layout: &BindGroupLayout,
         store: &mut RendererStore,
+        layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
     ) -> Self {
         let layout = BindGroupLayoutBuilder::new("RectRenderer::layout")
             .bind_sampler(ShaderStages::FRAGMENT)
             .bind_texture(ShaderStages::FRAGMENT)
-            .build(gpu);
+            .build(&ctx.gpu);
 
         let white_image = frame.assets.load(&ImageFromColor([255, 255, 255, 255]));
-        let texture = Texture::from_image(gpu, &white_image);
+        let texture = Texture::from_image(&ctx.gpu, &white_image);
 
-        let sampler = gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = ctx.gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 16,
             mag_filter: wgpu::FilterMode::Linear,
@@ -68,7 +75,7 @@ impl DebugRenderer {
             BindGroupBuilder::new("DebugRenderer::textured_bind_group")
                 .bind_sampler(&sampler)
                 .bind_texture(&texture.view(&Default::default()))
-                .build(gpu, &layout),
+                .build(&ctx.gpu, &layout),
         );
 
         let vertices = [
@@ -80,50 +87,40 @@ impl DebugRenderer {
 
         let indices = [0, 1, 2, 2, 3, 0];
 
-        let mesh = Arc::new(props.globals.mesh_buffer.insert(gpu, &vertices, &indices));
+        let mesh = Arc::new(ctx.mesh_buffer.insert(&ctx.gpu, &vertices, &indices));
 
         let corner_shader = store.shaders.insert(Shader::new(
-            gpu,
+            &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/debug_indicator.wgsl"),
-                format: props.color_format,
+                format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
+                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
-
         let border_shader = store.shaders.insert(Shader::new(
-            gpu,
+            &ctx.gpu,
             &ShaderDesc {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/border_shader.wgsl"),
-                format: props.color_format,
+                format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
+                layouts: &[&ctx.globals_layout, &object_bind_group_layout, &layout],
             },
         ));
-
-        let solid_shader = store.shaders.insert(Shader::new(
-            gpu,
-            &ShaderDesc {
-                label: "ShapeRenderer::shader",
-                source: include_str!("../../../assets/shaders/solid.wgsl"),
-                format: props.color_format,
-                vertex_layouts: &[Vertex::layout()],
-                layouts: &[&props.globals.layout, &object_bind_group_layout, &layout],
-            },
-        ));
-
         Self {
+            white_image,
+            layout,
             bind_group,
+            sampler,
             mesh,
             corner_shader,
             border_shader,
-            layout_changes_rx: props.layout_changes_rx.clone(),
+            layout_changes_rx,
             layout_changes: BTreeMap::new(),
             objects: Vec::new(),
-            solid_shader,
+            solid_shader: todo!(),
         }
     }
 
@@ -319,10 +316,10 @@ impl DebugRenderer {
     }
 }
 
-fn indicator_color(layout: &LayoutUpdate) -> Vec4 {
+fn indicator_color(layout: &LayoutUpdateEvent) -> Vec4 {
     match layout {
-        LayoutUpdate::Explicit => vec4(1.0, 0.0, 0.0, 1.0),
-        LayoutUpdate::SizeQueryUpdate => vec4(0.0, 1.0, 0.0, 1.0),
-        LayoutUpdate::LayoutUpdate => vec4(0.0, 0.0, 1.0, 1.0),
+        LayoutUpdateEvent::Explicit => vec4(1.0, 0.0, 0.0, 1.0),
+        LayoutUpdateEvent::SizeQueryUpdate => vec4(0.0, 1.0, 0.0, 1.0),
+        LayoutUpdateEvent::LayoutUpdate => vec4(0.0, 0.0, 1.0, 1.0),
     }
 }

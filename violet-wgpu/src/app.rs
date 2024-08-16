@@ -19,12 +19,12 @@ use violet_core::{
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
+    layout::cache::LayoutUpdateEvent,
     style::{primary_surface, setup_stylesheet, stylesheet, Background, SizeExt},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    to_owned,
     unit::Unit,
     widget::{col, WidgetExt},
     Frame, FutureEffect, Rect, Scope, Widget,
@@ -32,7 +32,7 @@ use violet_core::{
 
 use crate::{
     graphics::Gpu,
-    renderer::{RendererConfig, WindowRenderer},
+    renderer::{MainRendererConfig, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
     text::TextSystem,
 };
@@ -62,7 +62,7 @@ impl<W: Widget> Widget for Canvas<W> {
 }
 
 pub struct AppBuilder {
-    renderer_config: RendererConfig,
+    renderer_config: MainRendererConfig,
     title: String,
 }
 
@@ -80,22 +80,18 @@ impl AppBuilder {
     }
 
     /// Set the renderer config
-    pub fn with_renderer_config(mut self, renderer_config: RendererConfig) -> Self {
+    pub fn with_renderer_config(mut self, renderer_config: MainRendererConfig) -> Self {
         self.renderer_config = renderer_config;
         self
     }
 
     pub fn run(self, root: impl Widget) -> anyhow::Result<()> {
-        let executor = Executor::new();
-
-        let spawner = executor.spawner();
-
-        let mut frame = Frame::new(spawner, AssetCache::new(), World::new());
-
         let event_loop = EventLoopBuilder::new().build()?;
 
         #[allow(unused_mut)]
-        let mut builder = WindowBuilder::new().with_title(self.title);
+        let mut builder = WindowBuilder::new().with_title(self.title.clone());
+
+        let mut instance = AppInstance::new(root);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -148,75 +144,33 @@ impl AppBuilder {
                 .expect("Failed to add resize listener");
         }
 
-        let stylesheet = setup_stylesheet().spawn(frame.world_mut());
-
-        let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
-        frame.set_atom(io::clipboard(), clipboard);
-
-        // Mount the root widget
-        let root = frame.new_root(Canvas {
-            stylesheet,
-            size: vec2(0.0, 0.0),
-            root,
-        });
-
-        let mut input_state = InputState::new(root, Vec2::ZERO);
-
         tracing::info!("creating gpu");
         let window = Arc::new(window);
 
-        // TODO: async within violet's executor
         let (renderer_tx, mut renderer_rx) = oneshot::channel();
 
-        let text_system = Arc::new(Mutex::new(TextSystem::new_with_defaults()));
-        let (layout_changes_tx, layout_changes_rx) = flume::unbounded();
-
-        frame.spawn(FutureEffect::new(Gpu::with_surface(window.clone()), {
-            to_owned![text_system];
-            move |frame: &mut Frame, (gpu, surface)| {
-                let renderer = WindowRenderer::new(
-                    frame,
-                    gpu,
-                    root,
-                    text_system.clone(),
-                    surface,
-                    layout_changes_rx.clone(),
-                    1.0,
-                    self.renderer_config,
-                );
-                renderer_tx.send(renderer).ok();
-            }
-        }));
-
-        let schedule = Schedule::new()
-            .with_system(templating_system(layout_changes_tx))
-            .flush()
-            .with_system(hydrate_text())
-            .flush()
-            .with_system(register_text_buffers(text_system.clone()))
-            .flush()
-            .with_system(update_text_buffers(text_system.clone()))
-            .with_system(invalidate_cached_layout_system(&mut frame.world))
-            .with_system(layout_system(root))
-            .with_system(transform_system(root));
-
-        let start_time = Instant::now();
+        instance
+            .frame
+            .spawn(FutureEffect::new(Gpu::with_surface(window.clone()), {
+                let text_system = instance.text_system.to_owned();
+                let layout_changes_rx = instance.layout_changes_rx.to_owned();
+                move |frame: &mut Frame, (gpu, surface)| {
+                    renderer_tx
+                        .send(WindowRenderer::new(
+                            frame,
+                            gpu,
+                            instance.root,
+                            text_system.clone(),
+                            surface,
+                            layout_changes_rx.clone(),
+                            self.renderer_config,
+                        ))
+                        .ok();
+                }
+            }));
 
         #[cfg(not(target_arch = "wasm32"))]
         let _puffin_server = setup_puffin();
-
-        let mut instance = App {
-            frame,
-            renderer: None,
-            root,
-            scale_factor: window.scale_factor(),
-            stats: AppStats::new(16),
-            current_time: start_time,
-            start_time,
-            executor,
-            schedule,
-            window_size: window.inner_size(),
-        };
 
         let on_event = move |event, ctl: &EventLoopWindowTarget<()>| match event {
             Event::AboutToWait => {
@@ -258,20 +212,23 @@ impl AppBuilder {
                 }
                 WindowEvent::MouseInput { state, button, .. } => {
                     puffin::profile_scope!("MouseInput");
-                    input_state.on_mouse_input(&mut instance.frame, state, button);
+                    instance
+                        .input_state
+                        .on_mouse_input(&mut instance.frame, state, button);
                 }
                 WindowEvent::ModifiersChanged(modifiers) => {
                     puffin::profile_scope!("ModifiersChanged");
-                    input_state.on_modifiers_change(modifiers.state());
+                    instance.input_state.on_modifiers_change(modifiers.state());
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     puffin::profile_scope!("KeyboardInput", format!("{event:?}"));
-                    input_state.on_keyboard_input(&mut instance.frame, event)
+                    instance
+                        .input_state
+                        .on_keyboard_input(&mut instance.frame, event)
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     puffin::profile_scope!("CursorMoved");
-                    let position = position.to_logical::<f32>(instance.scale_factor);
-                    input_state.on_cursor_move(
+                    instance.input_state.on_cursor_move(
                         &mut instance.frame,
                         vec2(position.x as f32, position.y as f32),
                     )
@@ -281,12 +238,15 @@ impl AppBuilder {
                     match delta {
                         winit::event::MouseScrollDelta::LineDelta(x, y) => {
                             const LINE_SIZE: f32 = 16.0;
-                            input_state
+                            instance
+                                .input_state
                                 .on_scroll(&mut instance.frame, vec2(x * LINE_SIZE, y * LINE_SIZE))
                         }
                         winit::event::MouseScrollDelta::PixelDelta(pos) => {
                             let pos = pos.to_logical::<f32>(instance.scale_factor);
-                            input_state.on_scroll(&mut instance.frame, vec2(pos.x, pos.y))
+                            instance
+                                .input_state
+                                .on_scroll(&mut instance.frame, vec2(pos.x, pos.y))
                         }
                     }
                 }
@@ -329,7 +289,7 @@ impl AppBuilder {
 }
 
 /// A running application instance of violet
-pub struct App {
+pub struct AppInstance {
     frame: Frame,
     renderer: Option<WindowRenderer>,
     root: Entity,
@@ -340,9 +300,71 @@ pub struct App {
     executor: Executor,
     schedule: Schedule,
     window_size: PhysicalSize<u32>,
+    input_state: InputState,
+    text_system: Arc<Mutex<TextSystem>>,
+    layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
 }
 
-impl App {
+impl AppInstance {
+    pub fn new(root: impl Widget) -> AppInstance {
+        let executor = Executor::new();
+
+        let spawner = executor.spawner();
+
+        let mut frame = Frame::new(spawner, AssetCache::new(), World::new());
+
+        let stylesheet = setup_stylesheet().spawn(frame.world_mut());
+
+        let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
+        frame.set_atom(io::clipboard(), clipboard);
+
+        // Mount the root widget
+        let root = frame.new_root(Canvas {
+            stylesheet,
+            size: vec2(0.0, 0.0),
+            root,
+        });
+
+        let text_system = Arc::new(Mutex::new(TextSystem::new_with_defaults()));
+        let (layout_changes_tx, layout_changes_rx) = flume::unbounded();
+
+        let schedule = Schedule::new()
+            .with_system(templating_system(layout_changes_tx))
+            .flush()
+            .with_system(hydrate_text())
+            .flush()
+            .with_system(register_text_buffers(text_system.clone()))
+            .flush()
+            .with_system(update_text_buffers(text_system.clone()))
+            .with_system(invalidate_cached_layout_system(&mut frame.world))
+            .with_system(layout_system(root))
+            .with_system(transform_system(root));
+
+        let input_state = InputState::new(root, Vec2::ZERO);
+
+        let start_time = Instant::now();
+
+        Self {
+            frame,
+            renderer: None,
+            root,
+            scale_factor: 1.0,
+            stats: AppStats::new(60),
+            current_time: start_time,
+            start_time,
+            executor,
+            schedule,
+            window_size: Default::default(),
+            input_state,
+            text_system,
+            layout_changes_rx,
+        }
+    }
+
+    pub fn insert_renderer(&mut self, renderer: WindowRenderer) {
+        self.renderer = Some(renderer);
+    }
+
     pub fn builder() -> AppBuilder {
         AppBuilder::new()
     }

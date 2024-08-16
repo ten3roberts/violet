@@ -39,7 +39,7 @@ use crate::{
     Gpu,
 };
 
-use super::{DrawCommand, GlobalBuffers, ObjectData, RendererProps, RendererStore};
+use super::{DrawCommand, ObjectData, RendererContext, RendererStore};
 
 #[derive(Fetch)]
 struct ObjectQuery {
@@ -334,16 +334,17 @@ pub(crate) struct TextRenderer {
 
 impl TextRenderer {
     pub(crate) fn new(
-        gpu: &mut Gpu,
-        props: &mut RendererProps,
+        ctx: &mut RendererContext,
+        text_system: Arc<Mutex<TextSystem>>,
+        color_format: TextureFormat,
         object_layout: &BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
         let mesh_generator = MeshGenerator::new(
-            gpu,
-            &mut props.globals.mesh_buffer,
-            &props.globals.layout,
-            props.color_format,
+            &mut ctx.gpu,
+            &mut ctx.mesh_buffer,
+            &ctx.globals_layout,
+            color_format,
             object_layout,
             store,
         );
@@ -351,15 +352,14 @@ impl TextRenderer {
             object_query: Query::new(ObjectQuery::new()).with(text()),
             mesh_generator,
             mesh_query: Query::new(TextMeshQuery::new().modified()),
-            text_system: props.text_system.clone(),
-            scale_factor: props.scale_factor,
+            text_system,
+            scale_factor: 1.0,
         }
     }
 
     pub fn update_meshes(
         &mut self,
-        gpu: &Gpu,
-        globals: &mut GlobalBuffers,
+        ctx: &mut RendererContext,
         frame: &mut Frame,
         store: &mut RendererStore,
     ) {
@@ -400,12 +400,12 @@ impl TextRenderer {
 
                 let text_mesh = match item.text_mesh {
                     Some(v) => v,
-                    None => new_mesh.insert(Arc::new(globals.mesh_buffer.allocate(gpu, 0, 0))),
+                    None => new_mesh.insert(Arc::new(ctx.mesh_buffer.allocate(&ctx.gpu, 0, 0))),
                 };
 
                 let index_count = self.mesh_generator.update_mesh(
-                    gpu,
-                    &mut globals.mesh_buffer,
+                    &ctx.gpu,
+                    &mut ctx.mesh_buffer,
                     &frame.assets,
                     text_system,
                     &mut item.state.buffer,

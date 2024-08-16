@@ -19,7 +19,7 @@ use violet_core::{
     utils::zip_latest,
     widget::{label, Button, Checkbox, ScrollArea, SliderWithLabel, StreamWidget, WidgetExt},
 };
-use violet_wgpu::renderer::RendererConfig;
+use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -33,8 +33,8 @@ pub fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    violet_wgpu::AppBuilder::new()
-        .with_renderer_config(RendererConfig { debug_mode: true })
+    AppBuilder::new()
+        .with_renderer_config(MainRendererConfig { debug_mode: true })
         .run(app())
 }
 

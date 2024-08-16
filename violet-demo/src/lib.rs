@@ -8,7 +8,7 @@ use violet::{
         Widget,
     },
     futures_signals::signal::Mutable,
-    wgpu::{app::App, renderer::RendererConfig},
+    wgpu::{renderer::MainRendererConfig, AppBuilder},
 };
 use wasm_bindgen_futures::wasm_bindgen;
 
@@ -17,10 +17,7 @@ mod palettes;
 
 #[cfg(target_arch = "wasm32")]
 fn setup() {
-    use tracing_subscriber::{
-        filter::LevelFilter, fmt::format::Pretty, layer::SubscriberExt, util::SubscriberInitExt,
-        Layer,
-    };
+    use tracing_subscriber::{filter::LevelFilter, fmt::format::Pretty, Layer};
     use tracing_web::{performance_layer, MakeWebConsoleWriter};
 
     let fmt_layer = tracing_subscriber::fmt::layer()
@@ -59,9 +56,9 @@ fn setup() {
 pub fn run() {
     setup();
 
-    App::builder()
+    AppBuilder::new()
         .with_title("Palette Editor")
-        .with_renderer_config(RendererConfig { debug_mode: false })
+        .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(app())
         .unwrap();
 }
