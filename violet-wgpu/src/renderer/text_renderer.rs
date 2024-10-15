@@ -455,7 +455,12 @@ impl TextRenderer {
             })
     }
 
-    pub(crate) fn resize(&mut self, _: &Gpu, _: winit::dpi::PhysicalSize<u32>, scale_factor: f64) {
+    pub(crate) fn resize(
+        &mut self,
+        _: &RendererContext,
+        _: winit::dpi::PhysicalSize<u32>,
+        scale_factor: f64,
+    ) {
         if self.scale_factor != scale_factor {
             self.mesh_generator.rasterizer.clear();
         }

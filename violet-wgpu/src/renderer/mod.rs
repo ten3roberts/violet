@@ -392,7 +392,7 @@ impl MainRenderer {
 
     fn resize(
         &mut self,
-        ctx: &Gpu,
+        ctx: &RendererContext,
         physical_size: winit::dpi::PhysicalSize<u32>,
         scale_factor: f64,
     ) {

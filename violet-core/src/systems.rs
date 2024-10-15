@@ -1,12 +1,12 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     sync::{Arc, Weak},
 };
 
 use atomic_refcell::AtomicRefCell;
 use flax::{
     archetype::Storage,
-    component::ComponentValue,
+    component::{ComponentDesc, ComponentKey, ComponentValue},
     components::child_of,
     entity_ids,
     events::{EventData, EventSubscriber},
@@ -15,6 +15,7 @@ use flax::{
     Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
+use itertools::Itertools;
 
 use crate::{
     components::{

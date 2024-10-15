@@ -55,7 +55,6 @@ impl WindowRenderer {
         let logical_size: LogicalSize<f32> = physical_size.to_logical(scale_factor);
         let w = logical_size.width;
         let h = logical_size.height;
-        // tracing::info!("resizing canvas size to {w}x{h}");
 
         self.ctx.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
         self.ctx
@@ -63,7 +62,8 @@ impl WindowRenderer {
             .write(&self.ctx.gpu.queue, 0, &[self.ctx.globals]);
 
         self.main_renderer
-            .resize(&self.ctx.gpu, physical_size, scale_factor);
+            .resize(&self.ctx, physical_size, scale_factor);
+
         self.surface.resize(&self.ctx.gpu, physical_size);
     }
 
