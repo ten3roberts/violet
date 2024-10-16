@@ -15,7 +15,6 @@ use flax::{
     Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
-use itertools::Itertools;
 
 use crate::{
     components::{

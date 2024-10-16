@@ -2,7 +2,6 @@ use std::{convert::Infallible, sync::Arc};
 
 use flax::{
     entity_ids,
-    fetch::entity_refs,
     filter::{All, With},
     CommandBuffer, Component, EntityIds, EntityRef, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
@@ -93,8 +92,7 @@ impl RectObjectQuery {
 #[fetch(transforms = [Modified])]
 struct RectDrawQuery {
     #[fetch(ignore)]
-    id: flax::fetch::EntityRefs,
-
+    id: EntityIds,
     image: Opt<Component<Asset<DynamicImage>>>,
     shape: Component<()>,
     clip_mask: Component<Rect>,
@@ -103,7 +101,7 @@ struct RectDrawQuery {
 impl RectDrawQuery {
     fn new() -> Self {
         Self {
-            id: entity_refs(),
+            id: entity_ids(),
             image: image().opt(),
             shape: draw_shape(shape::shape_rectangle()),
             clip_mask: screen_clip_mask(),
@@ -215,7 +213,7 @@ impl RectRenderer {
                     });
 
                 cmd.set(
-                    item.id.id(),
+                    item.id,
                     draw_cmd(),
                     DrawCommand {
                         bind_group: bind_group.clone(),
