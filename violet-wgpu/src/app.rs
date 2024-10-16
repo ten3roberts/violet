@@ -37,8 +37,8 @@ use crate::{
 };
 
 pub struct Canvas<W> {
-    stylesheet: Entity,
-    root: W,
+    pub stylesheet: Entity,
+    pub root: W,
 }
 
 impl<W: Widget> Widget for Canvas<W> {
@@ -166,7 +166,7 @@ impl AppBuilder {
 
 /// A running application instance of violet
 pub struct AppInstance {
-    frame: Frame,
+    pub frame: Frame,
     root: Entity,
     scale_factor: f64,
     current_time: Instant,
@@ -174,7 +174,7 @@ pub struct AppInstance {
     executor: Executor,
     schedule: Schedule,
     window_size: PhysicalSize<u32>,
-    input_state: InputState,
+    pub input_state: InputState,
     text_system: Arc<Mutex<TextSystem>>,
     layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
 }
@@ -382,9 +382,12 @@ impl ApplicationHandler for WindowEventHandler {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 puffin::profile_scope!("KeyboardInput", format!("{event:?}"));
-                instance
-                    .input_state
-                    .on_keyboard_input(&mut instance.frame, event)
+                instance.input_state.on_keyboard_input(
+                    &mut instance.frame,
+                    event.logical_key,
+                    event.state,
+                    event.text,
+                )
             }
             WindowEvent::CursorMoved { position, .. } => {
                 puffin::profile_scope!("CursorMoved");

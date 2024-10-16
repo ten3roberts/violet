@@ -4,8 +4,8 @@ use glam::{Vec2, Vec3Swizzles};
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
 use winit::{
-    event::{ElementState, KeyEvent, MouseButton},
-    keyboard::ModifiersState,
+    event::{ElementState, MouseButton},
+    keyboard::{Key, ModifiersState, SmolStr},
 };
 
 use crate::{
@@ -161,7 +161,13 @@ impl InputState {
         self.modifiers = modifiers;
     }
 
-    pub fn on_keyboard_input(&mut self, frame: &mut Frame, event: KeyEvent) {
+    pub fn on_keyboard_input(
+        &mut self,
+        frame: &mut Frame,
+        key: Key,
+        state: ElementState,
+        text: Option<SmolStr>,
+    ) {
         if let Some(entity) = &self.focused(frame.world()) {
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
                 let s = ScopeRef::new(frame, *entity);
@@ -169,7 +175,9 @@ impl InputState {
                     &s,
                     KeyboardInput {
                         modifiers: self.modifiers,
-                        event,
+                        state,
+                        key,
+                        text,
                     },
                 );
             }
@@ -235,8 +243,9 @@ pub struct Scroll {
 
 pub struct KeyboardInput {
     pub modifiers: ModifiersState,
-
-    pub event: KeyEvent,
+    pub state: ElementState,
+    pub key: Key,
+    pub text: Option<SmolStr>,
 }
 
 pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, T)>;

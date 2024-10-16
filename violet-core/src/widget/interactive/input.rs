@@ -324,7 +324,7 @@ impl Widget for TextInput {
             .on_event(on_keyboard_input(), {
                 to_owned![tx];
                 move |_, input| {
-                    if input.event.state == ElementState::Pressed {
+                    if input.state == ElementState::Pressed {
                         handle_input(input, |v| {
                             tx.send(v).ok();
                         })
@@ -442,7 +442,7 @@ fn handle_cursor_move(key: NamedKey, mods: ModifiersState) -> Option<CursorMove>
 
 fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
     let ctrl = input.modifiers.control_key();
-    if let Key::Named(key) = input.event.logical_key {
+    if let Key::Named(key) = input.key {
         if let Some(m) = handle_cursor_move(key, input.modifiers) {
             if input.modifiers.shift_key() {
                 send(Action::Editor(EditorAction::SelectionStart));
@@ -469,7 +469,7 @@ fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
             }
             _ => {}
         }
-    } else if let Key::Character(c) = input.event.logical_key {
+    } else if let Key::Character(c) = input.key {
         match &*c {
             "c" if ctrl => return send(Action::Copy),
             "v" if ctrl => return send(Action::Paste),
@@ -478,7 +478,7 @@ fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
         }
     }
 
-    if let Some(text) = input.event.text {
+    if let Some(text) = input.text {
         send(Action::Editor(EditorAction::Edit(EditAction::InsertText(
             text.into(),
         ))));
