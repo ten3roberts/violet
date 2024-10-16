@@ -165,7 +165,9 @@ impl TextSizeResolver {
 
         let mut buffer = state.buffer.borrow_with(&mut text_system.font_system);
 
-        buffer.set_metrics_and_size(Metrics::new(font_size, font_size), size.x, size.y);
+        let metrics = Metrics::new(font_size, font_size);
+        buffer.set_metrics(metrics);
+        buffer.set_size(Some(size.x), Some(size.y));
 
         buffer.shape_until_scroll(true);
 
