@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cosmic_text::{Metrics, Wrap};
+use cosmic_text::Wrap;
 use flax::{
     components::child_of,
     entity_ids,
@@ -8,15 +8,13 @@ use flax::{
     BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
     QueryBorrow, RelationExt, System, World,
 };
-use glam::Vec2;
 use parking_lot::Mutex;
 
 use puffin::profile_scope;
 use violet_core::{
-    components::{font_size, layout_bounds, layout_glyphs, rect, size_resolver, text, text_wrap},
+    components::{font_size, layout_glyphs, size_resolver, text, text_wrap},
     style::stylesheet,
     text::{LayoutGlyphs, TextSegment},
-    Rect,
 };
 
 use crate::text::TextSystem;

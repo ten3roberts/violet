@@ -1,13 +1,13 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use flax::{fetch::entity_refs, Entity, Query};
+use flax::Entity;
 use glam::{vec2, vec3, vec4, Mat4, Quat, Vec4};
 use itertools::Itertools;
 use violet_core::{
-    components::{layout_args, rect, screen_clip_mask, screen_transform},
-    layout::cache::{layout_cache, LayoutUpdateEvent},
+    components::{rect, screen_clip_mask, screen_transform},
+    layout::cache::LayoutUpdateEvent,
     stored::{self, Handle},
-    Frame, Rect,
+    Frame,
 };
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
@@ -29,7 +29,6 @@ pub struct DebugRenderer {
     mesh: Arc<MeshHandle>,
 
     border_shader: stored::Handle<Shader>,
-    solid_shader: stored::Handle<Shader>,
 
     layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
     layout_changes: BTreeMap<(Entity, LayoutUpdateEvent), usize>,
@@ -108,7 +107,6 @@ impl DebugRenderer {
             layout_changes_rx,
             layout_changes: BTreeMap::new(),
             objects: Vec::new(),
-            solid_shader: todo!(),
         }
     }
 
@@ -122,53 +120,6 @@ impl DebugRenderer {
 
         self.objects.clear();
 
-        let mut overflow = Vec::new();
-
-        let mut query = Query::new((entity_refs(), layout_args(), rect()));
-        let mut query = query.borrow(&frame.world);
-
-        query
-            .iter()
-            .filter_map(|(entity, &args, &rect)| {
-                let transform = entity.get_copy(screen_transform()).ok()?;
-                let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
-
-                // let model_matrix = Mat4::from_scale_rotation_translation(
-                //     screen_rect.size().extend(1.0),
-                //     Quat::IDENTITY,
-                //     screen_rect.pos().extend(0.2),
-                // );
-
-                let mut draw = |rect: Rect| {
-                    let model_matrix = transform
-                        * Mat4::from_scale_rotation_translation(
-                            rect.size().extend(1.0),
-                            Quat::IDENTITY,
-                            rect.pos().extend(0.2),
-                        );
-
-                    let object_data = ObjectData {
-                        model_matrix,
-                        color: vec4(1.0, 0.0, 0.0, 0.5),
-                    };
-
-                    overflow.push((
-                        DrawCommand {
-                            shader: self.solid_shader.clone(),
-                            bind_group: self.bind_group.clone(),
-                            mesh: self.mesh.clone(),
-                            index_count: 6,
-                            clip_mask,
-                        },
-                        object_data,
-                    ));
-                };
-
-                Some(())
-            })
-            .for_each(|_| {});
-
-        let mut query = Query::new((entity_refs(), layout_cache()));
         let groups = self.layout_changes.iter().chunk_by(|v| v.0 .0);
 
         let objects = groups.into_iter().filter_map(|(id, group)| {
@@ -183,36 +134,34 @@ impl DebugRenderer {
             Some((entity, &self.border_shader, color))
         });
 
-        let objects = objects
-            .filter_map(|(entity, shader, color)| {
-                let rect = entity.get_copy(rect()).ok()?.align_to_grid();
-                let transform = entity.get_copy(screen_transform()).ok()?;
-                let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
+        let objects = objects.filter_map(|(entity, shader, color)| {
+            let rect = entity.get_copy(rect()).ok()?.align_to_grid();
+            let transform = entity.get_copy(screen_transform()).ok()?;
+            let clip_mask = entity.get_copy(screen_clip_mask()).ok()?;
 
-                let model_matrix = transform
-                    * Mat4::from_scale_rotation_translation(
-                        rect.size().extend(1.0),
-                        Quat::IDENTITY,
-                        rect.pos().extend(0.2),
-                    );
+            let model_matrix = transform
+                * Mat4::from_scale_rotation_translation(
+                    rect.size().extend(1.0),
+                    Quat::IDENTITY,
+                    rect.pos().extend(0.2),
+                );
 
-                let object_data = ObjectData {
-                    model_matrix,
-                    color,
-                };
+            let object_data = ObjectData {
+                model_matrix,
+                color,
+            };
 
-                Some((
-                    DrawCommand {
-                        shader: shader.clone(),
-                        bind_group: self.bind_group.clone(),
-                        mesh: self.mesh.clone(),
-                        index_count: 6,
-                        clip_mask,
-                    },
-                    object_data,
-                ))
-            })
-            .chain(overflow);
+            Some((
+                DrawCommand {
+                    shader: shader.clone(),
+                    bind_group: self.bind_group.clone(),
+                    mesh: self.mesh.clone(),
+                    index_count: 6,
+                    clip_mask,
+                },
+                object_data,
+            ))
+        });
 
         self.objects.clear();
         self.objects.extend(objects);

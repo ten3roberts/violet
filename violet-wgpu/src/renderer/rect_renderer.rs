@@ -3,7 +3,7 @@ use std::{convert::Infallible, sync::Arc};
 use flax::{
     entity_ids,
     filter::{All, With},
-    CommandBuffer, Component, EntityIds, EntityRef, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
+    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
 };
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};

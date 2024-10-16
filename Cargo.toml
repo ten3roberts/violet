@@ -52,7 +52,7 @@ winit = "0.30"
 wgpu = { version = "22.1", default-features = false, features = ["fragile-send-sync-non-atomic-wasm", "webgl", "wgsl"] }
 palette = { version = "0.7", features = ["serializing"] }
 dashmap = "6.0"
-image = { version = "0.25", default_features = false, features = ["png", "jpeg"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 color-hex = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -100,7 +100,7 @@ color-hex.workspace = true
 tracing.workspace = true
 futures.workspace = true
 
-tokio = { version = "1.39", default_features= false, features = ["macros"] }
+tokio = { version = "1.39", default-features= false, features = ["macros"] }
 serde_json = "1.0"
 
 tracing-tree.workspace = true

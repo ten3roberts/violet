@@ -159,7 +159,7 @@ impl MeshGenerator {
                 source: include_str!("../../../assets/shaders/text.wgsl"),
                 format: color_format,
                 vertex_layouts: &[Vertex::layout()],
-                layouts: &[&globals_layout, object_layout, &text_layout],
+                layouts: &[globals_layout, object_layout, &text_layout],
             },
         ));
 
@@ -172,7 +172,7 @@ impl MeshGenerator {
             ..Default::default()
         }));
 
-        let sentinel = Arc::new(mesh_buffer.allocate(&gpu, 0, 0));
+        let sentinel = Arc::new(mesh_buffer.allocate(gpu, 0, 0));
         Self {
             rasterizer: FontRasterizer::new(gpu, sampler, text_layout, store),
             shader,
@@ -180,6 +180,7 @@ impl MeshGenerator {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn update_mesh(
         &mut self,
         gpu: &Gpu,
@@ -187,7 +188,6 @@ impl MeshGenerator {
         assets: &AssetCache,
         text_system: &mut TextSystem,
         buffer: &mut Buffer,
-        // text: &str,
         mesh: &mut Arc<MeshHandle>,
         store: &mut RendererStore,
         scale_factor: f64,

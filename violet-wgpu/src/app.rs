@@ -15,7 +15,7 @@ use winit::{
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, max_size, size},
+    components::{self},
     executor::Executor,
     input::InputState,
     io::{self, Clipboard},
@@ -25,7 +25,6 @@ use violet_core::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    unit::Unit,
     widget::{col, WidgetExt},
     Frame, FutureEffect, Rect, Scope, Widget,
 };

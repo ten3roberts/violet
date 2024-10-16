@@ -13,7 +13,7 @@ use crate::{
         self, anchor, aspect_ratio, children, layout, max_size, maximize, min_size, offset,
         padding, size, size_resolver,
     },
-    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue, LAYOUT_TOLERANCE},
+    layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
     Edges, Rect,
 };
 

@@ -24,7 +24,7 @@ use super::{
 /// - Overlaying widgets
 /// - Horizontal or vertical alignment
 /// - Padding and margin with background colors (widgets don't inherently have a concept of "inner"
-/// content, as they are their own content)
+///     content, as they are their own content)
 /// - Centering widgets (this isn't HTML :P)
 /// - Limiting and expanding size of widgets
 #[derive(Default, Debug, Clone)]
