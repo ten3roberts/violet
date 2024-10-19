@@ -6,9 +6,9 @@ use winit::{dpi::PhysicalSize, window::Window};
 /// Represents the Gpu and graphics state
 #[derive(Debug)]
 pub struct Gpu {
-    pub adapter: Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
+    pub adapter: Arc<Adapter>,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
 }
 
 pub struct Surface {
@@ -138,9 +138,9 @@ impl Gpu {
 
         (
             Self {
-                adapter,
-                device,
-                queue,
+                adapter: Arc::new(adapter),
+                device: Arc::new(device),
+                queue: Arc::new(queue),
             },
             Surface {
                 surface,
@@ -149,8 +149,4 @@ impl Gpu {
             },
         )
     }
-
-    // pub fn surface_caps(&self) -> &SurfaceCapabilities {
-    //     &self.surface_caps
-    // }
 }

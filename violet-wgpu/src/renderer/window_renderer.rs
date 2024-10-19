@@ -94,7 +94,7 @@ impl WindowRenderer {
                 });
 
         self.main_renderer
-            .draw(&mut self.ctx, frame, &mut encoder, &view)
+            .draw(&mut self.ctx, frame, &mut encoder, &view, true)
             .context("Failed to draw shapes")?;
 
         {

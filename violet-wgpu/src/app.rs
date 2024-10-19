@@ -167,7 +167,7 @@ impl AppBuilder {
 /// A running application instance of violet
 pub struct AppInstance {
     pub frame: Frame,
-    root: Entity,
+    pub root: Entity,
     scale_factor: f64,
     current_time: Instant,
     start_time: Instant,
@@ -292,6 +292,18 @@ impl AppInstance {
 
     pub fn frame(&self) -> &Frame {
         &self.frame
+    }
+
+    pub fn root(&self) -> Entity {
+        self.root
+    }
+
+    pub fn text_system(&self) -> &Arc<Mutex<TextSystem>> {
+        &self.text_system
+    }
+
+    pub fn layout_changes_rx(&self) -> &flume::Receiver<(Entity, LayoutUpdateEvent)> {
+        &self.layout_changes_rx
     }
 }
 

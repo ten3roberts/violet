@@ -18,8 +18,8 @@ use violet_core::{
     Frame, Rect,
 };
 use wgpu::{
-    BindGroup, BindGroupLayout, BufferUsages, CommandEncoder, Operations, RenderPassDescriptor,
-    ShaderStages, StoreOp, TextureFormat, TextureView,
+    BindGroup, BindGroupLayout, BufferUsages, CommandEncoder, LoadOp, Operations,
+    RenderPassDescriptor, ShaderStages, StoreOp, TextureFormat, TextureView,
 };
 
 use crate::{
@@ -280,6 +280,7 @@ impl MainRenderer {
         frame: &mut Frame,
         encoder: &mut CommandEncoder,
         target_view: &TextureView,
+        clear: bool,
     ) -> anyhow::Result<()> {
         puffin::profile_function!();
 
@@ -289,12 +290,16 @@ impl MainRenderer {
                 view: target_view,
                 resolve_target: None,
                 ops: Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 0.0,
-                    }),
+                    load: if clear {
+                        LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.0,
+                        })
+                    } else {
+                        LoadOp::Load
+                    },
                     store: StoreOp::Store,
                 },
             })],
@@ -390,7 +395,7 @@ impl MainRenderer {
         Ok(())
     }
 
-    fn resize(
+    pub fn resize(
         &mut self,
         ctx: &RendererContext,
         physical_size: winit::dpi::PhysicalSize<u32>,
