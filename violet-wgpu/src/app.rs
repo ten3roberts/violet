@@ -51,7 +51,7 @@ impl<W: Widget> Widget for Canvas<W> {
             col(self.root)
                 .contain_margins(true)
                 .with_maximize(Vec2::ONE)
-                .with_background(Background::new(primary_surface()))
+                // .with_background(Background::new(primary_surface()))
                 .with_name("CanvasColumn"),
         );
     }
@@ -177,7 +177,7 @@ pub struct AppInstance {
     pub input_state: InputState,
     text_system: Arc<Mutex<TextSystem>>,
     layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
-    pub has_resized: bool,
+    pub needs_update: bool,
 }
 
 impl AppInstance {
@@ -227,7 +227,7 @@ impl AppInstance {
             input_state,
             text_system,
             layout_changes_rx,
-            has_resized: false,
+            needs_update: false,
         }
     }
 
@@ -237,7 +237,7 @@ impl AppInstance {
 
     pub fn on_resize(&mut self, physical_size: PhysicalSize<u32>) {
         self.window_size = physical_size;
-        self.has_resized = true;
+        self.needs_update = true;
 
         tracing::info!(?physical_size, self.scale_factor, "Resizing window");
 
@@ -263,6 +263,8 @@ impl AppInstance {
         if self.is_minimized() {
             return;
         }
+
+        self.needs_update = false;
 
         let new_time = Instant::now();
 
@@ -323,7 +325,7 @@ struct WindowEventHandler {
 impl WindowEventHandler {
     pub fn draw(&mut self) -> anyhow::Result<()> {
         puffin::profile_function!();
-        if mem::take(&mut self.instance.has_resized) {
+        if mem::take(&mut self.instance.needs_update) {
             self.instance.update();
         }
 

@@ -8,8 +8,8 @@ use crate::{
     layout::{Alignment, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        primary_surface, secondary_surface, spacing_medium, spacing_small, Background,
-        SizeExt, StyleExt, WidgetSize,
+        primary_surface, secondary_surface, spacing_medium, spacing_small, Background, SizeExt,
+        StyleExt, WidgetSize,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -273,13 +273,13 @@ pub fn col<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Vertical)
 }
 
-pub fn centered<W>(widget: W) -> Stack<W> {
+pub fn centered<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_horizontal_alignment(Alignment::Center)
         .with_vertical_alignment(Alignment::Center)
 }
 
-pub fn card<W>(widget: W) -> Stack<W> {
+pub fn card<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
         .with_background(Background::new(secondary_surface()))
