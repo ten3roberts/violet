@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use std::sync::Arc;
+use std::{mem, sync::Arc};
 use web_time::Instant;
 
 use flax::{components::name, Entity, Schedule, World};
@@ -177,6 +177,7 @@ pub struct AppInstance {
     pub input_state: InputState,
     text_system: Arc<Mutex<TextSystem>>,
     layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
+    pub has_resized: bool,
 }
 
 impl AppInstance {
@@ -226,6 +227,7 @@ impl AppInstance {
             input_state,
             text_system,
             layout_changes_rx,
+            has_resized: false,
         }
     }
 
@@ -235,6 +237,7 @@ impl AppInstance {
 
     pub fn on_resize(&mut self, physical_size: PhysicalSize<u32>) {
         self.window_size = physical_size;
+        self.has_resized = true;
 
         tracing::info!(?physical_size, self.scale_factor, "Resizing window");
 
@@ -320,6 +323,10 @@ struct WindowEventHandler {
 impl WindowEventHandler {
     pub fn draw(&mut self) -> anyhow::Result<()> {
         puffin::profile_function!();
+        if mem::take(&mut self.instance.has_resized) {
+            self.instance.update();
+        }
+
         if let Some(renderer) = &mut self.renderer {
             renderer.draw(&mut self.instance.frame)?;
         }
