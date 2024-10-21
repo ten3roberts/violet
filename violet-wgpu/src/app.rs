@@ -20,7 +20,7 @@ use violet_core::{
     input::InputState,
     io::{self, Clipboard},
     layout::cache::LayoutUpdateEvent,
-    style::{primary_surface, setup_stylesheet, stylesheet, Background, SizeExt},
+    style::{setup_stylesheet, stylesheet, SizeExt},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
@@ -408,14 +408,14 @@ impl ApplicationHandler for WindowEventHandler {
                     event.logical_key,
                     event.state,
                     event.text,
-                )
+                );
             }
             WindowEvent::CursorMoved { position, .. } => {
                 puffin::profile_scope!("CursorMoved");
                 instance.input_state.on_cursor_move(
                     &mut instance.frame,
                     vec2(position.x as f32, position.y as f32),
-                )
+                );
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 puffin::profile_scope!("MouseWheel");
@@ -424,13 +424,13 @@ impl ApplicationHandler for WindowEventHandler {
                         const LINE_SIZE: f32 = 16.0;
                         instance
                             .input_state
-                            .on_scroll(&mut instance.frame, vec2(x * LINE_SIZE, y * LINE_SIZE))
+                            .on_scroll(&mut instance.frame, vec2(x * LINE_SIZE, y * LINE_SIZE));
                     }
                     winit::event::MouseScrollDelta::PixelDelta(pos) => {
                         let pos = pos.to_logical::<f32>(instance.scale_factor);
                         instance
                             .input_state
-                            .on_scroll(&mut instance.frame, vec2(pos.x, pos.y))
+                            .on_scroll(&mut instance.frame, vec2(pos.x, pos.y));
                     }
                 }
             }

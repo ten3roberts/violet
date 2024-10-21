@@ -46,7 +46,7 @@ impl InputState {
         pos: Vec2,
         mut filter: impl FnMut(&EntityRef) -> bool,
     ) -> Option<(Entity, Vec2)> {
-        let query = (screen_transform(), rect()).filtered(focusable().with());
+        let query = (screen_transform(), rect());
         OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
             .filter_map(|entity| {
                 if !filter(&entity) {
@@ -67,7 +67,12 @@ impl InputState {
             .last()
     }
 
-    pub fn on_mouse_input(&mut self, frame: &mut Frame, state: ElementState, button: MouseButton) {
+    pub fn on_mouse_input(
+        &mut self,
+        frame: &mut Frame,
+        state: ElementState,
+        button: MouseButton,
+    ) -> bool {
         let cursor_pos = self.pos;
         let intersect = self.find_intersect(frame, cursor_pos, |_| true);
 
@@ -103,6 +108,7 @@ impl InputState {
                 absolute_pos: self.pos,
                 local_pos,
             };
+
             if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
                 let s = ScopeRef::new(frame, entity);
                 on_input(
@@ -115,10 +121,14 @@ impl InputState {
                     },
                 );
             }
+
+            return true;
         }
+
+        false
     }
 
-    pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) {
+    pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) -> bool {
         self.pos = pos;
 
         if let Some(entity) = &self.focused(&frame.world) {
@@ -136,10 +146,13 @@ impl InputState {
                     },
                 );
             }
+
+            return true;
         }
+        false
     }
 
-    pub fn on_scroll(&mut self, frame: &mut Frame, delta: Vec2) {
+    pub fn on_scroll(&mut self, frame: &mut Frame, delta: Vec2) -> bool {
         let intersect = self.find_intersect(frame, self.pos, |v| v.has(on_scroll()));
 
         if let Some((id, _)) = intersect {
@@ -154,7 +167,11 @@ impl InputState {
                     },
                 );
             }
+
+            return true;
         }
+
+        false
     }
 
     pub fn on_modifiers_change(&mut self, modifiers: ModifiersState) {
@@ -167,7 +184,7 @@ impl InputState {
         key: Key,
         state: ElementState,
         text: Option<SmolStr>,
-    ) {
+    ) -> bool {
         if let Some(entity) = &self.focused(frame.world()) {
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
                 let s = ScopeRef::new(frame, *entity);
@@ -181,7 +198,11 @@ impl InputState {
                     },
                 );
             }
+
+            return true;
         }
+
+        false
     }
 
     fn focused<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
