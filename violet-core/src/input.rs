@@ -18,7 +18,7 @@ use crate::{
 pub struct Input {}
 
 #[derive(Debug, Clone)]
-struct FocusedEntity {
+pub struct FocusedEntity {
     id: Entity,
     sticky: bool,
 }
@@ -46,7 +46,7 @@ impl InputState {
         pos: Vec2,
         mut filter: impl FnMut(&EntityRef) -> bool,
     ) -> Option<(Entity, Vec2)> {
-        let query = (screen_transform(), rect());
+        let query = (screen_transform(), rect()).filtered(focusable().with());
         OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
             .filter_map(|entity| {
                 if !filter(&entity) {
@@ -131,7 +131,7 @@ impl InputState {
     pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) -> bool {
         self.pos = pos;
 
-        if let Some(entity) = &self.focused(&frame.world) {
+        if let Some(entity) = &self.focused_entity(&frame.world) {
             let transform = entity.get_copy(screen_transform()).unwrap_or_default();
             let rect = entity.get_copy(rect()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
@@ -185,7 +185,7 @@ impl InputState {
         state: ElementState,
         text: Option<SmolStr>,
     ) -> bool {
-        if let Some(entity) = &self.focused(frame.world()) {
+        if let Some(entity) = &self.focused_entity(frame.world()) {
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
                 let s = ScopeRef::new(frame, *entity);
                 on_input(
@@ -205,12 +205,16 @@ impl InputState {
         false
     }
 
-    fn focused<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
+    pub fn focused(&self) -> Option<&FocusedEntity> {
+        self.focused.as_ref()
+    }
+
+    fn focused_entity<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
         self.focused.as_ref().and_then(|v| world.entity(v.id).ok())
     }
 
     fn set_focused(&mut self, frame: &Frame, focused: Option<Entity>) {
-        let cur = self.focused(&frame.world);
+        let cur = self.focused_entity(&frame.world);
 
         if cur.map(|v| v.id()) == focused {
             return;

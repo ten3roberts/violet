@@ -9,6 +9,7 @@ use palette::{IntoColor, Oklab, Srgba};
 
 use crate::{
     components::{color, draw_shape, margin, max_size, maximize, min_size, padding, size},
+    input::focusable,
     shape::shape_rectangle,
     unit::Unit,
     Edges, Scope,
@@ -243,7 +244,10 @@ impl Background {
 
     pub fn mount(self, scope: &mut Scope) {
         let c = self.color.resolve(&scope.stylesheet());
-        scope.set(draw_shape(shape_rectangle()), ()).set(color(), c);
+        scope
+            .set(draw_shape(shape_rectangle()), ())
+            .set(color(), c)
+            .set_default(focusable());
     }
 }
 
