@@ -57,7 +57,7 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
 pub fn templating_system(
     layout_changes_tx: flume::Sender<(Entity, LayoutUpdateEvent)>,
 ) -> BoxedSystem {
-    let query = Query::new(entity_ids()).filter(Or((rect().with(), layout_cache().without())));
+    let query = Query::new(entity_ids()).with_filter(Or((rect().with(), layout_cache().without())));
 
     System::builder()
         .with_name("templating_system")
@@ -242,7 +242,7 @@ where
 {
     System::builder()
         .with_cmd_mut()
-        .with_query(Query::new((entity_ids(), query)).filter(filter))
+        .with_query(Query::new((entity_ids(), query)).with_filter(filter))
         .build(
             move |cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
                 query.for_each(|(id, item)| hydrate(cmd, id, item))
