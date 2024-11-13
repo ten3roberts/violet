@@ -27,6 +27,6 @@ pub mod widget;
 
 pub use effect::{FutureEffect, StreamEffect};
 pub use frame::Frame;
-pub use scope::Scope;
+pub use scope::{Scope, ScopeRef};
 pub use types::{Edges, Rect};
 pub use widget::{Widget, WidgetCollection};

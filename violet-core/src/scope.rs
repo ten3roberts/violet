@@ -4,6 +4,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use atomic_refcell::AtomicRef;
 use flax::{
     component::ComponentValue,
     components::{child_of, name},
@@ -15,6 +16,7 @@ use pin_project::pin_project;
 
 use crate::{
     assets::AssetCache,
+    atom::Atom,
     components::{children, handles},
     effect::Effect,
     input::InputEventHandler,
@@ -229,6 +231,25 @@ impl<'a> Scope<'a> {
         self.frame
     }
 
+    pub fn set_atom<T: ComponentValue>(&mut self, atom: Atom<T>, value: T) {
+        self.frame.set_atom(atom, value);
+    }
+
+    /// Retrieves the value of an atom.
+    ///
+    /// Returns `None` if the atom does not exist.
+    pub fn get_atom<T: ComponentValue>(&self, atom: Atom<T>) -> Option<AtomicRef<T>> {
+        self.frame.get_atom(atom)
+    }
+
+    pub fn monitor_atom<T: ComponentValue>(
+        &mut self,
+        atom: Atom<T>,
+        on_change: impl Fn(Option<&T>) + 'static,
+    ) {
+        self.frame.monitor_atom(atom, on_change);
+    }
+
     /// Stores an arbitrary value and returns a handle to it.
     ///
     /// The value is stored for the duration of the widgets lifetime.
@@ -357,6 +378,13 @@ impl<'a> ScopeRef<'a> {
 
     pub fn frame(&self) -> &Frame {
         self.frame
+    }
+
+    /// Retrieves the value of an atom.
+    ///
+    /// Returns `None` if the atom does not exist.
+    pub fn get_atom<T: ComponentValue>(&self, atom: Atom<T>) -> Option<AtomicRef<T>> {
+        self.frame.get_atom(atom)
     }
 
     pub fn read<T: 'static>(&self, handle: WeakHandle<T>) -> &T {
