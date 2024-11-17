@@ -2,6 +2,7 @@ use crate::Scope;
 mod basic;
 mod container;
 mod future;
+pub mod image;
 mod interactive;
 mod scroll;
 
@@ -35,6 +36,15 @@ where
 }
 
 impl Widget for Box<dyn Widget>
+// where
+//     T: ?Sized + Widget,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.mount_boxed(scope)
+    }
+}
+
+impl Widget for Box<dyn Send + Sync + Widget>
 // where
 //     T: ?Sized + Widget,
 {

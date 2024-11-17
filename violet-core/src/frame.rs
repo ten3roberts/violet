@@ -88,7 +88,7 @@ impl Frame {
         &mut self,
         id: Entity,
         component: Component<T>,
-        on_change: impl Fn(Option<&T>) + 'static,
+        mut on_change: impl FnMut(Option<&T>) + 'static,
     ) {
         let (tx, rx) = flume::unbounded();
 

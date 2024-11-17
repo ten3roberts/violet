@@ -42,7 +42,10 @@ pub struct Stack<W> {
 }
 
 impl<W> Stack<W> {
-    pub fn new(items: W) -> Self {
+    pub fn new(items: W) -> Self
+    where
+        W: WidgetCollection,
+    {
         Self {
             items,
             layout: StackLayout::default(),
@@ -287,7 +290,7 @@ pub fn card<W: Widget>(widget: W) -> Stack<W> {
         .with_margin(spacing_medium())
 }
 
-pub fn pill<W>(widget: W) -> Stack<W> {
+pub fn pill<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
         .with_background(Background::new(primary_surface()))

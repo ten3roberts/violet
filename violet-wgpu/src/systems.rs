@@ -5,7 +5,7 @@ use flax::{
     components::child_of,
     entity_ids,
     fetch::{Modified, TransformFetch},
-    BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, OptOr, Query,
+    BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, ComponentMut, OptOr, Query,
     QueryBorrow, RelationExt, System, World,
 };
 use parking_lot::Mutex;
@@ -30,7 +30,7 @@ struct TextBufferQuery {
     #[fetch(ignore)]
     id: EntityIds,
     #[fetch(ignore)]
-    state: Mutable<TextBufferState>,
+    state: ComponentMut<TextBufferState>,
     text: Component<Vec<TextSegment>>,
     font_size: Component<f32>,
     wrap: OptOr<Component<Wrap>, Wrap>,

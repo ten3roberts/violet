@@ -3,12 +3,14 @@ use std::{convert::Infallible, sync::Arc};
 use flax::{
     entity_ids,
     filter::{All, With},
-    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
+    CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, Opt, OptOr, Query,
 };
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
-use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
+use wgpu::{
+    BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat, TextureView,
+};
 
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
@@ -20,7 +22,7 @@ use violet_core::{
 };
 
 use crate::{
-    components::{draw_cmd, object_data},
+    components::{draw_cmd, object_data, texture_handle},
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
@@ -71,7 +73,7 @@ struct RectObjectQuery {
     // pos: Component<Vec2>,
     // local_pos: Component<Vec2>,
     color: OptOr<Component<Srgba>, Srgba>,
-    object_data: Mutable<ObjectData>,
+    object_data: ComponentMut<ObjectData>,
 }
 
 impl RectObjectQuery {
@@ -94,6 +96,7 @@ struct RectDrawQuery {
     #[fetch(ignore)]
     id: EntityIds,
     image: Opt<Component<Asset<DynamicImage>>>,
+    texture_handle: Opt<Component<Option<Asset<TextureView>>>>,
     shape: Component<()>,
     clip_mask: Component<Rect>,
 }
@@ -103,6 +106,7 @@ impl RectDrawQuery {
         Self {
             id: entity_ids(),
             image: image().opt(),
+            texture_handle: texture_handle().opt(),
             shape: draw_shape(shape::shape_rectangle()),
             clip_mask: screen_clip_mask(),
         }
@@ -119,6 +123,7 @@ pub struct RectRenderer {
     object_query: Query<RectObjectQuery, (All, With)>,
 
     bind_groups: HandleMap<DynamicImage, WeakHandle<BindGroup>>,
+    textured_bind_groups: HandleMap<TextureView, WeakHandle<BindGroup>>,
 
     mesh: Arc<MeshHandle>,
 
@@ -180,6 +185,7 @@ impl RectRenderer {
             bind_groups: HandleMap::new(),
             mesh,
             shader,
+            textured_bind_groups: Default::default(),
         }
     }
 
@@ -190,27 +196,47 @@ impl RectRenderer {
             .borrow(&frame.world)
             .iter()
             .for_each(|item| {
-                let image = item.image.unwrap_or(&self.white_image);
+                let bind_group;
 
-                let bind_group = self
-                    .bind_groups
-                    .get(image)
-                    .and_then(|v| v.upgrade(&store.bind_groups))
-                    .unwrap_or_else(|| {
-                        tracing::info!(image = ?image.id(), "create bind group for image");
-                        let texture = Texture::from_image(gpu, image);
+                if let Some(Some(handle)) = item.texture_handle {
+                    bind_group = self
+                        .textured_bind_groups
+                        .get(handle)
+                        .and_then(|v| v.upgrade(&store.bind_groups))
+                        .unwrap_or_else(|| {
+                            let bind_group =
+                                BindGroupBuilder::new("ShapeRenderer::textured_bind_group")
+                                    .bind_sampler(&self.sampler)
+                                    .bind_texture(handle)
+                                    .build(gpu, &self.layout);
 
-                        let bind_group =
-                            BindGroupBuilder::new("ShapeRenderer::textured_bind_group")
-                                .bind_sampler(&self.sampler)
-                                .bind_texture(&texture.view(&Default::default()))
-                                .build(gpu, &self.layout);
+                            let bind_group = store.bind_groups.insert(bind_group);
+                            self.textured_bind_groups
+                                .insert(handle.clone(), bind_group.downgrade());
+                            bind_group
+                        });
+                } else {
+                    let image = item.image.unwrap_or(&self.white_image);
 
-                        let bind_group = store.bind_groups.insert(bind_group);
-                        self.bind_groups
-                            .insert(image.clone(), bind_group.downgrade());
-                        bind_group
-                    });
+                    bind_group = self
+                        .bind_groups
+                        .get(image)
+                        .and_then(|v| v.upgrade(&store.bind_groups))
+                        .unwrap_or_else(|| {
+                            let texture = Texture::from_image(gpu, image);
+
+                            let bind_group =
+                                BindGroupBuilder::new("ShapeRenderer::textured_bind_group")
+                                    .bind_sampler(&self.sampler)
+                                    .bind_texture(&texture.view(&Default::default()))
+                                    .build(gpu, &self.layout);
+
+                            let bind_group = store.bind_groups.insert(bind_group);
+                            self.bind_groups
+                                .insert(image.clone(), bind_group.downgrade());
+                            bind_group
+                        });
+                }
 
                 cmd.set(
                     item.id,

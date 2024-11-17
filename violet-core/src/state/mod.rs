@@ -134,6 +134,42 @@ pub trait StateStream: State {
 pub trait StateSink: State {
     /// Send a value to the state
     fn send(&self, value: Self::Item);
+
+    fn map_sink<F, T>(self, f: F) -> MapSink<Self, F, T>
+    where
+        F: FnMut(T) -> Self::Item,
+        Self: Sized,
+    {
+        MapSink {
+            sink: self,
+            func: f,
+            _marker: PhantomData,
+        }
+    }
+}
+
+pub struct MapSink<S, F, T> {
+    sink: S,
+    func: F,
+    _marker: PhantomData<T>,
+}
+
+impl<S, F, T> State for MapSink<S, F, T>
+where
+    S: StateSink,
+    F: Fn(T) -> S::Item,
+{
+    type Item = T;
+}
+
+impl<S, F, T> StateSink for MapSink<S, F, T>
+where
+    S: StateSink,
+    F: Fn(T) -> S::Item,
+{
+    fn send(&self, value: Self::Item) {
+        self.sink.send((self.func)(value))
+    }
 }
 
 /// Allows sending and receiving a value to a state

@@ -16,14 +16,14 @@ use crate::{
     components::{self, screen_transform},
     editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
-        focus_sticky, focusable, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
+        keep_focus, focusable, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
     },
     io,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
-        interactive_active, interactive_hover, interactive_passive, spacing_small, Background,
-        SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        interactive_active, interactive_hover, interactive_passive, spacing_medium, spacing_small,
+        Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{CursorLocation, LayoutGlyphs},
     time::sleep,
@@ -66,8 +66,8 @@ impl TextInput {
             style: Default::default(),
             size: WidgetSize::default()
                 .with_min_size(Unit::px2(16.0, 16.0))
-                .with_margin(spacing_small())
-                .with_padding(spacing_small()),
+                .with_margin(spacing_medium())
+                .with_padding(spacing_medium()),
         }
     }
 }
@@ -253,7 +253,7 @@ impl Widget for TextInput {
 
         scope
             .set(focusable(), ())
-            .set(focus_sticky(), ())
+            .set(keep_focus(), ())
             .on_event(on_focus(), {
                 to_owned![tx];
                 move |_, focus| {
@@ -419,10 +419,7 @@ pub fn calculate_position(glyphs: &LayoutGlyphs, cursor: CursorLocation) -> Vec2
         glyphs
             .find_lines_indices(cursor.row)
             .last()
-            .map(|(ln, line)| {
-                tracing::info!(ln, %line.bounds);
-                vec2(line.bounds.max.x, ln as f32 * glyphs.line_height)
-            })
+            .map(|(ln, line)| vec2(line.bounds.max.x, ln as f32 * glyphs.line_height))
             .unwrap_or_default()
     }
 }

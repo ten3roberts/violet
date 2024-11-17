@@ -281,7 +281,7 @@ impl<'a> Scope<'a> {
     pub fn monitor<T: ComponentValue>(
         &mut self,
         component: Component<T>,
-        on_change: impl Fn(Option<&T>) + 'static,
+        on_change: impl FnMut(Option<&T>) + 'static,
     ) {
         self.frame.monitor(self.id, component, on_change);
     }

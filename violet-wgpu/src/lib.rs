@@ -7,6 +7,7 @@ pub mod renderer;
 pub mod systems;
 mod text;
 mod texture;
+pub mod widgets;
 
 pub use graphics::Gpu;
 

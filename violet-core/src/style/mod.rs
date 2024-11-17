@@ -285,10 +285,12 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(primary_surface(), STONE_950)
         .set(primary_element(), PLATINUM_100)
         .set(secondary_surface(), STONE_900)
-        .set(accent_surface(), PLATINUM_800)
-        .set(accent_element(), EMERALD_500)
-        .set(success_surface(), EMERALD_800)
-        .set(success_element(), EMERALD_500)
+        .set(accent_element(), EMERALD_400)
+        .set(accent_surface(), PLATINUM_600)
+        .set(success_surface(), EMERALD_600)
+        .set(success_element(), EMERALD_400)
+        .set(info_surface(), TEAL_800)
+        .set(info_element(), TEAL_200)
         .set(warning_surface(), AMBER_800)
         .set(warning_element(), AMBER_500)
         .set(danger_surface(), REDWOOD_800)
@@ -301,7 +303,11 @@ pub fn setup_stylesheet() -> EntityBuilder {
         // spacing
         .set(spacing_small(), 4.0.into())
         .set(spacing_medium(), 8.0.into())
-        .set(spacing_large(), 16.0.into());
+        .set(spacing_large(), 16.0.into())
+        // text size
+        .set(text_small(), 16.0.into())
+        .set(text_medium(), 18.0.into())
+        .set(text_large(), 24.0.into());
 
     builder
 }
@@ -326,6 +332,9 @@ flax::component! {
     pub success_surface: Srgba,
     pub success_element: Srgba,
 
+    pub info_surface: Srgba,
+    pub info_element: Srgba,
+
     pub warning_surface: Srgba,
     pub warning_element: Srgba,
 
@@ -343,4 +352,8 @@ flax::component! {
     pub spacing_small: Edges,
     pub spacing_medium: Edges,
     pub spacing_large: Edges,
+
+    pub text_small: f32,
+    pub text_medium: f32,
+    pub text_large: f32,
 }

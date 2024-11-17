@@ -209,7 +209,7 @@ impl InputState {
         self.focused.as_ref()
     }
 
-    fn focused_entity<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
+    pub fn focused_entity<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
         self.focused.as_ref().and_then(|v| world.entity(v.id).ok())
     }
 
@@ -235,7 +235,7 @@ impl InputState {
                 on_focus(&s, true);
             }
 
-            let sticky = entity.has(focus_sticky());
+            let sticky = entity.has(keep_focus());
             self.focused = Some(FocusedEntity { id: new, sticky });
         } else {
             self.focused = None;
@@ -276,7 +276,7 @@ pub struct KeyboardInput {
 pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, T)>;
 
 component! {
-    pub focus_sticky: (),
+    pub keep_focus: (),
     pub focusable: (),
     pub on_focus: InputEventHandler<bool>,
     pub on_cursor_move: InputEventHandler<CursorMove>,

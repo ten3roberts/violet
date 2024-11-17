@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use flax::component;
+use wgpu::TextureView;
 
 use crate::{
     graphics::texture::Texture,
@@ -15,6 +16,8 @@ use super::mesh_buffer::MeshHandle;
 component! {
     /// The gpu texture to use for rendering
     pub(crate) texture: Asset<Texture>,
+
+    pub texture_handle: Option<Asset<TextureView>>,
 
     /// Renderer specific data for drawing a shape
     pub(crate) draw_cmd: DrawCommand,

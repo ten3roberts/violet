@@ -43,6 +43,16 @@ where
     S: Stream,
     S::Item: Widget;
 
+impl<S> StreamWidget<S>
+where
+    S: 'static + Stream,
+    S::Item: Widget,
+{
+    pub fn new(widget: S) -> Self {
+        Self(widget)
+    }
+}
+
 impl<S> Widget for StreamWidget<S>
 where
     S: 'static + Stream,

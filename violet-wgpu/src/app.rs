@@ -47,13 +47,7 @@ impl<W: Widget> Widget for Canvas<W> {
             .set(name(), "Canvas".into())
             .set(stylesheet(self.stylesheet), ());
 
-        scope.attach(
-            col(self.root)
-                .contain_margins(true)
-                .with_maximize(Vec2::ONE)
-                // .with_background(Background::new(primary_surface()))
-                .with_name("CanvasColumn"),
-        );
+        scope.attach(self.root);
     }
 }
 

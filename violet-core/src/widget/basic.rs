@@ -1,12 +1,16 @@
 use glam::Vec2;
 use image::DynamicImage;
 use palette::Srgba;
+use tracing::Value;
 
 use crate::{
     assets::AssetKey,
     components::{self, color, draw_shape, font_size, text, text_wrap},
     shape,
-    style::{colors::REDWOOD_500, spacing_small, SizeExt, StyleExt, ValueOrRef, WidgetSize},
+    style::{
+        colors::REDWOOD_500, spacing_small, text_large, text_medium, text_small, SizeExt, StyleExt,
+        ValueOrRef, WidgetSize,
+    },
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
@@ -46,57 +50,9 @@ impl SizeExt for Rectangle {
     }
 }
 
-pub struct Image<K> {
-    image: K,
-    size: WidgetSize,
-    aspect_ratio: Option<f32>,
-}
-
-impl<K> Image<K> {
-    pub fn new(image: K) -> Self {
-        Self {
-            image,
-            size: Default::default(),
-            aspect_ratio: None,
-        }
-    }
-
-    pub fn with_aspect_ratio(mut self, aspect_ratio: f32) -> Self {
-        self.aspect_ratio = Some(aspect_ratio);
-        self
-    }
-}
-
-impl<K> Widget for Image<K>
-where
-    K: AssetKey<DynamicImage>,
-{
-    fn mount(self, scope: &mut Scope) {
-        let image = scope.assets_mut().try_load(&self.image).ok();
-        if let Some(image) = image {
-            self.size.mount(scope);
-            scope
-                .set(color(), Srgba::new(1.0, 1.0, 1.0, 1.0))
-                .set(draw_shape(shape::shape_rectangle()), ())
-                .set(components::image(), image)
-                .set_opt(components::aspect_ratio(), self.aspect_ratio);
-        } else {
-            label("Image not found")
-                .with_color(REDWOOD_500)
-                .mount(scope);
-        }
-    }
-}
-
-impl<K> SizeExt for Image<K> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
-        &mut self.size
-    }
-}
-
 /// Style and decorate text
 pub struct TextStyle {
-    font_size: f32,
+    font_size: ValueOrRef<f32>,
     wrap: Wrap,
     color: Option<Srgba>,
 }
@@ -104,7 +60,7 @@ pub struct TextStyle {
 impl Default for TextStyle {
     fn default() -> Self {
         Self {
-            font_size: 16.0,
+            font_size: text_small().into(),
             wrap: Wrap::Word,
             color: None,
         }
@@ -131,8 +87,8 @@ impl Text {
     }
 
     /// Set the font_size
-    pub fn with_font_size(mut self, font_size: f32) -> Self {
-        self.style.font_size = font_size;
+    pub fn with_font_size(mut self, font_size: impl Into<ValueOrRef<f32>>) -> Self {
+        self.style.font_size = font_size.into();
         self
     }
 
@@ -167,9 +123,12 @@ impl Widget for Text {
     fn mount(self, scope: &mut Scope) {
         self.size.mount(scope);
 
+        let stylesheet = scope.stylesheet();
+        let font_size = self.style.font_size.resolve(&stylesheet);
+
         scope
             .set(draw_shape(shape::shape_text()), ())
-            .set(font_size(), self.style.font_size)
+            .set(components::font_size(), font_size)
             .set(text_wrap(), self.style.wrap)
             .set(text(), self.text)
             .set_opt(color(), self.style.color);
@@ -179,6 +138,19 @@ impl Widget for Text {
 /// A text with a margin
 pub fn label(text: impl Into<String>) -> Text {
     Text::new(text).with_margin(spacing_small())
+}
+
+/// A text with a margin
+pub fn title(text: impl Into<String>) -> Text {
+    Text::new(text)
+        .with_font_size(text_large())
+        .with_margin(spacing_small())
+}
+
+pub fn subtitle(text: impl Into<String>) -> Text {
+    Text::new(text)
+        .with_font_size(text_medium())
+        .with_margin(spacing_small())
 }
 
 /// Allows a widget to be manually positioned and offset

@@ -5,7 +5,7 @@ use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
     filter::{All, With},
-    CommandBuffer, Component, EntityIds, Fetch, FetchExt, Mutable, Opt, OptOr, Query,
+    CommandBuffer, Component, EntityIds, Fetch, FetchExt, ComponentMut, Opt, OptOr, Query,
 };
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use itertools::Itertools;
@@ -46,7 +46,7 @@ struct ObjectQuery {
     draw_shape: With,
     rect: Component<Rect>,
     transform: Component<Mat4>,
-    object_data: Mutable<ObjectData>,
+    object_data: ComponentMut<ObjectData>,
     color: OptOr<Component<Srgba>, Srgba>,
 }
 
@@ -288,9 +288,9 @@ pub(crate) struct TextMeshQuery {
     #[fetch(ignore)]
     draw_shape: With,
     id: EntityIds,
-    text_mesh: Opt<Mutable<Arc<MeshHandle>>>,
+    text_mesh: Opt<ComponentMut<Arc<MeshHandle>>>,
 
-    state: Mutable<TextBufferState>,
+    state: ComponentMut<TextBufferState>,
 
     rect: Component<Rect>,
     text: Component<Vec<TextSegment>>,
