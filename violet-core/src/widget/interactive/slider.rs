@@ -10,7 +10,7 @@ use winit::event::ElementState;
 use crate::{
     components::{offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
-    layout::Alignment,
+    layout::Align,
     state::{State, StateDuplex, StateStream},
     style::{interactive_active, interactive_passive, spacing_small, SizeExt},
     to_owned,
@@ -144,7 +144,7 @@ impl<V: SliderValue> Widget for Slider<V> {
 
         Stack::new(Float::new(handle))
             .with_min_size(handle_size)
-            .with_vertical_alignment(Alignment::Center)
+            .with_vertical_alignment(Align::Center)
             .with_padding(spacing_small())
             .with_margin(spacing_small())
             .mount(scope)
@@ -299,14 +299,14 @@ impl<V: SliderValue> Widget for SliderWithLabel<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         if self.editable {
             row((self.slider, TextInput::new(self.text_value)))
-                .with_cross_align(Alignment::Center)
+                .with_cross_align(Align::Center)
                 .mount(scope)
         } else {
             row((
                 self.slider,
                 StreamWidget(self.text_value.stream().map(Text::new)),
             ))
-            .with_cross_align(Alignment::Center)
+            .with_cross_align(Align::Center)
             .mount(scope)
         }
     }

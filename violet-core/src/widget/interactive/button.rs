@@ -4,7 +4,7 @@ use winit::event::{ElementState, MouseButton};
 use crate::{
     components::{self, color},
     input::{focusable, on_mouse_input},
-    layout::Alignment,
+    layout::Align,
     scope::ScopeRef,
     state::{StateDuplex, StateStream, WatchState},
     style::{
@@ -125,8 +125,8 @@ impl<W: Widget> Widget for Button<W> {
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal_color)),
             })
-            .with_horizontal_alignment(Alignment::Center)
-            .with_vertical_alignment(Alignment::Center)
+            .with_horizontal_alignment(Align::Center)
+            .with_vertical_alignment(Align::Center)
             .with_size_props(self.size)
             .mount(scope);
     }
@@ -193,8 +193,8 @@ impl<W: WidgetCollection> Widget for Checkbox<W> {
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal_color)),
             })
-            .with_horizontal_alignment(Alignment::Center)
-            .with_vertical_alignment(Alignment::Center)
+            .with_horizontal_alignment(Align::Center)
+            .with_vertical_alignment(Align::Center)
             .with_size_props(self.size)
             .mount(scope);
     }
@@ -257,8 +257,8 @@ impl<W: WidgetCollection> Widget for Radio<W> {
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal_color)),
             })
-            .with_horizontal_alignment(Alignment::Center)
-            .with_vertical_alignment(Alignment::Center)
+            .with_horizontal_alignment(Align::Center)
+            .with_vertical_alignment(Align::Center)
             .with_size_props(self.size)
             .mount(scope);
     }

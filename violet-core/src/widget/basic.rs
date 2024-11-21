@@ -8,8 +8,8 @@ use crate::{
     components::{self, color, draw_shape, font_size, text, text_wrap},
     shape,
     style::{
-        colors::REDWOOD_500, spacing_small, text_large, text_medium, text_small, SizeExt, StyleExt,
-        ValueOrRef, WidgetSize,
+        colors::REDWOOD_500, primary_element, spacing_small, text_large, text_medium, text_small,
+        SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{TextSegment, Wrap},
     unit::Unit,
@@ -54,7 +54,7 @@ impl SizeExt for Rectangle {
 pub struct TextStyle {
     font_size: ValueOrRef<f32>,
     wrap: Wrap,
-    color: Option<Srgba>,
+    color: ValueOrRef<Srgba>,
 }
 
 impl Default for TextStyle {
@@ -62,7 +62,7 @@ impl Default for TextStyle {
         Self {
             font_size: text_small().into(),
             wrap: Wrap::Word,
-            color: None,
+            color: primary_element().into(),
         }
     }
 }
@@ -93,8 +93,8 @@ impl Text {
     }
 
     /// Set the text color
-    pub fn with_color(mut self, color: Srgba) -> Self {
-        self.style.color = Some(color);
+    pub fn with_color(mut self, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        self.style.color = color.into();
         self
     }
 
@@ -126,12 +126,13 @@ impl Widget for Text {
         let stylesheet = scope.stylesheet();
         let font_size = self.style.font_size.resolve(&stylesheet);
 
+        let font_color = self.style.color.resolve(&stylesheet);
         scope
             .set(draw_shape(shape::shape_text()), ())
             .set(components::font_size(), font_size)
             .set(text_wrap(), self.style.wrap)
             .set(text(), self.text)
-            .set_opt(color(), self.style.color);
+            .set(color(), font_color);
     }
 }
 

@@ -5,7 +5,7 @@ use winit::event::ElementState;
 use crate::{
     components::{anchor, layout, offset, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
-    layout::{Alignment, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
+    layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
         primary_surface, secondary_surface, spacing_medium, spacing_small, Background, SizeExt,
@@ -55,13 +55,13 @@ impl<W> Stack<W> {
     }
 
     /// Set the horizontal alignment
-    pub fn with_horizontal_alignment(mut self, align: Alignment) -> Self {
+    pub fn with_horizontal_alignment(mut self, align: Align) -> Self {
         self.layout.horizontal_alignment = align;
         self
     }
 
     /// Set the vertical alignment
-    pub fn with_vertical_alignment(mut self, align: Alignment) -> Self {
+    pub fn with_vertical_alignment(mut self, align: Align) -> Self {
         self.layout.vertical_alignment = align;
         self
     }
@@ -131,7 +131,7 @@ impl<W: WidgetCollection> List<W> {
     }
 
     /// Set the List's cross axis alignment
-    pub fn with_cross_align(mut self, cross_align: Alignment) -> Self {
+    pub fn with_cross_align(mut self, cross_align: Align) -> Self {
         self.layout.cross_align = cross_align;
         self
     }
@@ -278,16 +278,16 @@ pub fn col<W: WidgetCollection>(widgets: W) -> List<W> {
 
 pub fn centered<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        .with_horizontal_alignment(Alignment::Center)
-        .with_vertical_alignment(Alignment::Center)
+        .with_horizontal_alignment(Align::Center)
+        .with_vertical_alignment(Align::Center)
 }
 
 pub fn card<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
         .with_background(Background::new(secondary_surface()))
-        .with_padding(spacing_medium())
-        .with_margin(spacing_medium())
+        .with_padding(spacing_small())
+        .with_margin(spacing_small())
 }
 
 pub fn pill<W: Widget>(widget: W) -> Stack<W> {

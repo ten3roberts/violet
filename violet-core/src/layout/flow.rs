@@ -135,7 +135,7 @@ struct AlignCursor {
     cross_inner: (f32, f32),
     cross_outer: (f32, f32),
     cross_size: f32,
-    align: Alignment,
+    align: Align,
     contain_margins: bool,
 }
 
@@ -146,7 +146,7 @@ impl AlignCursor {
         cross_axis: Vec2,
         contain_margins: bool,
         cross_size: f32,
-        align: Alignment,
+        align: Align,
     ) -> Self {
         Self {
             // Setting this to -inf will cause the margin to leak out of the container. This would
@@ -272,7 +272,7 @@ impl AlignCursor {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub enum Alignment {
+pub enum Align {
     #[default]
     /// Align items to the start of the cross axis
     Start,
@@ -282,12 +282,12 @@ pub enum Alignment {
     End,
 }
 
-impl Alignment {
+impl Align {
     pub fn align_offset(&self, total_size: f32, size: f32) -> f32 {
         match self {
-            Alignment::Start => 0.0,
-            Alignment::Center => (total_size - size) / 2.0,
-            Alignment::End => total_size - size,
+            Align::Start => 0.0,
+            Align::Center => (total_size - size) / 2.0,
+            Align::End => total_size - size,
         }
     }
 }
@@ -303,7 +303,7 @@ pub(crate) struct Row {
 
 #[derive(Default, Debug, Clone)]
 pub struct FlowLayout {
-    pub cross_align: Alignment,
+    pub cross_align: Align,
     pub stretch: bool,
     pub direction: Direction,
     pub reverse: bool,

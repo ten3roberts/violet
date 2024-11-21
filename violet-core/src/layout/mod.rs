@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub use float::FloatLayout;
-pub use flow::{Alignment, FlowLayout};
+pub use flow::{Align, FlowLayout};
 pub use stack::StackLayout;
 
 use self::cache::{layout_cache, LayoutCache};

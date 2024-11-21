@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    apply_layout, resolve_pos, Alignment, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing,
+    apply_layout, resolve_pos, Align, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing,
 };
 
 /// The stack layout
@@ -29,8 +29,8 @@ use super::{
 /// - Limiting and expanding size of widgets
 #[derive(Default, Debug, Clone)]
 pub struct StackLayout {
-    pub horizontal_alignment: Alignment,
-    pub vertical_alignment: Alignment,
+    pub horizontal_alignment: Align,
+    pub vertical_alignment: Align,
     pub clip: BVec2,
 }
 

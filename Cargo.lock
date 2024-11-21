@@ -990,7 +990,7 @@ dependencies = [
 [[package]]
 name = "flax"
 version = "0.7.1"
-source = "git+https://github.com/ten3roberts/flax#c6a012ea6df6a8a53a1f3e0914f5aacfe121e7ea"
+source = "git+https://github.com/ten3roberts/flax#c06ea012a6e79dca8ce6f97f5b5a98e97bf15ea3"
 dependencies = [
  "anyhow",
  "atomic_refcell",
@@ -1008,7 +1008,7 @@ dependencies = [
 [[package]]
 name = "flax-derive"
 version = "0.7.1"
-source = "git+https://github.com/ten3roberts/flax#c6a012ea6df6a8a53a1f3e0914f5aacfe121e7ea"
+source = "git+https://github.com/ten3roberts/flax#c06ea012a6e79dca8ce6f97f5b5a98e97bf15ea3"
 dependencies = [
  "heck",
  "itertools 0.13.0",

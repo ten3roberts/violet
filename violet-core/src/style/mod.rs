@@ -282,9 +282,9 @@ pub fn setup_stylesheet() -> EntityBuilder {
 
     builder
         // colors
-        .set(primary_surface(), STONE_950)
+        .set(primary_surface(), ZINC_950)
         .set(primary_element(), PLATINUM_100)
-        .set(secondary_surface(), STONE_900)
+        .set(secondary_surface(), ZINC_900)
         .set(accent_element(), EMERALD_400)
         .set(accent_surface(), PLATINUM_600)
         .set(success_surface(), EMERALD_600)
