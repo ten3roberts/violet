@@ -8,10 +8,6 @@ use flax::{
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
-use wgpu::{
-    BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat, TextureView,
-};
-
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{anchor, color, draw_shape, image, rect, screen_clip_mask, screen_transform},
@@ -20,7 +16,11 @@ use violet_core::{
     unit::Unit,
     Frame, Rect,
 };
+use wgpu::{
+    BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat, TextureView,
+};
 
+use super::{DrawCommand, ObjectData, RendererStore};
 use crate::{
     components::{draw_cmd, object_data, texture_handle},
     graphics::{
@@ -31,8 +31,6 @@ use crate::{
     renderer::{srgba_to_vec4, RendererContext},
     Gpu,
 };
-
-use super::{DrawCommand, ObjectData, RendererStore};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ImageFromColor(pub [u8; 4]);

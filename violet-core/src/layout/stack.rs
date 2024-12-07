@@ -2,14 +2,13 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
+use super::{
+    apply_layout, resolve_pos, Align, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing,
+};
 use crate::{
     components::{self},
     layout::{query_size, LayoutArgs, SizingHints},
     Edges, Rect,
-};
-
-use super::{
-    apply_layout, resolve_pos, Align, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing,
 };
 
 /// The stack layout

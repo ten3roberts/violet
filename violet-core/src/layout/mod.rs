@@ -6,8 +6,12 @@ mod stack;
 use std::fmt::{Display, Formatter};
 
 use flax::{Entity, EntityRef, FetchExt, World};
+pub use float::FloatLayout;
+pub use flow::{Align, FlowLayout};
 use glam::{vec2, BVec2, Vec2};
+pub use stack::StackLayout;
 
+use self::cache::{layout_cache, LayoutCache};
 use crate::{
     components::{
         self, anchor, aspect_ratio, children, layout, max_size, maximize, min_size, offset,
@@ -16,12 +20,6 @@ use crate::{
     layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
     Edges, Rect,
 };
-
-pub use float::FloatLayout;
-pub use flow::{Align, FlowLayout};
-pub use stack::StackLayout;
-
-use self::cache::{layout_cache, LayoutCache};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Ord, Eq)]
 pub enum Direction {

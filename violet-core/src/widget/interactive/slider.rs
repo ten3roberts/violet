@@ -7,6 +7,7 @@ use glam::Vec2;
 use palette::Srgba;
 use winit::event::ElementState;
 
+use super::input::TextInput;
 use crate::{
     components::{offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
@@ -19,8 +20,6 @@ use crate::{
     widget::{row, Float, Positioned, Rectangle, Stack, StreamWidget, Text},
     Scope, StreamEffect, Widget,
 };
-
-use super::input::TextInput;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {

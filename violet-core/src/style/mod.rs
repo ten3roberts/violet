@@ -7,6 +7,7 @@ use flax::{
 use glam::Vec2;
 use palette::{IntoColor, Oklab, Srgba};
 
+use self::colors::*;
 use crate::{
     components::{color, draw_shape, margin, max_size, maximize, min_size, padding, size},
     input::focusable,
@@ -14,8 +15,6 @@ use crate::{
     unit::Unit,
     Edges, Scope,
 };
-
-use self::colors::*;
 
 #[macro_export]
 /// Create a color from a hex string

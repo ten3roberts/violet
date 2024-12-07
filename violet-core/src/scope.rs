@@ -10,7 +10,6 @@ use flax::{
     components::{child_of, name},
     entity_ids,
     error::MissingComponent,
-    fetch::entity_refs,
     Component, Entity, EntityBuilder, EntityRef, EntityRefMut, Query, World,
 };
 use futures::{Future, Stream};

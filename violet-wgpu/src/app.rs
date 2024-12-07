@@ -1,17 +1,8 @@
-use parking_lot::Mutex;
 use std::{mem, sync::Arc};
-use web_time::Instant;
 
 use flax::{components::name, Entity, Schedule, World};
 use glam::{vec2, Vec2};
-use winit::{
-    application::ApplicationHandler,
-    dpi::{LogicalSize, PhysicalSize},
-    event::WindowEvent,
-    event_loop::{ControlFlow, EventLoop},
-    window::Window,
-};
-
+use parking_lot::Mutex;
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
@@ -26,6 +17,14 @@ use violet_core::{
         transform_system,
     },
     Frame, FutureEffect, Rect, Scope, Widget,
+};
+use web_time::Instant;
+use winit::{
+    application::ApplicationHandler,
+    dpi::{LogicalSize, PhysicalSize},
+    event::WindowEvent,
+    event_loop::{ControlFlow, EventLoop},
+    window::Window,
 };
 
 use crate::{
@@ -82,7 +81,6 @@ impl AppBuilder {
         #[cfg(target_arch = "wasm32")]
         {
             use wasm_bindgen::JsCast;
-
             use winit::platform::web::WindowBuilderExtWebSys;
             let canvas = web_sys::window()
                 .unwrap()

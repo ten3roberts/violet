@@ -1,11 +1,9 @@
 use flax::components::name;
 use futures_signals::signal::{Mutable, SignalExt};
-
 use glam::{vec2, Vec2};
 use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-
 use violet::core::{
     components,
     state::MapRef,

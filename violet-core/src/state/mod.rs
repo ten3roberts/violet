@@ -19,7 +19,6 @@ pub use feedback::*;
 pub use filter::*;
 pub use map::*;
 pub use memo::*;
-
 use sync_wrapper::SyncWrapper;
 
 pub trait State {

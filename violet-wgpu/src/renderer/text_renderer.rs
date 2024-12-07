@@ -5,14 +5,12 @@ use flax::{
     entity_ids,
     fetch::{Modified, TransformFetch},
     filter::{All, With},
-    CommandBuffer, Component, EntityIds, Fetch, FetchExt, ComponentMut, Opt, OptOr, Query,
+    CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, Opt, OptOr, Query,
 };
 use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
-use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
-
 use violet_core::{
     assets::AssetCache,
     components::{
@@ -23,23 +21,21 @@ use violet_core::{
     text::TextSegment,
     Frame, Rect,
 };
-
-use crate::{
-    components, font::FontAtlas, graphics::BindGroupBuilder, mesh_buffer::MeshBuffer,
-    text::TextSystem,
-};
-
-use crate::{
-    components::{draw_cmd, object_data, text_buffer_state, text_mesh},
-    font::GlyphLocation,
-    graphics::{shader::ShaderDesc, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc},
-    mesh_buffer::MeshHandle,
-    renderer::srgba_to_vec4,
-    text::TextBufferState,
-    Gpu,
-};
+use wgpu::{BindGroup, BindGroupLayout, Sampler, SamplerDescriptor, ShaderStages, TextureFormat};
 
 use super::{DrawCommand, ObjectData, RendererContext, RendererStore};
+use crate::{
+    components,
+    components::{draw_cmd, object_data, text_buffer_state, text_mesh},
+    font::{FontAtlas, GlyphLocation},
+    graphics::{
+        shader::ShaderDesc, BindGroupBuilder, BindGroupLayoutBuilder, Shader, Vertex, VertexDesc,
+    },
+    mesh_buffer::{MeshBuffer, MeshHandle},
+    renderer::srgba_to_vec4,
+    text::{TextBufferState, TextSystem},
+    Gpu,
+};
 
 #[derive(Fetch)]
 struct ObjectQuery {

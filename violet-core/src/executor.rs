@@ -245,9 +245,8 @@ impl<Data> Default for Executor<Data> {
 #[cfg(test)]
 mod tests {
 
-    use crate::effect::FutureEffect;
-
     use super::*;
+    use crate::effect::FutureEffect;
 
     #[test]
     fn single_test() {

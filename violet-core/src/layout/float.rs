@@ -1,13 +1,12 @@
 use flax::{Entity, EntityRef, World};
 use glam::{BVec2, Vec2};
 
+use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 use crate::{
     components,
     layout::{query_size, Direction, LayoutArgs, SizingHints},
     Edges, Rect,
 };
-
-use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 
 /// A floating layout positions its children similar to the stack layout, but it does grow to accommodate the children.
 ///

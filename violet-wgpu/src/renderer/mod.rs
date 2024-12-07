@@ -22,21 +22,19 @@ use wgpu::{
     RenderPassDescriptor, ShaderStages, StoreOp, TextureFormat, TextureView,
 };
 
+use self::{
+    debug_renderer::DebugRenderer, rect_renderer::RectRenderer, text_renderer::TextRenderer,
+};
+use super::{
+    graphics::{BindGroupBuilder, BindGroupLayoutBuilder, TypedBuffer},
+    mesh_buffer::MeshBuffer,
+    Gpu,
+};
 use crate::{
     components::{draw_cmd, object_data},
     graphics::{Mesh, Shader},
     mesh_buffer::MeshHandle,
     text::TextSystem,
-};
-
-use self::{
-    debug_renderer::DebugRenderer, rect_renderer::RectRenderer, text_renderer::TextRenderer,
-};
-
-use super::{
-    graphics::{BindGroupBuilder, BindGroupLayoutBuilder, TypedBuffer},
-    mesh_buffer::MeshBuffer,
-    Gpu,
 };
 
 mod debug_renderer;

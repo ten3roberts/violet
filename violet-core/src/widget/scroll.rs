@@ -2,6 +2,7 @@ use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, BVec2, Mat4, Vec2, Vec2Swizzles};
 
+use super::{Float, Movable, Rectangle, Stack};
 use crate::{
     components::{min_size, offset, padding, rect, transform},
     input::{focusable, on_scroll},
@@ -12,8 +13,6 @@ use crate::{
     utils::zip_latest,
     Edges, Scope, Widget,
 };
-
-use super::{Float, Movable, Rectangle, Stack};
 
 /// Wraps a widget in a scroll area.
 ///

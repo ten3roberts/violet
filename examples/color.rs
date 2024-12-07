@@ -10,9 +10,7 @@ use violet_core::{
     style::{SizeExt, ValueOrRef},
     unit::Unit,
     utils::zip_latest,
-    widget::{
-        card, col, row, Rectangle, SignalWidget, SliderWithLabel, Stack, StreamWidget, Text,
-    },
+    widget::{card, col, row, Rectangle, SignalWidget, SliderWithLabel, Stack, StreamWidget, Text},
     Edges, Scope, Widget,
 };
 use violet_wgpu::renderer::MainRendererConfig;

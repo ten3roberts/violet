@@ -1,10 +1,8 @@
 use futures_signals::{map_ref, signal::Mutable};
-
 use itertools::Itertools;
 use palette::{FromColor, Hsva, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-
 use violet::core::{
     layout::Align,
     style::StyleExt,

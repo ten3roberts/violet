@@ -1,6 +1,5 @@
 use flax::{component, Entity, EntityRef, FetchExt, World};
 use glam::{Vec2, Vec3Swizzles};
-
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
 use winit::{

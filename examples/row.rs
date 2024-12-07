@@ -2,7 +2,6 @@ use glam::{vec2, Vec2};
 use itertools::Itertools;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-
 use violet::core::{style::Background, unit::Unit, widget::Rectangle, Scope, Widget};
 use violet_core::{
     style::{accent_element, primary_surface, spacing_small, SizeExt},

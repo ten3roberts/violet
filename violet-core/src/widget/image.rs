@@ -1,6 +1,7 @@
 use image::DynamicImage;
 use palette::Srgba;
 
+use super::{label, Widget};
 use crate::{
     assets::AssetKey,
     components::{self, color, draw_shape},
@@ -8,8 +9,6 @@ use crate::{
     style::{colors::REDWOOD_500, SizeExt, WidgetSize},
     Scope,
 };
-
-use super::{label, Widget};
 
 pub struct Image<K> {
     image: K,
