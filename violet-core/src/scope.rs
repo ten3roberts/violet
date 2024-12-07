@@ -33,7 +33,7 @@ pub struct Scope<'a> {
     data: EntityBuilder,
 }
 
-impl<'a> std::fmt::Debug for Scope<'a> {
+impl std::fmt::Debug for Scope<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Scope")
             .field("id", &self.id)

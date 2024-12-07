@@ -8,8 +8,8 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        primary_surface, secondary_surface, spacing_medium, spacing_small, Background, SizeExt,
-        StyleExt, WidgetSize,
+        primary_surface, secondary_surface, spacing_small, Background, SizeExt, StyleExt,
+        WidgetSize,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -276,7 +276,7 @@ pub fn col<W: WidgetCollection>(widgets: W) -> List<W> {
     List::new(widgets).with_direction(Direction::Vertical)
 }
 
-pub fn centered<W: Widget>(widget: W) -> Stack<W> {
+pub fn centered<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_horizontal_alignment(Align::Center)
         .with_vertical_alignment(Align::Center)

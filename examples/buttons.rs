@@ -6,7 +6,7 @@ use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt
 use tracing_tree::HierarchicalLayer;
 
 use violet::core::{
-    layout::Alignment,
+    layout::Align,
     style::StyleExt,
     unit::Unit,
     widget::{List, Rectangle, SignalWidget, Stack, Text},
@@ -165,15 +165,15 @@ impl Widget for ItemList {
                     ))))
                     .with_padding(spacing_small())
                     .with_margin(spacing_small())
-                    // .with_cross_align(Alignment::Center)
-                    .with_vertical_alignment(Alignment::Center)
-                    .with_horizontal_alignment(Alignment::Center)
+                    // .with_cross_align(Align::Center)
+                    .with_vertical_alignment(Align::Center)
+                    .with_horizontal_alignment(Align::Center)
                     .with_size(Unit::px2(size, size))
                     .with_max_size(Unit::px2(size, size))
                 })
                 .collect::<Vec<_>>(),
         )
-        .with_cross_align(Alignment::Center)
+        .with_cross_align(Align::Center)
         .mount(scope)
     }
 }

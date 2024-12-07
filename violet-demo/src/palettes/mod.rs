@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use violet::{
     core::{
         declare_atom,
-        layout::Alignment,
+        layout::Align,
         state::{State, StateMut, StateStream, StateStreamRef},
         style::{
             danger_element, primary_surface, success_element, warning_element, Background, SizeExt,
@@ -60,7 +60,7 @@ impl Widget for App {
                 items: notify_rx.into_stream(),
             })
             .with_maximize(Vec2::ONE)
-            .with_horizontal_alignment(Alignment::End),
+            .with_horizontal_alignment(Align::End),
         ))
         .with_size(Unit::rel2(1.0, 1.0))
         .with_background(Background::new(primary_surface()))
@@ -354,8 +354,8 @@ fn palette_color_view(color: Mutable<PaletteColor>) -> impl Widget {
 
     let label = TextInput::new(label);
     Stack::new((row((tints(color),)), label))
-        .with_vertical_alignment(Alignment::End)
-        .with_horizontal_alignment(Alignment::Center)
+        .with_vertical_alignment(Align::End)
+        .with_horizontal_alignment(Align::Center)
 }
 
 pub struct HexColor(Srgb<u8>);
