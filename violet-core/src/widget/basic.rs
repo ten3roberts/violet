@@ -1,15 +1,12 @@
 use glam::Vec2;
-use image::DynamicImage;
 use palette::Srgba;
-use tracing::Value;
 
 use crate::{
-    assets::AssetKey,
-    components::{self, color, draw_shape, font_size, text, text_wrap},
+    components::{self, color, draw_shape, text, text_wrap},
     shape,
     style::{
-        colors::REDWOOD_500, primary_element, spacing_small, text_large, text_medium, text_small,
-        SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        primary_element, spacing_small, text_large, text_medium, text_small, SizeExt, StyleExt,
+        ValueOrRef, WidgetSize,
     },
     text::{TextSegment, Wrap},
     unit::Unit,

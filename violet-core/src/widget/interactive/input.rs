@@ -16,14 +16,14 @@ use crate::{
     components::{self, screen_transform},
     editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
-        keep_focus, focusable, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
+        focusable, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
     },
     io,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
-        interactive_active, interactive_hover, interactive_passive, spacing_medium, spacing_small,
-        Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        interactive_active, interactive_hover, interactive_passive, spacing_medium, Background,
+        SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{CursorLocation, LayoutGlyphs},
     time::sleep,
@@ -129,7 +129,6 @@ impl Widget for TextInput {
         let content = self.content.prevent_feedback();
 
         let clipboard = scope
-            .frame()
             .get_atom(io::clipboard())
             .expect("Missing clipboard")
             .clone();

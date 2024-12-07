@@ -313,8 +313,8 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
 
         Sizing {
             margin: (sizing.margin - padding).max(margin),
-            min: sizing.min.pad(&padding),
-            preferred: sizing.preferred.pad(&padding),
+            min: sizing.min.pad(padding),
+            preferred: sizing.preferred.pad(padding),
             hints: sizing.hints.combine(hints),
             maximize: sizing.maximize + entity.get_copy(maximize()).unwrap_or_default(),
         }
@@ -358,19 +358,6 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
 
     sizing.min = sizing.min.translate(min_offset);
     sizing.preferred = sizing.preferred.translate(offset);
-
-    // // Widget size is limited by itself and is not affected by the size of the parent
-    // if let Some(max_size) = max_size {
-    //     if sizing
-    //         .preferred
-    //         .size()
-    //         .abs_diff_eq(max_size, LAYOUT_TOLERANCE)
-    //     {
-    //         sizing.hints.can_grow = false;
-    //     }
-    // }
-
-    // validate_sizing(entity, &sizing, limits);
 
     cache.insert_query(
         args.direction,
@@ -497,7 +484,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         );
 
         Block {
-            rect: block.rect.pad(&padding),
+            rect: block.rect.pad(padding),
             margin: (block.margin - padding).max(margin),
             can_grow: block.can_grow | can_grow,
         }

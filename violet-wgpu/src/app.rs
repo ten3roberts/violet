@@ -20,12 +20,11 @@ use violet_core::{
     input::InputState,
     io::{self, Clipboard},
     layout::cache::LayoutUpdateEvent,
-    style::{setup_stylesheet, stylesheet, SizeExt},
+    style::{setup_stylesheet, stylesheet},
     systems::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    widget::{col, WidgetExt},
     Frame, FutureEffect, Rect, Scope, Widget,
 };
 

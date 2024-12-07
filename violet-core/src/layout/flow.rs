@@ -196,7 +196,7 @@ impl AlignCursor {
 
             let cross_pos = self.align.align_offset(
                 self.cross_size,
-                block.rect.pad(&block.margin).size().dot(self.cross_axis),
+                block.rect.pad(block.margin).size().dot(self.cross_axis),
             ) + start_margin;
 
             // tracing::debug!( main_pos, %cross_pos, ?block, "aligning");
@@ -206,7 +206,7 @@ impl AlignCursor {
 
             let outer = block
                 .rect
-                .pad(&block.margin)
+                .pad(block.margin)
                 .translate(self.cross_axis + cross_pos);
             self.cross_inner.0 = self.cross_inner.0.min(outer.min.dot(self.cross_axis));
             self.cross_inner.1 = self.cross_inner.1.max(outer.max.dot(self.cross_axis));
@@ -224,7 +224,7 @@ impl AlignCursor {
             placement_pos =
                 main_pos * self.axis + (self.cross_cursor + cross_pos) * self.cross_axis;
 
-            let outer = block.rect.pad(&block.margin).translate(cross_pos);
+            let outer = block.rect.pad(block.margin).translate(cross_pos);
             let inner = block.rect.translate(cross_pos);
 
             self.cross_inner.0 = self.cross_inner.0.min(inner.min.dot(self.cross_axis));

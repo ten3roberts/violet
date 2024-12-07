@@ -106,6 +106,8 @@ component! {
 
     pub(crate) atoms,
 
+    pub(crate) context_store(id): (),
+
     pub on_animation_frame: OnAnimationFrame,
 
     pub handles: Vec<UntypedHandle>,

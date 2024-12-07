@@ -39,6 +39,7 @@ pub struct Button<W = Text> {
     label: W,
     style: ButtonStyle,
     size: WidgetSize,
+    is_pressed: bool,
 }
 
 impl<W> Button<W> {
@@ -54,6 +55,7 @@ impl<W> Button<W> {
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_min_size(Unit::px2(28.0, 28.0)),
+            is_pressed: false,
         }
     }
 
@@ -78,6 +80,11 @@ impl<W> Button<W> {
 
     pub fn warning(mut self) -> Self {
         self.style.normal_color = warning_element().into();
+        self
+    }
+
+    pub fn is_pressed(mut self, pressed: bool) -> Self {
+        self.is_pressed = pressed;
         self
     }
 }
@@ -213,10 +220,9 @@ impl<W: WidgetCollection> Radio<W> {
         Self {
             state: Box::new(state),
             style: Default::default(),
-            size: WidgetSize::default()
-                .with_padding(spacing_medium())
-                .with_margin(spacing_medium())
-                .with_min_size(Unit::px2(28.0, 28.0)),
+            size: WidgetSize::default().with_padding(spacing_medium()),
+            // .with_margin(spacing_medium()),
+            // .with_min_size(Unit::px2(28.0, 28.0)),
             label,
         }
     }
@@ -227,6 +233,12 @@ impl Radio<Text> {
         state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
     ) -> Self {
         Self::new(Text::new(label.into()), state)
+    }
+}
+
+impl<T> SizeExt for Radio<T> {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
     }
 }
 

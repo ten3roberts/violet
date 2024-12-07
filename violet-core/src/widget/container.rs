@@ -71,6 +71,12 @@ impl<W> Stack<W> {
         self
     }
 
+    /// Contain margins within the widget
+    pub fn with_contain_margins(mut self, contain_margins: bool) -> Self {
+        self.layout.contain_margins = contain_margins;
+        self
+    }
+
     pub fn with_clip(mut self, clip: impl Into<BVec2>) -> Self {
         self.layout.clip = clip.into();
         self
@@ -136,7 +142,7 @@ impl<W: WidgetCollection> List<W> {
         self
     }
 
-    pub fn contain_margins(mut self, enable: bool) -> Self {
+    pub fn with_contain_margins(mut self, enable: bool) -> Self {
         self.layout.contain_margins = enable;
         self
     }
@@ -284,10 +290,13 @@ pub fn centered<W: WidgetCollection>(widget: W) -> Stack<W> {
 
 pub fn card<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        // TODO: semantic color and sizing increment
         .with_background(Background::new(secondary_surface()))
         .with_padding(spacing_small())
         .with_margin(spacing_small())
+}
+
+pub fn maximize<W: WidgetCollection>(widget: W) -> Stack<W> {
+    Stack::new(widget).with_maximize(Vec2::ONE)
 }
 
 pub fn pill<W: Widget>(widget: W) -> Stack<W> {

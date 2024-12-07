@@ -69,7 +69,7 @@ impl Widget for MainApp {
                 .with_padding(spacing_small()),
             ))
             // .with_padding(spacing_medium())
-            .contain_margins(true),
+            .with_contain_margins(true),
         )
         .with_background(Background::new(primary_surface()))
         .mount(scope)

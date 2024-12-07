@@ -102,7 +102,7 @@ impl Widget for MainApp {
             .collect_vec()),
         ))
         .with_background(Background::new(primary_surface()))
-        .contain_margins(true)
+        .with_contain_margins(true)
         .mount(scope)
     }
 }

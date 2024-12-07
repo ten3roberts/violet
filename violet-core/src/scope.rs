@@ -8,8 +8,10 @@ use atomic_refcell::AtomicRef;
 use flax::{
     component::ComponentValue,
     components::{child_of, name},
+    entity_ids,
     error::MissingComponent,
-    Component, Entity, EntityBuilder, EntityRef, EntityRefMut,
+    fetch::entity_refs,
+    Component, Entity, EntityBuilder, EntityRef, EntityRefMut, Query, World,
 };
 use futures::{Future, Stream};
 use pin_project::pin_project;
@@ -17,7 +19,7 @@ use pin_project::pin_project;
 use crate::{
     assets::AssetCache,
     atom::Atom,
-    components::{children, handles},
+    components::{children, context_store, handles},
     effect::Effect,
     input::InputEventHandler,
     stored::{UntypedHandle, WeakHandle},
@@ -286,6 +288,33 @@ impl<'a> Scope<'a> {
         self.frame.monitor(self.id, component, on_change);
     }
 
+    pub fn set_context<T: ComponentValue>(&mut self, context: Component<T>, value: T) {
+        let mut query = Query::new(entity_ids()).with(context_store(self.id()));
+        let store = query.borrow(self.frame.world()).first();
+
+        if let Some(store) = store {
+            self.frame.world.set(store, context, value).unwrap();
+        } else {
+            Entity::builder()
+                .set(context_store(self.id), ())
+                .set(context, value)
+                .spawn(self.frame.world_mut());
+        }
+    }
+
+    pub fn get_context<T: ComponentValue>(&self, context: Component<T>) -> AtomicRef<T> {
+        match get_context(self.entity(), &self.frame.world, context) {
+            Some(v) => v,
+            None => {
+                panic!("Missing context {context}");
+            }
+        }
+    }
+
+    pub fn get_context_cloned<T: ComponentValue + Clone>(&self, context: Component<T>) -> T {
+        self.get_context(context).clone()
+    }
+
     /// Invokes the provided callback when the targeted event is dispatched to the entity
     pub fn on_event<T: 'static>(
         &mut self,
@@ -392,6 +421,19 @@ impl<'a> ScopeRef<'a> {
         let handle = handle.upgrade(store).expect("Handle is invalid");
         self.frame.store().get(&handle)
     }
+
+    pub fn get_context<T: ComponentValue>(&self, context: Component<T>) -> AtomicRef<T> {
+        match get_context(*self.entity(), &self.frame.world, context) {
+            Some(v) => v,
+            None => {
+                panic!("Missing context {context}");
+            }
+        }
+    }
+
+    pub fn get_context_cloned<T: ComponentValue + Clone>(&self, context: Component<T>) -> T {
+        self.get_context(context).clone()
+    }
 }
 
 #[pin_project]
@@ -414,5 +456,29 @@ impl<E: for<'x> Effect<Scope<'x>>> Effect<Frame> for ScopedEffect<E> {
 
     fn label(&self) -> Option<&str> {
         self.effect.label()
+    }
+}
+
+fn get_context<'a, T: ComponentValue>(
+    mut cur: EntityRef<'a>,
+    world: &'a World,
+    component: Component<T>,
+) -> Option<AtomicRef<'a, T>> {
+    loop {
+        if let Some(context_store) = Query::new(entity_ids())
+            .with(context_store(cur.id()))
+            .borrow(world)
+            .first()
+        {
+            if let Ok(value) = world.get(context_store, component) {
+                return Some(value);
+            }
+        }
+
+        let Some((parent, _)) = cur.relations(child_of).next() else {
+            return None;
+        };
+
+        cur = world.entity(parent).unwrap();
     }
 }

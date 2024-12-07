@@ -11,6 +11,7 @@ pub use container::*;
 use flax::{component::ComponentValue, components::name, Component};
 pub use future::{SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
+pub use image::*;
 pub use interactive::{button::*, input::*, slider::*};
 pub use scroll::ScrollArea;
 

@@ -286,7 +286,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(primary_element(), PLATINUM_100)
         .set(secondary_surface(), ZINC_900)
         .set(accent_element(), EMERALD_400)
-        .set(accent_surface(), PLATINUM_600)
+        .set(accent_surface(), PLATINUM_900)
         .set(success_surface(), EMERALD_600)
         .set(success_element(), EMERALD_400)
         .set(info_surface(), TEAL_800)
@@ -318,6 +318,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
 // to Figma variables.
 flax::component! {
     pub stylesheet(id): () => [ Exclusive ],
+
     /// The primary surface color
     pub primary_surface: Srgba,
     pub primary_element: Srgba,
