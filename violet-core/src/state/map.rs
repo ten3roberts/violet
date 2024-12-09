@@ -11,7 +11,6 @@ use super::{State, StateOwned, StateSink, StateStream};
 ///
 /// However, as this does not assume the derived state is contained withing the original state is
 /// does not allow in-place mutation.
-
 pub struct Map<C, U, F, G> {
     inner: C,
     conv_to: Arc<F>,

@@ -1,4 +1,5 @@
 use flax::{component, Entity, EntityRef, FetchExt, World};
+use flume::Receiver;
 use glam::{Vec2, Vec3Swizzles};
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
@@ -9,6 +10,7 @@ use winit::{
 
 use crate::{
     components::{rect, screen_transform},
+    declare_atom,
     hierarchy::OrderedDfsIterator,
     scope::ScopeRef,
     Frame,
@@ -27,15 +29,17 @@ pub struct InputState {
     focused: Option<FocusedEntity>,
     pos: Vec2,
     modifiers: ModifiersState,
+    external_focus_rx: Receiver<Entity>,
 }
 
 impl InputState {
-    pub fn new(root: Entity, pos: Vec2) -> Self {
+    pub fn new(root: Entity, pos: Vec2, external_focus_rx: Receiver<Entity>) -> Self {
         Self {
             focused: None,
             pos,
             modifiers: Default::default(),
             root,
+            external_focus_rx,
         }
     }
 
@@ -130,7 +134,7 @@ impl InputState {
     pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) -> bool {
         self.pos = pos;
 
-        if let Some(entity) = &self.focused_entity(&frame.world) {
+        if let Some(entity) = &self.get_focused(&frame.world) {
             let transform = entity.get_copy(screen_transform()).unwrap_or_default();
             let rect = entity.get_copy(rect()).unwrap_or_default();
             if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
@@ -184,7 +188,7 @@ impl InputState {
         state: ElementState,
         text: Option<SmolStr>,
     ) -> bool {
-        if let Some(entity) = &self.focused_entity(frame.world()) {
+        if let Some(entity) = &self.get_focused(frame.world()) {
             if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
                 let s = ScopeRef::new(frame, *entity);
                 on_input(
@@ -208,12 +212,24 @@ impl InputState {
         self.focused.as_ref()
     }
 
-    pub fn focused_entity<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
+    pub fn update_external_focus(&mut self, frame: &Frame) {
+        let new_focus = self
+            .external_focus_rx
+            .drain()
+            .filter(|&id| frame.world.is_alive(id))
+            .last();
+
+        if let Some(new_focus) = new_focus {
+            self.set_focused(frame, Some(new_focus));
+        }
+    }
+
+    pub fn get_focused<'a>(&self, world: &'a World) -> Option<EntityRef<'a>> {
         self.focused.as_ref().and_then(|v| world.entity(v.id).ok())
     }
 
     fn set_focused(&mut self, frame: &Frame, focused: Option<Entity>) {
-        let cur = self.focused_entity(&frame.world);
+        let cur = self.get_focused(&frame.world);
 
         if cur.map(|v| v.id()) == focused {
             return;
@@ -273,6 +289,10 @@ pub struct KeyboardInput {
 }
 
 pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, T)>;
+
+declare_atom! {
+    pub request_focus_sender: flume::Sender<Entity>,
+}
 
 component! {
     pub keep_focus: (),

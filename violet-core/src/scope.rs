@@ -67,7 +67,7 @@ impl<'a> Scope<'a> {
         }
     }
 
-    fn flush(&mut self) {
+    pub fn flush(&mut self) {
         self.data
             .append_to(self.frame.world_mut(), self.id)
             .expect("Entity despawned while scope is alive");
@@ -190,6 +190,10 @@ impl<'a> Scope<'a> {
         self.frame.world.despawn_recursive(id, child_of).unwrap();
     }
 
+    pub fn children(&self) -> AtomicRef<'_, Vec<Entity>> {
+        self.entity().get(children()).unwrap()
+    }
+
     /// Spawns an effect scoped to the lifetime of this entity and scope
     pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
         self.frame.spawn(ScopedEffect {
@@ -230,6 +234,14 @@ impl<'a> Scope<'a> {
 
     pub fn frame_mut(&mut self) -> &mut Frame {
         self.frame
+    }
+
+    pub fn world(&self) -> &World {
+        &self.frame.world
+    }
+
+    pub fn world_mut(&mut self) -> &mut World {
+        &mut self.frame.world
     }
 
     pub fn set_atom<T: ComponentValue>(&mut self, atom: Atom<T>, value: T) {
@@ -344,7 +356,7 @@ pub struct ScopeRef<'a> {
     entity: EntityRef<'a>,
 }
 
-impl<'a> std::fmt::Debug for ScopeRef<'a> {
+impl std::fmt::Debug for ScopeRef<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScopeRef")
             .field("id", &self.entity.id())
@@ -474,9 +486,7 @@ fn get_context<'a, T: ComponentValue>(
             }
         }
 
-        let Some((parent, _)) = cur.relations(child_of).next() else {
-            return None;
-        };
+        let (parent, _) = cur.relations(child_of).next()?;
 
         cur = world.entity(parent).unwrap();
     }

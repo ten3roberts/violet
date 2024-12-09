@@ -1,3 +1,4 @@
+pub mod color;
 pub mod colors;
 
 use flax::{
@@ -304,9 +305,9 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(spacing_medium(), 8.0.into())
         .set(spacing_large(), 16.0.into())
         // text size
-        .set(text_small(), 16.0.into())
-        .set(text_medium(), 18.0.into())
-        .set(text_large(), 24.0.into());
+        .set(text_small(), 16.0)
+        .set(text_medium(), 18.0)
+        .set(text_large(), 24.0);
 
     builder
 }

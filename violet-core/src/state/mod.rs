@@ -42,25 +42,25 @@ pub trait State {
     /// Map a state from one type to another
     fn map<F: Fn(Self::Item) -> U, G: Fn(U) -> Self::Item, U>(
         self,
-        conv_to: F,
-        conv_from: G,
+        to: F,
+        from: G,
     ) -> Map<Self, U, F, G>
     where
         Self: Sized,
     {
-        Map::new(self, conv_to, conv_from)
+        Map::new(self, to, from)
     }
 
     /// Map a state from one type to another through fallible conversion
     fn filter_map<F: Fn(Self::Item) -> Option<U>, G: Fn(U) -> Option<Self::Item>, U>(
         self,
-        conv_to: F,
-        conv_from: G,
+        to: F,
+        from: G,
     ) -> FilterMap<Self, U, F, G>
     where
         Self: Sized,
     {
-        FilterMap::new(self, conv_to, conv_from)
+        FilterMap::new(self, to, from)
     }
 
     fn dedup(self) -> Dedup<Self>

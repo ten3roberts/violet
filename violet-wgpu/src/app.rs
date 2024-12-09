@@ -8,7 +8,7 @@ use violet_core::{
     assets::AssetCache,
     components::{self},
     executor::Executor,
-    input::InputState,
+    input::{request_focus_sender, InputState},
     io::{self, Clipboard},
     layout::cache::LayoutUpdateEvent,
     style::{setup_stylesheet, stylesheet},
@@ -184,6 +184,9 @@ impl AppInstance {
         let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
         frame.set_atom(io::clipboard(), clipboard);
 
+        let (request_focus_tx, request_focus_rx) = flume::unbounded();
+        frame.set_atom(request_focus_sender(), request_focus_tx);
+
         // Mount the root widget
         let root = frame.new_root(Canvas { stylesheet, root });
 
@@ -202,7 +205,7 @@ impl AppInstance {
             .with_system(layout_system(root))
             .with_system(transform_system(root));
 
-        let input_state = InputState::new(root, Vec2::ZERO);
+        let input_state = InputState::new(root, Vec2::ZERO, request_focus_rx);
 
         let start_time = Instant::now();
 
@@ -374,6 +377,8 @@ impl ApplicationHandler for WindowEventHandler {
         event: WindowEvent,
     ) {
         let instance = &mut self.instance;
+
+        instance.input_state.update_external_focus(&instance.frame);
 
         match event {
             WindowEvent::RedrawRequested => {

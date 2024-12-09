@@ -8,7 +8,7 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        primary_surface, secondary_surface, spacing_small, Background, SizeExt, StyleExt,
+        primary_surface, secondary_surface, spacing_medium, Background, SizeExt, StyleExt,
         WidgetSize,
     },
     unit::Unit,
@@ -288,14 +288,18 @@ pub fn centered<W: WidgetCollection>(widget: W) -> Stack<W> {
         .with_vertical_alignment(Align::Center)
 }
 
-pub fn card<W: Widget>(widget: W) -> Stack<W> {
+pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_background(Background::new(secondary_surface()))
-        .with_padding(spacing_small())
-        .with_margin(spacing_small())
+        .with_padding(spacing_medium())
+        .with_margin(spacing_medium())
 }
 
-pub fn maximize<W: WidgetCollection>(widget: W) -> Stack<W> {
+pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
+    Stack::new(widget).with_background(Background::new(secondary_surface()))
+}
+
+pub fn maximized<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget).with_maximize(Vec2::ONE)
 }
 
@@ -303,6 +307,6 @@ pub fn pill<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
         // TODO: semantic color and sizing increment
         .with_background(Background::new(primary_surface()))
-        .with_padding(spacing_small())
-        .with_margin(spacing_small())
+        .with_padding(spacing_medium())
+        .with_margin(spacing_medium())
 }

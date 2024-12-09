@@ -18,6 +18,7 @@ use crate::{
 pub struct Rectangle {
     color: ValueOrRef<Srgba>,
     size: WidgetSize,
+    aspect_ratio: Option<f32>,
 }
 
 impl Rectangle {
@@ -25,7 +26,13 @@ impl Rectangle {
         Self {
             color: color.into(),
             size: Default::default(),
+            aspect_ratio: None,
         }
+    }
+
+    pub fn with_aspect_ratio(mut self, aspect_ratio: f32) -> Self {
+        self.aspect_ratio = Some(aspect_ratio);
+        self
     }
 }
 
@@ -37,6 +44,7 @@ impl Widget for Rectangle {
 
         scope
             .set(draw_shape(shape::shape_rectangle()), ())
+            .set_opt(components::aspect_ratio(), self.aspect_ratio)
             .set(color(), c);
     }
 }
