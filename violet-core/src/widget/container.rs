@@ -71,6 +71,11 @@ impl<W> Stack<W> {
         self
     }
 
+    pub fn with_background_opt(mut self, background: impl Into<Option<Background>>) -> Self {
+        self.style.background = background.into();
+        self
+    }
+
     /// Contain margins within the widget
     pub fn with_contain_margins(mut self, contain_margins: bool) -> Self {
         self.layout.contain_margins = contain_margins;

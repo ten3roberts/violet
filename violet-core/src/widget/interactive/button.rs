@@ -53,8 +53,8 @@ impl<W> Button<W> {
             style: Default::default(),
             size: WidgetSize::default()
                 .with_padding(spacing_medium())
-                .with_margin(spacing_medium())
-                .with_min_size(Unit::px2(28.0, 28.0)),
+                .with_margin(spacing_medium()),
+            // .with_min_size(Unit::px2(28.0, 28.0)),
             is_pressed: false,
         }
     }

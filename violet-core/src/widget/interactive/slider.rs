@@ -4,7 +4,7 @@ use flax::{component, Component, Entity, EntityRef};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
-use palette::Srgba;
+use palette::{num::Clamp, Srgba};
 use winit::event::ElementState;
 
 use super::input::TextInput;
@@ -131,14 +131,13 @@ impl<V: SliderValue> Widget for Slider<V> {
             start_value: f32,
             min: f32,
             max: f32,
-            dst: &dyn StateDuplex<Item = V>,
-        ) {
+        ) -> V {
             let rect = entity.get_copy(rect()).unwrap();
             let padding = entity.get_copy(padding()).unwrap_or_default();
 
             let value = (drag_distance / (rect.size().x - padding.size().x)) * (max - min) + min;
 
-            dst.send(V::from_progress(start_value + value));
+            V::from_progress((start_value + value).clamp(min, max))
         }
 
         let handle = SliderHandle {
@@ -186,19 +185,13 @@ impl<V: SliderValue> Widget for Slider<V> {
                 to_owned![value];
                 move |scope, input| {
                     let drag_start = &mut *drag_start.lock_mut();
-                    if let Some((start, start_value)) = drag_start {
-                        update_scrubbed(
-                            scope,
-                            input.local_pos.x - *start,
-                            *start_value,
-                            min,
-                            max,
-                            &*value,
-                        )
+                    let progress = if let Some((start, start_value)) = drag_start {
+                        update_scrubbed(scope, input.local_pos.x - *start, *start_value, min, max)
                     } else {
-                        let progress = get_progress_value(scope, input.local_pos.x, min, max);
-                        value.send(progress);
-                    }
+                        get_progress_value(scope, input.local_pos.x, min, max)
+                    };
+
+                    value.send(progress);
                 }
             });
 

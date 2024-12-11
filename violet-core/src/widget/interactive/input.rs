@@ -22,7 +22,7 @@ use crate::{
     io,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
-        interactive_active, interactive_hover, interactive_passive, spacing_medium, Background,
+        interactive_active, interactive_hover, interactive_passive, spacing_small, Background,
         SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{CursorLocation, LayoutGlyphs},
@@ -66,9 +66,20 @@ impl TextInput {
             style: Default::default(),
             size: WidgetSize::default()
                 .with_min_size(Unit::px2(16.0, 16.0))
-                .with_margin(spacing_medium())
-                .with_padding(spacing_medium()),
+                .with_margin(spacing_small())
+                .with_padding(spacing_small()),
         }
+    }
+
+    pub fn new_parsed<T>(content: impl 'static + Send + Sync + StateDuplex<Item = T>) -> Self
+    where
+        T: 'static + Send + Sync + ToString + FromStr,
+    {
+        let content = content
+            .filter_map(|v| Some(v.to_string()), |v| v.parse().ok())
+            .prevent_feedback();
+
+        Self::new(content)
     }
 }
 

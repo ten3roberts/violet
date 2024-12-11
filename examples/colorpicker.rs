@@ -1,22 +1,24 @@
-use std::{str::FromStr, sync::Arc};
+use std::{future::ready, iter::repeat, str::FromStr, sync::Arc};
 
 use futures::StreamExt;
-use futures_signals::signal::Mutable;
-use glam::{vec3, BVec2, IVec2, Vec2, Vec3};
+use futures_signals::signal::{Mutable, SignalExt};
+use glam::{BVec2, Vec2};
 use itertools::Itertools;
-use palette::{
-    FromColor, Hsl, Hsv, IntoColor, Oklab, OklabHue, Oklch, RgbHue, Srgb, Srgba, WithAlpha,
-};
+use palette::{Hsl, IntoColor, OklabHue, Oklch, RgbHue, Srgb, WithAlpha};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    state::{State, StateDuplex, StateStream, StateStreamRef},
-    style::{colors::*, primary_surface, spacing_medium, spacing_small, SizeExt},
+    layout::Align,
+    state::{State, StateDuplex, StateMut, StateRef, StateSink, StateStream, StateStreamRef},
+    style::{
+        interactive_inactive, primary_surface, spacing_medium, spacing_small, Background, SizeExt,
+    },
     to_owned,
     unit::Unit,
+    utils::zip_latest,
     widget::{
-        card, col, label, panel, row, Rectangle, ScrollArea, SliderValue, SliderWithLabel,
-        StreamWidget, TextInput,
+        card, col, header, panel, row, Button, Checkbox, InteractiveExt, Rectangle, ScrollArea,
+        SliderValue, SliderWithLabel, Stack, StreamWidget, TextInput,
     },
     Scope, Widget,
 };
@@ -35,8 +37,176 @@ pub fn main() -> anyhow::Result<()> {
     violet_wgpu::AppBuilder::new().run(main_app())
 }
 
+#[derive(Copy, Clone)]
+pub struct AutoPaletteSettings {
+    enabled: bool,
+    min_lum: f32,
+    max_lum: f32,
+    falloff: f32,
+}
+
+impl AutoPaletteSettings {
+    pub fn tint(&self, base_chroma: f32, color: Oklch, tint: f32) -> Oklch {
+        let chroma = base_chroma * (1.0 / (1.0 + self.falloff * (tint - 0.5).powi(2)));
+
+        Oklch {
+            chroma,
+            l: (self.max_lum - self.min_lum) * (1.0 - tint) + self.min_lum,
+            ..color
+        }
+    }
+}
+
+impl Default for AutoPaletteSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            min_lum: 0.2,
+            max_lum: 0.8,
+            falloff: 15.0,
+        }
+    }
+}
+
+pub fn auto_palette_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget {
+    card(row((
+        Checkbox::label(
+            "Auto Tints",
+            settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
+        ),
+        StreamWidget::new(settings.signal_ref(|v| v.enabled).dedupe().to_stream().map(
+            move |enabled| {
+                if enabled {
+                    Some(row((
+                        col((header("Min L"), header("Max L"), header("Falloff"))),
+                        col((
+                            precise_slider(
+                                settings.clone().map_ref(|v| &v.min_lum, |v| &mut v.min_lum),
+                                0.0,
+                                1.0,
+                            )
+                            .round(ROUNDING),
+                            precise_slider(
+                                settings.clone().map_ref(|v| &v.max_lum, |v| &mut v.max_lum),
+                                0.0,
+                                1.0,
+                            )
+                            .round(ROUNDING),
+                            precise_slider(
+                                settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
+                                0.0,
+                                30.0,
+                            )
+                            .round(ROUNDING),
+                        )),
+                    )))
+                } else {
+                    None
+                }
+            },
+        )),
+    )))
+}
+
 pub struct Palette {
-    colors: Vec<Mutable<Srgb>>,
+    colors: Vec<Mutable<ColorValue>>,
+    auto: Mutable<AutoPaletteSettings>,
+}
+
+impl Palette {}
+
+fn palette_controls(
+    palettes: impl 'static + Send + Sync + StateMut<Item = Palette>,
+    palette_index: usize,
+    palette: &Palette,
+    set_selection: impl 'static + Send + Sync + StateDuplex<Item = (usize, usize)>,
+) -> impl Widget {
+    let palettes = Arc::new(palettes);
+    let set_selection = Arc::new(set_selection);
+
+    let add_swatch = Button::label("+").on_press({
+        to_owned!(palettes, set_selection);
+        move |_, _| {
+            palettes.write_mut(|palette| {
+                let last = palette.colors.last().map(|v| v.get()).unwrap_or_default();
+                palette.colors.push(Mutable::new(last));
+
+                set_selection.send((palette_index, palette.colors.len() - 1))
+            });
+        }
+    });
+
+    let external_settings_change = palette.auto.stream().for_each({
+        to_owned!(palettes);
+        move |auto| {
+            palettes.read_ref(|palette| {
+                if palette.colors.is_empty() {
+                    return;
+                }
+
+                let ref_color = palette.colors.len() / 2;
+
+                let count = palette.colors.len();
+                let base_tint = ref_color as f32 / count as f32;
+                let new_color = palette.colors[ref_color].get().as_oklab();
+                let base_chroma =
+                    new_color.chroma * (1.0 + auto.falloff * (base_tint - 0.5).powi(2));
+
+                update_palette_tints(palette, auto, base_chroma, new_color, count);
+            });
+
+            async move {}
+        }
+    });
+
+    let widget = card(row((
+        row(palette
+            .colors
+            .iter()
+            .enumerate()
+            .map(move |(i, color)| {
+                // let palettes = palettes.clone();
+                // let set_selection = set_selection.clone();
+                to_owned!(color, palettes, set_selection);
+
+                let current_selection = set_selection.stream().map(move |v| {
+                    let palettes = palettes.clone();
+                    let set_selection = set_selection.clone();
+
+                    let is_selected = (palette_index, i) == v;
+
+                    Stack::new((
+                        StreamWidget::new(color.stream().map(|color| {
+                            Rectangle::new(color.as_rgb().with_alpha(1.0))
+                                .with_min_size(Unit::px2(60.0, 60.0))
+                                .with_margin(spacing_medium())
+                        })),
+                        Button::label("-")
+                            .with_padding(spacing_small())
+                            .on_press(move |_, _| {
+                                palettes.write_mut(|v| v.colors.remove(i));
+                            }),
+                    ))
+                    .with_horizontal_alignment(Align::End)
+                    .with_background_opt(if is_selected {
+                        Some(Background::new(interactive_inactive()))
+                    } else {
+                        None
+                    })
+                    .with_padding(spacing_small())
+                    .on_press(move |_| set_selection.send((palette_index, i)))
+                });
+
+                StreamWidget::new(current_selection)
+            })
+            .collect_vec()),
+        add_swatch,
+    )));
+
+    move |scope: &mut Scope| {
+        scope.spawn(external_settings_change);
+        widget.mount(scope)
+    }
 }
 
 pub struct PaletteCollection {
@@ -45,115 +215,142 @@ pub struct PaletteCollection {
 
 pub fn main_app() -> impl Widget {
     let palettes = Mutable::new(PaletteCollection {
-        palettes: vec![
-            Palette {
-                colors: vec![
-                    Mutable::new(EMERALD_50.without_alpha()),
-                    Mutable::new(EMERALD_100.without_alpha()),
-                    Mutable::new(EMERALD_200.without_alpha()),
-                    Mutable::new(EMERALD_300.without_alpha()),
-                    Mutable::new(EMERALD_400.without_alpha()),
-                    Mutable::new(EMERALD_500.without_alpha()),
-                    Mutable::new(EMERALD_600.without_alpha()),
-                    Mutable::new(EMERALD_700.without_alpha()),
-                    Mutable::new(EMERALD_800.without_alpha()),
-                    Mutable::new(EMERALD_900.without_alpha()),
-                    Mutable::new(EMERALD_950.without_alpha()),
-                ],
-            },
-            Palette {
-                colors: vec![
-                    Mutable::new(TEAL_50.without_alpha()),
-                    Mutable::new(TEAL_100.without_alpha()),
-                    Mutable::new(TEAL_200.without_alpha()),
-                    Mutable::new(TEAL_300.without_alpha()),
-                    Mutable::new(TEAL_400.without_alpha()),
-                    Mutable::new(TEAL_500.without_alpha()),
-                    Mutable::new(TEAL_600.without_alpha()),
-                    Mutable::new(TEAL_700.without_alpha()),
-                    Mutable::new(TEAL_800.without_alpha()),
-                    Mutable::new(TEAL_900.without_alpha()),
-                    Mutable::new(TEAL_950.without_alpha()),
-                ],
-            },
-            Palette {
-                colors: vec![
-                    Mutable::new(OCEAN_50.without_alpha()),
-                    Mutable::new(OCEAN_100.without_alpha()),
-                    Mutable::new(OCEAN_200.without_alpha()),
-                    Mutable::new(OCEAN_300.without_alpha()),
-                    Mutable::new(OCEAN_400.without_alpha()),
-                    Mutable::new(OCEAN_500.without_alpha()),
-                    Mutable::new(OCEAN_600.without_alpha()),
-                    Mutable::new(OCEAN_700.without_alpha()),
-                    Mutable::new(OCEAN_800.without_alpha()),
-                    Mutable::new(OCEAN_900.without_alpha()),
-                    Mutable::new(OCEAN_950.without_alpha()),
-                ],
-            },
-            Palette {
-                colors: vec![
-                    Mutable::new(EMERALD_800.without_alpha()),
-                    Mutable::new(OCEAN_800.without_alpha()),
-                    Mutable::new(TEAL_800.without_alpha()),
-                    Mutable::new(REDWOOD_800.without_alpha()),
-                    Mutable::new(COPPER_800.without_alpha()),
-                ],
-            },
-        ],
+        palettes: vec![create_palette(0)],
     });
 
     let current_selection = Mutable::new((0_usize, 0_usize));
 
-    let current_selection = current_selection
-        .stream()
-        .map({
-            to_owned![palettes];
-            move |index| palettes.lock_ref().palettes[index.0].colors[index.1].clone()
-        })
-        .map(swatch_editor);
+    let palettes_widget = palettes
+        .clone()
+        .stream_ref({
+            to_owned!(palettes, current_selection);
+            move |v| {
+                let values = v
+                    .palettes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, palette)| {
+                        to_owned!(palettes, current_selection);
 
-    let palettes = palettes
-        .stream_ref(move |v| {
-            let values = v
-                .palettes
-                .iter()
-                .map(move |palette| {
-                    card(row(palette
-                        .colors
-                        .iter()
-                        .map(|color| {
-                            StreamWidget::new(color.stream().map(|color| {
-                                Rectangle::new(color.with_alpha(1.0))
-                                    .with_min_size(Unit::px2(60.0, 60.0))
-                                    .with_margin(spacing_medium())
-                            }))
-                        })
-                        .collect_vec()))
-                })
-                .collect_vec();
+                        row((palette_controls(
+                            palettes.map_ref(move |v| &v.palettes[i], move |v| &mut v.palettes[i]),
+                            i,
+                            palette,
+                            current_selection,
+                        ),))
+                    })
+                    .collect_vec();
 
-            col(values)
+                let add_row = Button::label("+").on_press({
+                    to_owned!(palettes, current_selection);
+                    move |_, _| {
+                        let mut palettes = palettes.lock_mut();
+
+                        let index = palettes.palettes.len();
+
+                        palettes.palettes.push(create_palette(index));
+
+                        current_selection.set((index, 0));
+                    }
+                });
+
+                col((col(values), add_row))
+            }
         })
         .boxed();
 
+    let current_selection = zip_latest(
+        current_selection.stream(),
+        palettes.signal_ref(|_| {}).to_stream(),
+    )
+    .map({
+        to_owned![palettes];
+        move |((i, j), _)| {
+            let palettes = palettes.lock_ref();
+            let palette = palettes.palettes.get(i)?;
+            Some(((i, j), palette.auto.clone(), palette.colors.get(j)?.clone()))
+        }
+    })
+    .filter_map(ready)
+    .map(move |(palette_index, auto, color)| {
+        to_owned!(palettes, auto);
+
+        let auto2 = auto.clone();
+        let color_setter = color.map(
+            |v| v,
+            move |new_color| {
+                let auto = auto2.get();
+                if !auto.enabled {
+                    return new_color;
+                }
+
+                let palette = &palettes.lock_ref().palettes[palette_index.0];
+
+                let count = palette.colors.len();
+                let base_tint = palette_index.1 as f32 / count as f32;
+                let new_color = new_color.as_oklab();
+                let base_chroma =
+                    new_color.chroma * (1.0 + auto.falloff * (base_tint - 0.5).powi(2));
+
+                update_palette_tints(palette, auto, base_chroma, new_color, count);
+
+                ColorValue::OkLab(auto.tint(base_chroma, new_color, base_tint))
+            },
+        );
+
+        row((swatch_editor(color_setter), auto_palette_settings(auto)))
+    });
+
     panel(col((
         StreamWidget::new(current_selection),
-        ScrollArea::new(BVec2::new(true, true), StreamWidget::new(palettes)),
+        ScrollArea::new(BVec2::new(true, true), StreamWidget::new(palettes_widget)),
     )))
     .with_background(primary_surface())
     .with_maximize(Vec2::ONE)
     .with_contain_margins(true)
 }
 
-pub fn swatch_editor(rgb_color: Mutable<Srgb>) -> impl Widget {
-    let color = Arc::new(
-        rgb_color
-            .map(ColorValue::Rgb, |v| v.as_rgb())
-            .memo(ColorValue::Rgb(Default::default())),
-    );
+fn update_palette_tints(
+    palette: &Palette,
+    auto: AutoPaletteSettings,
+    base_chroma: f32,
+    new_color: Oklch,
+    count: usize,
+) {
+    for (i, color) in palette.colors.iter().enumerate() {
+        color.set(ColorValue::OkLab(auto.tint(
+            base_chroma,
+            new_color,
+            i as f32 / count as f32,
+        )));
+    }
+}
 
-    // let color = Mutable::new(ColorValue::Rgb(EMERALD_500.without_alpha().into_format()));
+fn create_palette(index: usize) -> Palette {
+    let color = Oklch::new(0.5, 0.27, index as f32 * 60.0).into_color();
+
+    let num_colors = 8;
+    Palette {
+        colors: repeat(color)
+            .enumerate()
+            .map(|(i, v)| {
+                ColorValue::OkLab(AutoPaletteSettings::default().tint(
+                    0.27,
+                    v,
+                    i as f32 / num_colors as f32,
+                ))
+            })
+            .map(Mutable::new)
+            .take(num_colors)
+            .collect_vec(),
+        auto: Default::default(),
+    }
+}
+
+fn swatch_editor(
+    color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>,
+) -> impl Widget {
+    let color = Arc::new(color);
 
     let color_swatch = color.clone().stream().map(|v| {
         Rectangle::new(v.as_rgb().into_format().with_alpha(1.0))
@@ -185,7 +382,9 @@ pub fn precise_slider<T>(
 where
     T: Default + FromStr + ToString + SliderValue,
 {
-    SliderWithLabel::new(value, min, max).with_scrub_mode(true)
+    SliderWithLabel::new(value, min, max)
+        .with_scrub_mode(true)
+        .editable(true)
 }
 
 fn rgb_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>) -> impl Widget {
@@ -205,7 +404,7 @@ fn rgb_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
     let b = precise_slider(color.clone().map_ref(|v| &v.blue, |v| &mut v.blue), 0, 255);
 
     card(row((
-        col((label("R"), label("G"), label("B"))),
+        col((header("R"), header("G"), header("B"))),
         col((r, g, b)),
     )))
 }
@@ -240,10 +439,11 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         0.0,
         1.0,
     )
-    .round(ROUNDING);
+    .round(ROUNDING)
+    .editable(true);
 
     card(row((
-        col((label("H"), label("S"), label("L"))),
+        col((header("H"), header("S"), header("L"))),
         col((h, s, l)),
     )))
 }
@@ -265,14 +465,14 @@ fn oklab_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValu
     let c = precise_slider(
         color.clone().map_ref(|v| &v.chroma, |v| &mut v.chroma),
         0.0,
-        1.0,
+        0.37,
     )
-    .round(ROUNDING);
+    .round(0.001);
 
     let l = precise_slider(color.clone().map_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0).round(ROUNDING);
 
     card(row((
-        col((label("L"), label("C"), label("H"))),
+        col((header("L"), header("C"), header("H"))),
         col((l, c, h)),
     )))
 }
@@ -306,8 +506,13 @@ fn color_hex_editor(
 enum ColorValue {
     Rgb(Srgb),
     Hsl(Hsl),
-    Hsv(Hsv),
     OkLab(Oklch),
+}
+
+impl Default for ColorValue {
+    fn default() -> Self {
+        Self::Rgb(Default::default())
+    }
 }
 
 impl ColorValue {
@@ -315,7 +520,6 @@ impl ColorValue {
         match *self {
             ColorValue::Rgb(rgb) => rgb,
             ColorValue::Hsl(hsl) => hsl.into_color(),
-            ColorValue::Hsv(hsv) => hsv.into_color(),
             ColorValue::OkLab(lch) => lch.into_color(),
         }
     }
@@ -324,16 +528,6 @@ impl ColorValue {
         match *self {
             ColorValue::Rgb(rgb) => rgb.into_color(),
             ColorValue::Hsl(hsl) => hsl,
-            ColorValue::Hsv(hsv) => hsv.into_color(),
-            ColorValue::OkLab(lch) => lch.into_color(),
-        }
-    }
-
-    fn as_hsv(&self) -> Hsv {
-        match *self {
-            ColorValue::Rgb(rgb) => rgb.into_color(),
-            ColorValue::Hsl(hsl) => hsl.into_color(),
-            ColorValue::Hsv(hsv) => hsv,
             ColorValue::OkLab(lch) => lch.into_color(),
         }
     }
@@ -342,7 +536,6 @@ impl ColorValue {
         match *self {
             ColorValue::Rgb(rgb) => rgb.into_color(),
             ColorValue::Hsl(hsl) => hsl.into_color(),
-            ColorValue::Hsv(hsv) => hsv.into_color(),
             ColorValue::OkLab(lch) => lch,
         }
     }

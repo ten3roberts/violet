@@ -13,6 +13,8 @@ use crate::{
     Scope, Widget,
 };
 
+use super::Stack;
+
 /// A rectangular widget
 #[derive(Debug, Clone)]
 pub struct Rectangle {
@@ -144,6 +146,10 @@ impl Widget for Text {
 /// A text with a margin
 pub fn label(text: impl Into<String>) -> Text {
     Text::new(text).with_margin(spacing_small())
+}
+
+pub fn header(text: impl Into<String>) -> Stack<Text> {
+    Stack::new(Text::new(text).with_margin(spacing_small())).with_padding(spacing_small())
 }
 
 /// A text with a margin
