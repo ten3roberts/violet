@@ -141,6 +141,11 @@ impl<W: WidgetCollection> List<W> {
         self
     }
 
+    pub fn with_reverse(mut self, reverse: bool) -> Self {
+        self.layout.reverse = reverse;
+        self
+    }
+
     /// Set the List's cross axis alignment
     pub fn with_cross_align(mut self, cross_align: Align) -> Self {
         self.layout.cross_align = cross_align;

@@ -13,7 +13,7 @@ use violet::{
 use wasm_bindgen_futures::wasm_bindgen;
 
 pub mod bridge_of_death;
-mod palettes;
+pub mod colorpicker;
 
 #[cfg(target_arch = "wasm32")]
 fn setup() {
@@ -59,7 +59,7 @@ pub fn run() {
     AppBuilder::new()
         .with_title("Palette Editor")
         .with_renderer_config(MainRendererConfig { debug_mode: false })
-        .run(app())
+        .run(colorpicker::main_app())
         .unwrap();
 }
 
@@ -69,7 +69,7 @@ enum DemoState {
     PaletteEditor,
 }
 
-fn app() -> impl Widget {
+pub fn multi_app() -> impl Widget {
     let state = Mutable::new(DemoState::Basic);
     col((
         (row((
@@ -91,7 +91,7 @@ fn app() -> impl Widget {
         .with_maximize(Vec2::X),
         StreamWidget(state.stream().map(|v| match v {
             DemoState::Basic => bridge_of_death::app().boxed(),
-            DemoState::PaletteEditor => palettes::App.boxed(),
+            DemoState::PaletteEditor => colorpicker::main_app().boxed(),
         })),
     ))
 }

@@ -17,6 +17,7 @@ use crate::{
 };
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, winit::event::MouseButton)>;
+type ButtonClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
 
 #[derive(Debug, Clone)]
 pub struct ButtonStyle {
@@ -36,6 +37,7 @@ impl Default for ButtonStyle {
 /// A button which invokes the callback when clicked
 pub struct Button<W = Text> {
     on_press: ButtonCallback,
+    on_click: ButtonClickCallback,
     label: W,
     style: ButtonStyle,
     size: WidgetSize,
@@ -49,6 +51,7 @@ impl<W> Button<W> {
     {
         Self {
             on_press: Box::new(|_, _| {}),
+            on_click: Box::new(|_| {}),
             label,
             style: Default::default(),
             size: WidgetSize::default()
@@ -65,6 +68,12 @@ impl<W> Button<W> {
         on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, MouseButton),
     ) -> Self {
         self.on_press = Box::new(on_press);
+        self
+    }
+
+    /// Handle the button press
+    pub fn on_click(mut self, on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>)) -> Self {
+        self.on_click = Box::new(on_press);
         self
     }
 
@@ -117,14 +126,22 @@ impl<W: Widget> Widget for Button<W> {
         let pressed_color = self.style.pressed_color.resolve(&stylesheet);
         let normal_color = self.style.normal_color.resolve(&stylesheet);
 
+        let mut is_pressed = false;
+
         scope
             .set(focusable(), ())
             .on_event(on_mouse_input(), move |scope, input| {
                 if input.state == ElementState::Pressed {
+                    is_pressed = true;
                     scope.update_dedup(color(), pressed_color);
                     (self.on_press)(scope, input.button);
                 } else {
                     scope.update_dedup(color(), normal_color);
+
+                    if is_pressed {
+                        is_pressed = false;
+                        (self.on_click)(scope);
+                    }
                 }
             });
 

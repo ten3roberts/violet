@@ -96,7 +96,11 @@ impl<V: SliderValue> Widget for Slider<V> {
         let handle_size = self.style.handle_size;
         let track_size = self.style.track_size;
 
-        let track = scope.attach(Rectangle::new(track_color).with_size(track_size));
+        let track = scope.attach(
+            Rectangle::new(track_color)
+                .with_min_size(track_size)
+                .with_size(track_size),
+        );
 
         let min = self.min.to_progress();
         let max = self.max.to_progress();
@@ -344,6 +348,15 @@ impl SliderWithLabel<f32> {
         let recip = round.recip();
         self.rounding = Some(round);
         let x = move |v: f32| (v * recip).round() / recip;
+
+        self.slider.transform = Some(Box::new(x));
+        self.value = Arc::new(self.value.map(x, |v| v));
+        self
+    }
+
+    pub fn round_digits(mut self, round: u32) -> Self {
+        self.rounding = Some(10i32.pow(round) as f32);
+        let x = move |v: f32| (v * 10i32.pow(round) as f32).round() / 10i32.pow(round) as f32;
 
         self.slider.transform = Some(Box::new(x));
         self.value = Arc::new(self.value.map(x, |v| v));
