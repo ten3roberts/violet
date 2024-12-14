@@ -24,8 +24,6 @@ impl FloatLayout {
         args.children.iter().for_each(|&child| {
             let entity = world.entity(child).expect("invalid child");
 
-            // let pos = resolve_pos(&entity, content_area, preferred_size);
-
             let limits = LayoutLimits {
                 min_size: Vec2::ZERO,
                 max_size: Vec2::MAX,
@@ -55,7 +53,6 @@ impl FloatLayout {
         _: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        // let min_rect = Rect::from_size(args.limits.min_size);
 
         let mut hints = SizingHints::default();
 

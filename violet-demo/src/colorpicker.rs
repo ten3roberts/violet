@@ -10,9 +10,7 @@ use violet::core::{
     io::clipboard,
     layout::Align,
     state::{State, StateDuplex, StateMut, StateRef, StateSink, StateStream, StateStreamRef},
-    style::{
-        interactive_inactive, primary_surface, spacing_medium, spacing_small, Background, SizeExt,
-    },
+    style::{interactive_inactive, primary_surface, spacing_small, Background, SizeExt},
     time::sleep,
     to_owned,
     unit::Unit,
@@ -58,13 +56,18 @@ impl Default for AutoPaletteSettings {
 }
 
 pub fn auto_palette_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget {
-    card(row((
-        Checkbox::label(
-            "Auto Tints",
-            settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
-        ),
-        StreamWidget::new(settings.signal_ref(|v| v.enabled).dedupe().to_stream().map(
-            move |enabled| {
+    let checkbox = Checkbox::label(
+        "Auto Tints",
+        settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
+    );
+
+    let stream_widget = StreamWidget::new(
+        settings
+            .clone()
+            .signal_ref(|v| v.enabled)
+            .dedupe()
+            .to_stream()
+            .map(move |enabled| {
                 if enabled {
                     Some(row((
                         col((header("Min L"), header("Max L"), header("Falloff"))),
@@ -74,27 +77,28 @@ pub fn auto_palette_settings(settings: Mutable<AutoPaletteSettings>) -> impl Wid
                                 0.0,
                                 1.0,
                             )
-                            .round(ROUNDING),
+                            .round_digits(ROUNDING),
                             precise_slider(
                                 settings.clone().map_ref(|v| &v.max_lum, |v| &mut v.max_lum),
                                 0.0,
                                 1.0,
                             )
-                            .round(ROUNDING),
+                            .round_digits(ROUNDING),
                             precise_slider(
                                 settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
                                 0.0,
                                 30.0,
                             )
-                            .round(ROUNDING),
+                            .round_digits(ROUNDING),
                         )),
                     )))
                 } else {
                     None
                 }
-            },
-        )),
-    )))
+            }),
+    );
+
+    card(row((checkbox, stream_widget)))
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -301,14 +305,16 @@ pub fn main_app() -> impl Widget {
         }
     });
 
-    panel(col((
-        export_controls(palettes),
-        StreamWidget::new(current_selection),
-        ScrollArea::new(BVec2::new(true, true), StreamWidget::new(palettes_widget)),
-    )))
+    panel(
+        col((
+            export_controls(palettes),
+            StreamWidget::new(current_selection),
+            ScrollArea::new(BVec2::new(true, true), StreamWidget::new(palettes_widget)),
+        ))
+        .with_contain_margins(true),
+    )
     .with_background(primary_surface())
     .with_maximize(Vec2::ONE)
-    .with_contain_margins(true)
 }
 
 fn update_palette_tints(
@@ -355,7 +361,7 @@ fn swatch_editor(
     let color_swatch = color.clone().stream().map(|v| {
         Rectangle::new(v.as_rgb().into_format().with_alpha(1.0))
             .with_aspect_ratio(1.0)
-            .with_min_size(Unit::px2(200.0, 200.0))
+            .with_min_size(Unit::px2(300.0, 300.0))
             .with_margin(spacing_small())
     });
 
@@ -372,7 +378,7 @@ fn swatch_editor(
     )))
 }
 
-const ROUNDING: f32 = 0.01;
+const ROUNDING: u32 = 3;
 
 pub fn precise_slider<T>(
     value: impl 'static + Send + Sync + StateDuplex<Item = T>,
@@ -422,7 +428,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         .map(|v| v.into_positive_degrees(), RgbHue::from_degrees)
         .memo(Default::default());
 
-    let h = precise_slider(hue, 0.0, 360.0).round(1.0);
+    let h = precise_slider(hue, 0.0, 360.0).round_digits(1);
     let s = precise_slider(
         color
             .clone()
@@ -430,7 +436,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         0.0,
         1.0,
     )
-    .round(ROUNDING);
+    .round_digits(ROUNDING);
 
     let l = SliderWithLabel::new(
         color
@@ -439,7 +445,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         0.0,
         1.0,
     )
-    .round(ROUNDING)
+    .round_digits(ROUNDING)
     .editable(true);
 
     card(row((
@@ -461,7 +467,7 @@ fn oklab_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValu
         .map(|v| v.into_positive_degrees(), OklabHue::from_degrees)
         .memo(Default::default());
 
-    let h = precise_slider(hue, 0.0, 360.0).round(1.0);
+    let h = precise_slider(hue, 0.0, 360.0).round_digits(1);
     let c = precise_slider(
         color.clone().map_ref(|v| &v.chroma, |v| &mut v.chroma),
         0.0,
@@ -469,7 +475,8 @@ fn oklab_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValu
     )
     .round_digits(3);
 
-    let l = precise_slider(color.clone().map_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0).round(ROUNDING);
+    let l = precise_slider(color.clone().map_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0)
+        .round_digits(ROUNDING);
 
     card(row((
         col((header("L"), header("C"), header("H"))),

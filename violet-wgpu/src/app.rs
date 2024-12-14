@@ -233,8 +233,6 @@ impl AppInstance {
         self.window_size = physical_size;
         self.needs_update = true;
 
-        tracing::info!(?physical_size, self.scale_factor, "Resizing window");
-
         let logical_size: LogicalSize<f32> = physical_size.to_logical(self.scale_factor);
 
         let canvas = self.frame.world_mut().entity_mut(self.root).unwrap();

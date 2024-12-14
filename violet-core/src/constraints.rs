@@ -8,22 +8,6 @@ pub struct FixedAreaConstraint {
 }
 
 impl SizeResolver for FixedAreaConstraint {
-    // fn resolve(
-    //     &mut self,
-    //     entity: &flax::EntityRef,
-    //     content_area: Rect,
-    //     limits: Option<crate::layout::LayoutLimits>,
-    //     squeeze: Vec2,
-    // ) -> (Vec2, Vec2) {
-    //     if let Some(limits) = limits {
-    //         let width = round(limits.max_size.x, 20.0);
-    //         let height = round(self.area / width, 20.0);
-    //         (vec2(width, height), vec2(width, height))
-    //     } else {
-    //         (vec2(1.0, self.area), vec2(self.area, 1.0))
-    //     }
-    // }
-
     fn query(&mut self, _: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
         let size = (args.limits.max_size / self.unit_size)
             .floor()

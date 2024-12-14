@@ -76,12 +76,6 @@ impl<W> Stack<W> {
         self
     }
 
-    /// Contain margins within the widget
-    pub fn with_contain_margins(mut self, contain_margins: bool) -> Self {
-        self.layout.contain_margins = contain_margins;
-        self
-    }
-
     pub fn with_clip(mut self, clip: impl Into<BVec2>) -> Self {
         self.layout.clip = clip.into();
         self

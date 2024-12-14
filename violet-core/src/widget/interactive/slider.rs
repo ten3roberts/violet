@@ -4,7 +4,7 @@ use flax::{component, Component, Entity, EntityRef};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
-use palette::{num::Clamp, Srgba};
+use palette::Srgba;
 use winit::event::ElementState;
 
 use super::input::TextInput;

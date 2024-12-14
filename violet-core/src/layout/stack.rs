@@ -33,7 +33,6 @@ use crate::{
 pub struct StackLayout {
     pub horizontal_alignment: Align,
     pub vertical_alignment: Align,
-    pub contain_margins: bool,
     pub clip: BVec2,
 }
 
@@ -68,18 +67,7 @@ impl StackLayout {
                     },
                 );
 
-                let contained_margins = if self.contain_margins {
-                    block.margin
-                } else {
-                    Edges::ZERO
-                };
-
-                bounds = bounds.merge(
-                    block
-                        .rect
-                        .pad(contained_margins)
-                        .translate(args.offset + contained_margins.topleft()),
-                );
+                bounds = bounds.merge(block.rect.translate(args.offset));
 
                 (entity, block)
             })
@@ -95,11 +83,8 @@ impl StackLayout {
 
         let offset = args.offset + resolve_pos(entity, args.content_area, total_size);
 
-        let contain_margins = self.contain_margins as i32 as f32;
-
         for (entity, block) in blocks {
-            let contained_margins = block.margin * contain_margins;
-            let block_size = block.rect.pad(contained_margins).size();
+            let block_size = block.rect.size();
 
             let offset = offset
                 + vec2(
@@ -107,19 +92,17 @@ impl StackLayout {
                         .align_offset(total_size.x, block_size.x),
                     self.vertical_alignment
                         .align_offset(total_size.y, block_size.y),
-                )
-                + contained_margins.topleft();
+                );
 
             let clip_mask = Rect::from_size(clip * args.limits.max_size + Vec2::MAX * (1.0 - clip));
 
             aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
                 block.rect.translate(offset),
-                block.margin * (1.0 - contain_margins),
+                block.margin,
             ));
 
             can_grow |= block.can_grow;
 
-            // entity.update_dedup(components::rect(), block.rect.translate(offset));
             entity.update_dedup(components::rect(), block.rect).unwrap();
             entity
                 .update_dedup(components::local_position(), offset)
@@ -130,17 +113,13 @@ impl StackLayout {
                 .unwrap();
         }
 
-        let rect = if self.contain_margins {
-            aligned_bounds.outer
-        } else {
-            aligned_bounds.inner
-        };
+        let rect = aligned_bounds.inner;
 
         let mut rect = rect.max_size(args.limits.min_size);
 
         rect = rect.min_size(args.limits.max_size * clip + Vec2::MAX * (1.0 - clip));
 
-        let margin = aligned_bounds.margin() * (1.0 - contain_margins);
+        let margin = aligned_bounds.margin();
 
         Block::new(rect, margin, can_grow)
     }
@@ -190,15 +169,8 @@ impl StackLayout {
                 preferred_bounds.merge(&StackableBounds::new(sizing.preferred, sizing.margin));
         }
 
-        let min_rect;
-        let preferred_rect;
-        if self.contain_margins {
-            min_rect = min_bounds.outer;
-            preferred_rect = preferred_bounds.outer;
-        } else {
-            min_rect = min_bounds.inner;
-            preferred_rect = preferred_bounds.inner;
-        }
+        let min_rect = min_bounds.inner;
+        let preferred_rect = preferred_bounds.inner;
 
         let min_margin = min_bounds.margin();
         let preferred_margin = preferred_bounds.margin();
@@ -213,11 +185,7 @@ impl StackLayout {
         Sizing {
             min: min.min_size((1.0 - clip) * min.size()),
             preferred: preferred.min_size(clamp_size),
-            margin: if self.contain_margins {
-                Edges::ZERO
-            } else {
-                min_margin.max(preferred_margin)
-            },
+            margin: min_margin.max(preferred_margin),
             hints,
             maximize,
         }

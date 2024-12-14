@@ -417,7 +417,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: args.limits.min_size.max(min_size),
-        max_size: args.limits.max_size.min(max_size).max(min_size),
+        max_size: args.limits.max_size.clamp(min_size, max_size),
     };
 
     // Check if cache is still valid
@@ -477,6 +477,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
                     max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
                 },
                 preferred_size: resolved_size - padding.size(),
+                // start of inner content
                 offset: vec2(padding.left, padding.top),
             },
         );
