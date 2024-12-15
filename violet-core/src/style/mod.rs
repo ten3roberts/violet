@@ -1,5 +1,6 @@
 pub mod color;
 pub mod colors;
+pub mod base_colors;
 
 use flax::{
     component::ComponentValue, components::child_of, Component, Entity, EntityBuilder, EntityRef,

@@ -6,7 +6,7 @@ use palette::{FromColor, IntoColor, Oklch, Srgb};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    state::{Map, MapRef, StateStream, StateStreamRef},
+    state::{MapValue, MapRef, StateStream, StateStreamRef},
     style::{SizeExt, ValueOrRef},
     unit::Unit,
     utils::zip_latest,
@@ -37,7 +37,7 @@ struct MainApp;
 impl Widget for MainApp {
     fn mount(self, scope: &mut Scope<'_>) {
         let color = Mutable::new(Vec3::new(0.5, 0.27, 153.0));
-        let color_oklch = Map::new(
+        let color_oklch = MapValue::new(
             color.clone(),
             |v| Oklch::new(v.x, v.y, v.z),
             |v| Vec3::new(v.l, v.chroma, v.hue.into_positive_degrees()),

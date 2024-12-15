@@ -1,6 +1,6 @@
 use flax::{component, Entity, EntityRef, FetchExt, World};
 use flume::Receiver;
-use glam::{Vec2, Vec3Swizzles};
+use glam::{Vec2, Vec3, Vec3Swizzles};
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
 use winit::{
@@ -9,7 +9,7 @@ use winit::{
 };
 
 use crate::{
-    components::{rect, screen_transform},
+    components::{clip_mask, rect, screen_clip_mask, screen_transform},
     declare_atom,
     hierarchy::OrderedDfsIterator,
     scope::ScopeRef,
@@ -49,7 +49,7 @@ impl InputState {
         pos: Vec2,
         mut filter: impl FnMut(&EntityRef) -> bool,
     ) -> Option<(Entity, Vec2)> {
-        let query = (screen_transform(), rect()).filtered(focusable().with());
+        let query = (screen_transform(), rect(), screen_clip_mask()).filtered(focusable().with());
         OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
             .filter_map(|entity| {
                 if !filter(&entity) {
@@ -57,11 +57,17 @@ impl InputState {
                 }
 
                 let mut query = entity.query(&query);
-                let (transform, rect) = query.get()?;
+                let (transform, rect, clip_mask) = query.get()?;
+
+                let translation = transform.transform_point3(Vec3::ZERO).xy();
+                let clipped_rect = rect
+                    .translate(translation)
+                    .clip(*clip_mask)
+                    .translate(-translation);
 
                 let local_pos = transform.inverse().transform_point3(pos.extend(0.0)).xy();
 
-                if rect.contains_point(local_pos) {
+                if clipped_rect.contains_point(local_pos) {
                     Some((entity.id(), local_pos - rect.min))
                 } else {
                     None

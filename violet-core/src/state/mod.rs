@@ -13,6 +13,7 @@ mod feedback;
 mod filter;
 mod map;
 mod memo;
+mod transform;
 
 pub use dedup::*;
 pub use feedback::*;
@@ -20,6 +21,7 @@ pub use filter::*;
 pub use map::*;
 pub use memo::*;
 use sync_wrapper::SyncWrapper;
+pub use transform::*;
 
 pub trait State {
     type Item;
@@ -40,15 +42,28 @@ pub trait State {
     }
 
     /// Map a state from one type to another
-    fn map<F: Fn(Self::Item) -> U, G: Fn(U) -> Self::Item, U>(
+    fn map_value<F: Fn(Self::Item) -> U, G: Fn(U) -> Self::Item, U>(
         self,
         to: F,
         from: G,
-    ) -> Map<Self, U, F, G>
+    ) -> MapValue<Self, U, F, G>
     where
         Self: Sized,
     {
-        Map::new(self, to, from)
+        MapValue::new(self, to, from)
+    }
+
+    /// Transform a state from one to another using get and set operations
+    fn transform<F: Fn(&Self::Item) -> U, G: Fn(&mut Self::Item, U), U>(
+        self,
+        to: F,
+        from: G,
+    ) -> Transform<Self, U, F, G>
+    where
+        Self: StateMut,
+        Self: Sized,
+    {
+        Transform::new(self, to, from)
     }
 
     /// Map a state from one type to another through fallible conversion

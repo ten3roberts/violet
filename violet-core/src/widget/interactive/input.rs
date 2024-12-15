@@ -20,6 +20,7 @@ use crate::{
         KeyboardInput,
     },
     io,
+    layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
         interactive_active, interactive_hover, interactive_passive, spacing_small, Background,
@@ -39,6 +40,7 @@ pub struct TextInputStyle {
     pub selection_color: ValueOrRef<Srgba>,
     pub background: Background,
     pub font_size: f32,
+    pub align: Align,
 }
 
 impl Default for TextInputStyle {
@@ -48,6 +50,7 @@ impl Default for TextInputStyle {
             selection_color: interactive_hover().into(),
             background: Background::new(interactive_passive()),
             font_size: 16.0,
+            align: Align::Start,
         }
     }
 }
@@ -223,8 +226,6 @@ impl Widget for TextInput {
                                     v.glyphs.last()
                                 }?;
 
-                                // dbg!(left, right);
-
                                 let rect = Rect::new(
                                     left.bounds.min + vec2(0.0, ln as f32 * glyphs.line_height),
                                     right.bounds.max + vec2(0.0, ln as f32 * glyphs.line_height),
@@ -342,7 +343,7 @@ impl Widget for TextInput {
                 }
             });
 
-        Stack::new((
+        Stack::new(Stack::new((
             TextContent {
                 rx: dirty_rx,
                 font_size: self.style.font_size,
@@ -350,9 +351,10 @@ impl Widget for TextInput {
                 layout_glyphs: layout_glyphs.clone(),
             },
             Float::new(StreamWidget(editor_props_rx.to_stream())),
-        ))
-        .with_background(self.style.background)
+        )))
         .with_size_props(self.size)
+        .with_horizontal_alignment(self.style.align)
+        .with_background(self.style.background)
         .mount(scope)
     }
 }

@@ -50,7 +50,7 @@ fn app() -> impl Widget {
     col((
         Checkbox::label(
             "Oklch",
-            color_space.clone().map(
+            color_space.clone().map_value(
                 |v| v == ColorSpace::Oklcha,
                 |v| {
                     if v {

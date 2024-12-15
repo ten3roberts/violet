@@ -27,6 +27,8 @@ component! {
     /// The merged clip mask of the widget and its parents
     pub screen_clip_mask: Rect => [ Debuggable ],
 
+    pub screen_mask_tranform: Vec2,
+
     /// Position relative to parent for layout position.
     pub local_position: Vec2 => [ Debuggable ],
 

@@ -7,13 +7,13 @@ use glam::Vec2;
 use palette::Srgba;
 use winit::event::ElementState;
 
-use super::input::TextInput;
+use super::input::{TextInput, TextInputStyle};
 use crate::{
     components::{offset, padding, rect},
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
-    style::{interactive_active, interactive_passive, spacing_small, SizeExt},
+    style::{interactive_active, interactive_passive, spacing_small, SizeExt, StyleExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,
@@ -153,7 +153,7 @@ impl<V: SliderValue> Widget for Slider<V> {
             handle_size,
         };
 
-        let value = Arc::new(self.value.map(
+        let value = Arc::new(self.value.map_value(
             |v| v,
             move |v| self.transform.as_ref().map(|f| f(v)).unwrap_or(v),
         ));
@@ -230,7 +230,8 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
         scope.spawn_effect(StreamEffect::new(update, {
             move |scope: &mut Scope<'_>, (value, size): (V, Option<Vec2>)| {
                 if let Some(size) = size {
-                    let pos = (value.to_progress() - self.min) * size.x / (self.max - self.min);
+                    let pos = (value.to_progress().clamp(self.min, self.max) - self.min) * size.x
+                        / (self.max - self.min);
 
                     scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
                 }
@@ -350,7 +351,7 @@ impl SliderWithLabel<f32> {
         let x = move |v: f32| (v * recip).round() / recip;
 
         self.slider.transform = Some(Box::new(x));
-        self.value = Arc::new(self.value.map(x, |v| v));
+        self.value = Arc::new(self.value.map_value(x, |v| v));
         self
     }
 
@@ -359,7 +360,7 @@ impl SliderWithLabel<f32> {
         let x = move |v: f32| (v * 10i32.pow(round) as f32).round() / 10i32.pow(round) as f32;
 
         self.slider.transform = Some(Box::new(x));
-        self.value = Arc::new(self.value.map(x, |v| v));
+        self.value = Arc::new(self.value.map_value(x, |v| v));
         self
     }
 }
@@ -384,9 +385,17 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd + Copy> Widget
         ));
 
         if self.editable {
-            row((self.slider, TextInput::new(text_value)))
-                .with_cross_align(Align::Center)
-                .mount(scope)
+            row((
+                self.slider,
+                TextInput::new(text_value)
+                    .with_min_size(Unit::px2(48.0, 16.0))
+                    .with_style(TextInputStyle {
+                        align: Align::End,
+                        ..Default::default()
+                    }),
+            ))
+            .with_cross_align(Align::Center)
+            .mount(scope)
         } else {
             row((
                 self.slider,

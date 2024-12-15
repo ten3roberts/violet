@@ -11,14 +11,14 @@ use super::{State, StateOwned, StateSink, StateStream};
 ///
 /// However, as this does not assume the derived state is contained withing the original state is
 /// does not allow in-place mutation.
-pub struct Map<C, U, F, G> {
+pub struct MapValue<C, U, F, G> {
     inner: C,
     conv_to: Arc<F>,
     conv_from: G,
     _marker: PhantomData<U>,
 }
 
-impl<C, U, F, G> Clone for Map<C, U, F, G>
+impl<C, U, F, G> Clone for MapValue<C, U, F, G>
 where
     C: Clone,
     G: Clone,
@@ -33,11 +33,11 @@ where
     }
 }
 
-impl<C, U, F, G> State for Map<C, U, F, G> {
+impl<C, U, F, G> State for MapValue<C, U, F, G> {
     type Item = U;
 }
 
-impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> Map<C, U, F, G> {
+impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> MapValue<C, U, F, G> {
     pub fn new(inner: C, project: F, project_mut: G) -> Self {
         Self {
             inner,
@@ -48,7 +48,7 @@ impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> Map<C, U, F, G> {
     }
 }
 
-impl<C, U, F, G> StateOwned for Map<C, U, F, G>
+impl<C, U, F, G> StateOwned for MapValue<C, U, F, G>
 where
     C: StateOwned,
     F: Fn(C::Item) -> U,
@@ -58,7 +58,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateStream for Map<C, U, F, G>
+impl<C, U, F, G> StateStream for MapValue<C, U, F, G>
 where
     C: StateStream,
     C::Item: 'static + Send,
@@ -72,7 +72,7 @@ where
 }
 
 /// Bridge update-by-reference to update-by-value
-impl<C, U, F, G> StateSink for Map<C, U, F, G>
+impl<C, U, F, G> StateSink for MapValue<C, U, F, G>
 where
     C: StateSink,
     F: Fn(C::Item) -> U,

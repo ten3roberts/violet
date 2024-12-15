@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
+use image::imageops::colorops::contrast_in_place;
 use itertools::Itertools;
 
 use super::{
@@ -52,6 +53,12 @@ impl QueryCursor {
     }
 
     fn put(&mut self, block: &Block) -> (Vec2, f32) {
+        if block.rect.size() == Vec2::ZERO {
+            let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+
+            return (placement_pos, 0.0);
+        }
+
         let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
@@ -167,6 +174,12 @@ impl AlignCursor {
     }
 
     fn put(&mut self, block: &Block) -> Vec2 {
+        if block.rect.size() == Vec2::ZERO {
+            let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+
+            return placement_pos;
+        }
+
         let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))

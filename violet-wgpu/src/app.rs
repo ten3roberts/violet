@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self},
+    components::{self, rect},
     executor::Executor,
     input::{request_focus_sender, InputState},
     io::{self, Clipboard},
@@ -51,6 +51,7 @@ impl<W: Widget> Widget for Canvas<W> {
 
 pub struct AppBuilder {
     renderer_config: MainRendererConfig,
+    resize_window: bool,
     title: String,
 }
 
@@ -59,7 +60,13 @@ impl AppBuilder {
         Self {
             renderer_config: Default::default(),
             title: "Violet".to_string(),
+            resize_window: false,
         }
+    }
+
+    pub fn with_resize_window(mut self, enable: bool) -> Self {
+        self.resize_window = enable;
+        self
     }
 
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
@@ -76,7 +83,7 @@ impl AppBuilder {
     pub fn run(self, root: impl Widget) -> anyhow::Result<()> {
         let event_loop = EventLoop::builder().build()?;
 
-        let instance = AppInstance::new(root);
+        let instance = AppInstance::new(root, self.resize_window);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -126,8 +133,6 @@ impl AppBuilder {
                 .expect("Failed to add resize listener");
         }
 
-        tracing::info!("creating gpu");
-
         let (renderer_tx, renderer_rx) = flume::unbounded();
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -143,6 +148,7 @@ impl AppBuilder {
                 renderer_rx,
                 renderer_config: self.renderer_config,
                 title: self.title,
+                resize_window: self.resize_window,
             })?;
         }
         #[cfg(target_arch = "wasm32")]
@@ -172,7 +178,7 @@ pub struct AppInstance {
 }
 
 impl AppInstance {
-    pub fn new(root: impl Widget) -> AppInstance {
+    pub fn new(root: impl Widget, resize_canvas: bool) -> AppInstance {
         let executor = Executor::new();
 
         let spawner = executor.spawner();
@@ -202,7 +208,7 @@ impl AppInstance {
             .flush()
             .with_system(update_text_buffers(text_system.clone()))
             .with_system(invalidate_cached_layout_system(&mut frame.world))
-            .with_system(layout_system(root))
+            .with_system(layout_system(root, resize_canvas))
             .with_system(transform_system(root));
 
         let input_state = InputState::new(root, Vec2::ZERO, request_focus_rx);
@@ -312,6 +318,7 @@ struct WindowEventHandler {
     renderer_tx: flume::Sender<WindowRenderer>,
     renderer_config: MainRendererConfig,
     title: String,
+    resize_window: bool,
 }
 
 impl WindowEventHandler {
@@ -332,9 +339,12 @@ impl WindowEventHandler {
 impl ApplicationHandler for WindowEventHandler {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         if self.window.is_none() {
-            let Ok(window) = event_loop
-                .create_window(Window::default_attributes().with_title(self.title.clone()))
-            else {
+            let Ok(window) = event_loop.create_window(
+                Window::default_attributes()
+                    .with_resizable(!self.resize_window)
+                    .with_decorations(true)
+                    .with_title(self.title.clone()),
+            ) else {
                 tracing::error!("Failed to create window");
                 event_loop.exit();
                 return;
@@ -464,8 +474,51 @@ impl ApplicationHandler for WindowEventHandler {
             self.renderer = Some(window_renderer);
         }
 
+        let monitor = window.current_monitor();
+        let max_size: LogicalSize<f32> = monitor
+            .map(|v| v.size())
+            .unwrap_or(PhysicalSize::new(800, 600))
+            .to_logical(self.instance.scale_factor);
+
+        let max_size = vec2(max_size.width, max_size.height) - 20.0;
+
+        if self.resize_window {
+            let canvas = self
+                .instance
+                .frame
+                .world_mut()
+                .entity_mut(self.instance.root)
+                .unwrap();
+            canvas
+                .update_dedup(
+                    components::rect(),
+                    Rect::from_size(vec2(max_size.x, max_size.y)),
+                )
+                .unwrap();
+        }
+
         self.instance.update();
 
+        if self.resize_window {
+            let canvas_size = *self
+                .instance
+                .frame
+                .world
+                .get(self.instance.root, rect())
+                .unwrap();
+
+            let wanted_size = canvas_size.size().min(max_size);
+
+            let new_size =
+                window.request_inner_size(LogicalSize::new(wanted_size.x, wanted_size.y));
+
+            if let Some(new_size) = new_size {
+                self.instance.on_resize(new_size);
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.resize(new_size, self.instance.scale_factor);
+                }
+            }
+        }
         if !self.instance.is_minimized() {
             self.instance.frame.world.prune_archetypes();
         }

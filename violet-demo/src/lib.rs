@@ -77,11 +77,11 @@ pub fn multi_app() -> impl Widget {
                 "The Bridge of Death",
                 state
                     .clone()
-                    .map(|s| s == DemoState::Basic, move |_| DemoState::Basic),
+                    .map_value(|s| s == DemoState::Basic, move |_| DemoState::Basic),
             ),
             Radio::label(
                 "Palette Editor",
-                state.clone().map(
+                state.clone().map_value(
                     |s| s == DemoState::PaletteEditor,
                     move |_| DemoState::PaletteEditor,
                 ),

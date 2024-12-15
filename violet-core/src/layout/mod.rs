@@ -128,6 +128,12 @@ pub struct Sizing {
     maximize: Vec2,
 }
 
+impl Sizing {
+    pub fn preferred(&self) -> Rect {
+        self.preferred
+    }
+}
+
 impl Display for Sizing {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -357,6 +363,10 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     sizing.min = sizing.min.translate(min_offset);
     sizing.preferred = sizing.preferred.translate(offset);
 
+    if IGNORE_ZERO_SIZE_MARGINS && sizing.preferred.size() == Vec2::ZERO {
+        sizing.margin = Edges::ZERO
+    }
+
     cache.insert_query(
         args.direction,
         CachedValue::new(limits, args.content_area, sizing),
@@ -380,6 +390,8 @@ impl Default for LayoutArgs {
         }
     }
 }
+
+const IGNORE_ZERO_SIZE_MARGINS: bool = true;
 
 /// Updates the layout of the given subtree given the passes constraints.
 ///
@@ -453,14 +465,10 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
 
     let can_maximize = maximized.cmpgt(Vec2::ZERO);
 
-    tracing::debug!(%entity, %resolved_size, %limits, %args.limits);
-
     let can_grow = BVec2::new(
         resolved_size.x > args.limits.max_size.x,
         resolved_size.y > args.limits.max_size.y,
     ) | can_maximize;
-
-    // tracing::trace!(%entity, ?resolved_size, ?external_max_size, %can_grow);
 
     let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
 
@@ -511,56 +519,21 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         }
     };
 
-    // if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
-    //     tracing::error!(
-    //         %entity,
-    //         rect_size = %block.rect.size(),
-    //         %limits.max_size,
-    //         "Widget size exceeds constraints",
-    //     );
-    //     panic!("");
-    // }
-
     let constraints = Constraints::from_entity(entity);
     block.rect = block.rect.with_size(constraints.apply(block.rect.size()));
 
     let offset = resolve_pos(entity, args.content_area, block.rect.size());
     block.rect = block.rect.translate(offset);
 
+    if IGNORE_ZERO_SIZE_MARGINS && block.rect.size() == Vec2::ZERO {
+        block.margin = Edges::ZERO
+    }
+
     entity.update_dedup(components::layout_bounds(), block.rect.size());
     entity
         .update_dedup(components::layout_args(), args)
         .unwrap();
 
-    // if block.rect.size().x > args.overflow_limit.x + LAYOUT_TOLERANCE
-    //     || block.rect.size().y > args.overflow_limit.y + LAYOUT_TOLERANCE
-    // {
-    //     tracing::warn!(
-    //         %entity,
-    //         size=%block.rect.size(),
-    //         %args.limits,
-    //         %args.overflow_limit,
-    //         "Widget size exceeds constraints"
-    //     );
-    // }
-
-    // Widget size is limited by itself and is not affected by the size of the parent
-    // if let Some(max_size) = max_size {
-    //     if block.rect.size().abs_diff_eq(max_size, LAYOUT_TOLERANCE) {
-    //         block.can_grow = BVec2::FALSE;
-    //     }
-    // }
-
-    // if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
-    //     tracing::error!(
-    //         %entity, rect_size=%block.rect.size(), %limits.max_size,
-    //         "Widget size exceeds constraints",
-    //     );
-    // }
-
-    // validate_block(entity, &block, limits);
-
-    // tracing::info!(%entity, %limits, %args.content_area, %block.can_grow, %block.rect, ?cache.layout, "caching layout");
     cache.insert_layout(CachedValue::new(limits, args.content_area, block));
 
     block
