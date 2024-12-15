@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     borrow::Borrow,
+    convert::Infallible,
     hash::Hash,
     path::Path,
     sync::Arc,
@@ -166,23 +167,21 @@ impl AssetKey<DynamicImage> for Path {
     }
 }
 
+impl AssetKey<()> for Path {
+    type Error = Infallible;
+
+    fn load(&self, assets: &AssetCache) -> Result<Asset<()>, Infallible> {
+        eprintln!("Loading {:?}", self);
+        Ok(assets.insert(()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{convert::Infallible, path::Path};
-
     use super::*;
 
     #[test]
     fn asset_cache() {
-        impl AssetKey<()> for Path {
-            type Error = Infallible;
-
-            fn load(&self, assets: &AssetCache) -> Result<Asset<()>, Infallible> {
-                eprintln!("Loading {:?}", self);
-                Ok(assets.insert(()))
-            }
-        }
-
         let assets = AssetCache::new();
 
         let content: Asset<()> = assets.load(&"Foo");

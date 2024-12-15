@@ -10,6 +10,7 @@ pub struct CachedValue<T> {
     pub value: T,
 }
 
+const ENABLE: bool = true;
 pub const LAYOUT_TOLERANCE: f32 = 0.01;
 
 impl<T> CachedValue<T> {
@@ -59,6 +60,10 @@ impl LayoutCache {
     }
 
     pub(crate) fn insert_query(&mut self, direction: Direction, value: CachedValue<Sizing>) {
+        if !ENABLE {
+            return;
+        }
+
         self.hints = value.value.hints;
         let v = &mut self.query[direction as usize];
         if v.len() >= 16 {
@@ -73,6 +78,10 @@ impl LayoutCache {
     }
 
     pub(crate) fn insert_query_row(&mut self, value: CachedValue<Row>) {
+        if !ENABLE {
+            return;
+        }
+
         self.query_row = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
             f(LayoutUpdateEvent::SizeQueryUpdate)
@@ -80,6 +89,10 @@ impl LayoutCache {
     }
 
     pub(crate) fn insert_layout(&mut self, value: CachedValue<Block>) {
+        if !ENABLE {
+            return;
+        }
+
         self.layout = Some(value);
         if let Some(f) = self.on_invalidated.as_ref() {
             f(LayoutUpdateEvent::LayoutUpdate)

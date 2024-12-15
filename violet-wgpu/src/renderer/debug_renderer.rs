@@ -11,16 +11,15 @@ use violet_core::{
 };
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
+use super::{
+    rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererContext, RendererStore,
+};
 use crate::{
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
-};
-
-use super::{
-    rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererContext, RendererStore,
 };
 
 pub struct DebugRenderer {
@@ -149,6 +148,8 @@ impl DebugRenderer {
             let object_data = ObjectData {
                 model_matrix,
                 color,
+                corner_radius: 0.0,
+                _padding: Default::default(),
             };
 
             Some((

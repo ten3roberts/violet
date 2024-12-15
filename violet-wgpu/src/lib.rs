@@ -9,6 +9,5 @@ mod text;
 mod texture;
 pub mod widgets;
 
-pub use graphics::Gpu;
-
 pub use app::AppBuilder;
+pub use graphics::Gpu;

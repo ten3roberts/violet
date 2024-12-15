@@ -1,9 +1,9 @@
-use std::cmp::Ordering;
-use std::{self};
-
-use std::hash::Hash;
-
-use std::sync::{Arc, Weak};
+use std::{
+    cmp::Ordering,
+    hash::Hash,
+    sync::{Arc, Weak},
+    {self},
+};
 
 use super::AssetId;
 

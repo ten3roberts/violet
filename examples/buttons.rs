@@ -1,10 +1,8 @@
 use futures_signals::{map_ref, signal::Mutable};
-
 use itertools::Itertools;
 use palette::{FromColor, Hsva, IntoColor, Oklcha, Srgba};
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-
 use violet::core::{
     layout::Align,
     style::StyleExt,
@@ -102,7 +100,7 @@ impl Widget for MainApp {
             .collect_vec()),
         ))
         .with_background(Background::new(primary_surface()))
-        .contain_margins(true)
+        .with_contain_margins(true)
         .mount(scope)
     }
 }

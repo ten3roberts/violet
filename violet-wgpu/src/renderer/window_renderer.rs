@@ -5,14 +5,12 @@ use flax::Entity;
 use glam::Mat4;
 use parking_lot::Mutex;
 use puffin::profile_scope;
+use violet_core::{layout::cache::LayoutUpdateEvent, Frame};
 use wgpu::SurfaceError;
 use winit::dpi::{LogicalSize, PhysicalSize};
 
-use violet_core::{layout::cache::LayoutUpdateEvent, Frame};
-
-use crate::{graphics::Surface, text::TextSystem, Gpu};
-
 use super::{MainRenderer, MainRendererConfig, RendererContext};
+use crate::{graphics::Surface, text::TextSystem, Gpu};
 
 /// Renders to a window surface
 pub struct WindowRenderer {

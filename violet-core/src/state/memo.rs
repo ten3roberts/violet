@@ -30,6 +30,13 @@ impl<C, T> Memo<C, T> {
             inner,
         }
     }
+
+    pub fn get(&self) -> T
+    where
+        T: Copy,
+    {
+        self.value.lock().value
+    }
 }
 
 impl<C, T> State for Memo<C, T> {

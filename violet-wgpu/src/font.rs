@@ -4,9 +4,8 @@ use cosmic_text::{CacheKey, Placement, SwashImage};
 use glam::{uvec2, vec3, UVec2};
 use guillotiere::{size2, AtlasAllocator};
 use image::{ImageBuffer, Luma};
-use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
-
 use violet_core::assets::AssetCache;
+use wgpu::{util::DeviceExt, Extent3d, TextureDescriptor, TextureDimension, TextureUsages};
 
 use crate::{graphics::texture::Texture, text::TextSystem, Gpu};
 

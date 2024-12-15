@@ -1,7 +1,8 @@
-use crate::Gpu;
 use wgpu::{
     BindGroupLayout, PipelineLayoutDescriptor, RenderPipeline, TextureFormat, VertexBufferLayout,
 };
+
+use crate::Gpu;
 
 #[derive(Debug, Clone)]
 pub struct ShaderDesc<'a> {

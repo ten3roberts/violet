@@ -1,17 +1,15 @@
 use std::sync::Arc;
 
 use flax::component;
+use violet_core::assets::Asset;
 use wgpu::TextureView;
 
+use super::mesh_buffer::MeshHandle;
 use crate::{
     graphics::texture::Texture,
     renderer::{DrawCommand, ObjectData},
     text::TextBufferState,
 };
-
-use violet_core::assets::Asset;
-
-use super::mesh_buffer::MeshHandle;
 
 component! {
     /// The gpu texture to use for rendering

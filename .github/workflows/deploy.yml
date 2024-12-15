@@ -26,7 +26,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - run: wasm-pack build --release --target web --out-dir public/pkg
       - name: Upload Artefact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: demo
           path: ./violet-demo/public
@@ -36,7 +36,7 @@ jobs:
     if: github.event_name == 'push' && ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: Download demo
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: demo
           path: dist/demo

@@ -1,11 +1,9 @@
 use flax::components::name;
 use futures_signals::signal::{Mutable, SignalExt};
-
 use glam::{vec2, Vec2};
 use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-
 use violet::core::{
     components,
     state::MapRef,
@@ -81,9 +79,8 @@ impl Widget for MainApp {
             ))),
             row((label("This is a row of longer text that is wrapped. When the text wraps it will take up more vertical space in the layout, and will as such increase the overall height. Another sentence for good measure to force the text to wrap"), card(Text::new(":P").with_wrap(Wrap::None)))),
             SignalWidget::new(size.signal().map(|size| FlowSizing { size })),
-            // AnimatedSize,
         ))
-        .contain_margins(true)
+        .with_contain_margins(true)
         .with_background(Background::new(primary_surface()))
         .mount(scope)
     }

@@ -1,13 +1,12 @@
 use flax::{Entity, EntityRef, World};
 use glam::{BVec2, Vec2};
 
+use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 use crate::{
     components,
     layout::{query_size, Direction, LayoutArgs, SizingHints},
     Edges, Rect,
 };
-
-use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 
 /// A floating layout positions its children similar to the stack layout, but it does grow to accommodate the children.
 ///
@@ -24,8 +23,6 @@ impl FloatLayout {
 
         args.children.iter().for_each(|&child| {
             let entity = world.entity(child).expect("invalid child");
-
-            // let pos = resolve_pos(&entity, content_area, preferred_size);
 
             let limits = LayoutLimits {
                 min_size: Vec2::ZERO,
@@ -56,7 +53,6 @@ impl FloatLayout {
         _: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        // let min_rect = Rect::from_size(args.limits.min_size);
 
         let mut hints = SizingHints::default();
 

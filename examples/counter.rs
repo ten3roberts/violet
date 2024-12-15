@@ -8,10 +8,13 @@ use violet::core::{
     components::size,
     layout::Align,
     unit::Unit,
-    widget::{Button, List, SignalWidget, Stack, Text},
+    widget::{Button, List, SignalWidget, Text},
     Scope, Widget,
 };
-use violet_core::style::{accent_element, secondary_surface, spacing_small, Background, SizeExt};
+use violet_core::{
+    style::{element_accent, Background},
+    widget::pill,
+};
 
 macro_rules! srgba {
     ($color:literal) => {{
@@ -31,13 +34,6 @@ pub const TEAL: Srgba = srgba!("#247b7b");
 pub const EMERALD: Srgba = srgba!("#50c878");
 pub const BRONZE: Srgba = srgba!("#cd7f32");
 pub const CHILI_RED: Srgba = srgba!("#d34131");
-
-fn pill(widget: impl Widget) -> impl Widget {
-    Stack::new(widget)
-        .with_background(Background::new(secondary_surface()))
-        .with_margin(spacing_small())
-        .with_padding(spacing_small())
-}
 
 struct MainApp;
 
@@ -60,7 +56,7 @@ impl Widget for MainApp {
                 "Please click the button to increment the counter",
             )),
         ))
-        .with_background(Background::new(accent_element()))
+        .with_background(Background::new(element_accent()))
         .with_cross_align(Align::Center)
         .mount(scope);
     }

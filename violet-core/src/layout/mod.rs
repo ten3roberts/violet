@@ -6,8 +6,12 @@ mod stack;
 use std::fmt::{Display, Formatter};
 
 use flax::{Entity, EntityRef, FetchExt, World};
+pub use float::FloatLayout;
+pub use flow::{Align, FlowLayout};
 use glam::{vec2, BVec2, Vec2};
+pub use stack::StackLayout;
 
+use self::cache::{layout_cache, LayoutCache};
 use crate::{
     components::{
         self, anchor, aspect_ratio, children, layout, max_size, maximize, min_size, offset,
@@ -16,12 +20,6 @@ use crate::{
     layout::cache::{validate_cached_layout, validate_cached_query, CachedValue},
     Edges, Rect,
 };
-
-pub use float::FloatLayout;
-pub use flow::{Align, FlowLayout};
-pub use stack::StackLayout;
-
-use self::cache::{layout_cache, LayoutCache};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, PartialOrd, Hash, Ord, Eq)]
 pub enum Direction {
@@ -128,6 +126,12 @@ pub struct Sizing {
     margin: Edges,
     pub hints: SizingHints,
     maximize: Vec2,
+}
+
+impl Sizing {
+    pub fn preferred(&self) -> Rect {
+        self.preferred
+    }
 }
 
 impl Display for Sizing {
@@ -313,8 +317,8 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
 
         Sizing {
             margin: (sizing.margin - padding).max(margin),
-            min: sizing.min.pad(&padding),
-            preferred: sizing.preferred.pad(&padding),
+            min: sizing.min.pad(padding),
+            preferred: sizing.preferred.pad(padding),
             hints: sizing.hints.combine(hints),
             maximize: sizing.maximize + entity.get_copy(maximize()).unwrap_or_default(),
         }
@@ -359,18 +363,9 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     sizing.min = sizing.min.translate(min_offset);
     sizing.preferred = sizing.preferred.translate(offset);
 
-    // // Widget size is limited by itself and is not affected by the size of the parent
-    // if let Some(max_size) = max_size {
-    //     if sizing
-    //         .preferred
-    //         .size()
-    //         .abs_diff_eq(max_size, LAYOUT_TOLERANCE)
-    //     {
-    //         sizing.hints.can_grow = false;
-    //     }
-    // }
-
-    // validate_sizing(entity, &sizing, limits);
+    if IGNORE_ZERO_SIZE_MARGINS && sizing.preferred.size() == Vec2::ZERO {
+        sizing.margin = Edges::ZERO
+    }
 
     cache.insert_query(
         args.direction,
@@ -395,6 +390,8 @@ impl Default for LayoutArgs {
         }
     }
 }
+
+const IGNORE_ZERO_SIZE_MARGINS: bool = true;
 
 /// Updates the layout of the given subtree given the passes constraints.
 ///
@@ -432,7 +429,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: args.limits.min_size.max(min_size),
-        max_size: args.limits.max_size.min(max_size).max(min_size),
+        max_size: args.limits.max_size.clamp(min_size, max_size),
     };
 
     // Check if cache is still valid
@@ -468,14 +465,10 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
 
     let can_maximize = maximized.cmpgt(Vec2::ZERO);
 
-    tracing::debug!(%entity, %resolved_size, %limits, %args.limits);
-
     let can_grow = BVec2::new(
         resolved_size.x > args.limits.max_size.x,
         resolved_size.y > args.limits.max_size.y,
     ) | can_maximize;
-
-    // tracing::trace!(%entity, ?resolved_size, ?external_max_size, %can_grow);
 
     let resolved_size = resolved_size.clamp(limits.min_size, limits.max_size);
 
@@ -492,12 +485,13 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
                     max_size: (limits.max_size - padding.size()).max(Vec2::ZERO),
                 },
                 preferred_size: resolved_size - padding.size(),
+                // start of inner content
                 offset: vec2(padding.left, padding.top),
             },
         );
 
         Block {
-            rect: block.rect.pad(&padding),
+            rect: block.rect.pad(padding),
             margin: (block.margin - padding).max(margin),
             can_grow: block.can_grow | can_grow,
         }
@@ -525,56 +519,21 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         }
     };
 
-    // if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
-    //     tracing::error!(
-    //         %entity,
-    //         rect_size = %block.rect.size(),
-    //         %limits.max_size,
-    //         "Widget size exceeds constraints",
-    //     );
-    //     panic!("");
-    // }
-
     let constraints = Constraints::from_entity(entity);
     block.rect = block.rect.with_size(constraints.apply(block.rect.size()));
 
     let offset = resolve_pos(entity, args.content_area, block.rect.size());
     block.rect = block.rect.translate(offset);
 
+    if IGNORE_ZERO_SIZE_MARGINS && block.rect.size() == Vec2::ZERO {
+        block.margin = Edges::ZERO
+    }
+
     entity.update_dedup(components::layout_bounds(), block.rect.size());
     entity
         .update_dedup(components::layout_args(), args)
         .unwrap();
 
-    // if block.rect.size().x > args.overflow_limit.x + LAYOUT_TOLERANCE
-    //     || block.rect.size().y > args.overflow_limit.y + LAYOUT_TOLERANCE
-    // {
-    //     tracing::warn!(
-    //         %entity,
-    //         size=%block.rect.size(),
-    //         %args.limits,
-    //         %args.overflow_limit,
-    //         "Widget size exceeds constraints"
-    //     );
-    // }
-
-    // Widget size is limited by itself and is not affected by the size of the parent
-    // if let Some(max_size) = max_size {
-    //     if block.rect.size().abs_diff_eq(max_size, LAYOUT_TOLERANCE) {
-    //         block.can_grow = BVec2::FALSE;
-    //     }
-    // }
-
-    // if block.rect.size().x > limits.max_size.x || block.rect.size().y > limits.max_size.y {
-    //     tracing::error!(
-    //         %entity, rect_size=%block.rect.size(), %limits.max_size,
-    //         "Widget size exceeds constraints",
-    //     );
-    // }
-
-    // validate_block(entity, &block, limits);
-
-    // tracing::info!(%entity, %limits, %args.content_area, %block.can_grow, %block.rect, ?cache.layout, "caching layout");
     cache.insert_layout(CachedValue::new(limits, args.content_area, block));
 
     block

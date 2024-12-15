@@ -1,15 +1,14 @@
 use image::DynamicImage;
 use palette::Srgba;
 
+use super::{label, Widget};
 use crate::{
     assets::AssetKey,
     components::{self, color, draw_shape},
     shape,
-    style::{colors::REDWOOD_500, SizeExt, WidgetSize},
+    style::{surface_danger, SizeExt, WidgetSize},
     Scope,
 };
-
-use super::{label, Widget};
 
 pub struct Image<K> {
     image: K,
@@ -47,7 +46,7 @@ where
                 .set_opt(components::aspect_ratio(), self.aspect_ratio);
         } else {
             label("Image not found")
-                .with_color(REDWOOD_500)
+                .with_color(surface_danger())
                 .mount(scope);
         }
     }

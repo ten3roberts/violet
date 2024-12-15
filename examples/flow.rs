@@ -37,7 +37,7 @@ fn app() -> impl Widget {
         row((Button::label("Longer Button"), Button::label("Button"))),
     ))
     .with_background(Background::new(EMERALD_900)))
-    .contain_margins(true)
+    .with_contain_margins(true)
     .with_background(Background::new(COPPER_500))
     // .with_padding(spacing_medium())
 }

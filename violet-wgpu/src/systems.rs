@@ -5,11 +5,10 @@ use flax::{
     components::child_of,
     entity_ids,
     fetch::{Modified, TransformFetch},
-    BoxedSystem, CommandBuffer, Component, EntityIds, Fetch, FetchExt, ComponentMut, OptOr, Query,
+    BoxedSystem, CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, OptOr, Query,
     QueryBorrow, RelationExt, System, World,
 };
 use parking_lot::Mutex;
-
 use puffin::profile_scope;
 use violet_core::{
     components::{font_size, layout_glyphs, size_resolver, text, text_wrap},
@@ -17,12 +16,11 @@ use violet_core::{
     text::{LayoutGlyphs, TextSegment},
 };
 
-use crate::text::TextSystem;
-
 use super::{
     components::text_buffer_state,
     text::{TextBufferState, TextSizeResolver},
 };
+use crate::text::TextSystem;
 
 #[derive(Fetch)]
 #[fetch(transforms = [Modified])]
