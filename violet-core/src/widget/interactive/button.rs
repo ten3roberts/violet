@@ -6,7 +6,7 @@ use winit::{
 };
 
 use crate::{
-    components::{self, color},
+    components::{self, color, widget_corner_radius},
     input::{focusable, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
@@ -85,7 +85,8 @@ impl<W> Button<W> {
             style: Default::default(),
             size: WidgetSize::default()
                 .with_padding(spacing_medium())
-                .with_margin(spacing_medium()),
+                .with_margin(spacing_medium())
+                .with_corner_radius(default_corner_radius()),
             // .with_min_size(Unit::px2(28.0, 28.0)),
             is_pressed: false,
         }
@@ -234,6 +235,7 @@ impl<W: WidgetCollection> Checkbox<W> {
             size: WidgetSize::default()
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
+                .with_corner_radius(default_corner_radius())
                 .with_min_size(Unit::px2(28.0, 28.0)),
             label,
         }
@@ -312,6 +314,7 @@ impl<W: WidgetCollection> Radio<W> {
             size: WidgetSize::default()
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
+                .with_corner_radius(default_corner_radius())
                 .with_min_size(Unit::px2(28.0, 28.0)),
             label,
         }

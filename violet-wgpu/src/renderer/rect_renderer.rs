@@ -10,7 +10,9 @@ use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
-    components::{anchor, color, draw_shape, image, rect, screen_clip_mask, screen_transform},
+    components::{
+        anchor, color, widget_corner_radius, draw_shape, image, rect, screen_clip_mask, screen_transform,
+    },
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
     unit::Unit,
@@ -72,6 +74,7 @@ struct RectObjectQuery {
     // local_pos: Component<Vec2>,
     color: OptOr<Component<Srgba>, Srgba>,
     object_data: ComponentMut<ObjectData>,
+    corner_radius: OptOr<Component<Unit<f32>>, Unit<f32>>,
 }
 
 impl RectObjectQuery {
@@ -84,6 +87,7 @@ impl RectObjectQuery {
             anchor: anchor().opt_or_default(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
+            corner_radius: widget_corner_radius().opt_or_default(),
         }
     }
 }
@@ -261,11 +265,6 @@ impl RectRenderer {
             .for_each(|item| {
                 let rect = item.rect.align_to_grid();
 
-                // if rect.size().x < 0.01 || rect.size().y < 0.01 {
-                // tracing::warn!("rect too small to render");
-                //     return;
-                // }
-
                 let model_matrix = *item.transform
                     * Mat4::from_scale_rotation_translation(
                         rect.size().extend(1.0),
@@ -276,6 +275,8 @@ impl RectRenderer {
                 *item.object_data = ObjectData {
                     model_matrix,
                     color: srgba_to_vec4(*item.color),
+                    corner_radius: item.corner_radius.resolve(rect.size().min_element() / 2.0),
+                    _padding: Default::default(),
                 };
             })
     }

@@ -13,7 +13,10 @@ use crate::{
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
-    style::{element_accent, spacing_small, surface_interactive, SizeExt, StyleExt},
+    style::{
+        default_corner_radius, element_accent, spacing_small, surface_interactive, SizeExt,
+        StyleExt,
+    },
     to_owned,
     unit::Unit,
     utils::zip_latest,
@@ -99,7 +102,8 @@ impl<V: SliderValue> Widget for Slider<V> {
         let track = scope.attach(
             Rectangle::new(track_color)
                 .with_min_size(track_size)
-                .with_size(track_size),
+                .with_size(track_size)
+                .with_corner_radius(default_corner_radius()),
         );
 
         let min = self.min.to_progress();
@@ -238,10 +242,14 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
             }
         }));
 
-        Positioned::new(Rectangle::new(self.handle_color).with_min_size(self.handle_size))
-            .with_offset(Unit::px2(0.0, 0.0))
-            .with_anchor(Unit::rel2(0.5, 0.5))
-            .mount(scope)
+        Positioned::new(
+            Rectangle::new(self.handle_color)
+                .with_min_size(self.handle_size)
+                .with_corner_radius(default_corner_radius()),
+        )
+        .with_offset(Unit::px2(0.0, 0.0))
+        .with_anchor(Unit::rel2(0.5, 0.5))
+        .mount(scope)
     }
 }
 

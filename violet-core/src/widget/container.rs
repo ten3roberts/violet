@@ -8,8 +8,8 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        spacing_medium, surface_primary, surface_secondary, surface_tertiary, Background, SizeExt,
-        StyleExt, WidgetSize,
+        default_corner_radius, spacing_medium, surface_secondary, surface_tertiary, Background,
+        SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -297,6 +297,7 @@ pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
         .with_background(Background::new(surface_secondary()))
         .with_padding(spacing_medium())
         .with_margin(spacing_medium())
+        .with_corner_radius(default_corner_radius())
 }
 
 pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
@@ -312,4 +313,5 @@ pub fn pill<W: Widget>(widget: W) -> Stack<W> {
         .with_background(Background::new(surface_tertiary()))
         .with_padding(spacing_medium())
         .with_margin(spacing_medium())
+        .with_corner_radius(default_corner_radius())
 }

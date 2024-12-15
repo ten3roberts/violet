@@ -96,6 +96,8 @@ component! {
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
 
+    pub widget_corner_radius: Unit<f32> => [ Debuggable ],
+
     /// The widget will be rendered as a filled rectange coverings its bounds
     pub image: Asset<DynamicImage> => [ Debuggable ],
 

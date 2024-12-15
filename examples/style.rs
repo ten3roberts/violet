@@ -8,7 +8,7 @@ use tracing_tree::HierarchicalLayer;
 use violet_core::{
     layout::Align,
     state::{State, StateStream},
-    style::{base_colors::*, spacing_small, surface_primary, SizeExt},
+    style::{base_colors::*, default_corner_radius, spacing_small, surface_primary, SizeExt},
     unit::Unit,
     widget::{
         card, col, label, pill, row, subtitle, title, Button, Checkbox, Radio, Rectangle,
@@ -84,6 +84,7 @@ fn colors() -> impl Widget {
         Rectangle::new(color)
             .with_exact_size(Unit::px2(60.0, 40.0))
             .with_margin(spacing_small())
+            .with_corner_radius(default_corner_radius())
     }
 
     card(

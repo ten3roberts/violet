@@ -13,7 +13,7 @@ use winit::{
 };
 
 use crate::{
-    components::{self, screen_transform},
+    components::{self, screen_transform, widget_corner_radius},
     editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
         focusable, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
@@ -67,7 +67,8 @@ impl TextInput {
             size: WidgetSize::default()
                 .with_min_size(Unit::px2(16.0, 16.0))
                 .with_margin(spacing_small())
-                .with_padding(spacing_small()),
+                .with_padding(spacing_small())
+                .with_corner_radius(default_corner_radius()),
         }
     }
 

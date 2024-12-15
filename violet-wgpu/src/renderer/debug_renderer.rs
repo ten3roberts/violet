@@ -148,6 +148,8 @@ impl DebugRenderer {
             let object_data = ObjectData {
                 model_matrix,
                 color,
+                corner_radius: 0.0,
+                _padding: Default::default(),
             };
 
             Some((

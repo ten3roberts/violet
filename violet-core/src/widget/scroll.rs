@@ -7,7 +7,9 @@ use crate::{
     components::{min_size, offset, padding, rect, transform},
     input::{focusable, on_scroll},
     state::{StateMut, StateStream},
-    style::{surface_interactive_accent, Background, ResolvableStyle, SizeExt, WidgetSize},
+    style::{
+        default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt, WidgetSize,
+    },
     to_owned,
     unit::Unit,
     utils::zip_latest,
@@ -218,7 +220,9 @@ impl Widget for Scrollbar {
             });
 
             Movable::new(
-                Rectangle::new(surface_interactive_accent()).with_min_size(Unit::px2(40.0, 40.0)),
+                Rectangle::new(surface_interactive_accent())
+                    .with_min_size(Unit::px2(40.0, 40.0))
+                    .with_corner_radius(default_corner_radius()),
             )
             .on_move(move |_, v| {
                 let size = size.get();

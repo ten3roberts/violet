@@ -6,7 +6,7 @@ use flax::{
     fetch::{entity_refs, EntityRefs, NthRelation},
     CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
 };
-use glam::{vec4, Mat4, Vec2, Vec4};
+use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
@@ -447,6 +447,8 @@ fn collect_draw_commands(
 pub(crate) struct ObjectData {
     pub(crate) model_matrix: Mat4,
     pub(crate) color: Vec4,
+    pub(crate) corner_radius: f32,
+    pub(crate) _padding: Vec3,
 }
 
 struct RendererIter<'a> {

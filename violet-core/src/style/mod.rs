@@ -10,7 +10,10 @@ use palette::{IntoColor, Oklab, Srgba};
 
 pub use self::color::*;
 use crate::{
-    components::{color, draw_shape, margin, max_size, maximize, min_size, padding, size},
+    components::{
+        color, draw_shape, margin, max_size, maximize, min_size, padding, size,
+        widget_corner_radius,
+    },
     input::focusable,
     shape::shape_rectangle,
     unit::Unit,
@@ -55,6 +58,7 @@ pub struct WidgetSize {
     pub max_size: Option<Unit<Vec2>>,
     pub margin: Option<ValueOrRef<Edges>>,
     pub padding: Option<ValueOrRef<Edges>>,
+    pub corner_radius: Option<ValueOrRef<Unit<f32>>>,
     pub maximize: Option<Vec2>,
 }
 
@@ -68,11 +72,13 @@ impl WidgetSize {
 
         let m = self.margin.map(|v| v.resolve(&stylesheet));
         let p = self.padding.map(|v| v.resolve(&stylesheet));
+        let corner = self.corner_radius.map(|v| v.resolve(&stylesheet));
 
         scope
             .set_opt(margin(), m)
             .set_opt(padding(), p)
             .set_opt(size(), self.size)
+            .set_opt(widget_corner_radius(), corner)
             .set_opt(min_size(), self.min_size)
             .set_opt(max_size(), self.max_size)
             .set_opt(maximize(), self.maximize);
@@ -105,6 +111,12 @@ impl WidgetSize {
     /// Set the padding around inner content.
     pub fn with_padding(mut self, padding: impl Into<ValueOrRef<Edges>>) -> Self {
         self.padding = Some(padding.into());
+        self
+    }
+
+    /// Set the corner radius
+    pub fn with_corner_radius(mut self, corner_radius: impl Into<ValueOrRef<Unit<f32>>>) -> Self {
+        self.corner_radius = Some(corner_radius.into());
         self
     }
 
@@ -169,6 +181,15 @@ pub trait SizeExt {
         Self: Sized,
     {
         self.size_mut().margin = Some(margin.into());
+        self
+    }
+
+    /// Set the corner_radius
+    fn with_corner_radius(mut self, corner_radius: impl Into<ValueOrRef<Unit<f32>>>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().corner_radius = Some(corner_radius.into());
         self
     }
 
@@ -304,6 +325,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(spacing_small(), 4.0.into())
         .set(spacing_medium(), 8.0.into())
         .set(spacing_large(), 16.0.into())
+        .set(default_corner_radius(), Unit::px(8.0))
         // text size
         .set(text_small(), 16.0)
         .set(text_medium(), 24.0)
@@ -322,6 +344,8 @@ flax::component! {
     pub spacing_small: Edges,
     pub spacing_medium: Edges,
     pub spacing_large: Edges,
+
+    pub default_corner_radius: Unit<f32>,
 
     pub text_small: f32,
     pub text_medium: f32,

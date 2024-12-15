@@ -62,36 +62,3 @@ pub fn run() {
         .run(colorpicker::main_app())
         .unwrap();
 }
-
-#[derive(Debug, Clone, PartialEq)]
-enum DemoState {
-    Basic,
-    PaletteEditor,
-}
-
-pub fn multi_app() -> impl Widget {
-    let state = Mutable::new(DemoState::Basic);
-    col((
-        (row((
-            Radio::label(
-                "The Bridge of Death",
-                state
-                    .clone()
-                    .map_value(|s| s == DemoState::Basic, move |_| DemoState::Basic),
-            ),
-            Radio::label(
-                "Palette Editor",
-                state.clone().map_value(
-                    |s| s == DemoState::PaletteEditor,
-                    move |_| DemoState::PaletteEditor,
-                ),
-            ),
-        ))
-        .with_background(surface_accent()))
-        .with_maximize(Vec2::X),
-        StreamWidget(state.stream().map(|v| match v {
-            DemoState::Basic => bridge_of_death::app().boxed(),
-            DemoState::PaletteEditor => colorpicker::main_app().boxed(),
-        })),
-    ))
-}

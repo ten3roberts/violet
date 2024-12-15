@@ -16,6 +16,7 @@ struct VertexOutput {
 struct Object {
     world_matrix: mat4x4<f32>,
     color: vec4<f32>,
+    corner_radius: f32,
 }
 
 struct Globals {
@@ -38,7 +39,7 @@ var fill_image: texture_2d<f32>;
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     let object = objects[in.instance];
-    let scale =     (object.world_matrix * vec4(1.0, 1.0, 0.0, 0.0)).xy;
+    let scale = (object.world_matrix * vec4(1.0, 1.0, 0.0, 0.0)).xy;
     out.pos = globals.viewproj * object.world_matrix * vec4<f32>(in.pos, 1.0);
     out.color = object.color;
     out.tex_coord = in.tex_coord;
@@ -65,7 +66,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //     to_nearest.x > in.scale.x - border_size || to_nearest.y > in.scale.y - border_size) {
     //         border = 1.0;
     // }
-    if (dot(to_nearest, vec2(1.0)) < border_size) {
+    if dot(to_nearest, vec2(1.0)) < border_size {
         border = 1.0;
     }
 
