@@ -3,7 +3,7 @@ use glam::Vec2;
 use violet::{
     core::{
         state::{State, StateStream},
-        style::{accent_surface, SizeExt},
+        style::{surface_accent, SizeExt},
         widget::{col, row, Radio, StreamWidget, WidgetExt},
         Widget,
     },
@@ -87,7 +87,7 @@ pub fn multi_app() -> impl Widget {
                 ),
             ),
         ))
-        .with_background(accent_surface()))
+        .with_background(surface_accent()))
         .with_maximize(Vec2::X),
         StreamWidget(state.stream().map(|v| match v {
             DemoState::Basic => bridge_of_death::app().boxed(),

@@ -11,6 +11,7 @@ use parking_lot::Mutex;
 use violet_core::{
     components::{font_size, layout_glyphs},
     layout::{LayoutArgs, QueryArgs, SizeResolver, SizingHints},
+    style::ResolvableStyle,
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };

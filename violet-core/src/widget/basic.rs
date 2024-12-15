@@ -1,3 +1,4 @@
+use cosmic_text::{Style, Weight};
 use glam::Vec2;
 use palette::Srgba;
 
@@ -5,8 +6,8 @@ use crate::{
     components::{self, color, draw_shape, text, text_wrap},
     shape,
     style::{
-        primary_element, spacing_small, text_large, text_medium, text_small, SizeExt, StyleExt,
-        ValueOrRef, WidgetSize,
+        element_primary, element_secondary, spacing_small, text_large, text_medium, text_small,
+        ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{TextSegment, Wrap},
     unit::Unit,
@@ -69,7 +70,7 @@ impl Default for TextStyle {
         Self {
             font_size: text_small().into(),
             wrap: Wrap::Word,
-            color: primary_element().into(),
+            color: element_primary().into(),
         }
     }
 }
@@ -82,14 +83,41 @@ pub struct Text {
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
-        Self::rich([TextSegment::new(text.into())])
+        Self::formatted([TextSegment::new(text.into())])
     }
 
-    pub fn rich(text: impl IntoIterator<Item = TextSegment>) -> Self {
+    pub fn extra_bold(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::EXTRA_BOLD)])
+    }
+
+    pub fn bold(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::BOLD)])
+    }
+
+    pub fn medium(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::MEDIUM)])
+    }
+
+    pub fn light(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::LIGHT)])
+    }
+
+    pub fn extra_light(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::EXTRA_LIGHT)])
+    }
+
+    pub fn italic(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_style(Style::Italic)])
+    }
+
+    pub fn formatted(text: impl IntoIterator<Item = TextSegment>) -> Self {
         Self {
             text: text.into_iter().collect(),
             style: TextStyle::default(),
-            size: Default::default(),
+            size: WidgetSize {
+                margin: Some(spacing_small().into()),
+                ..Default::default()
+            },
         }
     }
 
@@ -154,13 +182,14 @@ pub fn header(text: impl Into<String>) -> Stack<Text> {
 
 /// A text with a margin
 pub fn title(text: impl Into<String>) -> Text {
-    Text::new(text)
+    Text::bold(text)
         .with_font_size(text_large())
         .with_margin(spacing_small())
 }
 
 pub fn subtitle(text: impl Into<String>) -> Text {
-    Text::new(text)
+    Text::medium(text)
+        .with_color(element_secondary())
         .with_font_size(text_medium())
         .with_margin(spacing_small())
 }

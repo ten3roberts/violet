@@ -13,7 +13,7 @@ use crate::{
     input::{focusable, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
-    style::{interactive_active, interactive_passive, spacing_small, SizeExt, StyleExt},
+    style::{element_accent, spacing_small, surface_interactive, SizeExt, StyleExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,
@@ -32,8 +32,8 @@ pub struct SliderStyle {
 impl Default for SliderStyle {
     fn default() -> Self {
         Self {
-            track_color: interactive_passive(),
-            handle_color: interactive_active(),
+            track_color: surface_interactive(),
+            handle_color: element_accent(),
             track_size: Unit::px2(256.0, 4.0),
             handle_size: Unit::px2(4.0, 16.0),
         }
@@ -345,17 +345,7 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<
 }
 
 impl SliderWithLabel<f32> {
-    pub fn round(mut self, round: f32) -> Self {
-        let recip = round.recip();
-        self.rounding = Some(round);
-        let x = move |v: f32| (v * recip).round() / recip;
-
-        self.slider.transform = Some(Box::new(x));
-        self.value = Arc::new(self.value.map_value(x, |v| v));
-        self
-    }
-
-    pub fn round_digits(mut self, round: u32) -> Self {
+    pub fn precision(mut self, round: u32) -> Self {
         self.rounding = Some(10i32.pow(round) as f32);
         let x = move |v: f32| (v * 10i32.pow(round) as f32).round() / 10i32.pow(round) as f32;
 

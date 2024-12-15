@@ -22,17 +22,14 @@ use crate::{
     io,
     layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
-    style::{
-        interactive_active, interactive_hover, interactive_passive, spacing_small, Background,
-        SizeExt, StyleExt, ValueOrRef, WidgetSize,
-    },
+    style::*,
     text::{CursorLocation, LayoutGlyphs},
     time::sleep,
     to_owned,
     unit::Unit,
     utils::throttle,
     widget::{col, row, Float, NoOp, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
-    Rect, Scope, Widget,
+    Edges, Rect, Scope, Widget,
 };
 
 pub struct TextInputStyle {
@@ -46,9 +43,9 @@ pub struct TextInputStyle {
 impl Default for TextInputStyle {
     fn default() -> Self {
         Self {
-            cursor_color: interactive_active().into(),
-            selection_color: interactive_hover().into(),
-            background: Background::new(interactive_passive()),
+            cursor_color: surface_interactive_accent().into(),
+            selection_color: surface_hover_accent().into(),
+            background: Background::new(surface_interactive()),
             font_size: 16.0,
             align: Align::Start,
         }
@@ -370,18 +367,21 @@ impl Widget for TextContent {
     fn mount(self, scope: &mut Scope<'_>) {
         let create_row = move |row, text| {
             let layout_glyphs = self.layout_glyphs.clone();
-            Text::new(text).with_font_size(self.font_size).monitor(
-                components::layout_glyphs(),
-                Box::new(move |glyphs| {
-                    if let Some(new) = glyphs {
-                        tracing::debug!(?row, lines = new.rows[0].len(), "new glyphs");
-                        let glyphs = &mut *layout_glyphs.lock_mut();
+            Text::new(text)
+                .with_margin(Edges::ZERO)
+                .with_font_size(self.font_size)
+                .monitor(
+                    components::layout_glyphs(),
+                    Box::new(move |glyphs| {
+                        if let Some(new) = glyphs {
+                            tracing::debug!(?row, lines = new.rows[0].len(), "new glyphs");
+                            let glyphs = &mut *layout_glyphs.lock_mut();
 
-                        glyphs.set_row(row, new.rows[0].clone());
-                        glyphs.line_height = new.line_height;
-                    }
-                }),
-            )
+                            glyphs.set_row(row, new.rows[0].clone());
+                            glyphs.line_height = new.line_height;
+                        }
+                    }),
+                )
         };
 
         let mut text_items = vec![scope.attach(create_row(0, String::new()))];

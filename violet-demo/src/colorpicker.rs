@@ -21,7 +21,7 @@ use violet::core::{
     state::{
         State, StateDuplex, StateMut, StateOwned, StateRef, StateSink, StateStream, StateStreamRef,
     },
-    style::{interactive_inactive, primary_surface, spacing_small, Background, SizeExt},
+    style::{spacing_small, surface_interactive, surface_primary, Background, SizeExt},
     time::sleep,
     to_owned,
     unit::Unit,
@@ -68,7 +68,7 @@ impl Default for AutoPaletteSettings {
         Self {
             enabled: false,
             min_lum: 0.17,
-            max_lum: 0.95,
+            max_lum: 0.97,
             falloff: 15.0,
         }
     }
@@ -102,7 +102,7 @@ pub fn auto_palette_settings(settings: Mutable<AutoPaletteSettings>) -> impl Wid
                                 0.0,
                                 1.0,
                             )
-                            .round_digits(ROUNDING),
+                            .precision(ROUNDING),
                             precise_slider(
                                 settings.clone().transform(
                                     |v| v.max_lum,
@@ -114,13 +114,13 @@ pub fn auto_palette_settings(settings: Mutable<AutoPaletteSettings>) -> impl Wid
                                 0.0,
                                 1.0,
                             )
-                            .round_digits(ROUNDING),
+                            .precision(ROUNDING),
                             precise_slider(
                                 settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
                                 0.0,
                                 30.0,
                             )
-                            .round_digits(ROUNDING),
+                            .precision(ROUNDING),
                         )),
                     )))
                 } else {
@@ -222,7 +222,7 @@ fn palette_controls(
                     ))
                     .with_horizontal_alignment(Align::End)
                     .with_background_opt(if is_selected {
-                        Some(Background::new(interactive_inactive()))
+                        Some(Background::new(surface_interactive()))
                     } else {
                         None
                     })
@@ -417,7 +417,7 @@ pub fn main_app() -> impl Widget {
         ))
         .with_contain_margins(true),
     )
-    .with_background(primary_surface())
+    .with_background(surface_primary())
     .with_maximize(Vec2::ONE)
 }
 
@@ -537,7 +537,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         .map_value(|v| v.into_positive_degrees(), RgbHue::from_degrees)
         .memo(Default::default());
 
-    let h = precise_slider(hue, 0.0, 360.0).round_digits(1);
+    let h = precise_slider(hue, 0.0, 360.0).precision(1);
     let s = precise_slider(
         color
             .clone()
@@ -545,7 +545,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         0.0,
         1.0,
     )
-    .round_digits(ROUNDING);
+    .precision(ROUNDING);
 
     let l = precise_slider(
         color
@@ -554,7 +554,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
         0.0,
         1.0,
     )
-    .round_digits(ROUNDING);
+    .precision(ROUNDING);
 
     card(row((
         col((header("H"), header("S"), header("L"))),
@@ -575,16 +575,16 @@ fn oklab_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValu
         .map_value(|v| v.into_positive_degrees(), OklabHue::from_degrees)
         .memo(Default::default());
 
-    let h = precise_slider(hue, 0.0, 360.0).round_digits(1);
+    let h = precise_slider(hue, 0.0, 360.0).precision(1);
     let c = precise_slider(
         color.clone().map_ref(|v| &v.chroma, |v| &mut v.chroma),
         0.0,
         0.37,
     )
-    .round_digits(3);
+    .precision(3);
 
-    let l = precise_slider(color.clone().map_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0)
-        .round_digits(ROUNDING);
+    let l =
+        precise_slider(color.clone().map_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0).precision(ROUNDING);
 
     card(row((
         col((header("L"), header("C"), header("H"))),
