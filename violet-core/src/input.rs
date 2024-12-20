@@ -9,7 +9,7 @@ use winit::{
 };
 
 use crate::{
-    components::{clip_mask, rect, screen_clip_mask, screen_transform},
+    components::{rect, screen_clip_mask, screen_transform},
     declare_atom,
     hierarchy::OrderedDfsIterator,
     scope::ScopeRef,

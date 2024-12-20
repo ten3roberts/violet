@@ -301,12 +301,6 @@ impl From<Srgba> for Background {
     }
 }
 
-pub enum Spacing {
-    Small,
-    Medium,
-    Large,
-}
-
 pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
     let query = stylesheet.first_relation().traverse(child_of);
 

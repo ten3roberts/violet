@@ -1,8 +1,7 @@
-use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    style::{colors::EMERALD_400, primary_surface, spacing_medium, spacing_small, SizeExt},
+    style::{base_colors::EMERALD_400, spacing_medium, surface_primary, SizeExt},
     unit::Unit,
     widget::{col, row, Rectangle, Stack, Text},
     Widget,
@@ -26,10 +25,6 @@ pub fn main() -> anyhow::Result<()> {
         .run(main_app())
 }
 
-fn block(text: impl Into<String>, color: Rectangle) -> impl Widget {
-    Stack::new((color, Text::new(text.into())))
-}
-
 fn main_app() -> impl Widget {
     let test_1 = row((
         Rectangle::new(EMERALD_400)
@@ -42,6 +37,6 @@ fn main_app() -> impl Widget {
     ));
 
     col(test_1)
-        .with_background(primary_surface())
+        .with_background(surface_primary())
         .with_contain_margins(true)
 }

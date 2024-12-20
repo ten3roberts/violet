@@ -174,6 +174,37 @@ impl<'a> Scope<'a> {
         id
     }
 
+    pub fn attach_at<W: Widget>(&mut self, position: usize, widget: W) -> Entity {
+        self.flush();
+        let mut entity = EntityBuilder::new();
+        widget_template(&mut entity, tynm::type_name::<W>());
+        let id = entity.spawn(self.frame.world_mut());
+
+        self.frame
+            .world_mut()
+            .entry(self.id, children())
+            .unwrap()
+            .or_default()
+            .insert(position, id);
+
+        self.flush();
+
+        let id = {
+            let mut s = Scope::try_from_id(self.frame, id).unwrap();
+
+            s.set(child_of(self.id), ());
+            s.set(name(), tynm::type_name::<W>());
+            s.flush();
+
+            widget.mount(&mut s);
+            s.id
+        };
+
+        assert!(self.frame.world().is_alive(self.id));
+
+        id
+    }
+
     /// Detaches a child from the current scope
     pub fn detach(&mut self, id: Entity) {
         assert!(

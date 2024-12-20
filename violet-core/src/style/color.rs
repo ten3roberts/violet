@@ -100,7 +100,7 @@ impl ColorPalette {
             element_accent: EMERALD_400,
             surface_primary: ZINC_950,
             surface_secondary: ZINC_900,
-            surface_tertiary: ZINC_700,
+            surface_tertiary: ZINC_800,
             element_primary,
             element_secondary,
             element_tertiary: PLATINUM_200,

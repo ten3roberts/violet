@@ -48,9 +48,9 @@ impl<T: ResolvableStyle> ResolvableStyle for ColorPair<T> {
 
 #[derive(Debug, Copy, Clone)]
 pub struct ButtonStyle {
-    normal: ColorPair<ValueOrRef<Srgba>>,
-    pressed: ColorPair<ValueOrRef<Srgba>>,
-    hover: ColorPair<ValueOrRef<Srgba>>,
+    pub normal: ColorPair<ValueOrRef<Srgba>>,
+    pub pressed: ColorPair<ValueOrRef<Srgba>>,
+    pub hover: ColorPair<ValueOrRef<Srgba>>,
 }
 
 impl Default for ButtonStyle {
@@ -93,7 +93,7 @@ impl<W> Button<W> {
     }
 
     /// Handle the button press
-    pub fn on_press(
+    pub fn on_mousebutton_down(
         mut self,
         on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, MouseButton),
     ) -> Self {
@@ -157,6 +157,24 @@ impl Button<Text> {
 }
 
 impl<W> StyleExt for Button<W> {
+    type Style = ButtonStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
+        self
+    }
+}
+
+impl<W> StyleExt for Radio<W> {
+    type Style = ButtonStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
+        self
+    }
+}
+
+impl<W> StyleExt for Checkbox<W> {
     type Style = ButtonStyle;
 
     fn with_style(mut self, style: Self::Style) -> Self {

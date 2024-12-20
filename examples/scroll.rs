@@ -15,7 +15,7 @@ use violet::core::{
 };
 use violet_core::{
     state::{State, StateStream},
-    style::{secondary_surface, spacing_medium, Background},
+    style::{spacing_medium, surface_secondary, Background},
     utils::zip_latest,
     widget::{label, Button, Checkbox, ScrollArea, SliderWithLabel, StreamWidget, WidgetExt},
 };
@@ -88,6 +88,5 @@ fn app() -> impl Widget {
         Button::label("Button"),
     ))
     .with_padding(spacing_medium())
-    .with_background(Background::new(secondary_surface()))
-    // .with_padding(spacing_medium())
+    .with_background(Background::new(surface_secondary()))
 }
