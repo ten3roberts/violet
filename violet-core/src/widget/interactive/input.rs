@@ -13,7 +13,7 @@ use winit::{
 };
 
 use crate::{
-    components::{self, screen_transform, widget_corner_radius},
+    components::{self, screen_transform},
     editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
         focusable, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,

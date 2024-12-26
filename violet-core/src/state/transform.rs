@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use futures::StreamExt;
 
-use super::{State, StateMut, StateOwned, StateSink, StateStream, StateStreamRef};
+use super::{State, StateMut, StateOwned, StateSink, StateStream};
 
 pub struct Transform<C, U, F, G> {
     inner: C,

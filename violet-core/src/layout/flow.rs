@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
-use image::imageops::colorops::contrast_in_place;
 use itertools::Itertools;
 
 use super::{

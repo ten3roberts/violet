@@ -1,12 +1,9 @@
-use flax::{component::ComponentValue, EntityRef};
+use flax::EntityRef;
 use palette::Srgba;
-use winit::{
-    event::{ElementState, MouseButton},
-    platform::pump_events::EventLoopExtPumpEvents,
-};
+use winit::event::{ElementState, MouseButton};
 
 use crate::{
-    components::{self, color, widget_corner_radius},
+    components::{self},
     input::{focusable, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
@@ -195,7 +192,7 @@ impl<W: Widget> Widget for Button<W> {
 
         let pressed = self.style.pressed.resolve(&stylesheet);
         let normal = self.style.normal.resolve(&stylesheet);
-        let hover = self.style.hover.resolve(&stylesheet);
+        let _hover = self.style.hover.resolve(&stylesheet);
 
         let mut is_pressed = false;
 
@@ -275,7 +272,7 @@ impl<W: Widget> Widget for Checkbox<W> {
 
         let pressed = self.style.pressed.resolve(&stylesheet);
         let normal = self.style.normal.resolve(&stylesheet);
-        let hover = self.style.hover.resolve(&stylesheet);
+        let _hover = self.style.hover.resolve(&stylesheet);
 
         let content = scope.attach(self.label);
 
@@ -368,7 +365,7 @@ impl<W: Widget> Widget for Radio<W> {
 
         let pressed = self.style.pressed.resolve(&stylesheet);
         let normal = self.style.normal.resolve(&stylesheet);
-        let hover = self.style.hover.resolve(&stylesheet);
+        let _hover = self.style.hover.resolve(&stylesheet);
 
         let content = scope.attach(self.label);
 
