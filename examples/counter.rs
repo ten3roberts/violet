@@ -51,7 +51,7 @@ impl Widget for MainApp {
                     .signal()
                     .map(|v| Text::new(format!("Count: {v:>4}"))),
             )),
-            Button::new(Text::new("Increment")).on_press(move |_, _| *counter.lock_mut() += 1),
+            Button::new(Text::new("Increment")).on_click(move |_| *counter.lock_mut() += 1),
             pill(Text::new(
                 "Please click the button to increment the counter",
             )),

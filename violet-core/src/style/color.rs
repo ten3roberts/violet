@@ -151,12 +151,12 @@ impl ColorPalette {
             element_disabled_success: PLATINUM_950,
             element_disabled_warning: PLATINUM_950,
             //
-            surface_success: EMERALD_400,
-            surface_warning: CITRUS_400,
-            surface_danger: RUBY_400,
-            element_success: EMERALD_950,
-            element_warning: CITRUS_950,
-            element_danger: RUBY_950,
+            surface_success: EMERALD_500,
+            surface_warning: CITRUS_500,
+            surface_danger: RUBY_500,
+            element_success: element_primary,
+            element_warning: element_primary,
+            element_danger: element_primary,
         }
     }
 }

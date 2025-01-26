@@ -990,13 +990,14 @@ dependencies = [
 [[package]]
 name = "flax"
 version = "0.7.1"
-source = "git+https://github.com/ten3roberts/flax#4ffc4d98ca60d644e106271333be1bd264e45df9"
+source = "git+https://github.com/ten3roberts/flax#588e9cecd8f5087eb216a05121b786c323f6b58a"
 dependencies = [
  "anyhow",
  "atomic_refcell",
  "bitflags 2.6.0",
  "flax-derive",
  "flume",
+ "inventory",
  "itertools 0.12.1",
  "once_cell",
  "puffin",
@@ -1008,7 +1009,7 @@ dependencies = [
 [[package]]
 name = "flax-derive"
 version = "0.7.1"
-source = "git+https://github.com/ten3roberts/flax#4ffc4d98ca60d644e106271333be1bd264e45df9"
+source = "git+https://github.com/ten3roberts/flax#588e9cecd8f5087eb216a05121b786c323f6b58a"
 dependencies = [
  "heck",
  "itertools 0.13.0",
@@ -1532,6 +1533,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b31349d02fe60f80bbbab1a9402364cad7460626d6030494b08ac4a2075bf81"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]

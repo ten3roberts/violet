@@ -73,6 +73,12 @@ impl<T: ?Sized> std::ops::Deref for Asset<T> {
     }
 }
 
+impl AsRef<[u8]> for Asset<Vec<u8>> {
+    fn as_ref(&self) -> &[u8] {
+        self
+    }
+}
+
 impl<T: ?Sized> Clone for Asset<T> {
     fn clone(&self) -> Self {
         Self {

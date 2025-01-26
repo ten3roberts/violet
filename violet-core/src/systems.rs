@@ -5,7 +5,7 @@ use std::{
 
 use atomic_refcell::AtomicRefCell;
 use flax::{
-    archetype::Storage,
+    archetype::ArchetypeStorage,
     component::ComponentValue,
     components::child_of,
     entity_ids,
@@ -135,7 +135,7 @@ impl QueryInvalidator {
 }
 
 impl EventSubscriber for QueryInvalidator {
-    fn on_added(&self, _: &Storage, event: &EventData) {
+    fn on_added(&self, _: &ArchetypeStorage, event: &EventData) {
         // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "added");
         self.mark_dirty(event.ids);
     }
@@ -145,7 +145,7 @@ impl EventSubscriber for QueryInvalidator {
         self.mark_dirty(event.ids);
     }
 
-    fn on_removed(&self, _: &Storage, event: &EventData) {
+    fn on_removed(&self, _: &ArchetypeStorage, event: &EventData) {
         // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "removed");
         self.mark_dirty(event.ids);
     }

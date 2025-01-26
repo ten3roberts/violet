@@ -154,7 +154,7 @@ fn palette_controls(
 
     let add_swatch = Button::label("+").on_press({
         to_owned!(palettes, selection);
-        move |_, _| {
+        move |_| {
             palettes.write_mut(|palette| {
                 let last = palette.colors.last().map(|v| v.get()).unwrap_or_default();
                 palette.colors.push(Mutable::new(last));
@@ -216,7 +216,7 @@ fn palette_controls(
                         Button::label("-")
                             .with_padding(spacing_small())
                             .with_margin(spacing_small())
-                            .on_press(move |_, _| {
+                            .on_press(move |_| {
                                 palettes.write_mut(|v| v.colors.remove(i));
                             }),
                     ))

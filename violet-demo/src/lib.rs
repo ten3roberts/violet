@@ -1,15 +1,4 @@
-use futures::StreamExt;
-use glam::Vec2;
-use violet::{
-    core::{
-        state::{State, StateStream},
-        style::{surface_accent, SizeExt},
-        widget::{col, row, Radio, StreamWidget, WidgetExt},
-        Widget,
-    },
-    futures_signals::signal::Mutable,
-    wgpu::{renderer::MainRendererConfig, AppBuilder},
-};
+use violet::wgpu::{renderer::MainRendererConfig, AppBuilder};
 use wasm_bindgen_futures::wasm_bindgen;
 
 pub mod bridge_of_death;

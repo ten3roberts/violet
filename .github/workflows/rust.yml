@@ -38,7 +38,7 @@ jobs:
           uses: actions-rs/cargo@v1
           with:
             command: nextest
-            args: run --all-features
+            args: run --workspace --all-features
 
   test_miri:
       runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
           uses: actions-rs/cargo@v1
           with:
             command: miri
-            args: nextest run
+            args: nextest run --workspace
 
 
   clippy:

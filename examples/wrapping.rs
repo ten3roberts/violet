@@ -3,7 +3,7 @@ use tracing_tree::HierarchicalLayer;
 use violet_core::{
     style::{base_colors::EMERALD_400, spacing_medium, surface_primary, SizeExt},
     unit::Unit,
-    widget::{col, row, Rectangle, Stack, Text},
+    widget::{col, row, Rectangle},
     Widget,
 };
 use violet_wgpu::renderer::MainRendererConfig;
