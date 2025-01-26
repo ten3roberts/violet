@@ -1,26 +1,28 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
-use flax::{Component, Entity, EntityRef};
+use flax::{component, Component, Entity, EntityRef};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
 use palette::Srgba;
 use winit::event::ElementState;
 
+use super::input::{TextInput, TextInputStyle};
 use crate::{
     components::{offset, padding, rect},
-    input::{focusable, on_cursor_move, on_mouse_input, CursorMove},
+    input::{focusable, on_cursor_move, on_mouse_input},
     layout::Align,
-    state::{State, StateDuplex, StateStream},
-    style::{interactive_active, interactive_passive, spacing_small, SizeExt},
+    state::{State, StateDuplex, StateSink, StateStream},
+    style::{
+        default_corner_radius, element_accent, spacing_small, surface_interactive, SizeExt,
+        StyleExt,
+    },
     to_owned,
     unit::Unit,
     utils::zip_latest,
     widget::{row, Float, Positioned, Rectangle, Stack, StreamWidget, Text},
     Scope, StreamEffect, Widget,
 };
-
-use super::input::TextInput;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {
@@ -33,8 +35,8 @@ pub struct SliderStyle {
 impl Default for SliderStyle {
     fn default() -> Self {
         Self {
-            track_color: interactive_passive(),
-            handle_color: interactive_active(),
+            track_color: surface_interactive(),
+            handle_color: element_accent(),
             track_size: Unit::px2(256.0, 4.0),
             handle_size: Unit::px2(4.0, 16.0),
         }
@@ -47,6 +49,7 @@ pub struct Slider<V> {
     min: V,
     max: V,
     transform: Option<Box<dyn Send + Sync + Fn(V) -> V>>,
+    scrub_mode: bool,
 }
 
 impl<V> Slider<V> {
@@ -60,6 +63,7 @@ impl<V> Slider<V> {
             max,
             style: Default::default(),
             transform: None,
+            scrub_mode: false,
         }
     }
 
@@ -72,6 +76,11 @@ impl<V> Slider<V> {
     /// Set the transform
     pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
         self.transform = Some(Box::new(transform));
+        self
+    }
+
+    pub fn with_scrub_mode(mut self, scrub_mode: bool) -> Self {
+        self.scrub_mode = scrub_mode;
         self
     }
 }
@@ -90,27 +99,53 @@ impl<V: SliderValue> Widget for Slider<V> {
         let handle_size = self.style.handle_size;
         let track_size = self.style.track_size;
 
-        let track = scope.attach(Rectangle::new(track_color).with_size(track_size));
+        let track = scope.attach(
+            Rectangle::new(track_color)
+                .with_min_size(track_size)
+                .with_size(track_size)
+                .with_corner_radius(default_corner_radius()),
+        );
 
         let min = self.min.to_progress();
         let max = self.max.to_progress();
 
-        fn update<V: SliderValue>(
+        fn get_progress_value<V: SliderValue>(
             entity: &EntityRef,
-            input: CursorMove,
+            track_pos: f32,
             min: f32,
             max: f32,
-            dst: &dyn StateDuplex<Item = V>,
-        ) {
+        ) -> V {
             let rect = entity.get_copy(rect()).unwrap();
             let padding = entity.get_copy(padding()).unwrap_or_default();
 
-            let value = ((input.local_pos.x - padding.left) / (rect.size().x - padding.size().x))
+            let value = ((track_pos - padding.left) / (rect.size().x - padding.size().x))
                 .clamp(0.0, 1.0)
                 * (max - min)
                 + min;
 
-            dst.send(V::from_progress(value));
+            V::from_progress(value)
+        }
+
+        fn get_slider_position(entity: &EntityRef, progress: f32, min: f32, max: f32) -> f32 {
+            let rect = entity.get_copy(rect()).unwrap();
+            let padding = entity.get_copy(padding()).unwrap_or_default();
+            let size = rect.size().x - padding.size().x;
+
+            (progress - min) * size / (max - min) + padding.left
+        }
+        fn update_scrubbed<V: SliderValue>(
+            entity: &EntityRef,
+            drag_distance: f32,
+            start_value: f32,
+            min: f32,
+            max: f32,
+        ) -> V {
+            let rect = entity.get_copy(rect()).unwrap();
+            let padding = entity.get_copy(padding()).unwrap_or_default();
+
+            let value = (drag_distance / (rect.size().x - padding.size().x)) * (max - min) + min;
+
+            V::from_progress((start_value + value).clamp(min, max))
         }
 
         let handle = SliderHandle {
@@ -122,24 +157,50 @@ impl<V: SliderValue> Widget for Slider<V> {
             handle_size,
         };
 
-        let value = Arc::new(self.value.map(
+        let value = Arc::new(self.value.map_value(
             |v| v,
             move |v| self.transform.as_ref().map(|f| f(v)).unwrap_or(v),
         ));
 
+        let drag_start = Mutable::new(None as Option<(f32, f32)>);
+
+        scope.spawn_stream(value.stream(), |scope, value| {
+            scope.set(current_value(), value.to_progress());
+        });
+
         scope
             .set(focusable(), ())
             .on_event(on_mouse_input(), {
-                to_owned![value];
+                to_owned![value, drag_start];
                 move |scope, input| {
                     if input.state == ElementState::Pressed {
-                        update(scope, input.cursor, min, max, &*value);
+                        let progress =
+                            get_progress_value(scope, input.cursor.local_pos.x, min, max);
+                        if let Ok(current_value) = scope.get(current_value()) {
+                            let pos = get_slider_position(scope, *current_value, min, max);
+
+                            if (pos - input.cursor.local_pos.x).abs() < 16.0 {
+                                drag_start.set(Some((input.cursor.local_pos.x, *current_value)));
+                                return;
+                            }
+                        }
+
+                        value.send(progress);
                     }
                 }
             })
             .on_event(on_cursor_move(), {
                 to_owned![value];
-                move |scope, input| update(scope, input, min, max, &*value)
+                move |scope, input| {
+                    let drag_start = &mut *drag_start.lock_mut();
+                    let progress = if let Some((start, start_value)) = drag_start {
+                        update_scrubbed(scope, input.local_pos.x - *start, *start_value, min, max)
+                    } else {
+                        get_progress_value(scope, input.local_pos.x, min, max)
+                    };
+
+                    value.send(progress);
+                }
             });
 
         Stack::new(Float::new(handle))
@@ -173,21 +234,28 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
         scope.spawn_effect(StreamEffect::new(update, {
             move |scope: &mut Scope<'_>, (value, size): (V, Option<Vec2>)| {
                 if let Some(size) = size {
-                    let pos = (value.to_progress() - self.min) * size.x / (self.max - self.min);
+                    let pos = (value.to_progress().clamp(self.min, self.max) - self.min) * size.x
+                        / (self.max - self.min);
 
                     scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
                 }
             }
         }));
 
-        Positioned::new(Rectangle::new(self.handle_color).with_min_size(self.handle_size))
-            .with_offset(Unit::px2(0.0, 0.0))
-            .with_anchor(Unit::rel2(0.5, 0.5))
-            .mount(scope)
+        Positioned::new(
+            Rectangle::new(self.handle_color)
+                .with_min_size(self.handle_size)
+                .with_corner_radius(default_corner_radius()),
+        )
+        .with_offset(Unit::px2(0.0, 0.0))
+        .with_anchor(Unit::rel2(0.5, 0.5))
+        .mount(scope)
     }
 }
 
-pub trait SliderValue: 'static + Send + Sync + Copy + std::fmt::Display {
+pub trait SliderValue:
+    'static + Send + Sync + Copy + std::fmt::Display + PartialEq + PartialOrd
+{
     fn from_progress(v: f32) -> Self;
     fn to_progress(&self) -> f32;
 }
@@ -229,9 +297,12 @@ num_impl!(usize);
 
 /// A slider with label displaying the value
 pub struct SliderWithLabel<V> {
-    text_value: Box<dyn 'static + Send + Sync + StateDuplex<Item = String>>,
     slider: Slider<V>,
     editable: bool,
+    rounding: Option<f32>,
+    min: V,
+    max: V,
+    value: Arc<dyn Send + Sync + StateDuplex<Item = V>>,
 }
 
 impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<V> {
@@ -242,31 +313,20 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<
         // Wrap in dedup to prevent updating equal numeric values like `0` and `0.` etc when typing
         let value = Arc::new(value);
 
-        let text_value = Box::new(value.clone().dedup().prevent_feedback().filter_map(
-            move |v: V| Some(format!("{v}")),
-            move |v| {
-                v.parse::<V>().ok().map(|v| {
-                    if v < min {
-                        min
-                    } else if v > max {
-                        max
-                    } else {
-                        v
-                    }
-                })
-            },
-        ));
-
         Self {
-            text_value,
+            value: value.clone(),
+            min,
+            max,
             slider: Slider {
                 style: Default::default(),
                 value,
                 min,
                 max,
                 transform: None,
+                scrub_mode: false,
             },
             editable: false,
+            rounding: None,
         }
     }
 
@@ -281,6 +341,11 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<
         self
     }
 
+    pub fn with_scrub_mode(mut self, scrub_mode: bool) -> Self {
+        self.slider.scrub_mode = scrub_mode;
+        self
+    }
+
     pub fn editable(mut self, editable: bool) -> Self {
         self.editable = editable;
         self
@@ -288,26 +353,59 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<
 }
 
 impl SliderWithLabel<f32> {
-    pub fn round(mut self, round: f32) -> Self {
-        let recip = round.recip();
-        self.slider.transform = Some(Box::new(move |v| (v * recip).round() / recip));
+    pub fn precision(mut self, round: u32) -> Self {
+        self.rounding = Some(10i32.pow(round) as f32);
+        let x = move |v: f32| (v * 10i32.pow(round) as f32).round() / 10i32.pow(round) as f32;
+
+        self.slider.transform = Some(Box::new(x));
+        self.value = Arc::new(self.value.map_value(x, |v| v));
         self
     }
 }
 
-impl<V: SliderValue> Widget for SliderWithLabel<V> {
+impl<V: SliderValue + FromStr + Display + Default + PartialOrd + Copy> Widget
+    for SliderWithLabel<V>
+{
     fn mount(self, scope: &mut Scope<'_>) {
+        let text_value = Box::new(self.value.clone().dedup().prevent_feedback().filter_map(
+            move |v: V| Some(format!("{v}")),
+            move |v| {
+                v.parse::<V>().ok().map(|v| {
+                    if v < self.min {
+                        self.min
+                    } else if v > self.max {
+                        self.max
+                    } else {
+                        v
+                    }
+                })
+            },
+        ));
+
         if self.editable {
-            row((self.slider, TextInput::new(self.text_value)))
-                .with_cross_align(Align::Center)
-                .mount(scope)
+            row((
+                self.slider,
+                TextInput::new(text_value)
+                    .with_min_size(Unit::px2(48.0, 16.0))
+                    .with_style(TextInputStyle {
+                        align: Align::End,
+                        ..Default::default()
+                    }),
+            ))
+            .with_cross_align(Align::Center)
+            .mount(scope)
         } else {
             row((
                 self.slider,
-                StreamWidget(self.text_value.stream().map(Text::new)),
+                StreamWidget(text_value.stream().map(Text::new)),
             ))
             .with_cross_align(Align::Center)
             .mount(scope)
         }
     }
+}
+
+component! {
+    current_value: f32,
+    scrubbing: bool,
 }

@@ -1,9 +1,9 @@
-use std::cmp::Ordering;
-use std::{self};
-
-use std::hash::Hash;
-
-use std::sync::{Arc, Weak};
+use std::{
+    cmp::Ordering,
+    hash::Hash,
+    sync::{Arc, Weak},
+    {self},
+};
 
 use super::AssetId;
 
@@ -70,6 +70,12 @@ impl<T: ?Sized> std::ops::Deref for Asset<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+impl AsRef<[u8]> for Asset<Vec<u8>> {
+    fn as_ref(&self) -> &[u8] {
+        self
     }
 }
 

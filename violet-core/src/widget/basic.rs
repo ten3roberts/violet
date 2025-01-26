@@ -1,26 +1,27 @@
+use cosmic_text::{Style, Weight};
 use glam::Vec2;
-use image::DynamicImage;
 use palette::Srgba;
-use tracing::Value;
 
 use crate::{
-    assets::AssetKey,
-    components::{self, color, draw_shape, font_size, text, text_wrap},
+    components::{self, color, draw_shape, text, text_wrap},
     shape,
     style::{
-        colors::REDWOOD_500, primary_element, spacing_small, text_large, text_medium, text_small,
-        SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        element_primary, element_secondary, spacing_small, text_large, text_medium, text_small,
+        ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSize,
     },
     text::{TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
 };
 
+use super::Stack;
+
 /// A rectangular widget
 #[derive(Debug, Clone)]
 pub struct Rectangle {
     color: ValueOrRef<Srgba>,
     size: WidgetSize,
+    aspect_ratio: Option<f32>,
 }
 
 impl Rectangle {
@@ -28,7 +29,13 @@ impl Rectangle {
         Self {
             color: color.into(),
             size: Default::default(),
+            aspect_ratio: None,
         }
+    }
+
+    pub fn with_aspect_ratio(mut self, aspect_ratio: f32) -> Self {
+        self.aspect_ratio = Some(aspect_ratio);
+        self
     }
 }
 
@@ -40,6 +47,7 @@ impl Widget for Rectangle {
 
         scope
             .set(draw_shape(shape::shape_rectangle()), ())
+            .set_opt(components::aspect_ratio(), self.aspect_ratio)
             .set(color(), c);
     }
 }
@@ -62,7 +70,7 @@ impl Default for TextStyle {
         Self {
             font_size: text_small().into(),
             wrap: Wrap::Word,
-            color: primary_element().into(),
+            color: element_primary().into(),
         }
     }
 }
@@ -75,14 +83,41 @@ pub struct Text {
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
-        Self::rich([TextSegment::new(text.into())])
+        Self::formatted([TextSegment::new(text.into())])
     }
 
-    pub fn rich(text: impl IntoIterator<Item = TextSegment>) -> Self {
+    pub fn extra_bold(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::EXTRA_BOLD)])
+    }
+
+    pub fn bold(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::BOLD)])
+    }
+
+    pub fn medium(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::MEDIUM)])
+    }
+
+    pub fn light(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::LIGHT)])
+    }
+
+    pub fn extra_light(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_weight(Weight::EXTRA_LIGHT)])
+    }
+
+    pub fn italic(text: impl Into<String>) -> Self {
+        Self::formatted([TextSegment::new(text.into()).with_style(Style::Italic)])
+    }
+
+    pub fn formatted(text: impl IntoIterator<Item = TextSegment>) -> Self {
         Self {
             text: text.into_iter().collect(),
             style: TextStyle::default(),
-            size: Default::default(),
+            size: WidgetSize {
+                margin: Some(spacing_small().into()),
+                ..Default::default()
+            },
         }
     }
 
@@ -141,15 +176,20 @@ pub fn label(text: impl Into<String>) -> Text {
     Text::new(text).with_margin(spacing_small())
 }
 
+pub fn header(text: impl Into<String>) -> Stack<Text> {
+    Stack::new(Text::new(text).with_margin(spacing_small())).with_padding(spacing_small())
+}
+
 /// A text with a margin
 pub fn title(text: impl Into<String>) -> Text {
-    Text::new(text)
+    Text::bold(text)
         .with_font_size(text_large())
         .with_margin(spacing_small())
 }
 
 pub fn subtitle(text: impl Into<String>) -> Text {
-    Text::new(text)
+    Text::medium(text)
+        .with_color(element_secondary())
         .with_font_size(text_medium())
         .with_margin(spacing_small())
 }

@@ -68,9 +68,8 @@ mod test {
 
     use futures::StreamExt;
 
-    use crate::time::{assert_dur, setup_timers};
-
     use super::*;
+    use crate::time::{assert_dur, setup_timers};
 
     fn assert_interval(
         start: Instant,

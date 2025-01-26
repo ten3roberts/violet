@@ -1,14 +1,15 @@
-pub use cosmic_text::{Style, Weight, Wrap};
-use glam::{vec2, Vec2};
-use palette::Srgba;
 use std::{
     borrow::{Borrow, Cow},
     fmt::Display,
     ops::Index,
 };
 
+pub use cosmic_text::{Style, Weight, Wrap};
+use glam::{vec2, Vec2};
+use palette::Srgba;
+
 use crate::{
-    style::{primary_element, ValueOrRef},
+    style::{element_primary, ValueOrRef},
     Rect,
 };
 
@@ -82,7 +83,7 @@ impl TextSegment {
             family: FontFamily::SansSerif,
             style: Style::Normal,
             weight: Weight::NORMAL,
-            color: primary_element().into(),
+            color: element_primary().into(),
         }
     }
 

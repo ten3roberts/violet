@@ -4,6 +4,10 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
+use super::{
+    apply_layout, cache::LayoutCache, resolve_pos, ApplyLayoutArgs, Block, Direction, LayoutArgs,
+    LayoutLimits, QueryArgs, Sizing,
+};
 use crate::{
     components,
     layout::{
@@ -11,11 +15,6 @@ use crate::{
         query_size, SizingHints,
     },
     Edges, Rect,
-};
-
-use super::{
-    apply_layout, cache::LayoutCache, resolve_pos, ApplyLayoutArgs, Block, Direction, LayoutArgs,
-    LayoutLimits, QueryArgs, Sizing,
 };
 
 #[derive(Debug, Clone)]
@@ -53,6 +52,12 @@ impl QueryCursor {
     }
 
     fn put(&mut self, block: &Block) -> (Vec2, f32) {
+        if block.rect.size() == Vec2::ZERO {
+            let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+
+            return (placement_pos, 0.0);
+        }
+
         let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
@@ -168,6 +173,12 @@ impl AlignCursor {
     }
 
     fn put(&mut self, block: &Block) -> Vec2 {
+        if block.rect.size() == Vec2::ZERO {
+            let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+
+            return placement_pos;
+        }
+
         let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
         let advance = (self.pending_margin.max(0.0).max(back_margin.max(0.0))
@@ -196,23 +207,20 @@ impl AlignCursor {
 
             let cross_pos = self.align.align_offset(
                 self.cross_size,
-                block.rect.pad(&block.margin).size().dot(self.cross_axis),
+                block.rect.pad(block.margin).size().dot(self.cross_axis),
             ) + start_margin;
 
-            // tracing::debug!( main_pos, %cross_pos, ?block, "aligning");
             placement_pos =
                 main_pos * self.axis + (self.cross_cursor + cross_pos) * self.cross_axis;
-            // *self.axis + (self.cross_cursor + start_margin) * self.cross_axis;
 
             let outer = block
                 .rect
-                .pad(&block.margin)
+                .pad(block.margin)
                 .translate(self.cross_axis + cross_pos);
             self.cross_inner.0 = self.cross_inner.0.min(outer.min.dot(self.cross_axis));
             self.cross_inner.1 = self.cross_inner.1.max(outer.max.dot(self.cross_axis));
 
             self.cross_outer = self.cross_inner;
-            // self.line_height = self.line_height.max(cross_size);
         } else {
             let main_pos = self.main_cursor;
             let cross_pos = self
@@ -220,11 +228,10 @@ impl AlignCursor {
                 .align_offset(self.cross_size, block.rect.size().dot(self.cross_axis))
                 * self.cross_axis;
 
-            // tracing::debug!( main_pos, %cross_pos, ?block, "aligning");
             placement_pos =
                 main_pos * self.axis + (self.cross_cursor + cross_pos) * self.cross_axis;
 
-            let outer = block.rect.pad(&block.margin).translate(cross_pos);
+            let outer = block.rect.pad(block.margin).translate(cross_pos);
             let inner = block.rect.translate(cross_pos);
 
             self.cross_inner.0 = self.cross_inner.0.min(inner.min.dot(self.cross_axis));
@@ -232,8 +239,6 @@ impl AlignCursor {
 
             self.cross_outer.0 = self.cross_outer.0.min(outer.min.dot(self.cross_axis));
             self.cross_outer.1 = self.cross_outer.1.max(outer.max.dot(self.cross_axis));
-
-            // self.line_height = self.line_height.max(block.rect.size().dot(self.cross_axis));
         }
 
         let extent = block.rect.support(self.axis);
@@ -246,8 +251,6 @@ impl AlignCursor {
     /// Finishes the current line and moves the cursor to the next
     fn finish(&mut self) -> Rect {
         self.cross_cursor += self.cross_size;
-
-        // tracing::debug!(?self.main_margin);
 
         if self.contain_margins {
             self.main_cursor += self.pending_margin;
@@ -331,7 +334,6 @@ impl FlowLayout {
             },
         );
 
-        // tracing::info!(?row.margin, "row margins to be contained");
         self.distribute_children(
             world,
             entity,
@@ -355,6 +357,7 @@ impl FlowLayout {
         offset: Vec2,
     ) -> Block {
         puffin::profile_function!();
+
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
 
         // If everything was squished as much as possible
@@ -365,7 +368,6 @@ impl FlowLayout {
 
         // How much space there is left to distribute to the children
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
-        // tracing::debug!(?distribute_size);
 
         // Clipped maximum that we remap to
         let target_inner_size = distribute_size
@@ -373,6 +375,8 @@ impl FlowLayout {
             .max(0.0);
 
         let remaining_size = (args.limits.max_size.dot(axis) - preferred_inner_size).max(0.0);
+
+        let contain_margins = self.contain_margins as i32 as f32;
 
         // for cross
         let available_size = args.limits.max_size;
@@ -431,19 +435,12 @@ impl FlowLayout {
                     "{axis_sizing} {block_min_size}"
                 );
 
-                let child_margin = if self.contain_margins {
-                    sizing.margin
-                } else {
-                    Edges::ZERO
-                };
+                let child_margin = sizing.margin * contain_margins;
 
                 // Calculate hard sizing constraints and ensure the children are laid out
                 // accordingly.
                 //
                 // The child may return a size *less* than the specified limit
-
-                // tracing::info!("overflow limit: {}", overflow_limit);
-
                 let child_limits = if self.stretch {
                     let cross_size = cross_size - child_margin.size().dot(cross_axis);
                     LayoutLimits {
@@ -459,7 +456,6 @@ impl FlowLayout {
                     }
                 };
 
-                // let local_rect = widget_outer_bounds(world, &child, size);
                 let block = apply_layout(
                     world,
                     &entity,
@@ -915,6 +911,7 @@ impl FlowLayout {
                 ));
             }
 
+            cursor.finish();
             let margin =
                 self.direction
                     .to_edges(cursor.main_margin, cursor.cross_margin(), self.reverse);
@@ -932,32 +929,3 @@ impl FlowLayout {
         }
     }
 }
-
-// fn row_cross_margin(
-//     cross_size: f32,
-//     cross_axis: Vec2,
-//     alignment: Alignment,
-//     blocks: impl Iterator<Item = Rect>,
-// ) -> (f32, f32) {
-//     let mut cross_outer = (0f32, 0f32);
-//     let mut cross_inner = (0f32, 0f32);
-//     for (entity, block) in blocks {
-//         // let (pos, cross_size) = cursor.put(&block);
-
-//         let pos = self
-//                 .cross_align
-//                 .align_offset(line_size.dot(cross_axis), cross_size)
-//                 * cross_axis;
-
-//         let outer = block.rect.translate(pos).pad(&block.margin);
-//         cross_outer.0 = cross_outer.0.min(outer.min.dot(cross_axis));
-//         cross_outer.1 = cross_outer.0.max(outer.max.dot(cross_axis));
-
-//         let inner = block.rect.translate(pos);
-//         cross_inner.0 = cross_inner.0.min(inner.min.dot(cross_axis));
-//         cross_inner.1 = cross_inner.1.max(inner.max.dot(cross_axis));
-
-//         entity.update_dedup(components::rect(), block.rect);
-//         entity.update_dedup(components::local_position(), pos);
-//     }
-// }

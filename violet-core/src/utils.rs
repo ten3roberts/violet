@@ -20,6 +20,7 @@ where
 }
 
 /// Combines two streams yielding the latest value from each stream
+#[allow(clippy::type_complexity)]
 pub fn zip_latest<A, B>(
     a: A,
     b: B,

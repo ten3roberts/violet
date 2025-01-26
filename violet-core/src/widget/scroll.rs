@@ -2,18 +2,19 @@ use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, BVec2, Mat4, Vec2, Vec2Swizzles};
 
+use super::{Float, Movable, Rectangle, Stack};
 use crate::{
     components::{min_size, offset, padding, rect, transform},
     input::{focusable, on_scroll},
     state::{StateMut, StateStream},
-    style::{interactive_active, SizeExt},
+    style::{
+        default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt, WidgetSize,
+    },
     to_owned,
     unit::Unit,
     utils::zip_latest,
     Edges, Scope, Widget,
 };
-
-use super::{Float, Movable, Rectangle, Stack};
 
 /// Wraps a widget in a scroll area.
 ///
@@ -21,6 +22,8 @@ use super::{Float, Movable, Rectangle, Stack};
 pub struct ScrollArea<W> {
     items: W,
     directions: BVec2,
+    size: WidgetSize,
+    background: Option<Background>,
 }
 
 impl<W> ScrollArea<W> {
@@ -31,6 +34,8 @@ impl<W> ScrollArea<W> {
         Self {
             items,
             directions: directions.into(),
+            size: WidgetSize::default(),
+            background: None,
         }
     }
 
@@ -41,6 +46,8 @@ impl<W> ScrollArea<W> {
         Self {
             items,
             directions: BVec2::new(false, true),
+            size: WidgetSize::default(),
+            background: None,
         }
     }
 
@@ -51,7 +58,14 @@ impl<W> ScrollArea<W> {
         Self {
             items,
             directions: BVec2::new(true, false),
+            size: WidgetSize::default(),
+            background: None,
         }
+    }
+
+    pub fn with_background(mut self, background: impl Into<Background>) -> Self {
+        self.background = Some(background.into());
+        self
     }
 }
 
@@ -125,6 +139,11 @@ impl<W: Widget> Widget for ScrollArea<W> {
             }
         };
 
+        let stylesheet = scope.stylesheet();
+        let padding = self.size.padding.unwrap_or_default().resolve(&stylesheet);
+
+        self.size.mount(scope);
+
         Stack::new((
             padded_scroll_area,
             Scrollbar {
@@ -140,13 +159,23 @@ impl<W: Widget> Widget for ScrollArea<W> {
                 axis: Vec2::Y,
             },
         ))
-        .with_padding(Edges {
-            left: 0.0,
-            right: SCROLLBAR_SIZE,
-            top: 0.0,
-            bottom: SCROLLBAR_SIZE,
-        })
+        .with_padding(
+            padding
+                + Edges {
+                    left: 0.0,
+                    right: SCROLLBAR_SIZE,
+                    top: 0.0,
+                    bottom: SCROLLBAR_SIZE,
+                },
+        )
+        .with_background_opt(self.background)
         .mount(scope)
+    }
+}
+
+impl<W> SizeExt for ScrollArea<W> {
+    fn size_mut(&mut self) -> &mut WidgetSize {
+        &mut self.size
     }
 }
 
@@ -186,25 +215,28 @@ impl Widget for Scrollbar {
 
         let handle = |scope: &mut Scope<'_>| {
             scope.spawn_stream(stream, |scope, (size, pos)| {
-                // tracing::info!(%size, %pos, "scrollbar");
                 scope.update_dedup(min_size(), Unit::px(size)).unwrap();
                 scope.update_dedup(offset(), Unit::px(pos)).unwrap();
             });
 
-            Movable::new(Rectangle::new(interactive_active()).with_min_size(Unit::px2(40.0, 40.0)))
-                .on_move(move |_, v| {
-                    let size = size.get();
-                    let outer_size = outer_size.get();
-                    let max_scroll = (size - outer_size).max(Vec2::ZERO);
-                    let new_scroll_pos = (v / outer_size * size).clamp(Vec2::ZERO, max_scroll);
-                    // tracing::info!(%new_scroll_pos, %outer_size, %size, "moved");
-                    scroll_pos.write_mut(|v| {
-                        let perp = self.axis.yx();
-                        *v = *v * perp + new_scroll_pos * self.axis;
-                    });
-                    v
-                })
-                .mount(scope)
+            Movable::new(
+                Rectangle::new(surface_interactive_accent())
+                    .with_min_size(Unit::px2(40.0, 40.0))
+                    .with_corner_radius(default_corner_radius()),
+            )
+            .on_move(move |_, v| {
+                let size = size.get();
+                let outer_size = outer_size.get();
+                let max_scroll = (size - outer_size).max(Vec2::ZERO);
+                let new_scroll_pos = (v / outer_size * size).clamp(Vec2::ZERO, max_scroll);
+                // tracing::info!(%new_scroll_pos, %outer_size, %size, "moved");
+                scroll_pos.write_mut(|v| {
+                    let perp = self.axis.yx();
+                    *v = *v * perp + new_scroll_pos * self.axis;
+                });
+                v
+            })
+            .mount(scope)
         };
 
         Float::new(handle)

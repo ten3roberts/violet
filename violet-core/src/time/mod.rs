@@ -20,9 +20,8 @@ use pin_project::{pin_project, pinned_drop};
 use slotmap::new_key_type;
 mod interval;
 
-use web_time::{Duration, Instant};
-
 pub use interval::{interval, interval_at, Interval};
+use web_time::{Duration, Instant};
 
 pub static GLOBAL_TIMER: Lazy<TimersHandle> = Lazy::new(Timers::start);
 

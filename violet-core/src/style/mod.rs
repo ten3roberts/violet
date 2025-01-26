@@ -1,4 +1,5 @@
-pub mod colors;
+pub mod base_colors;
+pub mod color;
 
 use flax::{
     component::ComponentValue, components::child_of, Component, Entity, EntityBuilder, EntityRef,
@@ -7,15 +8,17 @@ use flax::{
 use glam::Vec2;
 use palette::{IntoColor, Oklab, Srgba};
 
+pub use self::color::*;
 use crate::{
-    components::{color, draw_shape, margin, max_size, maximize, min_size, padding, size},
+    components::{
+        color, draw_shape, margin, max_size, maximize, min_size, padding, size,
+        widget_corner_radius,
+    },
     input::focusable,
     shape::shape_rectangle,
     unit::Unit,
     Edges, Scope,
 };
-
-use self::colors::*;
 
 #[macro_export]
 /// Create a color from a hex string
@@ -55,6 +58,7 @@ pub struct WidgetSize {
     pub max_size: Option<Unit<Vec2>>,
     pub margin: Option<ValueOrRef<Edges>>,
     pub padding: Option<ValueOrRef<Edges>>,
+    pub corner_radius: Option<ValueOrRef<Unit<f32>>>,
     pub maximize: Option<Vec2>,
 }
 
@@ -68,11 +72,13 @@ impl WidgetSize {
 
         let m = self.margin.map(|v| v.resolve(&stylesheet));
         let p = self.padding.map(|v| v.resolve(&stylesheet));
+        let corner = self.corner_radius.map(|v| v.resolve(&stylesheet));
 
         scope
             .set_opt(margin(), m)
             .set_opt(padding(), p)
             .set_opt(size(), self.size)
+            .set_opt(widget_corner_radius(), corner)
             .set_opt(min_size(), self.min_size)
             .set_opt(max_size(), self.max_size)
             .set_opt(maximize(), self.maximize);
@@ -105,6 +111,12 @@ impl WidgetSize {
     /// Set the padding around inner content.
     pub fn with_padding(mut self, padding: impl Into<ValueOrRef<Edges>>) -> Self {
         self.padding = Some(padding.into());
+        self
+    }
+
+    /// Set the corner radius
+    pub fn with_corner_radius(mut self, corner_radius: impl Into<ValueOrRef<Unit<f32>>>) -> Self {
+        self.corner_radius = Some(corner_radius.into());
         self
     }
 
@@ -153,12 +165,31 @@ pub trait SizeExt {
         self
     }
 
+    fn with_exact_size(mut self, size: Unit<Vec2>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().min_size = Some(size);
+        self.size_mut().max_size = Some(size);
+        self.size_mut().size = Some(size);
+        self
+    }
+
     /// Set the margin
     fn with_margin(mut self, margin: impl Into<ValueOrRef<Edges>>) -> Self
     where
         Self: Sized,
     {
         self.size_mut().margin = Some(margin.into());
+        self
+    }
+
+    /// Set the corner_radius
+    fn with_corner_radius(mut self, corner_radius: impl Into<ValueOrRef<Unit<f32>>>) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().corner_radius = Some(corner_radius.into());
         self
     }
 
@@ -221,13 +252,20 @@ impl<T> From<T> for ValueOrRef<T> {
     }
 }
 
-impl<T: Copy + ComponentValue> ValueOrRef<T> {
-    pub fn resolve(self, stylesheet: &EntityRef<'_>) -> T {
+impl<T: Copy + ComponentValue> ResolvableStyle for ValueOrRef<T> {
+    type Value = T;
+    fn resolve(self, stylesheet: &EntityRef<'_>) -> T {
         match self {
             ValueOrRef::Value(value) => value,
             ValueOrRef::Ref(component) => stylesheet.get_copy(component).unwrap(),
         }
     }
+}
+
+pub trait ResolvableStyle {
+    type Value;
+
+    fn resolve(self, stylesheet: &EntityRef<'_>) -> Self::Value;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -263,12 +301,6 @@ impl From<Srgba> for Background {
     }
 }
 
-pub enum Spacing {
-    Small,
-    Medium,
-    Large,
-}
-
 pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
     let query = stylesheet.first_relation().traverse(child_of);
 
@@ -280,34 +312,18 @@ pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
 pub fn setup_stylesheet() -> EntityBuilder {
     let mut builder = Entity::builder();
 
+    ColorPalette::new().install(&mut builder);
+
     builder
-        // colors
-        .set(primary_surface(), ZINC_950)
-        .set(primary_element(), PLATINUM_100)
-        .set(secondary_surface(), ZINC_900)
-        .set(accent_element(), EMERALD_400)
-        .set(accent_surface(), PLATINUM_600)
-        .set(success_surface(), EMERALD_600)
-        .set(success_element(), EMERALD_400)
-        .set(info_surface(), TEAL_800)
-        .set(info_element(), TEAL_200)
-        .set(warning_surface(), AMBER_800)
-        .set(warning_element(), AMBER_500)
-        .set(danger_surface(), REDWOOD_800)
-        .set(danger_element(), REDWOOD_500)
-        .set(interactive_active(), EMERALD_500)
-        .set(interactive_passive(), ZINC_800)
-        .set(interactive_hover(), EMERALD_400)
-        .set(interactive_pressed(), EMERALD_500)
-        .set(interactive_inactive(), ZINC_700)
         // spacing
         .set(spacing_small(), 4.0.into())
         .set(spacing_medium(), 8.0.into())
         .set(spacing_large(), 16.0.into())
+        .set(default_corner_radius(), Unit::px(8.0))
         // text size
-        .set(text_small(), 16.0.into())
-        .set(text_medium(), 18.0.into())
-        .set(text_large(), 24.0.into());
+        .set(text_small(), 16.0)
+        .set(text_medium(), 24.0)
+        .set(text_large(), 36.0);
 
     builder
 }
@@ -318,40 +334,12 @@ pub fn setup_stylesheet() -> EntityBuilder {
 // to Figma variables.
 flax::component! {
     pub stylesheet(id): () => [ Exclusive ],
-    /// The primary surface color
-    pub primary_surface: Srgba,
-    pub primary_element: Srgba,
-
-    /// Used for secondary surfaces, such as card backgrounds
-    pub secondary_surface: Srgba,
-    pub secondary_item: Srgba,
-
-    pub accent_surface: Srgba,
-    pub accent_element: Srgba,
-
-    pub success_surface: Srgba,
-    pub success_element: Srgba,
-
-    pub info_surface: Srgba,
-    pub info_element: Srgba,
-
-    pub warning_surface: Srgba,
-    pub warning_element: Srgba,
-
-    pub danger_surface: Srgba,
-    pub danger_element: Srgba,
-
-
-    /// Used for the main parts of interactive elements
-    pub interactive_active: Srgba,
-    pub interactive_passive: Srgba,
-    pub interactive_inactive: Srgba,
-    pub interactive_hover: Srgba,
-    pub interactive_pressed: Srgba,
 
     pub spacing_small: Edges,
     pub spacing_medium: Edges,
     pub spacing_large: Edges,
+
+    pub default_corner_radius: Unit<f32>,
 
     pub text_small: f32,
     pub text_medium: f32,

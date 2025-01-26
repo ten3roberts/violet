@@ -3,7 +3,7 @@ use glam::Vec2;
 use violet::{
     core::{
         state::{State, StateStream},
-        style::{danger_surface, SizeExt},
+        style::{surface_warning, SizeExt},
         text::TextSegment,
         unit::Unit,
         widget::{
@@ -32,9 +32,9 @@ pub fn app() -> impl Widget {
         card(row((label("What is your quest?"), TextInput::new(quest)))),
         card(col((
             label("What is your favorite colour?"),
-            SliderWithLabel::new(r, 0.0, 1.0).round(0.01),
-            SliderWithLabel::new(g, 0.0, 1.0).round(0.01),
-            SliderWithLabel::new(b, 0.0, 1.0).round(0.01),
+            SliderWithLabel::new(r, 0.0, 1.0).precision(2),
+            SliderWithLabel::new(g, 0.0, 1.0).precision(2),
+            SliderWithLabel::new(b, 0.0, 1.0).precision(2),
             StreamWidget(color.stream().map(|v| {
                 Rectangle::new(v)
                     .with_maximize(Vec2::X)
@@ -52,10 +52,10 @@ pub fn app() -> impl Widget {
             StreamWidget(speed.stream().map(|v| {
                 match v {
                     Some(v) => pill(Text::new(format!("{v} m/s"))),
-                    None => pill(Text::rich([
+                    None => pill(Text::formatted([
                         TextSegment::new("×").with_weight(violet::core::text::Weight::BOLD)
                     ]))
-                    .with_background(danger_surface()),
+                    .with_background(surface_warning()),
                 }
             })),
         ))),

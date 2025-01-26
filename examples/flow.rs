@@ -3,10 +3,11 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet::core::{
-    style::{colors::*, Background, SizeExt},
+    style::{Background, SizeExt},
     widget::{col, row, Button},
     Edges, Widget,
 };
+use violet_core::style::{surface_primary, surface_secondary};
 use violet_wgpu::renderer::MainRendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
@@ -36,8 +37,8 @@ fn app() -> impl Widget {
         row((Button::label("Button"), Button::label("Button"))),
         row((Button::label("Longer Button"), Button::label("Button"))),
     ))
-    .with_background(Background::new(EMERALD_900)))
-    .contain_margins(true)
-    .with_background(Background::new(COPPER_500))
+    .with_background(Background::new(surface_secondary())))
+    .with_contain_margins(true)
+    .with_background(Background::new(surface_primary()))
     // .with_padding(spacing_medium())
 }

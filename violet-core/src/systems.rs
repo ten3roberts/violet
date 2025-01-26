@@ -5,7 +5,7 @@ use std::{
 
 use atomic_refcell::AtomicRefCell;
 use flax::{
-    archetype::Storage,
+    archetype::ArchetypeStorage,
     component::ComponentValue,
     components::child_of,
     entity_ids,
@@ -24,7 +24,7 @@ use crate::{
     layout::{
         apply_layout,
         cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdateEvent},
-        LayoutArgs, LayoutLimits,
+        query_size, Direction, LayoutArgs, LayoutLimits, QueryArgs,
     },
     Rect,
 };
@@ -103,7 +103,6 @@ pub fn invalidate_cached_layout_system(world: &mut World) -> BoxedSystem {
     let dirty = Arc::new(AtomicRefCell::new(HashSet::new()));
 
     let invalidator = QueryInvalidator {
-        // name_map: components.iter().map(|v| (v.key(), v.clone())).collect(),
         dirty: Arc::downgrade(&dirty),
     };
 
@@ -136,7 +135,7 @@ impl QueryInvalidator {
 }
 
 impl EventSubscriber for QueryInvalidator {
-    fn on_added(&self, _: &Storage, event: &EventData) {
+    fn on_added(&self, _: &ArchetypeStorage, event: &EventData) {
         // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "added");
         self.mark_dirty(event.ids);
     }
@@ -146,7 +145,7 @@ impl EventSubscriber for QueryInvalidator {
         self.mark_dirty(event.ids);
     }
 
-    fn on_removed(&self, _: &Storage, event: &EventData) {
+    fn on_removed(&self, _: &ArchetypeStorage, event: &EventData) {
         // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "removed");
         self.mark_dirty(event.ids);
     }
@@ -156,24 +155,43 @@ impl EventSubscriber for QueryInvalidator {
     }
 }
 /// Updates the layout for entities using the given constraints
-pub fn layout_system(root: Entity) -> BoxedSystem {
+pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
     puffin::profile_function!();
     System::builder()
         .with_world()
-        // .with_query(Query::new((rect(), children())).without_relation(child_of))
         .build(move |world: &World| {
             let Ok(entity) = world.entity(root) else {
                 return;
             };
-            let query = (rect().opt_or_default(), children().opt_or_default());
+
+            let query = (rect().as_mut(), children().opt_or_default());
             let mut query = entity.query(&query);
 
             let (canvas_rect, children) = query.get().unwrap();
 
             puffin::profile_scope!("layout_system");
 
+            let mut total_rect = Rect::ZERO;
+
             for &child in children {
                 let entity = world.entity(child).unwrap();
+
+                if update_canvas_size {
+                    let sizing = query_size(
+                        world,
+                        &entity,
+                        QueryArgs {
+                            content_area: canvas_rect.size(),
+                            limits: LayoutLimits {
+                                min_size: Vec2::ZERO,
+                                max_size: Vec2::MAX,
+                            },
+                            direction: Direction::Horizontal,
+                        },
+                    );
+
+                    total_rect = total_rect.merge(sizing.preferred());
+                }
 
                 let res = apply_layout(
                     world,
@@ -189,6 +207,10 @@ pub fn layout_system(root: Entity) -> BoxedSystem {
 
                 entity.update_dedup(components::rect(), res.rect);
                 entity.update_dedup(components::clip_mask(), res.rect);
+            }
+
+            if update_canvas_size {
+                *canvas_rect = total_rect;
             }
         })
         .boxed()

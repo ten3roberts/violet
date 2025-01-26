@@ -27,6 +27,8 @@ component! {
     /// The merged clip mask of the widget and its parents
     pub screen_clip_mask: Rect => [ Debuggable ],
 
+    pub screen_mask_tranform: Vec2,
+
     /// Position relative to parent for layout position.
     pub local_position: Vec2 => [ Debuggable ],
 
@@ -94,6 +96,8 @@ component! {
     /// The color of the widget
     pub color: Srgba => [ Debuggable ],
 
+    pub widget_corner_radius: Unit<f32> => [ Debuggable ],
+
     /// The widget will be rendered as a filled rectange coverings its bounds
     pub image: Asset<DynamicImage> => [ Debuggable ],
 
@@ -105,6 +109,8 @@ component! {
     pub layout_glyphs: LayoutGlyphs,
 
     pub(crate) atoms,
+
+    pub(crate) context_store(id): (),
 
     pub on_animation_frame: OnAnimationFrame,
 

@@ -1,19 +1,8 @@
-use futures::StreamExt;
-use glam::Vec2;
-use violet::{
-    core::{
-        state::{State, StateStream},
-        style::{accent_surface, SizeExt},
-        widget::{col, row, Radio, StreamWidget, WidgetExt},
-        Widget,
-    },
-    futures_signals::signal::Mutable,
-    wgpu::{renderer::MainRendererConfig, AppBuilder},
-};
+use violet::wgpu::{renderer::MainRendererConfig, AppBuilder};
 use wasm_bindgen_futures::wasm_bindgen;
 
 pub mod bridge_of_death;
-mod palettes;
+pub mod colorpicker;
 
 #[cfg(target_arch = "wasm32")]
 fn setup() {
@@ -59,39 +48,6 @@ pub fn run() {
     AppBuilder::new()
         .with_title("Palette Editor")
         .with_renderer_config(MainRendererConfig { debug_mode: false })
-        .run(app())
+        .run(colorpicker::main_app())
         .unwrap();
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum DemoState {
-    Basic,
-    PaletteEditor,
-}
-
-fn app() -> impl Widget {
-    let state = Mutable::new(DemoState::Basic);
-    col((
-        (row((
-            Radio::label(
-                "The Bridge of Death",
-                state
-                    .clone()
-                    .map(|s| s == DemoState::Basic, move |_| DemoState::Basic),
-            ),
-            Radio::label(
-                "Palette Editor",
-                state.clone().map(
-                    |s| s == DemoState::PaletteEditor,
-                    move |_| DemoState::PaletteEditor,
-                ),
-            ),
-        ))
-        .with_background(accent_surface()))
-        .with_maximize(Vec2::X),
-        StreamWidget(state.stream().map(|v| match v {
-            DemoState::Basic => bridge_of_death::app().boxed(),
-            DemoState::PaletteEditor => palettes::App.boxed(),
-        })),
-    ))
 }

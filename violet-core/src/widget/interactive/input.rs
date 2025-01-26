@@ -16,22 +16,20 @@ use crate::{
     components::{self, screen_transform},
     editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
-        keep_focus, focusable, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
+        focusable, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
     },
     io,
+    layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
-    style::{
-        interactive_active, interactive_hover, interactive_passive, spacing_medium, spacing_small,
-        Background, SizeExt, StyleExt, ValueOrRef, WidgetSize,
-    },
+    style::*,
     text::{CursorLocation, LayoutGlyphs},
     time::sleep,
     to_owned,
     unit::Unit,
     utils::throttle,
     widget::{col, row, Float, NoOp, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
-    Rect, Scope, Widget,
+    Edges, Rect, Scope, Widget,
 };
 
 pub struct TextInputStyle {
@@ -39,15 +37,17 @@ pub struct TextInputStyle {
     pub selection_color: ValueOrRef<Srgba>,
     pub background: Background,
     pub font_size: f32,
+    pub align: Align,
 }
 
 impl Default for TextInputStyle {
     fn default() -> Self {
         Self {
-            cursor_color: interactive_active().into(),
-            selection_color: interactive_hover().into(),
-            background: Background::new(interactive_passive()),
+            cursor_color: surface_interactive_accent().into(),
+            selection_color: surface_hover_accent().into(),
+            background: Background::new(surface_interactive()),
             font_size: 16.0,
+            align: Align::Start,
         }
     }
 }
@@ -66,9 +66,21 @@ impl TextInput {
             style: Default::default(),
             size: WidgetSize::default()
                 .with_min_size(Unit::px2(16.0, 16.0))
-                .with_margin(spacing_medium())
-                .with_padding(spacing_medium()),
+                .with_margin(spacing_small())
+                .with_padding(spacing_small())
+                .with_corner_radius(default_corner_radius()),
         }
+    }
+
+    pub fn new_parsed<T>(content: impl 'static + Send + Sync + StateDuplex<Item = T>) -> Self
+    where
+        T: 'static + Send + Sync + ToString + FromStr,
+    {
+        let content = content
+            .filter_map(|v| Some(v.to_string()), |v| v.parse().ok())
+            .prevent_feedback();
+
+        Self::new(content)
     }
 }
 
@@ -129,7 +141,6 @@ impl Widget for TextInput {
         let content = self.content.prevent_feedback();
 
         let clipboard = scope
-            .frame()
             .get_atom(io::clipboard())
             .expect("Missing clipboard")
             .clone();
@@ -212,8 +223,6 @@ impl Widget for TextInput {
                                     // None
                                     v.glyphs.last()
                                 }?;
-
-                                // dbg!(left, right);
 
                                 let rect = Rect::new(
                                     left.bounds.min + vec2(0.0, ln as f32 * glyphs.line_height),
@@ -332,7 +341,7 @@ impl Widget for TextInput {
                 }
             });
 
-        Stack::new((
+        Stack::new(Stack::new((
             TextContent {
                 rx: dirty_rx,
                 font_size: self.style.font_size,
@@ -340,9 +349,10 @@ impl Widget for TextInput {
                 layout_glyphs: layout_glyphs.clone(),
             },
             Float::new(StreamWidget(editor_props_rx.to_stream())),
-        ))
-        .with_background(self.style.background)
+        )))
         .with_size_props(self.size)
+        .with_horizontal_alignment(self.style.align)
+        .with_background(self.style.background)
         .mount(scope)
     }
 }
@@ -358,18 +368,21 @@ impl Widget for TextContent {
     fn mount(self, scope: &mut Scope<'_>) {
         let create_row = move |row, text| {
             let layout_glyphs = self.layout_glyphs.clone();
-            Text::new(text).with_font_size(self.font_size).monitor(
-                components::layout_glyphs(),
-                Box::new(move |glyphs| {
-                    if let Some(new) = glyphs {
-                        tracing::debug!(?row, lines = new.rows[0].len(), "new glyphs");
-                        let glyphs = &mut *layout_glyphs.lock_mut();
+            Text::new(text)
+                .with_margin(Edges::ZERO)
+                .with_font_size(self.font_size)
+                .monitor(
+                    components::layout_glyphs(),
+                    Box::new(move |glyphs| {
+                        if let Some(new) = glyphs {
+                            tracing::debug!(?row, lines = new.rows[0].len(), "new glyphs");
+                            let glyphs = &mut *layout_glyphs.lock_mut();
 
-                        glyphs.set_row(row, new.rows[0].clone());
-                        glyphs.line_height = new.line_height;
-                    }
-                }),
-            )
+                            glyphs.set_row(row, new.rows[0].clone());
+                            glyphs.line_height = new.line_height;
+                        }
+                    }),
+                )
         };
 
         let mut text_items = vec![scope.attach(create_row(0, String::new()))];

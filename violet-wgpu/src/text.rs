@@ -8,10 +8,10 @@ use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
-
 use violet_core::{
     components::{font_size, layout_glyphs},
     layout::{LayoutArgs, QueryArgs, SizeResolver, SizingHints},
+    style::ResolvableStyle,
     text::{LayoutGlyphs, LayoutLineGlyphs, TextSegment},
     Rect,
 };

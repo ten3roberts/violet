@@ -105,6 +105,14 @@ impl Edges {
         (back_margin, front_margin)
     }
 
+    pub fn topleft(&self) -> Vec2 {
+        vec2(self.left, self.top)
+    }
+
+    pub fn bottomright(&self) -> Vec2 {
+        vec2(self.right, self.bottom)
+    }
+
     pub fn max(&self, other: Self) -> Self {
         Self {
             left: self.left.max(other.left),
@@ -198,7 +206,7 @@ impl Rect {
 
     /// Makes the rect smaller by the given padding
     #[must_use]
-    pub fn inset(&self, padding: &Edges) -> Self {
+    pub fn inset(&self, padding: Edges) -> Self {
         Self {
             min: self.min + vec2(padding.left, padding.top),
             max: self.max - vec2(padding.right, padding.bottom),
@@ -207,7 +215,7 @@ impl Rect {
 
     /// Makes the rect larger by the given padding
     #[must_use]
-    pub fn pad(&self, padding: &Edges) -> Self {
+    pub fn pad(&self, padding: Edges) -> Self {
         Self {
             min: self.min - vec2(padding.left, padding.top),
             max: self.max + vec2(padding.right, padding.bottom),

@@ -8,8 +8,8 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        primary_surface, secondary_surface, spacing_small, Background, SizeExt, StyleExt,
-        WidgetSize,
+        default_corner_radius, spacing_medium, surface_secondary, surface_tertiary, Background,
+        SizeExt, StyleExt, WidgetSize,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -68,6 +68,11 @@ impl<W> Stack<W> {
 
     pub fn with_background(mut self, background: impl Into<Background>) -> Self {
         self.style.background = Some(background.into());
+        self
+    }
+
+    pub fn with_background_opt(mut self, background: impl Into<Option<Background>>) -> Self {
+        self.style.background = background.into();
         self
     }
 
@@ -130,13 +135,18 @@ impl<W: WidgetCollection> List<W> {
         self
     }
 
+    pub fn with_reverse(mut self, reverse: bool) -> Self {
+        self.layout.reverse = reverse;
+        self
+    }
+
     /// Set the List's cross axis alignment
     pub fn with_cross_align(mut self, cross_align: Align) -> Self {
         self.layout.cross_align = cross_align;
         self
     }
 
-    pub fn contain_margins(mut self, enable: bool) -> Self {
+    pub fn with_contain_margins(mut self, enable: bool) -> Self {
         self.layout.contain_margins = enable;
         self
     }
@@ -282,18 +292,26 @@ pub fn centered<W: WidgetCollection>(widget: W) -> Stack<W> {
         .with_vertical_alignment(Align::Center)
 }
 
-pub fn card<W: Widget>(widget: W) -> Stack<W> {
+pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        // TODO: semantic color and sizing increment
-        .with_background(Background::new(secondary_surface()))
-        .with_padding(spacing_small())
-        .with_margin(spacing_small())
+        .with_background(Background::new(surface_secondary()))
+        .with_padding(spacing_medium())
+        .with_margin(spacing_medium())
+        .with_corner_radius(default_corner_radius())
+}
+
+pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
+    Stack::new(widget).with_background(Background::new(surface_secondary()))
+}
+
+pub fn maximized<W: WidgetCollection>(widget: W) -> Stack<W> {
+    Stack::new(widget).with_maximize(Vec2::ONE)
 }
 
 pub fn pill<W: Widget>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        // TODO: semantic color and sizing increment
-        .with_background(Background::new(primary_surface()))
-        .with_padding(spacing_small())
-        .with_margin(spacing_small())
+        .with_background(Background::new(surface_tertiary()))
+        .with_padding(spacing_medium())
+        .with_margin(spacing_medium())
+        .with_corner_radius(default_corner_radius())
 }

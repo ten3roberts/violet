@@ -14,6 +14,7 @@ struct VertexOutput {
 struct Object {
     world_matrix: mat4x4<f32>,
     color: vec4<f32>,
+    corner_radius: f32,
 }
 
 struct Globals {
