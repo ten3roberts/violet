@@ -61,7 +61,7 @@ struct ClipboardInner {
 impl ClipboardInner {
     pub fn new() -> Self {
         Self {
-            clipboard: web_sys::window().unwrap().navigator().clipboard(),
+            clipboard: web_sys::window().map(|v| v.navigator().clipboard()),
         }
     }
 
