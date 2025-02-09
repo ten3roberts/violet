@@ -21,15 +21,18 @@ use violet::core::{
     state::{
         State, StateDuplex, StateMut, StateOwned, StateRef, StateSink, StateStream, StateStreamRef,
     },
-    style::{spacing_small, surface_interactive, surface_primary, Background, SizeExt},
+    style::{
+        default_corner_radius, spacing_small, surface_disabled, surface_interactive,
+        surface_pressed, surface_primary, Background, SizeExt,
+    },
     time::sleep,
     to_owned,
     unit::Unit,
     utils::zip_latest,
     widget::{
-        card, col, header, label, panel, row, Button, Checkbox, InteractiveExt, Radio, Rectangle,
-        ScrollArea, SliderStyle, SliderValue, SliderWithLabel, Stack, StreamWidget, Text,
-        TextInput,
+        card, col, header, label, panel, row, Button, Checkbox, EmptyWidget, InteractiveExt, Radio,
+        Rectangle, ScrollArea, SignalWidget, SliderStyle, SliderValue, SliderWithLabel, Stack,
+        StreamWidget, Text, TextInput, WidgetExt,
     },
     FutureEffect, Scope, ScopeRef, Widget,
 };
@@ -74,62 +77,92 @@ impl Default for AutoPaletteSettings {
     }
 }
 
-pub fn auto_palette_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget {
-    let checkbox = Checkbox::label(
-        "Auto Tints",
-        settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
-    );
+pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget {
+    let open = Mutable::new(false);
+    let checkbox = Checkbox::label("Auto Tints", open.clone());
 
-    let stream_widget = StreamWidget::new(
-        settings
-            .clone()
-            .signal_ref(|v| v.enabled)
-            .dedupe()
-            .to_stream()
-            .map(move |enabled| {
-                if enabled {
-                    Some(row((
-                        col((header("Min L"), header("Max L"), header("Falloff"))),
-                        col((
-                            precise_slider(
-                                settings.clone().transform(
-                                    |v| v.min_lum,
-                                    |settings, v| {
-                                        settings.min_lum = v;
-                                        settings.max_lum = settings.max_lum.max(v);
-                                    },
-                                ),
-                                0.0,
-                                1.0,
-                            )
-                            .precision(ROUNDING),
-                            precise_slider(
-                                settings.clone().transform(
-                                    |v| v.max_lum,
-                                    |settings, v| {
-                                        settings.max_lum = v;
-                                        settings.min_lum = settings.min_lum.min(v);
-                                    },
-                                ),
-                                0.0,
-                                1.0,
-                            )
-                            .precision(ROUNDING),
-                            precise_slider(
-                                settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
-                                0.0,
-                                30.0,
-                            )
-                            .precision(ROUNDING),
-                        )),
-                    )))
-                } else {
-                    None
-                }
-            }),
-    );
+    let settings2 = settings.clone();
+    let stream_widget = StreamWidget::new(open.signal().dedupe().to_stream().map(move |enabled| {
+        if enabled {
+            (col((
+                Checkbox::label(
+                    "Enabled",
+                    settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
+                ),
+                row((
+                    col((
+                        header("Min Lightness"),
+                        header("Max Lightness"),
+                        header("Chroma Falloff"),
+                    )),
+                    col((
+                        precise_slider(
+                            settings.clone().transform(
+                                |v| v.min_lum,
+                                |settings, v| {
+                                    settings.min_lum = v;
+                                    settings.max_lum = settings.max_lum.max(v);
+                                },
+                            ),
+                            0.0,
+                            1.0,
+                        )
+                        .precision(ROUNDING),
+                        precise_slider(
+                            settings.clone().transform(
+                                |v| v.max_lum,
+                                |settings, v| {
+                                    settings.max_lum = v;
+                                    settings.min_lum = settings.min_lum.min(v);
+                                },
+                            ),
+                            0.0,
+                            1.0,
+                        )
+                        .precision(ROUNDING),
+                        precise_slider(
+                            settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
+                            0.0,
+                            30.0,
+                        )
+                        .precision(ROUNDING),
+                    )),
+                )),
+            )))
+            .boxed()
+        } else {
+            EmptyWidget.boxed()
+        }
+    }));
 
-    card(row((checkbox, stream_widget)))
+    let enabled_indicator = SignalWidget::new(settings2.signal().map(|v| v.enabled).dedupe().map(
+        |enabled| {
+            Rectangle::new(if enabled {
+                surface_pressed()
+            } else {
+                surface_disabled()
+            })
+            .with_exact_size(Unit::px2(18.0, 18.0))
+            .with_corner_radius(Unit::rel(1.0))
+        },
+    ))
+    .on_press(move |_| {
+        let enabled = &mut settings2.lock_mut().enabled;
+        *enabled = !*enabled;
+    });
+
+    card(
+        col((
+            row((
+                checkbox,
+                label("Configure automatic shades"),
+                enabled_indicator,
+            ))
+            .with_cross_align(Align::Center),
+            stream_widget,
+        ))
+        .with_size(Unit::px2(950.0, 0.0)),
+    )
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -194,48 +227,53 @@ fn palette_controls(
         }
     });
 
-    let widget = card(row((
-        row(palette
-            .colors
-            .iter()
-            .enumerate()
-            .map(move |(i, color)| {
-                to_owned!(color, palettes, selection);
+    let widget = card(
+        row((
+            row(palette
+                .colors
+                .iter()
+                .enumerate()
+                .map(move |(i, color)| {
+                    to_owned!(color, palettes, selection);
 
-                let current_selection = selection.stream().map(move |v| {
-                    let palettes = palettes.clone();
-                    let selection = selection.clone();
+                    let current_selection = selection.stream().map(move |v| {
+                        let palettes = palettes.clone();
+                        let selection = selection.clone();
 
-                    let is_selected = (palette_index, i) == v;
+                        let is_selected = (palette_index, i) == v;
 
-                    Stack::new((
-                        StreamWidget::new(color.stream().map(|color| {
-                            Rectangle::new(color.as_rgb().with_alpha(1.0))
-                                .with_min_size(Unit::px2(60.0, 60.0))
-                        })),
-                        Button::label("-")
-                            .with_padding(spacing_small())
-                            .with_margin(spacing_small())
-                            .on_press(move |_| {
-                                palettes.write_mut(|v| v.colors.remove(i));
-                            }),
-                    ))
-                    .with_horizontal_alignment(Align::End)
-                    .with_background_opt(if is_selected {
-                        Some(Background::new(surface_interactive()))
-                    } else {
-                        None
-                    })
-                    .with_padding(spacing_small())
-                    .on_press(move |_| selection.send((palette_index, i)))
-                });
+                        Stack::new((
+                            StreamWidget::new(color.stream().map(|color| {
+                                Rectangle::new(color.as_rgb().with_alpha(1.0))
+                                    .with_min_size(Unit::px2(60.0, 60.0))
+                                    .with_corner_radius(default_corner_radius())
+                            })),
+                            Button::label("-")
+                                .with_padding(spacing_small())
+                                .with_margin(spacing_small())
+                                .on_press(move |_| {
+                                    palettes.write_mut(|v| v.colors.remove(i));
+                                }),
+                        ))
+                        .with_horizontal_alignment(Align::End)
+                        .with_background_opt(if is_selected {
+                            Some(Background::new(surface_interactive()))
+                        } else {
+                            None
+                        })
+                        .with_corner_radius(default_corner_radius())
+                        .with_padding(spacing_small())
+                        .on_press(move |_| selection.send((palette_index, i)))
+                    });
 
-                StreamWidget::new(current_selection)
-            })
-            .collect_vec()),
-        col((add_swatch, Button::label("-").on_click(remove_self))),
-        TextInput::new(palette.name.clone()),
-    )));
+                    StreamWidget::new(current_selection)
+                })
+                .collect_vec()),
+            col((add_swatch, Button::label("-").on_click(remove_self))),
+            TextInput::new(palette.name.clone()),
+        ))
+        .with_min_size(Unit::px2(950.0, 0.0)),
+    );
 
     move |scope: &mut Scope| {
         scope.spawn(external_settings_change);
@@ -405,7 +443,7 @@ pub fn main_app() -> impl Widget {
                 },
             );
 
-            row((swatch_editor(color_setter), auto_palette_settings(auto)))
+            col((swatch_editor(color_setter), auto_tint_settings(auto)))
         }
     });
 
@@ -470,17 +508,20 @@ fn swatch_editor(
             .with_margin(spacing_small())
     });
 
-    panel(row((
-        card(col((
-            StreamWidget::new(color_swatch),
-            color_hex_editor(color.clone()),
-        ))),
-        col((
-            rgb_picker(color.clone()),
-            hsl_picker(color.clone()),
-            oklab_picker(color),
-        )),
-    )))
+    card(
+        row((
+            card(col((
+                StreamWidget::new(color_swatch),
+                color_hex_editor(color.clone()),
+            ))),
+            col((
+                rgb_picker(color.clone()),
+                hsl_picker(color.clone()),
+                oklab_picker(color),
+            )),
+        ))
+        .with_min_size(Unit::px2(950.0, 0.0)),
+    )
 }
 
 const ROUNDING: u32 = 4;

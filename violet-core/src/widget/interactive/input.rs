@@ -28,7 +28,7 @@ use crate::{
     to_owned,
     unit::Unit,
     utils::throttle,
-    widget::{col, row, Float, NoOp, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
+    widget::{col, row, Float, EmptyWidget, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
     Edges, Rect, Scope, Widget,
 };
 
@@ -137,7 +137,7 @@ impl Widget for TextInput {
 
         editor.set_cursor_at_end();
 
-        let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(NoOp) as Box<dyn Widget>);
+        let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(EmptyWidget) as Box<dyn Widget>);
         let content = self.content.prevent_feedback();
 
         let clipboard = scope

@@ -292,6 +292,14 @@ pub fn centered<W: WidgetCollection>(widget: W) -> Stack<W> {
         .with_vertical_alignment(Align::Center)
 }
 
+pub fn centered_vertical<W: WidgetCollection>(widget: W) -> Stack<W> {
+    Stack::new(widget).with_vertical_alignment(Align::Center)
+}
+
+pub fn centered_horizontal<W: WidgetCollection>(widget: W) -> Stack<W> {
+    Stack::new(widget).with_horizontal_alignment(Align::Center)
+}
+
 pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_background(Background::new(surface_secondary()))

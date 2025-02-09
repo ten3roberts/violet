@@ -174,9 +174,9 @@ impl<W: Widget> WidgetCollection for Vec<W> {
     }
 }
 
-pub struct NoOp;
+pub struct EmptyWidget;
 
-impl Widget for NoOp {
+impl Widget for EmptyWidget {
     fn mount(self, _scope: &mut Scope<'_>) {}
 }
 
