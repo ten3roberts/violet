@@ -1,5 +1,6 @@
 {
   "name": "violet-demo",
+  "type": "module",
   "collaborators": [
     "Tei Roberts"
   ],
@@ -15,7 +16,7 @@
     "violet_demo.js",
     "violet_demo.d.ts"
   ],
-  "module": "violet_demo.js",
+  "main": "violet_demo.js",
   "types": "violet_demo.d.ts",
   "sideEffects": [
     "./snippets/*"
