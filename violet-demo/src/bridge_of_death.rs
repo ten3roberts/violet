@@ -60,4 +60,5 @@ pub fn app() -> impl Widget {
             })),
         ))),
     ))
+    .with_contain_margins(true)
 }

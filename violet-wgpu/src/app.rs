@@ -85,76 +85,31 @@ impl AppBuilder {
 
         let instance = AppInstance::new(root, self.resize_window);
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            use wasm_bindgen::JsCast;
-            use winit::platform::web::WindowBuilderExtWebSys;
-            let canvas = web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("canvas")
-                .unwrap()
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .unwrap();
-            builder = builder.with_canvas(Some(canvas));
-        }
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            use wasm_bindgen::JsCast;
-            use winit::platform::web::WindowExtWebSys;
-            let canvas = window.canvas().expect("Missing window canvas");
-            let sf = window.scale_factor() as f32;
-            let on_resize = move || {
-                let (w, h) = (
-                    (canvas.client_width() as f32 * sf) as u32,
-                    (canvas.client_height() as f32 * sf) as u32,
-                );
-
-                canvas.set_width(w as _);
-                canvas.set_height(h as _);
-            };
-
-            on_resize();
-
-            let window = web_sys::window().unwrap();
-            window
-                .add_event_listener_with_callback(
-                    "resize",
-                    wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::EventTarget)>::new(
-                        move |_: web_sys::EventTarget| {
-                            on_resize();
-                        },
-                    )
-                    .into_js_value()
-                    .unchecked_ref(),
-                )
-                .expect("Failed to add resize listener");
-        }
-
         let (renderer_tx, renderer_rx) = flume::unbounded();
 
         #[cfg(not(target_arch = "wasm32"))]
         let _puffin_server = setup_puffin();
 
+        let event_handler = WindowEventHandler {
+            instance,
+            renderer: None,
+            window: None,
+            renderer_tx,
+            renderer_rx,
+            renderer_config: self.renderer_config,
+            title: self.title,
+            resize_window: self.resize_window,
+        };
+
         #[cfg(not(target_arch = "wasm32"))]
         {
-            event_loop.run_app(&mut WindowEventHandler {
-                instance,
-                renderer: None,
-                window: None,
-                renderer_tx,
-                renderer_rx,
-                renderer_config: self.renderer_config,
-                title: self.title,
-                resize_window: self.resize_window,
-            })?;
+            let mut event_handler = event_handler;
+            event_loop.run_app(&mut event_handler)?;
         }
         #[cfg(target_arch = "wasm32")]
         {
             use winit::platform::web::EventLoopExtWebSys;
-            event_loop.spawn(on_event);
+            event_loop.spawn_app(event_handler);
         }
 
         Ok(())
@@ -339,16 +294,67 @@ impl WindowEventHandler {
 impl ApplicationHandler for WindowEventHandler {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         if self.window.is_none() {
-            let Ok(window) = event_loop.create_window(
-                Window::default_attributes()
-                    .with_resizable(!self.resize_window)
-                    .with_decorations(true)
-                    .with_title(self.title.clone()),
-            ) else {
+            let mut window_attributes = Window::default_attributes()
+                .with_resizable(!self.resize_window)
+                .with_decorations(true)
+                .with_title(self.title.clone());
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                use wasm_bindgen::JsCast;
+                use winit::platform::web::WindowAttributesExtWebSys;
+
+                let canvas = web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .get_element_by_id("canvas")
+                    .unwrap()
+                    .dyn_into::<web_sys::HtmlCanvasElement>()
+                    .unwrap();
+
+                window_attributes = window_attributes.with_canvas(Some(canvas));
+            }
+
+            let Ok(window) = event_loop.create_window(window_attributes) else {
                 tracing::error!("Failed to create window");
                 event_loop.exit();
                 return;
             };
+
+            // Install size listener
+            #[cfg(target_arch = "wasm32")]
+            {
+                use wasm_bindgen::JsCast;
+                use winit::platform::web::WindowExtWebSys;
+                let canvas = window.canvas().expect("Missing window canvas");
+                let sf = window.scale_factor() as f32;
+                let on_resize = move || {
+                    let (w, h) = (
+                        (canvas.client_width() as f32 * sf) as u32,
+                        (canvas.client_height() as f32 * sf) as u32,
+                    );
+
+                    canvas.set_width(w as _);
+                    canvas.set_height(h as _);
+                };
+
+                on_resize();
+
+                let window = web_sys::window().unwrap();
+                window
+                    .add_event_listener_with_callback(
+                        "resize",
+                        wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::EventTarget)>::new(
+                            move |_: web_sys::EventTarget| {
+                                on_resize();
+                            },
+                        )
+                        .into_js_value()
+                        .unchecked_ref(),
+                    )
+                    .expect("Failed to add resize listener");
+            }
 
             let window = Arc::new(window);
             let root = self.instance.root;

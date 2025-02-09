@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use parking_lot::Mutex;
-
 use crate::{declare_atom, stored::Handle};
 
 pub struct Clipboard {
@@ -32,14 +30,14 @@ impl Default for Clipboard {
 
 #[cfg(not(target_arch = "wasm32"))]
 struct ClipboardInner {
-    clipboard: Mutex<arboard::Clipboard>,
+    clipboard: parking_lot::Mutex<arboard::Clipboard>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl ClipboardInner {
     pub fn new() -> Self {
         Self {
-            clipboard: Mutex::new(arboard::Clipboard::new().unwrap()),
+            clipboard: parking_lot::Mutex::new(arboard::Clipboard::new().unwrap()),
         }
     }
 

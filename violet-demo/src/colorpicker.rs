@@ -349,7 +349,7 @@ pub fn main_app() -> impl Widget {
                             .palettes
                             .last()
                             .map(|v| v.colors.len())
-                            .unwrap_or(9);
+                            .unwrap_or(11);
 
                         let index = palettes.palettes.len();
 
@@ -454,7 +454,7 @@ fn create_palette(index: usize, num_colors: usize) -> Palette {
             .take(num_colors)
             .collect_vec(),
         auto: Default::default(),
-        name: Mutable::new("Palette".into()),
+        name: Mutable::new("Unnamed Color".into()),
     }
 }
 

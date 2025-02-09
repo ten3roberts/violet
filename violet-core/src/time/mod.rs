@@ -273,7 +273,7 @@ impl Future for TickFuture {
         }
 
         if let Some((rx, _)) = self.timeout.as_mut() {
-            if let Poll::Ready(_) = rx.poll_unpin(cx) {
+            if rx.poll_unpin(cx).is_ready() {
                 return Poll::Ready(());
             }
         }

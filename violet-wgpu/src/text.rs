@@ -19,7 +19,12 @@ use violet_core::{
 use super::components::text_buffer_state;
 
 static INTER_FONT: &[u8] =
-    include_bytes!("../../assets/fonts/Inter/Inter-VariableFont_slnt,wght.ttf");
+    include_bytes!("../../assets/fonts/Inter/Inter-VariableFont_opsz,wght.ttf");
+
+static INTER_FONT_BOLD: &[u8] = include_bytes!("../../assets/fonts/Inter/static/Inter-Bold.ttf");
+static INTER_FONT_ITALIC: &[u8] =
+    include_bytes!("../../assets/fonts/Inter/Inter-Italic-VariableFont_opsz,wght.ttf");
+
 pub struct TextSystem {
     pub(crate) font_system: FontSystem,
     pub(crate) swash_cache: SwashCache,
@@ -34,7 +39,11 @@ impl TextSystem {
     }
 
     pub fn new_with_defaults() -> Self {
-        let sources = [Source::Binary(Arc::new(INTER_FONT.to_vec()))];
+        let sources = [
+            Source::Binary(Arc::new(INTER_FONT.to_vec())),
+            Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
+            Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
+        ];
         let font_system = FontSystem::new_with_fonts(sources);
 
         Self {
