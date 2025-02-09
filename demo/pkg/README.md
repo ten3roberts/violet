@@ -7,10 +7,23 @@ State and reactivity is managed locally using async Streams, such as signals or 
 allows composing a declarative reactive UI where data flows naturally from source to destination without re-renders or
 useState hooks.
 
+## Features
+- Declarative Widgets and reactive state
+- Flexible layout system for responsive layouts
+- Composable widgets
+- First class async and stream based widget reactivity
+- Thread local `!Send` + `!Sync` state and futures
+- Signal based state management
+- Wasm/web compatible
+- Wgpu rendering
+- State decomposition and composition
+- Renderer agnostic allowing embedding into other applications
+- ...and more
+
 ## [Live Demo](https://ten3roberts.github.io/violet/demo)
+![image](https://github.com/user-attachments/assets/af3c1e0b-2720-476e-93ae-317cdf7d0baf)
 
 ## Example
-
 ![image](https://github.com/ten3roberts/violet/assets/25723553/b9882e28-9e4b-49be-8dcc-9c12d42e12b1)
 
 ```rust
@@ -59,19 +72,6 @@ col((
     ))),
 ))
 ```
-
-## Features
-- Declarative Widgets and reactive state
-- Flexible layout system for responsive layouts
-- Composable widgets
-- First class async and stream based widget reactivity
-- Thread local `!Send` + `!Sync` state and futures
-- Signal based state management
-- State and Stream morphisms
-- Wasm integration
-- State decomposition and composition
-- Renderer agnostic allowing embedding into other applications
-
 ## State Management
 
 State is primarily managed through [`futures-signals`](https://github.com/Pauan/rust-signals).
