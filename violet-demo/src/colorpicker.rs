@@ -288,7 +288,7 @@ pub struct PaletteCollection {
 
 pub fn main_app() -> impl Widget {
     let palettes = Mutable::new(PaletteCollection {
-        palettes: vec![create_palette(0, 9)],
+        palettes: vec![create_palette(0, 11)],
     });
 
     let current_selection = Mutable::new((0_usize, 0_usize));
