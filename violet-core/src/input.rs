@@ -11,7 +11,7 @@ use winit::{
 use crate::{
     components::{rect, screen_clip_mask, screen_transform},
     declare_atom,
-    hierarchy::OrderedDfsIterator,
+    hierarchy::{find_widget_intersect, OrderedDfsIterator},
     scope::ScopeRef,
     Frame,
 };
@@ -49,31 +49,8 @@ impl InputState {
         pos: Vec2,
         mut filter: impl FnMut(&EntityRef) -> bool,
     ) -> Option<(Entity, Vec2)> {
-        let query = (screen_transform(), rect(), screen_clip_mask()).filtered(focusable().with());
-        OrderedDfsIterator::new(&frame.world, frame.world.entity(self.root).unwrap())
-            .filter_map(|entity| {
-                if !filter(&entity) {
-                    return None;
-                }
-
-                let mut query = entity.query(&query);
-                let (transform, rect, clip_mask) = query.get()?;
-
-                let translation = transform.transform_point3(Vec3::ZERO).xy();
-                let clipped_rect = rect
-                    .translate(translation)
-                    .clip(*clip_mask)
-                    .translate(-translation);
-
-                let local_pos = transform.inverse().transform_point3(pos.extend(0.0)).xy();
-
-                if clipped_rect.contains_point(local_pos) {
-                    Some((entity.id(), local_pos - rect.min))
-                } else {
-                    None
-                }
-            })
-            .last()
+        find_widget_intersect(self.root, frame, pos, |v| v.has(interactive()) && filter(v))
+            .map(|(entity, pos)| (entity.id(), pos))
     }
 
     pub fn on_mouse_input(
@@ -84,7 +61,6 @@ impl InputState {
     ) -> bool {
         let cursor_pos = self.pos;
         let intersect = self.find_intersect(frame, cursor_pos, |_| true);
-
         let id = match (state, &self.focused, intersect) {
             // Focus changed
             (ElementState::Pressed, _, new) => {
@@ -302,7 +278,7 @@ declare_atom! {
 
 component! {
     pub keep_focus: (),
-    pub focusable: (),
+    pub interactive: (),
     pub on_focus: InputEventHandler<bool>,
     pub on_cursor_move: InputEventHandler<CursorMove>,
     pub on_mouse_input: InputEventHandler<MouseInput>,

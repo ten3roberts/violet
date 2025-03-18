@@ -43,6 +43,10 @@ component! {
 
     pub screen_transform: Mat4,
 
+    pub visible: bool,
+
+    pub computed_visible: bool,
+
     /// Explicit widget size. This will override the intrinsic size of the widget.
     ///
     /// The final size may be smaller if there is not enough space.

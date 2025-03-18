@@ -18,8 +18,8 @@ use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{
-        self, children, clip_mask, layout_args, layout_bounds, local_position, rect,
-        screen_clip_mask, screen_transform, text, transform,
+        self, children, clip_mask, computed_visible, layout_args, layout_bounds, local_position,
+        rect, screen_clip_mask, screen_transform, text, transform, visible,
     },
     layout::{
         apply_layout,
@@ -46,6 +46,8 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
     entity
         .set(flax::components::name(), name)
         .set_default(screen_transform())
+        .set(visible(), true)
+        .set(computed_visible(), true)
         .set_default(transform())
         .set_default(local_position())
         .set(clip_mask(), Rect::new(Vec2::MIN, Vec2::MAX))
@@ -226,30 +228,43 @@ pub fn transform_system(root: Entity) -> BoxedSystem {
                 clip_mask(),
                 local_position(),
                 transform().opt_or_default(),
+                visible(),
+                computed_visible().as_mut(),
             ))
             .with_strategy(Dfs::new(child_of)),
         )
         .build(move |mut query: DfsBorrow<_>| {
             query.traverse_from(
                 root,
-                &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX)),
-                |(screen_trans, screen_mask, &mask, &local_pos, &trans): (
+                &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX), true),
+                |(
+                    screen_trans,
+                    screen_mask,
+                    &mask,
+                    &local_pos,
+                    &trans,
+                    visible,
+                    computed_visible,
+                ): (
                     &mut Mat4,
                     &mut Rect,
                     &Rect,
                     &Vec2,
                     &Mat4,
+                    &bool,
+                    &mut bool,
                 ),
                  _,
-                 &(parent, parent_mask)| {
+                 &(parent, parent_mask, parent_visible)| {
                     let local_transform = Mat4::from_translation(local_pos.extend(0.0)) * trans;
 
                     let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
                     *screen_mask = mask.translate(mask_offset).intersect(parent_mask);
 
                     *screen_trans = parent * local_transform;
+                    *computed_visible = *visible && parent_visible;
 
-                    (*screen_trans, *screen_mask)
+                    (*screen_trans, *screen_mask, *computed_visible)
                 },
             );
         })

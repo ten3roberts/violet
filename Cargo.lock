@@ -692,6 +692,8 @@ checksum = "59fd57d82eb4bfe7ffa9b1cec0c05e2fd378155b47f255a67983cb4afe0e80c2"
 dependencies = [
  "bitflags 2.6.0",
  "fontdb",
+ "hashbrown",
+ "libm",
  "log",
  "rangemap",
  "rayon",
@@ -989,8 +991,8 @@ dependencies = [
 
 [[package]]
 name = "flax"
-version = "0.7.1"
-source = "git+https://github.com/ten3roberts/flax#588e9cecd8f5087eb216a05121b786c323f6b58a"
+version = "0.8.0"
+source = "git+https://github.com/ten3roberts/flax#2e0658e04523348d0d72a6bb3c0e24e3e00d839b"
 dependencies = [
  "anyhow",
  "atomic_refcell",
@@ -998,7 +1000,7 @@ dependencies = [
  "flax-derive",
  "flume",
  "inventory",
- "itertools 0.12.1",
+ "itertools 0.14.0",
  "once_cell",
  "puffin",
  "rayon",
@@ -1008,11 +1010,11 @@ dependencies = [
 
 [[package]]
 name = "flax-derive"
-version = "0.7.1"
-source = "git+https://github.com/ten3roberts/flax#588e9cecd8f5087eb216a05121b786c323f6b58a"
+version = "0.8.0"
+source = "git+https://github.com/ten3roberts/flax#2e0658e04523348d0d72a6bb3c0e24e3e00d839b"
 dependencies = [
  "heck",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
@@ -1041,23 +1043,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "fontconfig-parser"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1fcfcd44ca6e90c921fee9fa665d530b21ef1327a4c1a6c5250ea44b776ada7"
-dependencies = [
- "roxmltree",
-]
-
-[[package]]
 name = "fontdb"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0299020c3ef3f60f526a4f64ab4a3d4ce116b1acbf24cdd22da0068e5d81dc3"
 dependencies = [
- "fontconfig-parser",
  "log",
- "memmap2",
  "slotmap",
  "tinyvec",
  "ttf-parser 0.20.0",
@@ -1341,9 +1332,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.28.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "779ae4bf7e8421cf91c0b3b64e7e8b40b862fba4d393f59150042de7c4965a94"
+checksum = "17fcdf9683c406c2fc4d124afd29c0d595e22210d633cbdb8695ba9935ab1dc6"
 dependencies = [
  "bytemuck",
 ]
@@ -1555,18 +1546,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
@@ -1659,7 +1641,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -1948,7 +1930,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.74",
@@ -2711,12 +2693,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "roxmltree"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
-
-[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3469,7 +3445,7 @@ dependencies = [
  "futures",
  "futures-signals",
  "glam",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "lru",
  "palette",
  "serde_json",
@@ -3504,7 +3480,7 @@ dependencies = [
  "glam",
  "gloo-timers",
  "image",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "more-asserts",
  "once_cell",
  "palette",
@@ -3537,7 +3513,7 @@ dependencies = [
  "glam",
  "heck",
  "indexmap",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ordered-float",
  "puffin",
  "rfd",
@@ -3566,7 +3542,7 @@ dependencies = [
  "glam",
  "guillotiere",
  "image",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "palette",
  "parking_lot",
  "puffin",

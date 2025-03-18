@@ -4,7 +4,7 @@ use winit::event::{ElementState, MouseButton};
 
 use crate::{
     components::{self},
-    input::{focusable, on_mouse_input},
+    input::{interactive, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
     state::{StateDuplex, StateStream, WatchState},
@@ -19,8 +19,8 @@ type ButtonClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ColorPair<T> {
-    surface: T,
-    element: T,
+    pub surface: T,
+    pub element: T,
 }
 
 impl<T> ColorPair<T> {
@@ -48,6 +48,52 @@ pub struct ButtonStyle {
     pub normal: ColorPair<ValueOrRef<Srgba>>,
     pub pressed: ColorPair<ValueOrRef<Srgba>>,
     pub hover: ColorPair<ValueOrRef<Srgba>>,
+}
+
+impl ButtonStyle {
+    pub fn new(
+        normal: ColorPair<ValueOrRef<Srgba>>,
+        pressed: ColorPair<ValueOrRef<Srgba>>,
+        hover: ColorPair<ValueOrRef<Srgba>>,
+    ) -> Self {
+        Self {
+            normal,
+            pressed,
+            hover,
+        }
+    }
+
+    pub fn success() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
+            pressed: ColorPair::new(surface_pressed_success(), element_pressed_success()),
+            hover: ColorPair::new(surface_hover_success(), element_hover_success()),
+        }
+    }
+
+    pub fn danger() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_interactive_danger(), element_interactive_danger()),
+            pressed: ColorPair::new(surface_pressed_danger(), element_pressed_danger()),
+            hover: ColorPair::new(surface_hover_danger(), element_hover_danger()),
+        }
+    }
+
+    pub fn warning() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_interactive_warning(), element_interactive_warning()),
+            pressed: ColorPair::new(surface_pressed_warning(), element_pressed_warning()),
+            hover: ColorPair::new(surface_hover_warning(), element_hover_warning()),
+        }
+    }
+
+    pub fn accent() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_interactive_accent(), element_interactive_accent()),
+            pressed: ColorPair::new(surface_pressed_accent(), element_pressed_accent()),
+            hover: ColorPair::new(surface_hover_accent(), element_hover_accent()),
+        }
+    }
 }
 
 impl Default for ButtonStyle {
@@ -105,38 +151,22 @@ impl<W> Button<W> {
     }
 
     pub fn success(mut self) -> Self {
-        self.style = ButtonStyle {
-            normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
-            pressed: ColorPair::new(surface_pressed_success(), element_pressed_success()),
-            hover: ColorPair::new(surface_hover_success(), element_hover_success()),
-        };
+        self.style = ButtonStyle::success();
         self
     }
 
     pub fn danger(mut self) -> Self {
-        self.style = ButtonStyle {
-            normal: ColorPair::new(surface_interactive_danger(), element_interactive_danger()),
-            pressed: ColorPair::new(surface_pressed_danger(), element_pressed_danger()),
-            hover: ColorPair::new(surface_hover_danger(), element_hover_danger()),
-        };
+        self.style = ButtonStyle::danger();
         self
     }
 
     pub fn warning(mut self) -> Self {
-        self.style = ButtonStyle {
-            normal: ColorPair::new(surface_interactive_warning(), element_interactive_warning()),
-            pressed: ColorPair::new(surface_pressed_warning(), element_pressed_warning()),
-            hover: ColorPair::new(surface_hover_warning(), element_hover_warning()),
-        };
+        self.style = ButtonStyle::warning();
         self
     }
 
     pub fn accent(mut self) -> Self {
-        self.style = ButtonStyle {
-            normal: ColorPair::new(surface_interactive_accent(), element_interactive_accent()),
-            pressed: ColorPair::new(surface_pressed_accent(), element_pressed_accent()),
-            hover: ColorPair::new(surface_hover_accent(), element_hover_accent()),
-        };
+        self.style = ButtonStyle::accent();
 
         self
     }
@@ -199,7 +229,7 @@ impl<W: Widget> Widget for Button<W> {
         let content = scope.attach(self.label);
 
         scope
-            .set(focusable(), ())
+            .set(interactive(), ())
             .on_event(on_mouse_input(), move |scope, input| {
                 let color = if input.state.is_pressed() {
                     pressed
@@ -293,7 +323,7 @@ impl<W: Widget> Widget for Checkbox<W> {
         let mut last_state = WatchState::new(self.state.stream());
 
         scope
-            .set(focusable(), ())
+            .set(interactive(), ())
             .on_event(on_mouse_input(), move |_, input| {
                 if input.state == ElementState::Pressed {
                     if let Some(state) = last_state.get() {
@@ -383,7 +413,7 @@ impl<W: Widget> Widget for Radio<W> {
         });
 
         scope
-            .set(focusable(), ())
+            .set(interactive(), ())
             .on_event(on_mouse_input(), move |_, input| {
                 if input.state == ElementState::Pressed {
                     self.state.send(true)

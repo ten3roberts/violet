@@ -62,7 +62,7 @@ rfd = "0.14"
 tracing = "0.1"
 pin-project = "1.1"
 
-cosmic-text = { version = "0.12", features = ["wasm-web"] }
+cosmic-text = { version = "0.12", default-features = false, features = ["wasm-web", "rayon", "swash", "no_std"] }
 guillotiere = "0.6"
 bytes = "1.7"
 more-asserts = "0.3"

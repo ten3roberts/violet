@@ -1,14 +1,16 @@
-use winit::event::ElementState;
+use winit::{event::ElementState, keyboard::Key};
 
 use crate::{
-    input::{focusable, on_mouse_input},
+    input::{interactive, on_keyboard_input, on_mouse_input},
     ScopeRef,
 };
 
 use super::Widget;
 
 pub mod button;
+pub mod drag;
 pub mod input;
+pub mod overlay;
 pub mod slider;
 
 pub trait InteractiveExt {
@@ -16,6 +18,13 @@ pub trait InteractiveExt {
         self,
         on_press: F,
     ) -> OnPress<Self, F>
+    where
+        Self: Sized;
+
+    fn on_key<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, Key)>(
+        self,
+        on_key: F,
+    ) -> OnKey<Self, F>
     where
         Self: Sized;
 }
@@ -31,6 +40,19 @@ impl<W: Widget> InteractiveExt for W {
         OnPress {
             widget: self,
             func: on_press,
+        }
+    }
+
+    fn on_key<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, Key)>(
+        self,
+        on_key: F,
+    ) -> OnKey<Self, F>
+    where
+        Self: Sized,
+    {
+        OnKey {
+            widget: self,
+            func: on_key,
         }
     }
 }
@@ -49,10 +71,34 @@ where
         self.widget.mount(scope);
 
         scope
-            .set_default(focusable())
+            .set_default(interactive())
             .on_event(on_mouse_input(), move |scope, input| {
                 if input.state == ElementState::Released {
                     (self.func)(scope)
+                }
+            });
+    }
+}
+
+pub struct OnKey<W, F> {
+    widget: W,
+    func: F,
+}
+
+impl<W, F> Widget for OnKey<W, F>
+where
+    W: Widget,
+    F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, Key),
+{
+    fn mount(mut self, scope: &mut crate::Scope<'_>) {
+        self.widget.mount(scope);
+
+        scope
+            .set_default(interactive())
+            .on_event(on_keyboard_input(), move |scope, input| {
+                tracing::info!(?input.key);
+                if input.state == ElementState::Released {
+                    (self.func)(scope, input.key)
                 }
             });
     }

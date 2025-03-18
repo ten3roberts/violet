@@ -1,5 +1,6 @@
 use std::{mem, sync::Arc};
 
+use cosmic_text::fontdb::Source;
 use flax::{components::name, Entity, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
@@ -16,6 +17,7 @@ use violet_core::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
+    widget::OverlayStack,
     Frame, FutureEffect, Rect, Scope, Widget,
 };
 use web_time::Instant;
@@ -31,7 +33,7 @@ use crate::{
     graphics::Gpu,
     renderer::{MainRendererConfig, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
-    text::TextSystem,
+    text::{TextSystem, INTER_FONT, INTER_FONT_BOLD, INTER_FONT_ITALIC},
 };
 
 pub struct Canvas<W> {
@@ -43,8 +45,10 @@ impl<W: Widget> Widget for Canvas<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         scope
             .set(name(), "Canvas".into())
-            .set(stylesheet(self.stylesheet), ());
+            .set(stylesheet(self.stylesheet), ())
+            .flush();
 
+        OverlayStack::new().mount(scope);
         scope.attach(self.root);
     }
 }
@@ -53,14 +57,22 @@ pub struct AppBuilder {
     renderer_config: MainRendererConfig,
     resize_window: bool,
     title: String,
+    fonts: Vec<Source>,
 }
 
 impl AppBuilder {
     pub fn new() -> Self {
+        let fonts = vec![
+            Source::Binary(Arc::new(INTER_FONT.to_vec())),
+            Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
+            Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
+        ];
+
         Self {
             renderer_config: Default::default(),
             title: "Violet".to_string(),
             resize_window: false,
+            fonts,
         }
     }
 
@@ -80,10 +92,22 @@ impl AppBuilder {
         self
     }
 
+    pub fn build(self, root: impl Widget) -> AppInstance {
+        AppInstance::new(
+            root,
+            self.resize_window,
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+        )
+    }
+
     pub fn run(self, root: impl Widget) -> anyhow::Result<()> {
         let event_loop = EventLoop::builder().build()?;
 
-        let instance = AppInstance::new(root, self.resize_window);
+        let instance = AppInstance::new(
+            root,
+            self.resize_window,
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+        );
 
         let (renderer_tx, renderer_rx) = flume::unbounded();
 
@@ -116,6 +140,34 @@ impl AppBuilder {
     }
 }
 
+pub struct AppInstanceBuilder {
+    resize_window: bool,
+    fonts: Vec<Source>,
+}
+
+impl AppInstanceBuilder {
+    pub fn new() -> Self {
+        let fonts = vec![
+            Source::Binary(Arc::new(INTER_FONT.to_vec())),
+            Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
+            Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
+        ];
+
+        Self {
+            resize_window: false,
+            fonts,
+        }
+    }
+
+    pub fn build(self, root: impl Widget) -> AppInstance {
+        AppInstance::new(
+            root,
+            self.resize_window,
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+        )
+    }
+}
+
 /// A running application instance of violet
 pub struct AppInstance {
     pub frame: Frame,
@@ -133,7 +185,11 @@ pub struct AppInstance {
 }
 
 impl AppInstance {
-    pub fn new(root: impl Widget, resize_canvas: bool) -> AppInstance {
+    pub fn new(
+        root: impl Widget,
+        resize_canvas: bool,
+        text_system: Arc<Mutex<TextSystem>>,
+    ) -> AppInstance {
         let executor = Executor::new();
 
         let spawner = executor.spawner();
@@ -151,7 +207,6 @@ impl AppInstance {
         // Mount the root widget
         let root = frame.new_root(Canvas { stylesheet, root });
 
-        let text_system = Arc::new(Mutex::new(TextSystem::new_with_defaults()));
         let (layout_changes_tx, layout_changes_rx) = flume::unbounded();
 
         let schedule = Schedule::new()
@@ -294,6 +349,7 @@ impl WindowEventHandler {
 impl ApplicationHandler for WindowEventHandler {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         if self.window.is_none() {
+            #[allow(unused_mut)]
             let mut window_attributes = Window::default_attributes()
                 .with_resizable(!self.resize_window)
                 .with_decorations(true)

@@ -16,7 +16,7 @@ use crate::{
     components::{self, screen_transform},
     editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
     input::{
-        focusable, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
+        interactive, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
     },
     io,
@@ -261,7 +261,7 @@ impl Widget for TextInput {
         let dragging = Mutable::new(None);
 
         scope
-            .set(focusable(), ())
+            .set(interactive(), ())
             .set(keep_focus(), ())
             .on_event(on_focus(), {
                 to_owned![tx];

@@ -10,7 +10,7 @@ use winit::event::ElementState;
 use super::input::{TextInput, TextInputStyle};
 use crate::{
     components::{offset, padding, rect},
-    input::{focusable, on_cursor_move, on_mouse_input},
+    input::{interactive, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{State, StateDuplex, StateSink, StateStream},
     style::{
@@ -169,7 +169,7 @@ impl<V: SliderValue> Widget for Slider<V> {
         });
 
         scope
-            .set(focusable(), ())
+            .set(interactive(), ())
             .on_event(on_mouse_input(), {
                 to_owned![value, drag_start];
                 move |scope, input| {

@@ -146,7 +146,7 @@ impl<'a> Scope<'a> {
     pub fn attach<W: Widget>(&mut self, widget: W) -> Entity {
         self.flush();
         let mut entity = EntityBuilder::new();
-        widget_template(&mut entity, tynm::type_name::<W>());
+        widget_template(&mut entity, widget.name().into());
         let id = entity.spawn(self.frame.world_mut());
 
         self.frame
@@ -162,7 +162,7 @@ impl<'a> Scope<'a> {
             let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
-            s.set(name(), tynm::type_name::<W>());
+            s.set(name(), widget.name().into());
             s.flush();
 
             widget.mount(&mut s);
@@ -177,7 +177,7 @@ impl<'a> Scope<'a> {
     pub fn attach_at<W: Widget>(&mut self, position: usize, widget: W) -> Entity {
         self.flush();
         let mut entity = EntityBuilder::new();
-        widget_template(&mut entity, tynm::type_name::<W>());
+        widget_template(&mut entity, widget.name().into());
         let id = entity.spawn(self.frame.world_mut());
 
         self.frame
@@ -193,7 +193,7 @@ impl<'a> Scope<'a> {
             let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
-            s.set(name(), tynm::type_name::<W>());
+            s.set(name(), widget.name().into());
             s.flush();
 
             widget.mount(&mut s);
@@ -456,6 +456,17 @@ impl<'a> ScopeRef<'a> {
     /// Returns `None` if the atom does not exist.
     pub fn get_atom<T: ComponentValue>(&self, atom: Atom<T>) -> Option<AtomicRef<T>> {
         self.frame.get_atom(atom)
+    }
+
+    pub fn root(&self) -> Entity {
+        let mut cur = *self.entity();
+        loop {
+            let Some((parent, _)) = cur.relations(child_of).next() else {
+                return cur.id();
+            };
+
+            cur = self.frame.world.entity(parent).unwrap();
+        }
     }
 
     pub fn read<T: 'static>(&self, handle: WeakHandle<T>) -> &T {

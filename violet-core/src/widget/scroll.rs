@@ -5,7 +5,7 @@ use glam::{vec2, BVec2, Mat4, Vec2, Vec2Swizzles};
 use super::{Float, Movable, Rectangle, Stack};
 use crate::{
     components::{min_size, offset, padding, rect, transform},
-    input::{focusable, on_scroll},
+    input::{interactive, on_scroll},
     state::{StateMut, StateStream},
     style::{
         default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt, WidgetSize,
@@ -94,7 +94,7 @@ impl<W: Widget> Widget for ScrollArea<W> {
             }
         });
 
-        scope.set(focusable(), ());
+        scope.set(interactive(), ());
 
         let scroll = zip_latest(size.stream(), outer_size.stream()).map(|(size, outer_size)| {
             // tracing::info!(%size, %outer_size);

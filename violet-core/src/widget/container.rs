@@ -1,10 +1,10 @@
 use futures_signals::signal::Mutable;
-use glam::{BVec2, Vec2};
+use glam::{BVec2, Mat4, Vec2, Vec3, Vec3Swizzles};
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, offset, rect},
-    input::{focusable, on_cursor_move, on_mouse_input},
+    components::{anchor, layout, offset, rect, transform},
+    input::{interactive, on_cursor_move, on_mouse_input},
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
@@ -188,6 +188,7 @@ impl<W: WidgetCollection> Widget for List<W> {
 }
 
 type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2>;
+type OnDrop = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2)>;
 
 /// Allows a widget to be dragged around using the mouse.
 ///
@@ -195,6 +196,7 @@ type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2>;
 pub struct Movable<W> {
     content: W,
     on_move: OnMove,
+    on_drop: OnDrop,
     size: WidgetSize,
 }
 
@@ -203,6 +205,7 @@ impl<W> Movable<W> {
         Self {
             content,
             on_move: Box::new(|_, v| v),
+            on_drop: Box::new(|_, _| {}),
             size: Default::default(),
         }
     }
@@ -214,6 +217,11 @@ impl<W> Movable<W> {
         self.on_move = Box::new(on_move);
         self
     }
+
+    pub fn on_drop(mut self, on_drop: impl 'static + Send + Sync + FnMut(&ScopeRef, Vec2)) -> Self {
+        self.on_drop = Box::new(on_drop);
+        self
+    }
 }
 
 impl<W: Widget> Widget for Movable<W> {
@@ -221,15 +229,23 @@ impl<W: Widget> Widget for Movable<W> {
         let start_offset = Mutable::new(Vec2::ZERO);
 
         scope
-            .set(focusable(), ())
+            .set(interactive(), ())
             .set(offset(), Unit::default())
             .on_event(on_mouse_input(), {
                 let start_offset = start_offset.clone();
-                move |_, input| {
+                move |scope, input| {
+                    let transform = scope
+                        .get_copy(transform())
+                        .unwrap_or_default()
+                        .transform_point3(Vec3::ZERO)
+                        .xy();
+
                     if input.state == ElementState::Pressed {
                         tracing::info!(%input.cursor.local_pos);
-                        let cursor_pos = input.cursor.local_pos;
+                        let cursor_pos = input.cursor.absolute_pos - transform;
                         *start_offset.lock_mut() = cursor_pos;
+                    } else {
+                        (self.on_drop)(scope, input.cursor.absolute_pos);
                     }
                 }
             })
@@ -240,11 +256,11 @@ impl<W: Widget> Widget for Movable<W> {
                     .unwrap_or_default()
                     .resolve(rect.size());
 
-                let cursor_pos = input.local_pos + rect.min;
+                let cursor_pos = input.absolute_pos;
 
-                let new_offset = cursor_pos - start_offset.get() + anchor;
+                let new_offset = cursor_pos - start_offset.get();
                 let new_offset = (self.on_move)(scope, new_offset);
-                scope.update_dedup(offset(), Unit::px(new_offset));
+                scope.update_dedup(transform(), Mat4::from_translation(new_offset.extend(0.0)));
             });
 
         self.content.mount(scope)

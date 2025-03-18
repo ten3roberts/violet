@@ -12,7 +12,7 @@ use flax::{component::ComponentValue, components::name, Component};
 pub use future::{SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use image::*;
-pub use interactive::{button::*, input::*, slider::*, InteractiveExt};
+pub use interactive::{button::*, drag::*, input::*, overlay::*, slider::*, InteractiveExt};
 pub use scroll::ScrollArea;
 
 /// A widget is a description of a part of the Ui with the capability to mount itself into the world.
@@ -21,6 +21,10 @@ pub use scroll::ScrollArea;
 pub trait Widget: BoxedWidget {
     /// Mount the widget into the world, returning a handle to refer to it
     fn mount(self, scope: &mut Scope<'_>);
+
+    fn name(&self) -> String {
+        tynm::type_name::<Self>()
+    }
 }
 
 pub trait BoxedWidget {
@@ -43,6 +47,10 @@ impl Widget for Box<dyn Widget>
     fn mount(self, scope: &mut Scope<'_>) {
         self.mount_boxed(scope)
     }
+
+    fn name(&self) -> String {
+        (**self).name()
+    }
 }
 
 impl Widget for Box<dyn Send + Sync + Widget>
@@ -51,6 +59,10 @@ impl Widget for Box<dyn Send + Sync + Widget>
 {
     fn mount(self, scope: &mut Scope<'_>) {
         self.mount_boxed(scope)
+    }
+
+    fn name(&self) -> String {
+        (**self).name()
     }
 }
 

@@ -4,7 +4,9 @@ use bytemuck::Zeroable;
 use flax::{
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
-    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
+    filter::{self, Cmp},
+    CommandBuffer, Component, Entity, EntityRef, Fetch, FetchExt, Query, QueryBorrow, RelationExt,
+    World,
 };
 use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
 use itertools::Itertools;
@@ -12,7 +14,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use smallvec::SmallVec;
 use violet_core::{
-    components::{children, draw_shape},
+    components::{children, computed_visible, draw_shape, visible},
     layout::cache::LayoutUpdateEvent,
     stored::{self, Store},
     Frame, Rect,
@@ -134,6 +136,7 @@ pub(crate) struct DrawQuery {
     pub(crate) object_data: Component<ObjectData>,
     pub(crate) shape: NthRelation<()>,
     pub(crate) draw_cmd: Component<DrawCommand>,
+    pub(crate) visible: Component<bool>,
 }
 
 impl DrawQuery {
@@ -143,6 +146,7 @@ impl DrawQuery {
             object_data: object_data(),
             shape: draw_shape.first_relation(),
             draw_cmd: draw_cmd(),
+            visible: computed_visible(),
         }
     }
 }
@@ -318,6 +322,10 @@ impl MainRenderer {
             .filter_map(|entity| {
                 let mut query = entity.query(&query);
                 let item = query.get()?;
+
+                if !item.visible {
+                    return None;
+                }
 
                 Some((item.draw_cmd.clone(), *item.object_data))
             })
