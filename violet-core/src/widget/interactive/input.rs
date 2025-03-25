@@ -28,7 +28,9 @@ use crate::{
     to_owned,
     unit::Unit,
     utils::throttle,
-    widget::{col, row, Float, EmptyWidget, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
+    widget::{
+        col, row, EmptyWidget, Float, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt,
+    },
     Edges, Rect, Scope, Widget,
 };
 
@@ -137,7 +139,8 @@ impl Widget for TextInput {
 
         editor.set_cursor_at_end();
 
-        let (editor_props_tx, editor_props_rx) = signal::channel(Box::new(EmptyWidget) as Box<dyn Widget>);
+        let (editor_props_tx, editor_props_rx) =
+            signal::channel(Box::new(EmptyWidget) as Box<dyn Widget>);
         let content = self.content.prevent_feedback();
 
         let clipboard = scope
@@ -271,6 +274,8 @@ impl Widget for TextInput {
                     if !focus {
                         tx.send(Action::Editor(EditorAction::SelectionClear)).ok();
                     }
+
+                    None
                 }
             })
             .on_event(on_mouse_input(), {
@@ -302,6 +307,8 @@ impl Widget for TextInput {
                             dragging.set(None)
                         }
                     }
+
+                    None
                 }
             })
             .on_event(on_cursor_move(), {
@@ -310,11 +317,11 @@ impl Widget for TextInput {
                     let dragging = dragging.get();
 
                     let Some(drag_start) = dragging else {
-                        return;
+                        return None;
                     };
 
                     if input.local_pos.distance(drag_start) < 5.0 {
-                        return;
+                        return None;
                     }
 
                     let glyphs = layout_glyphs.lock_ref();
@@ -328,6 +335,8 @@ impl Widget for TextInput {
                         )))
                         .ok();
                     }
+
+                    None
                 }
             })
             .on_event(on_keyboard_input(), {
@@ -338,6 +347,8 @@ impl Widget for TextInput {
                             tx.send(v).ok();
                         })
                     }
+
+                    None
                 }
             });
 

@@ -1,7 +1,7 @@
 use winit::{event::ElementState, keyboard::Key};
 
 use crate::{
-    input::{interactive, on_keyboard_input, on_mouse_input},
+    input::{interactive, on_keyboard_input, on_mouse_input, KeyboardInput},
     ScopeRef,
 };
 
@@ -14,14 +14,16 @@ pub mod overlay;
 pub mod slider;
 
 pub trait InteractiveExt {
-    fn on_press<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>)>(
+    fn on_press<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>) -> Option<()>>(
         self,
         on_press: F,
     ) -> OnPress<Self, F>
     where
         Self: Sized;
 
-    fn on_key<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, Key)>(
+    fn on_key<
+        F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, KeyboardInput) -> Option<KeyboardInput>,
+    >(
         self,
         on_key: F,
     ) -> OnKey<Self, F>
@@ -30,7 +32,7 @@ pub trait InteractiveExt {
 }
 
 impl<W: Widget> InteractiveExt for W {
-    fn on_press<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>)>(
+    fn on_press<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>) -> Option<()>>(
         self,
         on_press: F,
     ) -> OnPress<Self, F>
@@ -43,7 +45,9 @@ impl<W: Widget> InteractiveExt for W {
         }
     }
 
-    fn on_key<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, Key)>(
+    fn on_key<
+        F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, KeyboardInput) -> Option<KeyboardInput>,
+    >(
         self,
         on_key: F,
     ) -> OnKey<Self, F>
@@ -65,7 +69,7 @@ pub struct OnPress<W, F> {
 impl<W, F> Widget for OnPress<W, F>
 where
     W: Widget,
-    F: 'static + Send + Sync + FnMut(&ScopeRef<'_>),
+    F: 'static + Send + Sync + FnMut(&ScopeRef<'_>) -> Option<()>,
 {
     fn mount(mut self, scope: &mut crate::Scope<'_>) {
         self.widget.mount(scope);
@@ -73,8 +77,10 @@ where
         scope
             .set_default(interactive())
             .on_event(on_mouse_input(), move |scope, input| {
-                if input.state == ElementState::Released {
-                    (self.func)(scope)
+                if input.state == ElementState::Pressed {
+                    (self.func)(scope).map(|()| input)
+                } else {
+                    None
                 }
             });
     }
@@ -88,7 +94,7 @@ pub struct OnKey<W, F> {
 impl<W, F> Widget for OnKey<W, F>
 where
     W: Widget,
-    F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, Key),
+    F: 'static + Send + Sync + FnMut(&ScopeRef<'_>, KeyboardInput) -> Option<KeyboardInput>,
 {
     fn mount(mut self, scope: &mut crate::Scope<'_>) {
         self.widget.mount(scope);
@@ -96,10 +102,7 @@ where
         scope
             .set_default(interactive())
             .on_event(on_keyboard_input(), move |scope, input| {
-                tracing::info!(?input.key);
-                if input.state == ElementState::Released {
-                    (self.func)(scope, input.key)
-                }
+                (self.func)(scope, input)
             });
     }
 }

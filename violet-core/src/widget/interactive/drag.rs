@@ -1,42 +1,52 @@
 use std::cell::RefCell;
 
-use flax::{component, filter::RefFetch, Entity, EntityRef};
+use flax::{component, EntityRef};
 use futures_signals::signal::{Mutable, MutableSignal, SignalExt};
-use glam::{Vec2, Vec3};
-use palette::cast::into_uint_ref;
+use glam::Vec2;
 use winit::event::ElementState;
 
 use crate::{
     components::{offset, visible},
     hierarchy::find_widget_intersect,
     input::{interactive, on_cursor_move, on_mouse_input},
-    stored::WeakHandle,
     unit::Unit,
-    Widget,
+    ScopeRef, Widget,
 };
 
 use super::overlay::{overlay_state, Overlay, OverlayHandle};
 
-type OnDropFn = Box<dyn Fn(Option<EntityRef>)>;
+type OnDropFn = Box<dyn Fn(&ScopeRef<'_>, Option<EntityRef>)>;
+
+component! {
+    pub drop_target: (),
+}
 
 /// Makes the supplied widget draggable
 pub struct Draggable<T, P> {
     widget: T,
     preview: Box<dyn Fn() -> P>,
     on_drop: OnDropFn,
+    hide_on_drag: bool,
 }
 
 impl<T, P> Draggable<T, P> {
     pub fn new(
         widget: T,
         preview: impl 'static + Fn() -> P,
-        on_drop: impl 'static + Fn(Option<EntityRef>),
+        on_drop: impl 'static + Fn(&ScopeRef<'_>, Option<EntityRef>),
     ) -> Self {
         Self {
             widget,
             preview: Box::new(preview),
             on_drop: Box::new(on_drop),
+            hide_on_drag: true,
         }
+    }
+
+    /// Set the hide on drag
+    pub fn with_hide_on_drag(mut self, hide_on_drag: bool) -> Self {
+        self.hide_on_drag = hide_on_drag;
+        self
     }
 }
 
@@ -61,7 +71,7 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
             .on_event(on_cursor_move(), move |scope, event| {
                 let mut drag = scope.read(drag).borrow_mut();
                 if let Some(start) = drag.drag_start {
-                    if start.distance(event.absolute_pos) > 5.0 {
+                    if start.distance(event.absolute_pos) > 2.0 {
                         preview_position.set(event.absolute_pos - drag.drag_offset);
 
                         if !drag.dragging {
@@ -71,9 +81,14 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
                                 scope.read(create_preview)(),
                             )));
                         }
-                        scope.update_dedup(visible(), !drag.dragging);
+
+                        if self.hide_on_drag {
+                            scope.update_dedup(visible(), false);
+                        }
                     }
                 }
+
+                None
             })
             .on_event(on_mouse_input(), move |scope, input| {
                 let mut drag = scope.read(drag).borrow_mut();
@@ -89,19 +104,23 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
                         preview.close();
                     }
 
-                    scope.update_dedup(visible(), true);
+                    if self.hide_on_drag {
+                        scope.update_dedup(visible(), true);
+                    }
 
                     if dragging {
                         let drop_target = find_widget_intersect(
                             scope.root(),
                             scope.frame(),
                             input.cursor.absolute_pos,
-                            |v| v.has(interactive()),
+                            |v| v.has(drop_target()),
                         );
 
-                        scope.read(on_drop)(drop_target.map(|v| v.0))
+                        scope.read(on_drop)(scope, drop_target.map(|v| v.0))
                     }
                 }
+
+                None
             })
             .set(interactive(), ());
 
@@ -125,10 +144,13 @@ impl DragOverlay {
 
 impl Overlay for DragOverlay {
     fn create(self, scope: &mut crate::Scope<'_>, _: super::overlay::OverlayHandle) {
+        // Float::new(|scope: &mut Scope| {
         scope.spawn_stream(self.position.to_stream(), |scope, pos| {
             scope.set(offset(), Unit::px(pos));
         });
 
         self.widget.mount_boxed(scope);
+        // })
+        // .mount(scope);
     }
 }

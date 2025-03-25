@@ -247,6 +247,8 @@ impl<W: Widget> Widget for Movable<W> {
                     } else {
                         (self.on_drop)(scope, input.cursor.absolute_pos);
                     }
+
+                    None
                 }
             })
             .on_event(on_cursor_move(), move |scope, input| {
@@ -261,6 +263,8 @@ impl<W: Widget> Widget for Movable<W> {
                 let new_offset = cursor_pos - start_offset.get();
                 let new_offset = (self.on_move)(scope, new_offset);
                 scope.update_dedup(transform(), Mat4::from_translation(new_offset.extend(0.0)));
+
+                None
             });
 
         self.content.mount(scope)

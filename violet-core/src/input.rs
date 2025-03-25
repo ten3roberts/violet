@@ -1,4 +1,6 @@
-use flax::{component, Entity, EntityRef, FetchExt, World};
+use flax::{
+    component::ComponentValue, components::child_of, Component, Entity, EntityRef, FetchExt, World,
+};
 use flume::Receiver;
 use glam::{Vec2, Vec3, Vec3Swizzles};
 /// NOTE: maybe redefine these types ourselves
@@ -27,6 +29,7 @@ pub struct FocusedEntity {
 pub struct InputState {
     root: Entity,
     focused: Option<FocusedEntity>,
+    last_sticky: Option<Entity>,
     pos: Vec2,
     modifiers: ModifiersState,
     external_focus_rx: Receiver<Entity>,
@@ -40,6 +43,7 @@ impl InputState {
             modifiers: Default::default(),
             root,
             external_focus_rx,
+            last_sticky: None,
         }
     }
 
@@ -94,45 +98,67 @@ impl InputState {
                 local_pos,
             };
 
-            if let Ok(mut on_input) = entity.get_mut(on_mouse_input()) {
-                let s = ScopeRef::new(frame, entity);
-                on_input(
-                    &s,
-                    MouseInput {
-                        modifiers: self.modifiers,
-                        state,
-                        cursor,
-                        button,
-                    },
-                );
-            }
-
-            return true;
+            return Self::propagate_event(
+                entity,
+                frame,
+                on_mouse_input(),
+                MouseInput {
+                    modifiers: self.modifiers,
+                    state,
+                    cursor,
+                    button,
+                },
+            );
         }
 
         false
     }
 
+    fn propagate_event<'a, T: ComponentValue>(
+        mut entity: EntityRef<'a>,
+        frame: &'a Frame,
+        event: Component<InputEventHandler<T>>,
+        event_value: T,
+    ) -> bool {
+        let mut value = Some(event_value);
+        loop {
+            if let Ok(mut on_input) = entity.get_mut(event) {
+                let s = ScopeRef::new(frame, entity);
+                if let Some(v) = (on_input)(&s, value.take().unwrap()) {
+                    value = Some(v);
+                } else {
+                    break;
+                }
+            }
+
+            let Some((parent, _)) = entity.relations(child_of).next() else {
+                return false;
+            };
+
+            entity = frame.world().entity(parent).unwrap();
+        }
+
+        true
+    }
+
     pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) -> bool {
         self.pos = pos;
 
-        if let Some(entity) = &self.get_focused(&frame.world) {
+        if let &Some(entity) = &self.get_focused(&frame.world) {
             let transform = entity.get_copy(screen_transform()).unwrap_or_default();
             let rect = entity.get_copy(rect()).unwrap_or_default();
-            if let Ok(mut on_input) = entity.get_mut(on_cursor_move()) {
-                let s = ScopeRef::new(frame, *entity);
-                on_input(
-                    &s,
-                    CursorMove {
-                        modifiers: self.modifiers,
-                        absolute_pos: pos,
-                        local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy()
-                            - rect.min,
-                    },
-                );
-            }
 
-            return true;
+            return Self::propagate_event(
+                entity,
+                frame,
+                on_cursor_move(),
+                CursorMove {
+                    modifiers: self.modifiers,
+                    absolute_pos: pos,
+                    local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy()
+                        - rect.min,
+                },
+            );
         }
         false
     }
@@ -170,21 +196,18 @@ impl InputState {
         state: ElementState,
         text: Option<SmolStr>,
     ) -> bool {
-        if let Some(entity) = &self.get_focused(frame.world()) {
-            if let Ok(mut on_input) = entity.get_mut(on_keyboard_input()) {
-                let s = ScopeRef::new(frame, *entity);
-                on_input(
-                    &s,
-                    KeyboardInput {
-                        modifiers: self.modifiers,
-                        state,
-                        key,
-                        text,
-                    },
-                );
-            }
-
-            return true;
+        if let &Some(entity) = &self.get_focused(frame.world()) {
+            return Self::propagate_event(
+                entity,
+                frame,
+                on_keyboard_input(),
+                KeyboardInput {
+                    modifiers: self.modifiers,
+                    state,
+                    key,
+                    text,
+                },
+            );
         }
 
         false
@@ -234,8 +257,17 @@ impl InputState {
 
             let sticky = entity.has(keep_focus());
             self.focused = Some(FocusedEntity { id: new, sticky });
+            if sticky {
+                self.last_sticky = Some(new);
+            }
         } else {
-            self.focused = None;
+            self.focused = self
+                .last_sticky
+                .and_then(|v| frame.world.entity(v).ok())
+                .map(|v| FocusedEntity {
+                    id: v.id(),
+                    sticky: true,
+                });
         }
     }
 }
@@ -270,13 +302,13 @@ pub struct KeyboardInput {
     pub text: Option<SmolStr>,
 }
 
-pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, T)>;
+pub type InputEventHandler<T> = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, T) -> Option<T>>;
 
 declare_atom! {
     pub request_focus_sender: flume::Sender<Entity>,
 }
 
-component! {
+flax::component! {
     pub keep_focus: (),
     pub interactive: (),
     pub on_focus: InputEventHandler<bool>,

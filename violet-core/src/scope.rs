@@ -361,7 +361,7 @@ impl<'a> Scope<'a> {
     pub fn on_event<T: 'static>(
         &mut self,
         event: Component<InputEventHandler<T>>,
-        func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, T),
+        func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, T) -> Option<T>,
     ) -> &mut Self {
         self.set(event, Box::new(func) as _)
     }

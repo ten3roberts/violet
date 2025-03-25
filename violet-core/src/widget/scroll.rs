@@ -8,7 +8,8 @@ use crate::{
     input::{interactive, on_scroll},
     state::{StateMut, StateStream},
     style::{
-        default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt, WidgetSize,
+        default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt,
+        WidgetSize,
     },
     to_owned,
     unit::Unit,
@@ -91,6 +92,8 @@ impl<W: Widget> Widget for ScrollArea<W> {
                     let max_scroll = (size.get() - outer_size.get()).max(Vec2::ZERO);
                     *v = (*v + delta * sensitivity).clamp(Vec2::ZERO, max_scroll)
                 });
+
+                None
             }
         });
 

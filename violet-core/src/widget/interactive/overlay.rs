@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use crate::{declare_atom, style::SizeExt, widget::Stack, Scope, Widget};
+use crate::{
+    declare_atom,
+    style::SizeExt,
+    widget::{Float, Stack},
+    Scope, Widget,
+};
 use flax::{component, Entity};
 use glam::Vec2;
 use parking_lot::Mutex;
@@ -36,7 +41,7 @@ pub struct OverlayHandle {
 }
 
 impl OverlayHandle {
-    pub fn new(id: OverlayId, commands: flume::Sender<OverlayCommand>) -> Self {
+    fn new(id: OverlayId, commands: flume::Sender<OverlayCommand>) -> Self {
         Self { id, commands }
     }
 
@@ -44,7 +49,12 @@ impl OverlayHandle {
         let token = self.clone();
         let _ = self.commands.send(OverlayCommand::Replace(
             self.id,
-            Box::new(move || Box::new(OverlayWidgetImpl { float, token })),
+            Box::new(move || {
+                Box::new(OverlayWidgetImpl {
+                    overlay: float,
+                    token,
+                })
+            }),
         ));
     }
 
@@ -88,7 +98,10 @@ impl OverlayState {
 
         let _ = self.inner.cmd_tx.send(OverlayCommand::open(
             id,
-            move || OverlayWidgetImpl { float, token },
+            move || OverlayWidgetImpl {
+                overlay: float,
+                token,
+            },
             true,
         ));
 
@@ -200,12 +213,12 @@ impl Widget for OverlayStack {
 }
 
 struct OverlayWidgetImpl<S> {
-    float: S,
+    overlay: S,
     token: OverlayHandle,
 }
 
 impl<S: Overlay> Widget for OverlayWidgetImpl<S> {
     fn mount(self, scope: &mut Scope<'_>) {
-        self.float.create(scope, self.token);
+        self.overlay.create(scope, self.token);
     }
 }

@@ -181,12 +181,14 @@ impl<V: SliderValue> Widget for Slider<V> {
 
                             if (pos - input.cursor.local_pos.x).abs() < 16.0 {
                                 drag_start.set(Some((input.cursor.local_pos.x, *current_value)));
-                                return;
+                                return None;
                             }
                         }
 
                         value.send(progress);
                     }
+
+                    None
                 }
             })
             .on_event(on_cursor_move(), {
@@ -200,6 +202,8 @@ impl<V: SliderValue> Widget for Slider<V> {
                     };
 
                     value.send(progress);
+
+                    None
                 }
             });
 

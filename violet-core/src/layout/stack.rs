@@ -81,7 +81,8 @@ impl StackLayout {
 
         let mut can_grow = BVec2::FALSE;
 
-        let offset = args.offset + resolve_pos(entity, args.content_area, total_size);
+        let offset = args.offset;
+        let start_position = resolve_pos(entity, args.content_area, total_size);
 
         for (entity, block) in blocks {
             let block_size = block.rect.size();
@@ -105,7 +106,7 @@ impl StackLayout {
 
             entity.update_dedup(components::rect(), block.rect).unwrap();
             entity
-                .update_dedup(components::local_position(), offset)
+                .update_dedup(components::local_position(), offset + start_position)
                 .unwrap();
 
             entity

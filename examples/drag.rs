@@ -9,7 +9,9 @@ use tracing_tree::HierarchicalLayer;
 use violet_core::{
     style::{base_colors::*, spacing_small, SizeExt},
     unit::Unit,
-    widget::{card, col, row, Draggable, OverlayStack, Rectangle, SignalWidget, Stack},
+    widget::{
+        card, col, drop_target, row, Draggable, OverlayStack, Rectangle, SignalWidget, Stack,
+    },
     Scope, Widget,
 };
 use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
@@ -20,14 +22,14 @@ component! {
 
 fn draggable_tile(items: Mutable<Vec<Srgba>>, index: usize, color: Srgba) -> impl Widget {
     move |scope: &mut Scope<'_>| {
-        scope.set(tile_index(), index);
+        scope.set(tile_index(), index).set_default(drop_target());
 
         Draggable::new(
             Rectangle::new(color)
                 .with_margin(spacing_small())
                 .with_exact_size(Unit::px2(64.0, 64.0)),
             move || Rectangle::new(color.with_alpha(0.5)).with_exact_size(Unit::px2(64.0, 64.0)),
-            move |drop_target| {
+            move |_, drop_target| {
                 if let Some(target_index) = drop_target.and_then(|v| v.get_copy(tile_index()).ok())
                 {
                     items.lock_mut().swap(index, target_index);

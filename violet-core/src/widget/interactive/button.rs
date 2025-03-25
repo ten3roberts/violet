@@ -252,6 +252,8 @@ impl<W: Widget> Widget for Button<W> {
                     is_pressed = false;
                     (self.on_click)(scope);
                 }
+
+                None
             });
 
         Stack::new(())
@@ -330,6 +332,8 @@ impl<W: Widget> Widget for Checkbox<W> {
                         self.state.send(!state)
                     }
                 }
+
+                None
             });
 
         Stack::new(())
@@ -418,6 +422,8 @@ impl<W: Widget> Widget for Radio<W> {
                 if input.state == ElementState::Pressed {
                     self.state.send(true)
                 }
+
+                None
             });
 
         Stack::new(())
