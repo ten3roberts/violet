@@ -232,7 +232,6 @@ impl Widget for Scrollbar {
                 let outer_size = outer_size.get();
                 let max_scroll = (size - outer_size).max(Vec2::ZERO);
                 let new_scroll_pos = (v / outer_size * size).clamp(Vec2::ZERO, max_scroll);
-                // tracing::info!(%new_scroll_pos, %outer_size, %size, "moved");
                 scroll_pos.write_mut(|v| {
                     let perp = self.axis.yx();
                     *v = *v * perp + new_scroll_pos * self.axis;

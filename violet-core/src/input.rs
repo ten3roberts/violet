@@ -1,8 +1,6 @@
-use flax::{
-    component::ComponentValue, components::child_of, Component, Entity, EntityRef, FetchExt, World,
-};
+use flax::{component::ComponentValue, components::child_of, Component, Entity, EntityRef, World};
 use flume::Receiver;
-use glam::{Vec2, Vec3, Vec3Swizzles};
+use glam::{Vec2, Vec3Swizzles};
 /// NOTE: maybe redefine these types ourselves
 pub use winit::{event, keyboard};
 use winit::{
@@ -11,9 +9,9 @@ use winit::{
 };
 
 use crate::{
-    components::{rect, screen_clip_mask, screen_transform},
+    components::{rect, screen_transform},
     declare_atom,
-    hierarchy::{find_widget_intersect, OrderedDfsIterator},
+    hierarchy::find_widget_intersect,
     scope::ScopeRef,
     Frame,
 };
@@ -33,6 +31,8 @@ pub struct InputState {
     pos: Vec2,
     modifiers: ModifiersState,
     external_focus_rx: Receiver<Entity>,
+
+    hovered_item: Option<Entity>,
 }
 
 impl InputState {
@@ -44,17 +44,17 @@ impl InputState {
             root,
             external_focus_rx,
             last_sticky: None,
+            hovered_item: None,
         }
     }
 
-    fn find_intersect(
+    fn find_intersect<'a>(
         &self,
-        frame: &Frame,
+        frame: &'a Frame,
         pos: Vec2,
         mut filter: impl FnMut(&EntityRef) -> bool,
-    ) -> Option<(Entity, Vec2)> {
+    ) -> Option<(EntityRef<'a>, Vec2)> {
         find_widget_intersect(self.root, frame, pos, |v| v.has(interactive()) && filter(v))
-            .map(|(entity, pos)| (entity.id(), pos))
     }
 
     pub fn on_mouse_input(
@@ -68,8 +68,9 @@ impl InputState {
         let id = match (state, &self.focused, intersect) {
             // Focus changed
             (ElementState::Pressed, _, new) => {
-                self.set_focused(frame, new.map(|v| v.0));
-                new.map(|v| v.0)
+                let focused = new.map(|v| v.0.id());
+                self.set_focused(frame, focused);
+                focused
             }
             // Released after focusing a widget
             (ElementState::Released, Some(cur), _) => {
@@ -144,6 +145,51 @@ impl InputState {
     pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) -> bool {
         self.pos = pos;
 
+        let target = self.get_focused_or_intersecting(frame, pos);
+
+        let new_hover = self.hovered_item != target.map(|v| v.id());
+        if new_hover {
+            if let Some(hovered) = self.hovered_item.and_then(|v| frame.world.entity(v).ok()) {
+                let transform = hovered.get_copy(screen_transform()).unwrap_or_default();
+                let rect = hovered.get_copy(rect()).unwrap_or_default();
+
+                Self::propagate_event(
+                    hovered,
+                    frame,
+                    on_cursor_hover(),
+                    CursorOver {
+                        state: HoverState::Exited,
+                        absolute_pos: pos,
+                        local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy()
+                            - rect.min,
+                    },
+                );
+            }
+        }
+
+        if let Some(hovered) = target {
+            let transform = hovered.get_copy(screen_transform()).unwrap_or_default();
+            let rect = hovered.get_copy(rect()).unwrap_or_default();
+
+            Self::propagate_event(
+                hovered,
+                frame,
+                on_cursor_hover(),
+                CursorOver {
+                    state: if new_hover {
+                        HoverState::Entered
+                    } else {
+                        HoverState::Moved
+                    },
+                    absolute_pos: pos,
+                    local_pos: transform.inverse().transform_point3(pos.extend(0.0)).xy()
+                        - rect.min,
+                },
+            );
+        }
+
+        self.hovered_item = target.map(|v| v.id());
+
         if let &Some(entity) = &self.get_focused(&frame.world) {
             let transform = entity.get_copy(screen_transform()).unwrap_or_default();
             let rect = entity.get_copy(rect()).unwrap_or_default();
@@ -160,14 +206,15 @@ impl InputState {
                 },
             );
         }
+
         false
     }
 
     pub fn on_scroll(&mut self, frame: &mut Frame, delta: Vec2) -> bool {
-        let intersect = self.find_intersect(frame, self.pos, |v| v.has(on_scroll()));
+        let intersect = self.find_intersect(frame, self.pos, |v| v.has(interactive()));
 
-        if let Some((id, _)) = intersect {
-            let entity = frame.world().entity(id).unwrap();
+        if let Some((entity, _)) = intersect {
+            let entity = frame.world().entity(entity.id()).unwrap();
             if let Ok(mut on_input) = entity.get_mut(on_scroll()) {
                 let s = ScopeRef::new(frame, entity);
                 on_input(
@@ -233,6 +280,17 @@ impl InputState {
         self.focused.as_ref().and_then(|v| world.entity(v.id).ok())
     }
 
+    pub fn get_focused_or_intersecting<'a>(
+        &self,
+        frame: &'a Frame,
+        pos: Vec2,
+    ) -> Option<EntityRef<'a>> {
+        self.get_focused(&frame.world).or_else(|| {
+            self.find_intersect(frame, pos, |v| v.has(interactive()))
+                .map(|v| v.0)
+        })
+    }
+
     fn set_focused(&mut self, frame: &Frame, focused: Option<Entity>) {
         let cur = self.get_focused(&frame.world);
 
@@ -289,6 +347,22 @@ pub struct CursorMove {
     pub local_pos: Vec2,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HoverState {
+    Entered,
+    Moved,
+    Exited,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CursorOver {
+    pub state: HoverState,
+    /// Mouse cursor relative to the screen
+    pub absolute_pos: Vec2,
+    /// Mouse cursor relative to the bounds of the widget
+    pub local_pos: Vec2,
+}
+
 #[derive(Debug, Clone)]
 pub struct Scroll {
     pub delta: Vec2,
@@ -313,6 +387,7 @@ flax::component! {
     pub interactive: (),
     pub on_focus: InputEventHandler<bool>,
     pub on_cursor_move: InputEventHandler<CursorMove>,
+    pub on_cursor_hover: InputEventHandler<CursorOver>,
     pub on_mouse_input: InputEventHandler<MouseInput>,
     pub on_keyboard_input: InputEventHandler<KeyboardInput>,
     pub on_scroll: InputEventHandler<Scroll>,

@@ -11,15 +11,16 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
-    BoxedSystem, CommandBuffer, Dfs, DfsBorrow, Entity, EntityBuilder, Fetch, FetchExt, FetchItem,
-    Query, QueryBorrow, System, World,
+    BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, DfsBorrow, Entity, EntityBuilder,
+    Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{
-        self, children, clip_mask, computed_visible, layout_args, layout_bounds, local_position,
-        rect, screen_clip_mask, screen_transform, text, transform, visible,
+        self, children, clip_mask, computed_opacity, computed_visible, layout_args, layout_bounds,
+        local_position, opacity, rect, screen_clip_mask, screen_transform, text, transform,
+        visible,
     },
     layout::{
         apply_layout,
@@ -48,6 +49,8 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
         .set_default(screen_transform())
         .set(visible(), true)
         .set(computed_visible(), true)
+        .set(opacity(), 1.0)
+        .set(computed_opacity(), 1.0)
         .set_default(transform())
         .set_default(local_position())
         .set(clip_mask(), Rect::new(Vec2::MIN, Vec2::MAX))
@@ -138,17 +141,14 @@ impl QueryInvalidator {
 
 impl EventSubscriber for QueryInvalidator {
     fn on_added(&self, _: &ArchetypeStorage, event: &EventData) {
-        // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "added");
         self.mark_dirty(event.ids);
     }
 
     fn on_modified(&self, event: &EventData) {
-        // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "modified");
         self.mark_dirty(event.ids);
     }
 
     fn on_removed(&self, _: &ArchetypeStorage, event: &EventData) {
-        // tracing::info!(component = ?self.name_map[&event.key], ?event.ids, "removed");
         self.mark_dirty(event.ids);
     }
 
@@ -218,53 +218,63 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
         .boxed()
 }
 
+#[derive(Fetch)]
+struct TreeUpdateQuery {
+    screen_transform: ComponentMut<Mat4>,
+    screen_clip_mask: ComponentMut<Rect>,
+    clip_mask: Component<Rect>,
+    local_position: Component<Vec2>,
+    transform: Component<Mat4>,
+    visible: Component<bool>,
+    computed_visible: ComponentMut<bool>,
+    opacity: Component<f32>,
+    computed_opacity: ComponentMut<f32>,
+}
+
+impl TreeUpdateQuery {
+    pub fn new() -> Self {
+        Self {
+            screen_transform: screen_transform().as_mut(),
+            screen_clip_mask: screen_clip_mask().as_mut(),
+            clip_mask: clip_mask(),
+            local_position: local_position(),
+            transform: transform(),
+            visible: visible(),
+            computed_visible: computed_visible().as_mut(),
+            opacity: opacity(),
+            computed_opacity: computed_opacity().as_mut(),
+        }
+    }
+}
+
 /// Updates the apparent screen position of entities based on the hierarchy
 pub fn transform_system(root: Entity) -> BoxedSystem {
     System::builder()
-        .with_query(
-            Query::new((
-                screen_transform().as_mut(),
-                screen_clip_mask().as_mut(),
-                clip_mask(),
-                local_position(),
-                transform().opt_or_default(),
-                visible(),
-                computed_visible().as_mut(),
-            ))
-            .with_strategy(Dfs::new(child_of)),
-        )
+        .with_query(Query::new(TreeUpdateQuery::new()).with_strategy(Dfs::new(child_of)))
         .build(move |mut query: DfsBorrow<_>| {
             query.traverse_from(
                 root,
-                &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX), true),
-                |(
-                    screen_trans,
-                    screen_mask,
-                    &mask,
-                    &local_pos,
-                    &trans,
-                    visible,
-                    computed_visible,
-                ): (
-                    &mut Mat4,
-                    &mut Rect,
-                    &Rect,
-                    &Vec2,
-                    &Mat4,
-                    &bool,
-                    &mut bool,
-                ),
+                &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX), true, 1.0),
+                |item: TreeUpdateQueryItem,
                  _,
-                 &(parent, parent_mask, parent_visible)| {
-                    let local_transform = Mat4::from_translation(local_pos.extend(0.0)) * trans;
+                 &(parent, parent_mask, parent_visible, parent_opacity)| {
+                    let local_transform =
+                        Mat4::from_translation(item.local_position.extend(0.0)) * *item.transform;
 
                     let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
-                    *screen_mask = mask.translate(mask_offset).intersect(parent_mask);
+                    *item.screen_clip_mask =
+                        item.clip_mask.translate(mask_offset).intersect(parent_mask);
 
-                    *screen_trans = parent * local_transform;
-                    *computed_visible = *visible && parent_visible;
+                    *item.screen_transform = parent * local_transform;
+                    *item.computed_visible = *item.visible && parent_visible;
+                    *item.computed_opacity = item.opacity * parent_opacity;
 
-                    (*screen_trans, *screen_mask, *computed_visible)
+                    (
+                        *item.screen_transform,
+                        *item.screen_clip_mask,
+                        *item.computed_visible,
+                        *item.computed_opacity,
+                    )
                 },
             );
         })

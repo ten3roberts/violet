@@ -14,7 +14,6 @@ use crate::{
         color, draw_shape, margin, max_size, maximize, min_size, padding, size,
         widget_corner_radius,
     },
-    input::interactive,
     shape::shape_rectangle,
     unit::Unit,
     Edges, Scope,
@@ -317,7 +316,7 @@ pub fn setup_stylesheet() -> EntityBuilder {
         .set(spacing_small(), 4.0.into())
         .set(spacing_medium(), 8.0.into())
         .set(spacing_large(), 16.0.into())
-        .set(default_corner_radius(), Unit::px(8.0))
+        .set(default_corner_radius(), Unit::px(4.0))
         // text size
         .set(text_small(), 16.0)
         .set(text_medium(), 24.0)

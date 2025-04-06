@@ -1,4 +1,4 @@
-use winit::{event::ElementState, keyboard::Key};
+use winit::event::ElementState;
 
 use crate::{
     input::{interactive, on_keyboard_input, on_mouse_input, KeyboardInput},
@@ -12,6 +12,7 @@ pub mod drag;
 pub mod input;
 pub mod overlay;
 pub mod slider;
+pub mod tooltip;
 
 pub trait InteractiveExt {
     fn on_press<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>) -> Option<()>>(

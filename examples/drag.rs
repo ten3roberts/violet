@@ -10,7 +10,8 @@ use violet_core::{
     style::{base_colors::*, spacing_small, SizeExt},
     unit::Unit,
     widget::{
-        card, col, drop_target, row, Draggable, OverlayStack, Rectangle, SignalWidget, Stack,
+        card, col, drop_target, interactive::tooltip::Tooltip, label, pill, row, Draggable,
+        Rectangle, SignalWidget,
     },
     Scope, Widget,
 };
@@ -24,17 +25,23 @@ fn draggable_tile(items: Mutable<Vec<Srgba>>, index: usize, color: Srgba) -> imp
     move |scope: &mut Scope<'_>| {
         scope.set(tile_index(), index).set_default(drop_target());
 
-        Draggable::new(
-            Rectangle::new(color)
-                .with_margin(spacing_small())
-                .with_exact_size(Unit::px2(64.0, 64.0)),
-            move || Rectangle::new(color.with_alpha(0.5)).with_exact_size(Unit::px2(64.0, 64.0)),
-            move |_, drop_target| {
-                if let Some(target_index) = drop_target.and_then(|v| v.get_copy(tile_index()).ok())
-                {
-                    items.lock_mut().swap(index, target_index);
-                }
-            },
+        Tooltip::new(
+            Draggable::new(
+                Rectangle::new(color)
+                    .with_margin(spacing_small())
+                    .with_exact_size(Unit::px2(64.0, 64.0)),
+                move || {
+                    Rectangle::new(color.with_alpha(0.5)).with_exact_size(Unit::px2(64.0, 64.0))
+                },
+                move |_, drop_target| {
+                    if let Some(target_index) =
+                        drop_target.and_then(|v| v.get_copy(tile_index()).ok())
+                    {
+                        items.lock_mut().swap(index, target_index);
+                    }
+                },
+            ),
+            move || pill(label(format!("Item {index}"))),
         )
         .mount(scope);
     }

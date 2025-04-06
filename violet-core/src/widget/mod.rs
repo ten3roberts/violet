@@ -3,7 +3,8 @@ mod basic;
 mod container;
 mod future;
 pub mod image;
-mod interactive;
+/// Interactive widgets
+pub mod interactive;
 mod scroll;
 
 pub use basic::*;
@@ -12,7 +13,7 @@ use flax::{component::ComponentValue, components::name, Component};
 pub use future::{SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use image::*;
-pub use interactive::{button::*, drag::*, input::*, overlay::*, slider::*, InteractiveExt};
+pub use interactive::{button::*, drag::*, input::*, slider::*, InteractiveExt};
 pub use scroll::ScrollArea;
 
 /// A widget is a description of a part of the Ui with the capability to mount itself into the world.

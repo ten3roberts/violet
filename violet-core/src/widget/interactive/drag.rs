@@ -73,7 +73,6 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
                 if let Some(start) = drag.drag_start {
                     if start.distance(event.absolute_pos) > 2.0 {
                         preview_position.set(event.absolute_pos - drag.drag_offset);
-
                         if !drag.dragging {
                             drag.dragging = true;
                             drag.preview = Some(overlays.open(DragOverlay::new(
@@ -81,14 +80,14 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
                                 scope.read(create_preview)(),
                             )));
                         }
-
                         if self.hide_on_drag {
                             scope.update_dedup(visible(), false);
                         }
                     }
+                    return None;
                 }
 
-                None
+                Some(event)
             })
             .on_event(on_mouse_input(), move |scope, input| {
                 let mut drag = scope.read(drag).borrow_mut();

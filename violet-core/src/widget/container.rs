@@ -1,5 +1,5 @@
 use futures_signals::signal::Mutable;
-use glam::{BVec2, Mat4, Vec2, Vec3, Vec3Swizzles};
+use glam::{BVec2, Vec2, Vec3, Vec3Swizzles};
 use winit::event::ElementState;
 
 use crate::{
@@ -63,6 +63,12 @@ impl<W> Stack<W> {
     /// Set the vertical alignment
     pub fn with_vertical_alignment(mut self, align: Align) -> Self {
         self.layout.vertical_alignment = align;
+        self
+    }
+
+    pub fn with_alignment(mut self, horizontal: Align, vertical: Align) -> Self {
+        self.layout.horizontal_alignment = horizontal;
+        self.layout.vertical_alignment = vertical;
         self
     }
 
@@ -260,9 +266,9 @@ impl<W: Widget> Widget for Movable<W> {
 
                 let cursor_pos = input.absolute_pos;
 
-                let new_offset = cursor_pos - start_offset.get();
+                let new_offset = cursor_pos - start_offset.get() + anchor;
                 let new_offset = (self.on_move)(scope, new_offset);
-                scope.update_dedup(transform(), Mat4::from_translation(new_offset.extend(0.0)));
+                scope.update_dedup(offset(), Unit::px(new_offset));
 
                 None
             });

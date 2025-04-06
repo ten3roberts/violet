@@ -5,14 +5,14 @@ use flax::{
     filter::{self, All, Cmp, With},
     CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec4};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{
-        anchor, color, computed_visible, draw_shape, image, rect, screen_clip_mask,
-        screen_transform, visible, widget_corner_radius,
+        anchor, color, computed_opacity, computed_visible, draw_shape, image, rect,
+        screen_clip_mask, screen_transform, widget_corner_radius,
     },
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
@@ -74,6 +74,7 @@ struct RectObjectQuery {
     // pos: Component<Vec2>,
     // local_pos: Component<Vec2>,
     color: OptOr<Component<Srgba>, Srgba>,
+    opacity: Component<f32>,
     object_data: ComponentMut<ObjectData>,
     corner_radius: OptOr<Component<Unit<f32>>, Unit<f32>>,
 }
@@ -89,6 +90,7 @@ impl RectObjectQuery {
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
             corner_radius: widget_corner_radius().opt_or_default(),
+            opacity: computed_opacity(),
         }
     }
 }
@@ -277,7 +279,7 @@ impl RectRenderer {
 
                 *item.object_data = ObjectData {
                     model_matrix,
-                    color: srgba_to_vec4(*item.color),
+                    color: srgba_to_vec4(*item.color) * vec4(1.0, 1.0, 1.0, *item.opacity),
                     corner_radius: item.corner_radius.resolve(rect.size().min_element() / 2.0),
                     _padding: Default::default(),
                 };

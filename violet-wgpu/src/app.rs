@@ -17,7 +17,7 @@ use violet_core::{
         hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
         transform_system,
     },
-    widget::OverlayStack,
+    widget::interactive::overlay::OverlayStack,
     Frame, FutureEffect, Rect, Scope, Widget,
 };
 use web_time::Instant;
@@ -165,6 +165,12 @@ impl AppInstanceBuilder {
             self.resize_window,
             Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
         )
+    }
+}
+
+impl Default for AppInstanceBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

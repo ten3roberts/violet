@@ -149,6 +149,7 @@ pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget
     .on_press(move |_| {
         let enabled = &mut settings2.lock_mut().enabled;
         *enabled = !*enabled;
+        None
     });
 
     card(
@@ -194,6 +195,7 @@ fn palette_controls(
 
                 selection.send((palette_index, palette.colors.len() - 1))
             });
+            None
         }
     });
 
@@ -253,6 +255,7 @@ fn palette_controls(
                                 .with_margin(spacing_small())
                                 .on_press(move |_| {
                                     palettes.write_mut(|v| v.colors.remove(i));
+                                    None
                                 }),
                         ))
                         .with_horizontal_alignment(Align::End)
@@ -263,7 +266,10 @@ fn palette_controls(
                         })
                         .with_corner_radius(default_corner_radius())
                         .with_padding(spacing_small())
-                        .on_press(move |_| selection.send((palette_index, i)))
+                        .on_press(move |_| {
+                            selection.send((palette_index, i));
+                            None
+                        })
                     });
 
                     StreamWidget::new(current_selection)

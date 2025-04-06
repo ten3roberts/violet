@@ -1,9 +1,8 @@
-use flax::{Entity, EntityRef, FetchExt, World};
+use flax::{Entity, EntityRef, World};
 use glam::{Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{children, rect, screen_clip_mask, screen_transform},
-    input::interactive,
     Frame,
 };
 

@@ -4,9 +4,7 @@ use bytemuck::Zeroable;
 use flax::{
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
-    filter::{self, Cmp},
-    CommandBuffer, Component, Entity, EntityRef, Fetch, FetchExt, Query, QueryBorrow, RelationExt,
-    World,
+    CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
 };
 use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
 use itertools::Itertools;
@@ -14,7 +12,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use smallvec::SmallVec;
 use violet_core::{
-    components::{children, computed_visible, draw_shape, visible},
+    components::{children, computed_opacity, computed_visible, draw_shape},
     layout::cache::LayoutUpdateEvent,
     stored::{self, Store},
     Frame, Rect,

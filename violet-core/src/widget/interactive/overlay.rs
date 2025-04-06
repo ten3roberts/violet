@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-    declare_atom,
-    style::SizeExt,
-    widget::{Float, Stack},
-    Scope, Widget,
-};
+use crate::{style::SizeExt, widget::Stack, Scope, Widget};
 use flax::{component, Entity};
 use glam::Vec2;
 use parking_lot::Mutex;
@@ -32,6 +27,22 @@ impl OverlayCommand {
 /// Used to implement windows and dialogs
 pub trait Overlay: 'static + Send {
     fn create(self, scope: &mut Scope<'_>, token: OverlayHandle);
+}
+
+pub struct CloseOnDropHandle {
+    handle: OverlayHandle,
+}
+
+impl CloseOnDropHandle {
+    pub fn new(handle: OverlayHandle) -> Self {
+        Self { handle }
+    }
+}
+
+impl Drop for CloseOnDropHandle {
+    fn drop(&mut self) {
+        self.handle.close();
+    }
 }
 
 #[derive(Clone)]
@@ -91,17 +102,14 @@ impl OverlayState {
         }
     }
 
-    pub fn open(&self, float: impl Overlay) -> OverlayHandle {
+    pub fn open(&self, overlay: impl Overlay) -> OverlayHandle {
         let id = self.inner.floats.lock().insert(());
         let token = OverlayHandle::new(id, self.inner.cmd_tx.clone());
         let token2 = token.clone();
 
         let _ = self.inner.cmd_tx.send(OverlayCommand::open(
             id,
-            move || OverlayWidgetImpl {
-                overlay: float,
-                token,
-            },
+            move || OverlayWidgetImpl { overlay, token },
             true,
         ));
 

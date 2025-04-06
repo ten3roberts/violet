@@ -146,7 +146,7 @@ impl<'a> Scope<'a> {
     pub fn attach<W: Widget>(&mut self, widget: W) -> Entity {
         self.flush();
         let mut entity = EntityBuilder::new();
-        widget_template(&mut entity, widget.name().into());
+        widget_template(&mut entity, widget.name());
         let id = entity.spawn(self.frame.world_mut());
 
         self.frame
@@ -162,7 +162,7 @@ impl<'a> Scope<'a> {
             let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
-            s.set(name(), widget.name().into());
+            s.set(name(), widget.name());
             s.flush();
 
             widget.mount(&mut s);
@@ -177,7 +177,7 @@ impl<'a> Scope<'a> {
     pub fn attach_at<W: Widget>(&mut self, position: usize, widget: W) -> Entity {
         self.flush();
         let mut entity = EntityBuilder::new();
-        widget_template(&mut entity, widget.name().into());
+        widget_template(&mut entity, widget.name());
         let id = entity.spawn(self.frame.world_mut());
 
         self.frame
@@ -193,7 +193,7 @@ impl<'a> Scope<'a> {
             let mut s = Scope::try_from_id(self.frame, id).unwrap();
 
             s.set(child_of(self.id), ());
-            s.set(name(), widget.name().into());
+            s.set(name(), widget.name());
             s.flush();
 
             widget.mount(&mut s);

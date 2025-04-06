@@ -316,9 +316,7 @@ impl Widget for TextInput {
                 move |_, input| {
                     let dragging = dragging.get();
 
-                    let Some(drag_start) = dragging else {
-                        return None;
-                    };
+                    let drag_start = dragging?;
 
                     if input.local_pos.distance(drag_start) < 5.0 {
                         return None;
