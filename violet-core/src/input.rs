@@ -99,7 +99,7 @@ impl InputState {
                 local_pos,
             };
 
-            return Self::propagate_event(
+            Self::propagate_event(
                 entity,
                 frame,
                 on_mouse_input(),
@@ -110,6 +110,8 @@ impl InputState {
                     button,
                 },
             );
+
+            return true;
         }
 
         false

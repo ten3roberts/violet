@@ -12,7 +12,7 @@ use crate::{
     components::{offset, padding, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::Align,
-    state::{State, StateDuplex, StateSink, StateStream},
+    state::{StateDuplex, StateExt, StateSink, StateStream},
     style::{
         default_corner_radius, element_accent, spacing_small, surface_interactive, SizeExt,
         StyleExt,

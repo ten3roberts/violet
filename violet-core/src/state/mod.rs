@@ -11,6 +11,7 @@ pub mod constant;
 mod dedup;
 mod feedback;
 mod filter;
+pub mod lower_opt;
 mod map;
 mod memo;
 mod transform;
@@ -18,6 +19,7 @@ mod transform;
 pub use dedup::*;
 pub use feedback::*;
 pub use filter::*;
+use lower_opt::LowerOption;
 pub use map::*;
 pub use memo::*;
 use sync_wrapper::SyncWrapper;
@@ -25,7 +27,9 @@ pub use transform::*;
 
 pub trait State {
     type Item;
+}
 
+pub trait StateExt: State + Sized {
     /// Map a state from one type to another through reference projection
     ///
     /// This an be used to target a specific field of a struct or item in an array to transform.
@@ -36,7 +40,6 @@ pub trait State {
     ) -> MapRef<Self, U, F, G>
     where
         Self: StateRef,
-        Self: Sized,
     {
         MapRef::new(self, conv_to, conv_from)
     }
@@ -46,24 +49,21 @@ pub trait State {
         self,
         to: F,
         from: G,
-    ) -> MapValue<Self, U, F, G>
-    where
-        Self: Sized,
-    {
+    ) -> MapValue<Self, U, F, G> {
         MapValue::new(self, to, from)
     }
 
-    /// Transform a state from one to another using get and set operations
+    /// Transform a state from one to another using get and set operations. This is most similar to
+    /// a C# properties for transforming values.
     fn transform<F: Fn(&Self::Item) -> U, G: Fn(&mut Self::Item, U), U>(
         self,
-        to: F,
-        from: G,
+        get: F,
+        set: G,
     ) -> Transform<Self, U, F, G>
     where
         Self: StateMut,
-        Self: Sized,
     {
-        Transform::new(self, to, from)
+        Transform::new(self, get, set)
     }
 
     /// Map a state from one type to another through fallible conversion
@@ -72,37 +72,46 @@ pub trait State {
         to: F,
         from: G,
     ) -> FilterMap<Self, U, F, G>
-    where
-        Self: Sized,
-    {
+where {
         FilterMap::new(self, to, from)
     }
 
+    /// Lower an option into a stream of values
+    fn lower_option(self) -> LowerOption<Self>
+    where
+        LowerOption<Self>: State,
+    {
+        LowerOption::new(self)
+    }
+
+    /// Deduplicate a stream of values through PartialEq.
     fn dedup(self) -> Dedup<Self>
     where
-        Self: Sized,
         Self::Item: PartialEq + Clone,
     {
         Dedup::new(self)
     }
 
+    /// Prevents feedback loops in a stream of values.
     fn prevent_feedback(self) -> PreventFeedback<Self>
     where
-        Self: Sized,
         Self::Item: PartialEq + Clone,
     {
         PreventFeedback::new(self)
     }
 
+    /// Transforms a stream into a stateful source. The last value can be read and written at any
+    /// time.
     fn memo(self, initial_value: Self::Item) -> Memo<Self, Self::Item>
     where
-        Self: Sized,
         Self: StateStream,
         Self::Item: Clone,
     {
         Memo::new(self, initial_value)
     }
 }
+
+impl<T> StateExt for T where T: State {}
 
 /// A trait to read a reference from a generic state
 pub trait StateRef: State {
@@ -467,6 +476,24 @@ macro_rules! impl_container {
 impl_container!(Box);
 impl_container!(Arc);
 impl_container!(Rc);
+
+// impl<T> State for Arc<dyn StateSink<Item = T>> {
+//     type Item = T;
+
+//     fn filter_map<F: Fn(Self::Item) -> Option<U>, G: Fn(U) -> Option<Self::Item>, U>(
+//         self,
+//         to: F,
+//         from: G,
+//     ) -> FilterMap<Self, U, F, G> {
+//         todo!()
+//     }
+// }
+
+// impl<T> StateSink for Arc<dyn StateSink<Item = T>> {
+//     fn send(&self, value: Self::Item) {
+//         todo!()
+//     }
+// }
 
 impl<T> State for flume::Receiver<T> {
     type Item = T;

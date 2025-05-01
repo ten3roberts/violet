@@ -2,7 +2,7 @@ use futures::StreamExt;
 use glam::Vec2;
 use violet::{
     core::{
-        state::{State, StateStream},
+        state::{StateExt, StateStream},
         style::{surface_warning, SizeExt},
         text::TextSegment,
         unit::Unit,

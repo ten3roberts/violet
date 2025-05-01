@@ -81,10 +81,18 @@ where
     }
 }
 
-pub struct FutureWidget<S>(pub S)
+/// Defer a widget until the future resolves
+pub struct FutureWidget<S>(S);
+
+impl<F> FutureWidget<F>
 where
-    S: Future,
-    S::Output: Widget;
+    F: 'static + Future,
+    F::Output: Widget,
+{
+    pub fn new(future: F) -> Self {
+        Self(future)
+    }
+}
 
 impl<S> Widget for FutureWidget<S>
 where

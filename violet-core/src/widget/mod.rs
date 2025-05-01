@@ -10,7 +10,7 @@ mod scroll;
 pub use basic::*;
 pub use container::*;
 use flax::{component::ComponentValue, components::name, Component};
-pub use future::{SignalWidget, StreamWidget};
+pub use future::{FutureWidget, SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use image::*;
 pub use interactive::{button::*, drag::*, input::*, slider::*, InteractiveExt};
@@ -54,10 +54,17 @@ impl Widget for Box<dyn Widget>
     }
 }
 
-impl Widget for Box<dyn Send + Sync + Widget>
-// where
-//     T: ?Sized + Widget,
-{
+impl Widget for Box<dyn Send + Sync + Widget> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        self.mount_boxed(scope)
+    }
+
+    fn name(&self) -> String {
+        (**self).name()
+    }
+}
+
+impl Widget for Box<dyn Send + Widget> {
     fn mount(self, scope: &mut Scope<'_>) {
         self.mount_boxed(scope)
     }

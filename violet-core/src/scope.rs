@@ -208,7 +208,7 @@ impl<'a> Scope<'a> {
     /// Detaches a child from the current scope
     pub fn detach(&mut self, id: Entity) {
         assert!(
-            self.frame.world.has(id, child_of(self.id)),
+            self.children().contains(&id),
             "Attempt to despawn a widget {id} that is not a child of the current scope {}",
             self.id
         );

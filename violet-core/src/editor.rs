@@ -88,7 +88,7 @@ pub enum TextChange {
 pub type OnChange = Box<dyn Send + Sync + FnMut(&[EditorLine], TextChange)>;
 
 /// The core text editor buffer
-pub struct TextEditor {
+pub struct TextEditorCore {
     text: Vec<EditorLine>,
     /// The current cursor position
     ///
@@ -125,7 +125,7 @@ pub enum EditorAction<S = String> {
     SetText(Vec<S>),
 }
 
-impl TextEditor {
+impl TextEditorCore {
     pub fn new(on_change: impl 'static + Send + Sync + FnMut(&[EditorLine], TextChange)) -> Self {
         Self {
             cursor: CursorLocation { row: 0, col: 0 },
@@ -567,7 +567,7 @@ mod tests {
 
     #[test]
     fn editor() {
-        let mut editor = TextEditor::new(|_, _| {});
+        let mut editor = TextEditorCore::new(|_, _| {});
         editor.edit(EditAction::InsertText("This is some text"));
         assert_eq!(editor.lines_str().collect_vec(), &["This is some text"]);
 

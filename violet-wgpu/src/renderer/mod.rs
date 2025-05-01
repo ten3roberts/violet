@@ -12,7 +12,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use smallvec::SmallVec;
 use violet_core::{
-    components::{children, computed_opacity, computed_visible, draw_shape},
+    components::{children, computed_visible, draw_shape},
     layout::cache::LayoutUpdateEvent,
     stored::{self, Store},
     Frame, Rect,

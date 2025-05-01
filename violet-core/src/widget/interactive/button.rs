@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use flax::EntityRef;
 use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
@@ -7,7 +9,7 @@ use crate::{
     input::{interactive, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
-    state::{StateDuplex, StateStream, WatchState},
+    state::{StateDuplex, StateExt, StateStream, WatchState},
     style::*,
     unit::Unit,
     widget::{ContainerStyle, Stack, Text},
@@ -228,6 +230,9 @@ impl<W: Widget> Widget for Button<W> {
 
         let content = scope.attach(self.label);
 
+        let on_click = scope.store(RefCell::new(self.on_click));
+        let on_press = scope.store(RefCell::new(self.on_press));
+
         scope
             .set(interactive(), ())
             .on_event(on_mouse_input(), move |scope, input| {
@@ -247,10 +252,10 @@ impl<W: Widget> Widget for Button<W> {
 
                 if input.state == ElementState::Pressed {
                     is_pressed = true;
-                    (self.on_press)(scope, input.button);
+                    ((scope.read(on_press)).borrow_mut())(scope, input.button);
                 } else if is_pressed {
                     is_pressed = false;
-                    (self.on_click)(scope);
+                    ((scope.read(on_click)).borrow_mut())(scope);
                 }
 
                 None

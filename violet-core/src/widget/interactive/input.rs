@@ -14,14 +14,14 @@ use winit::{
 
 use crate::{
     components::{self, screen_transform},
-    editor::{CursorMove, EditAction, EditorAction, TextChange, TextEditor},
+    editor::{CursorMove, EditAction, EditorAction, EditorLine, TextChange, TextEditorCore},
     input::{
         interactive, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
     },
     io,
     layout::Align,
-    state::{State, StateDuplex, StateSink, StateStream},
+    state::{StateDuplex, StateExt, StateSink, StateStream},
     style::*,
     text::{CursorLocation, LayoutGlyphs},
     time::sleep,
@@ -67,7 +67,7 @@ impl TextInput {
             content: Arc::new(content),
             style: Default::default(),
             size: WidgetSize::default()
-                .with_min_size(Unit::px2(16.0, 16.0))
+                .with_min_size(Unit::px2(32.0, 16.0))
                 .with_margin(spacing_small())
                 .with_padding(spacing_small())
                 .with_corner_radius(default_corner_radius()),
@@ -82,7 +82,9 @@ impl TextInput {
             .filter_map(|v| Some(v.to_string()), |v| v.parse().ok())
             .prevent_feedback();
 
-        Self::new(content)
+        let mut this = Self::new(content);
+        this.style.align = Align::End;
+        this
     }
 }
 
@@ -118,7 +120,7 @@ impl Widget for TextInput {
 
         let (dirty_tx, dirty_rx) = flume::unbounded();
 
-        let mut editor = TextEditor::new(move |text, change| match change {
+        let on_change = move |text: &[EditorLine], change| match change {
             TextChange::Insert(start, end) => {
                 for (row, text) in text.iter().enumerate().take(end.row + 1).skip(start.row) {
                     dirty_tx.send((row, Some(text.as_str().to_string()))).ok();
@@ -132,7 +134,9 @@ impl Widget for TextInput {
             TextChange::DeleteLine(row) => {
                 dirty_tx.send((row, None)).ok();
             }
-        });
+        };
+
+        let mut editor = TextEditorCore::new(on_change);
 
         let layout_glyphs = Mutable::new(Default::default());
         let text_bounds: Mutable<Option<Mat4>> = Mutable::new(None);
@@ -141,7 +145,6 @@ impl Widget for TextInput {
 
         let (editor_props_tx, editor_props_rx) =
             signal::channel(Box::new(EmptyWidget) as Box<dyn Widget>);
-        let content = self.content.prevent_feedback();
 
         let clipboard = scope
             .get_atom(io::clipboard())
@@ -158,8 +161,10 @@ impl Widget for TextInput {
 
                 let mut glyphs: LayoutGlyphs = LayoutGlyphs::default();
 
+                let content = self.content.dedup().prevent_feedback();
                 let mut new_text =
                     throttle(content.stream(), || sleep(Duration::from_millis(100))).fuse();
+
                 let mut focused = false;
 
                 loop {
@@ -384,7 +389,6 @@ impl Widget for TextContent {
                     components::layout_glyphs(),
                     Box::new(move |glyphs| {
                         if let Some(new) = glyphs {
-                            tracing::debug!(?row, lines = new.rows[0].len(), "new glyphs");
                             let glyphs = &mut *layout_glyphs.lock_mut();
 
                             glyphs.set_row(row, new.rows[0].clone());
@@ -394,7 +398,7 @@ impl Widget for TextContent {
                 )
         };
 
-        let mut text_items = vec![scope.attach(create_row(0, String::new()))];
+        let mut text_items = vec![];
 
         scope.spawn_stream(self.rx.into_stream(), move |scope, (row, text)| {
             if let Some(text) = text {
@@ -402,11 +406,7 @@ impl Widget for TextContent {
                     // Access and update the text widget
                     let mut scope = scope.frame_mut().scoped(id).unwrap();
 
-                    tracing::debug!(?text, "updating row");
-
-                    scope
-                        .update(components::text(), |v| v[0].text = text)
-                        .expect("No text");
+                    scope.entity().get_mut(components::text()).unwrap()[0].text = text;
                 } else {
                     let id = scope.attach(create_row(row, text));
 
@@ -414,7 +414,6 @@ impl Widget for TextContent {
                 }
             } else {
                 // Lines were deleted
-                tracing::debug!("removing line");
                 let id = text_items.remove(row);
                 scope.detach(id);
             }

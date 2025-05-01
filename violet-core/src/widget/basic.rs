@@ -194,6 +194,12 @@ pub fn subtitle(text: impl Into<String>) -> Text {
         .with_margin(spacing_small())
 }
 
+pub fn bold(text: impl Into<String>) -> Text {
+    Text::bold(text)
+        .with_color(element_secondary())
+        .with_margin(spacing_small())
+}
+
 /// Allows a widget to be manually positioned and offset
 pub struct Positioned<W> {
     offset: Unit<Vec2>,
