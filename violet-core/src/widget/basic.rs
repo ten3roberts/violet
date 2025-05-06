@@ -60,9 +60,9 @@ impl SizeExt for Rectangle {
 
 /// Style and decorate text
 pub struct TextStyle {
-    font_size: ValueOrRef<f32>,
-    wrap: Wrap,
-    color: ValueOrRef<Srgba>,
+    pub font_size: ValueOrRef<f32>,
+    pub wrap: Wrap,
+    pub color: ValueOrRef<Srgba>,
 }
 
 impl Default for TextStyle {

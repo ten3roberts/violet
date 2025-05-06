@@ -3440,6 +3440,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "color-hex",
+ "cosmic-text",
  "flax",
  "flume",
  "futures",
@@ -3455,6 +3456,7 @@ dependencies = [
  "tracing-tree",
  "violet-core",
  "violet-demo",
+ "violet-lucide",
  "violet-wgpu",
  "web-time",
 ]
@@ -3527,6 +3529,20 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+]
+
+[[package]]
+name = "violet-lucide"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "flax",
+ "glam",
+ "itertools 0.14.0",
+ "palette",
+ "parking_lot",
+ "tracing",
+ "violet-core",
 ]
 
 [[package]]

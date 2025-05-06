@@ -4,7 +4,7 @@ use itertools::Itertools;
 use violet::{
     core::{
         layout::Align,
-        state::{State, StateStream},
+        state::{StateExt, StateStream},
         style::{base_colors::*, default_corner_radius, spacing_small, surface_primary, SizeExt},
         unit::Unit,
         widget::{
