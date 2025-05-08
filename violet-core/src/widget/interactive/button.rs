@@ -114,7 +114,7 @@ pub struct Button<W = Text> {
     on_click: ButtonClickCallback,
     label: W,
     style: ButtonStyle,
-    size: WidgetSize,
+    size: WidgetSizeProps,
     is_pressed: bool,
 }
 
@@ -128,7 +128,7 @@ impl<W> Button<W> {
             on_click: Box::new(|_| {}),
             label,
             style: Default::default(),
-            size: WidgetSize::default()
+            size: WidgetSizeProps::default()
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_corner_radius(default_corner_radius()),
@@ -213,7 +213,7 @@ impl<W> StyleExt for Checkbox<W> {
 }
 
 impl<W> SizeExt for Button<W> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }
@@ -275,7 +275,7 @@ impl<W: Widget> Widget for Button<W> {
 pub struct Checkbox<W = ()> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     style: ButtonStyle,
-    size: WidgetSize,
+    size: WidgetSizeProps,
     label: W,
 }
 
@@ -284,7 +284,7 @@ impl<W: WidgetCollection> Checkbox<W> {
         Self {
             state: Box::new(state),
             style: Default::default(),
-            size: WidgetSize::default()
+            size: WidgetSizeProps::default()
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_corner_radius(default_corner_radius())
@@ -356,7 +356,7 @@ impl<W: Widget> Widget for Checkbox<W> {
 pub struct Radio<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     style: ButtonStyle,
-    size: WidgetSize,
+    size: WidgetSizeProps,
     label: W,
 }
 
@@ -365,7 +365,7 @@ impl<W: WidgetCollection> Radio<W> {
         Self {
             state: Box::new(state),
             style: Default::default(),
-            size: WidgetSize::default()
+            size: WidgetSizeProps::default()
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_corner_radius(default_corner_radius())
@@ -393,7 +393,7 @@ impl Radio<Text> {
 }
 
 impl<T> SizeExt for Radio<T> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }

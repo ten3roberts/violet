@@ -58,7 +58,7 @@ impl Default for TextInputStyle {
 pub struct TextInput {
     style: TextInputStyle,
     content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
-    size: WidgetSize,
+    size: WidgetSizeProps,
 }
 
 impl TextInput {
@@ -66,7 +66,7 @@ impl TextInput {
         Self {
             content: Arc::new(content),
             style: Default::default(),
-            size: WidgetSize::default()
+            size: WidgetSizeProps::default()
                 .with_min_size(Unit::px2(32.0, 16.0))
                 .with_margin(spacing_small())
                 .with_padding(spacing_small())
@@ -98,7 +98,7 @@ impl StyleExt for TextInput {
 }
 
 impl SizeExt for TextInput {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }

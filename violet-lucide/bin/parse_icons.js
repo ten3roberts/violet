@@ -12,7 +12,7 @@ const jsonData = JSON.parse(rawData);
 var results = Object.entries(jsonData).map(([key, value]) => {
     const screamingName = toScreamingSnakeCase(key);
     const utfValue = value.encodedCode.replace('\\', '')
-    return `pub const ICON_${screamingName}: &str = "\\u{${utfValue}}";`;
+    return `pub const LUCIDE_${screamingName}: &str = "\\u{${utfValue}}";`;
 });
 
 

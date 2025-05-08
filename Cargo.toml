@@ -84,13 +84,16 @@ ropey = "1.6"
 [dependencies]
 violet-wgpu = { path = "violet-wgpu" }
 violet-core = { path = "violet-core" }
-violet-lucide = { path = "violet-lucide" }
+violet-lucide = { path = "violet-lucide", optional = true }
 glam.workspace = true
 palette.workspace = true
 futures-signals.workspace = true
 flax.workspace = true
 lru.workspace = true
 web-time.workspace = true
+
+[features]
+lucide = ["violet-lucide"]
 
 [dev-dependencies]
 cosmic-text.workspace = true

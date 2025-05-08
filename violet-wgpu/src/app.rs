@@ -102,7 +102,9 @@ impl AppBuilder {
         AppInstance::new(
             root,
             self.resize_window,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(
+                self.fonts.into_iter().rev(),
+            ))),
         )
     }
 
@@ -112,7 +114,9 @@ impl AppBuilder {
         let instance = AppInstance::new(
             root,
             self.resize_window,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(
+                self.fonts.into_iter().rev(),
+            ))),
         );
 
         let (renderer_tx, renderer_rx) = flume::unbounded();

@@ -4,12 +4,14 @@ use itertools::Itertools;
 
 use crate::{
     state::{StateDuplex, StateExt},
+    style::{SizeExt, WidgetSizeProps},
     widget::{col, Radio, ScrollArea},
     Scope, Widget,
 };
 
 pub struct SelectList<I> {
     items: I,
+    size: WidgetSizeProps,
     selection: Arc<dyn Send + Sync + StateDuplex<Item = Option<usize>>>,
 }
 
@@ -25,6 +27,7 @@ impl<I> SelectList<I> {
         Self {
             items,
             selection: Arc::new(selection),
+            size: Default::default(),
         }
     }
 }
@@ -35,18 +38,28 @@ where
     I: IntoIterator<Item = T>,
 {
     fn mount(self, scope: &mut Scope<'_>) {
-        ScrollArea::vertical(col(self
-            .items
-            .into_iter()
-            .enumerate()
-            .map(|(i, item)| {
-                Radio::new_indexed(
-                    item,
-                    self.selection.clone().filter_map(|v| v, |v| Some(Some(v))),
-                    i,
-                )
-            })
-            .collect_vec()))
+        ScrollArea::vertical(
+            col(self
+                .items
+                .into_iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    Radio::new_indexed(
+                        item,
+                        self.selection.clone().filter_map(|v| v, |v| Some(Some(v))),
+                        i,
+                    )
+                })
+                .collect_vec())
+            .with_stretch(true),
+        )
+        .with_size_props(self.size)
         .mount(scope);
+    }
+}
+
+impl<I> SizeExt for SelectList<I> {
+    fn size_mut(&mut self) -> &mut crate::style::WidgetSizeProps {
+        &mut self.size
     }
 }

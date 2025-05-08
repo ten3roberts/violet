@@ -16,6 +16,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     violet_wgpu::AppBuilder::new()
+        .with_font(violet_lucide::font_source())
         .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(widgets::main_app())
 }

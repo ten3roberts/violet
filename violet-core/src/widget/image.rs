@@ -6,13 +6,13 @@ use crate::{
     assets::AssetKey,
     components::{self, color, draw_shape},
     shape,
-    style::{surface_danger, SizeExt, WidgetSize},
+    style::{surface_danger, SizeExt, WidgetSizeProps},
     Scope,
 };
 
 pub struct Image<K> {
     image: K,
-    size: WidgetSize,
+    size: WidgetSizeProps,
     aspect_ratio: Option<f32>,
 }
 
@@ -53,7 +53,7 @@ where
 }
 
 impl<K> SizeExt for Image<K> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }
