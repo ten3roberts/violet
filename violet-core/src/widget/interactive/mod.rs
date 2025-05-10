@@ -14,6 +14,7 @@ pub mod overlay;
 pub mod slider;
 pub mod tooltip;
 pub mod select_list;
+pub mod base;
 
 pub trait InteractiveExt {
     fn on_press<F: 'static + Send + Sync + FnMut(&ScopeRef<'_>) -> Option<()>>(

@@ -130,6 +130,10 @@ fn icons() -> impl Widget {
         label(s).with_font_size(text_medium())
     }
 
+    fn icon_button<W: Widget>(w: W) -> Button<W> {
+        Button::new(w).with_corner_radius(Unit::rel(1.0))
+    }
+
     card(col((
         title("Icons"),
         row((
@@ -140,23 +144,17 @@ fn icons() -> impl Widget {
         .with_cross_align(Align::Center),
         row((
             label("Colors:").with_wrap(Wrap::None),
-            Tooltip::new(icon_large(LUCIDE_COG).with_color(AMBER_300), || {
-                label("Settings")
-            }),
-            Tooltip::new(icon_large(LUCIDE_CHECK).with_color(EMERALD_500), || {
-                label("Success")
-            }),
-            Tooltip::new(icon_large(LUCIDE_LIGHTBULB).with_color(TEAL_500), || {
-                label("Hint")
-            }),
-            Tooltip::new(
-                icon_large(LUCIDE_TRIANGLE_ALERT).with_color(surface_warning()),
-                || label("Warning"),
-            ),
-            Tooltip::new(
-                icon_large(LUCIDE_CIRCLE_X).with_color(surface_danger()),
-                || label("Error"),
-            ),
+            icon_button(icon_large(LUCIDE_COG).with_color(AMBER_300)).with_tooltip_text("Settings"),
+            icon_button(icon_large(LUCIDE_CHECK).with_color(EMERALD_500))
+                .with_tooltip_text("Success"),
+            icon_button(icon_large(LUCIDE_LIGHTBULB).with_color(TEAL_500))
+                .with_tooltip_text("Hint"),
+            icon_button(icon_large(LUCIDE_TRIANGLE_ALERT).with_color(surface_warning()))
+                .with_tooltip_text("Warning"),
+            icon_button(icon_large(LUCIDE_CIRCLE_X).with_color(surface_danger()))
+                .with_tooltip_text("Error"),
+            icon_button(row((label("Text"), label(LUCIDE_PENCIL))).with_cross_align(Align::Center))
+                .with_tooltip_text("Error"),
         ))
         .with_cross_align(Align::Center),
     )))

@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use flax::EntityRef;
 use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
@@ -12,9 +10,11 @@ use crate::{
     state::{StateDuplex, StateExt, StateStream, WatchState},
     style::*,
     unit::Unit,
-    widget::{ContainerStyle, Stack, Text},
+    widget::{label, ContainerStyle, Stack, Text},
     Scope, Widget, WidgetCollection,
 };
+
+use super::base::{InteractiveWidget, TooltipOptions};
 
 type ButtonCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, winit::event::MouseButton)>;
 type ButtonClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
@@ -112,6 +112,7 @@ impl Default for ButtonStyle {
 pub struct Button<W = Text> {
     on_press: ButtonCallback,
     on_click: ButtonClickCallback,
+    tooltip: Option<TooltipOptions>,
     label: W,
     style: ButtonStyle,
     size: WidgetSizeProps,
@@ -134,10 +135,12 @@ impl<W> Button<W> {
                 .with_corner_radius(default_corner_radius()),
             // .with_min_size(Unit::px2(28.0, 28.0)),
             is_pressed: false,
+            tooltip: None,
         }
     }
 
     /// Handle the button press
+    #[deprecated = "use on_click"]
     pub fn on_mousebutton_down(
         mut self,
         on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, MouseButton),
@@ -149,6 +152,17 @@ impl<W> Button<W> {
     /// Handle the button press
     pub fn on_click(mut self, on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>)) -> Self {
         self.on_click = Box::new(on_press);
+        self
+    }
+
+    pub fn with_tooltip_text(mut self, tooltip: impl Into<String>) -> Self {
+        let tooltip = tooltip.into();
+        self.tooltip = Some(TooltipOptions::new(move || label(&tooltip)));
+        self
+    }
+
+    pub fn with_tooltip(mut self, tooltip: TooltipOptions) -> Self {
+        self.tooltip = Some(tooltip);
         self
     }
 
@@ -219,55 +233,35 @@ impl<W> SizeExt for Button<W> {
 }
 
 impl<W: Widget> Widget for Button<W> {
-    fn mount(self, scope: &mut Scope<'_>) {
+    fn mount(mut self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
         let pressed = self.style.pressed.resolve(&stylesheet);
         let normal = self.style.normal.resolve(&stylesheet);
         let _hover = self.style.hover.resolve(&stylesheet);
 
-        let mut is_pressed = false;
+        let _content = scope.attach(self.label);
 
-        let content = scope.attach(self.label);
+        let inner = Stack::new(())
+            .with_background(Background::new(normal.surface))
+            .with_horizontal_alignment(Align::Center)
+            .with_vertical_alignment(Align::Center);
 
-        let on_click = scope.store(RefCell::new(self.on_click));
-        let on_press = scope.store(RefCell::new(self.on_press));
+        InteractiveWidget::new(inner)
+            .with_size_props(self.size)
+            .on_click(move |scope| (self.on_click)(scope))
+            .on_press(move |scope, state| {
+                let color = if state.is_pressed() { pressed } else { normal };
 
-        scope
-            .set(interactive(), ())
-            .on_event(on_mouse_input(), move |scope, input| {
-                let color = if input.state.is_pressed() {
-                    pressed
-                } else {
-                    normal
-                };
-
-                scope
-                    .world()
-                    .entity(content)
-                    .unwrap()
-                    .update_dedup(components::color(), color.element);
+                // scope
+                //     .world()
+                //     .entity(content)
+                //     .unwrap()
+                //     .update_dedup(components::color(), color.element);
 
                 scope.update_dedup(components::color(), color.surface);
-
-                if input.state == ElementState::Pressed {
-                    is_pressed = true;
-                    ((scope.read(on_press)).borrow_mut())(scope, input.button);
-                } else if is_pressed {
-                    is_pressed = false;
-                    ((scope.read(on_click)).borrow_mut())(scope);
-                }
-
-                None
-            });
-
-        Stack::new(())
-            .with_style(ContainerStyle {
-                background: Some(Background::new(normal.surface)),
             })
-            .with_horizontal_alignment(Align::Center)
-            .with_vertical_alignment(Align::Center)
-            .with_size_props(self.size)
+            .with_tooltip_opt(self.tooltip)
             .mount(scope);
     }
 }
