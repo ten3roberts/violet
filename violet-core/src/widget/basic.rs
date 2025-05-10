@@ -7,7 +7,7 @@ use crate::{
     shape,
     style::{
         element_primary, element_secondary, spacing_small, text_large, text_medium, text_small,
-        ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSize,
+        ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSizeProps,
     },
     text::{TextSegment, Wrap},
     unit::Unit,
@@ -20,7 +20,7 @@ use super::Stack;
 #[derive(Debug, Clone)]
 pub struct Rectangle {
     color: ValueOrRef<Srgba>,
-    size: WidgetSize,
+    size: WidgetSizeProps,
     aspect_ratio: Option<f32>,
 }
 
@@ -53,16 +53,16 @@ impl Widget for Rectangle {
 }
 
 impl SizeExt for Rectangle {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }
 
 /// Style and decorate text
 pub struct TextStyle {
-    font_size: ValueOrRef<f32>,
-    wrap: Wrap,
-    color: ValueOrRef<Srgba>,
+    pub font_size: ValueOrRef<f32>,
+    pub wrap: Wrap,
+    pub color: ValueOrRef<Srgba>,
 }
 
 impl Default for TextStyle {
@@ -78,7 +78,7 @@ impl Default for TextStyle {
 pub struct Text {
     text: Vec<TextSegment>,
     style: TextStyle,
-    size: WidgetSize,
+    size: WidgetSizeProps,
 }
 
 impl Text {
@@ -114,7 +114,7 @@ impl Text {
         Self {
             text: text.into_iter().collect(),
             style: TextStyle::default(),
-            size: WidgetSize {
+            size: WidgetSizeProps {
                 margin: Some(spacing_small().into()),
                 ..Default::default()
             },
@@ -149,7 +149,7 @@ impl StyleExt for Text {
 }
 
 impl SizeExt for Text {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }

@@ -76,6 +76,12 @@ impl AppBuilder {
         }
     }
 
+    /// Add a font to the text system
+    pub fn with_font(mut self, font: Source) -> Self {
+        self.fonts.push(font);
+        self
+    }
+
     pub fn with_resize_window(mut self, enable: bool) -> Self {
         self.resize_window = enable;
         self
@@ -96,7 +102,9 @@ impl AppBuilder {
         AppInstance::new(
             root,
             self.resize_window,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(
+                self.fonts.into_iter().rev(),
+            ))),
         )
     }
 
@@ -106,7 +114,9 @@ impl AppBuilder {
         let instance = AppInstance::new(
             root,
             self.resize_window,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(
+                self.fonts.into_iter().rev(),
+            ))),
         );
 
         let (renderer_tx, renderer_rx) = flume::unbounded();

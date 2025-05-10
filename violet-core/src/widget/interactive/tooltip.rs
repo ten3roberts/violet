@@ -7,7 +7,7 @@ use crate::{
     input::{interactive, on_cursor_hover, HoverState},
     time::sleep,
     unit::Unit,
-    widget::Stack,
+    widget::{pill, Stack},
     FutureEffect, Scope, Widget,
 };
 
@@ -84,7 +84,7 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Tooltip<T, P> {
                             let overlays = scope.get_context_cloned(overlay_state());
                             let overlay = TooltipOverlay::new(
                                 info.position + self.offset,
-                                scope.read(&create_preview)(),
+                                pill(scope.read(&create_preview)()),
                             );
 
                             let handle = overlays.open(overlay);

@@ -3,7 +3,7 @@ use violet_core::{
     assets::Asset,
     components::{color, draw_shape},
     shape,
-    style::{SizeExt, WidgetSize},
+    style::{SizeExt, WidgetSizeProps},
     Scope, Widget,
 };
 use wgpu::TextureView;
@@ -11,7 +11,7 @@ use wgpu::TextureView;
 use crate::components;
 
 pub struct RawImage {
-    size: WidgetSize,
+    size: WidgetSizeProps,
     texture: Asset<TextureView>,
 }
 
@@ -35,7 +35,7 @@ impl Widget for RawImage {
 }
 
 impl SizeExt for RawImage {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }

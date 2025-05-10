@@ -4,25 +4,37 @@ use itertools::Itertools;
 use violet::{
     core::{
         layout::Align,
-        state::{State, StateStream},
-        style::{base_colors::*, default_corner_radius, spacing_small, surface_primary, SizeExt},
+        state::{StateExt, StateStream},
+        style::{
+            base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
+            surface_warning, text_medium, SizeExt,
+        },
+        text::Wrap,
         unit::Unit,
         widget::{
-            card, col, label, pill, row, subtitle, title, Button, Checkbox, Radio, Rectangle,
-            ScrollArea, SliderWithLabel, StreamWidget, Text, TextInput,
+            card, col,
+            interactive::{select_list::SelectList, tooltip::Tooltip},
+            label, pill, row, subtitle, title, Button, Checkbox, Radio, Rectangle, ScrollArea,
+            SliderWithLabel, StreamWidget, Text, TextInput,
         },
         Widget,
     },
     futures_signals::signal::Mutable,
+    lucide::icons::*,
     palette::Srgba,
 };
+
+use crate::drag;
 
 pub fn main_app() -> impl Widget {
     ScrollArea::new(
         BVec2::TRUE,
-        row((texts(), buttons(), inputs(), list(), colors()))
-            .with_contain_margins(true)
-            .with_maximize(Vec2::ONE),
+        col((
+            row((texts(), buttons(), inputs(), list(), colors())),
+            row((icons(), drag_and_drop())),
+        ))
+        .with_contain_margins(true)
+        .with_maximize(Vec2::ONE),
     )
     .with_background(surface_primary())
 }
@@ -91,27 +103,63 @@ fn colors() -> impl Widget {
 }
 
 fn list() -> impl Widget {
-    let selection = Mutable::new(0);
+    let selection = Mutable::new(None);
 
     card(
         col((
             title("Selection"),
-            ScrollArea::vertical(
-                col(('A'..='Z')
-                    .enumerate()
-                    .map(|(i, v)| {
-                        Radio::new_indexed(label(format!("Item {v}")), selection.clone(), i)
-                            .with_margin(spacing_small())
-                    })
-                    .collect_vec())
-                .with_stretch(true)
-                .with_size(Unit::px2(140.0, f32::MAX)),
+            SelectList::new(
+                selection,
+                ('A'..='Z')
+                    .map(|v| label(format!("Item {v}")).with_min_size(Unit::px2(140.0, 0.0)))
+                    .collect_vec(),
             )
+            .with_min_size(Unit::px2(140.0, 400.0))
             .with_max_size(Unit::px2(f32::MAX, 400.0)),
         ))
-        .with_stretch(true)
         .with_cross_align(Align::Center),
     )
+}
+
+fn drag_and_drop() -> impl Widget {
+    card(col((title("Drag and Drop"), drag::app())))
+}
+
+fn icons() -> impl Widget {
+    fn icon_large(s: impl Into<String>) -> Text {
+        label(s).with_font_size(text_medium())
+    }
+
+    card(col((
+        title("Icons"),
+        row((
+            label("Lucide Icons:").with_wrap(Wrap::None),
+            Tooltip::new(icon_large(LUCIDE_USER_ROUND), || label("Profile")),
+            Tooltip::new(icon_large(LUCIDE_BOOK), || label("Reading List")),
+        ))
+        .with_cross_align(Align::Center),
+        row((
+            label("Colors:").with_wrap(Wrap::None),
+            Tooltip::new(icon_large(LUCIDE_COG).with_color(AMBER_300), || {
+                label("Settings")
+            }),
+            Tooltip::new(icon_large(LUCIDE_CHECK).with_color(EMERALD_500), || {
+                label("Success")
+            }),
+            Tooltip::new(icon_large(LUCIDE_LIGHTBULB).with_color(TEAL_500), || {
+                label("Hint")
+            }),
+            Tooltip::new(
+                icon_large(LUCIDE_TRIANGLE_ALERT).with_color(surface_warning()),
+                || label("Warning"),
+            ),
+            Tooltip::new(
+                icon_large(LUCIDE_CIRCLE_X).with_color(surface_danger()),
+                || label("Error"),
+            ),
+        ))
+        .with_cross_align(Align::Center),
+    )))
 }
 
 fn inputs() -> impl Widget {

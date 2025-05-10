@@ -1,15 +1,15 @@
 use futures_signals::signal::Mutable;
-use glam::{BVec2, Vec2, Vec3, Vec3Swizzles};
+use glam::{BVec2, Vec2};
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, offset, rect, transform},
+    components::{anchor, layout, offset, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
         default_corner_radius, spacing_medium, surface_secondary, surface_tertiary, Background,
-        SizeExt, StyleExt, WidgetSize,
+        SizeExt, StyleExt, WidgetSizeProps,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -38,7 +38,7 @@ pub struct Stack<W> {
 
     layout: StackLayout,
     style: ContainerStyle,
-    size: WidgetSize,
+    size: WidgetSizeProps,
 }
 
 impl<W> Stack<W> {
@@ -98,7 +98,7 @@ impl<W> StyleExt for Stack<W> {
 }
 
 impl<W> SizeExt for Stack<W> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }
@@ -122,7 +122,7 @@ pub struct List<W> {
     items: W,
     layout: FlowLayout,
     style: ContainerStyle,
-    size: WidgetSize,
+    size: WidgetSizeProps,
 }
 
 impl<W: WidgetCollection> List<W> {
@@ -177,7 +177,7 @@ impl<W: WidgetCollection> StyleExt for List<W> {
 }
 
 impl<W: WidgetCollection> SizeExt for List<W> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }
@@ -203,7 +203,7 @@ pub struct Movable<W> {
     content: W,
     on_move: OnMove,
     on_drop: OnDrop,
-    size: WidgetSize,
+    size: WidgetSizeProps,
 }
 
 impl<W> Movable<W> {
@@ -240,15 +240,9 @@ impl<W: Widget> Widget for Movable<W> {
             .on_event(on_mouse_input(), {
                 let start_offset = start_offset.clone();
                 move |scope, input| {
-                    let transform = scope
-                        .get_copy(transform())
-                        .unwrap_or_default()
-                        .transform_point3(Vec3::ZERO)
-                        .xy();
-
                     if input.state == ElementState::Pressed {
-                        tracing::info!(%input.cursor.local_pos);
-                        let cursor_pos = input.cursor.absolute_pos - transform;
+                        let cursor_pos = input.cursor.local_pos;
+                        tracing::info!(?cursor_pos, "grab");
                         *start_offset.lock_mut() = cursor_pos;
                     } else {
                         (self.on_drop)(scope, input.cursor.absolute_pos);
@@ -264,7 +258,7 @@ impl<W: Widget> Widget for Movable<W> {
                     .unwrap_or_default()
                     .resolve(rect.size());
 
-                let cursor_pos = input.absolute_pos;
+                let cursor_pos = input.local_pos + rect.min;
 
                 let new_offset = cursor_pos - start_offset.get() + anchor;
                 let new_offset = (self.on_move)(scope, new_offset);
@@ -278,7 +272,7 @@ impl<W: Widget> Widget for Movable<W> {
 }
 
 impl<W> SizeExt for Movable<W> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }

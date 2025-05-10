@@ -52,7 +52,7 @@ pub trait StyleExt {
 
 /// Base properties for widget size and spacing
 #[derive(Debug, Clone, Default)]
-pub struct WidgetSize {
+pub struct WidgetSizeProps {
     pub size: Option<Unit<Vec2>>,
     pub min_size: Option<Unit<Vec2>>,
     pub max_size: Option<Unit<Vec2>>,
@@ -62,7 +62,7 @@ pub struct WidgetSize {
     pub maximize: Option<Vec2>,
 }
 
-impl WidgetSize {
+impl WidgetSizeProps {
     pub fn new() -> Self {
         Default::default()
     }
@@ -130,7 +130,7 @@ impl WidgetSize {
 /// A widget that allows you to set its sizing properties
 pub trait SizeExt {
     /// Override all the size properties of the widget
-    fn with_size_props(mut self, size: WidgetSize) -> Self
+    fn with_size_props(mut self, size: WidgetSizeProps) -> Self
     where
         Self: Sized,
     {
@@ -215,7 +215,7 @@ pub trait SizeExt {
         self
     }
 
-    fn size_mut(&mut self) -> &mut WidgetSize;
+    fn size_mut(&mut self) -> &mut WidgetSizeProps;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

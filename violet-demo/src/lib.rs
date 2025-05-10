@@ -1,8 +1,10 @@
+#![allow(unexpected_cfgs)]
+
 use futures::StreamExt;
 use glam::Vec2;
 use violet::{
     core::{
-        state::{State, StateStream},
+        state::{StateExt, StateStream},
         style::{
             element_hover, element_interactive, element_pressed, surface_hover, surface_pressed,
             surface_primary, SizeExt, StyleExt,
@@ -18,6 +20,7 @@ use wasm_bindgen_futures::wasm_bindgen;
 
 pub mod bridge_of_death;
 pub mod colorpicker;
+pub mod drag;
 pub mod widgets;
 
 #[cfg(target_arch = "wasm32")]

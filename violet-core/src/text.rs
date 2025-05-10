@@ -4,7 +4,7 @@ use std::{
     ops::Index,
 };
 
-pub use cosmic_text::{Style, Weight, Wrap};
+pub use cosmic_text::{fontdb::Source, Style, Weight, Wrap};
 use glam::{vec2, Vec2};
 use palette::Srgba;
 

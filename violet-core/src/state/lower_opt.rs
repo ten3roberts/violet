@@ -1,7 +1,4 @@
-use std::{
-    future::ready,
-    marker::{PhantomData, Send},
-};
+use std::{future::ready, marker::Send};
 
 use futures::{stream::BoxStream, StreamExt};
 
@@ -32,7 +29,7 @@ where
     T: 'static + Send,
 {
     fn stream(&self) -> BoxStream<'static, Self::Item> {
-        self.inner.stream().filter_map(|v| ready(v)).boxed()
+        self.inner.stream().filter_map(ready).boxed()
     }
 }
 

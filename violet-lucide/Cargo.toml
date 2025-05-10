@@ -1,0 +1,21 @@
+[package]
+name = "violet-lucide"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+violet-core = { path = "../violet-core" }
+
+flax.workspace = true
+
+tracing.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+parking_lot.workspace = true
+itertools.workspace = true
+palette.workspace = true

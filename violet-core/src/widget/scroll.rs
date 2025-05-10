@@ -9,7 +9,7 @@ use crate::{
     state::{StateMut, StateStream},
     style::{
         default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt,
-        WidgetSize,
+        WidgetSizeProps,
     },
     to_owned,
     unit::Unit,
@@ -23,7 +23,7 @@ use crate::{
 pub struct ScrollArea<W> {
     items: W,
     directions: BVec2,
-    size: WidgetSize,
+    size: WidgetSizeProps,
     background: Option<Background>,
 }
 
@@ -35,7 +35,7 @@ impl<W> ScrollArea<W> {
         Self {
             items,
             directions: directions.into(),
-            size: WidgetSize::default(),
+            size: WidgetSizeProps::default(),
             background: None,
         }
     }
@@ -47,7 +47,7 @@ impl<W> ScrollArea<W> {
         Self {
             items,
             directions: BVec2::new(false, true),
-            size: WidgetSize::default(),
+            size: WidgetSizeProps::default(),
             background: None,
         }
     }
@@ -59,7 +59,7 @@ impl<W> ScrollArea<W> {
         Self {
             items,
             directions: BVec2::new(true, false),
-            size: WidgetSize::default(),
+            size: WidgetSizeProps::default(),
             background: None,
         }
     }
@@ -177,7 +177,7 @@ impl<W: Widget> Widget for ScrollArea<W> {
 }
 
 impl<W> SizeExt for ScrollArea<W> {
-    fn size_mut(&mut self) -> &mut WidgetSize {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
     }
 }

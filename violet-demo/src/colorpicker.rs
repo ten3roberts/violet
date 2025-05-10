@@ -19,7 +19,8 @@ use violet::core::{
     io::clipboard,
     layout::Align,
     state::{
-        State, StateDuplex, StateMut, StateOwned, StateRef, StateSink, StateStream, StateStreamRef,
+        StateDuplex, StateExt, StateMut, StateOwned, StateRef, StateSink, StateStream,
+        StateStreamRef,
     },
     style::{
         default_corner_radius, spacing_small, surface_disabled, surface_interactive,
