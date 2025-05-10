@@ -217,18 +217,16 @@ impl InputState {
 
         if let Some((entity, _)) = intersect {
             let entity = frame.world().entity(entity.id()).unwrap();
-            if let Ok(mut on_input) = entity.get_mut(on_scroll()) {
-                let s = ScopeRef::new(frame, entity);
-                on_input(
-                    &s,
-                    Scroll {
-                        delta,
-                        modifiers: self.modifiers,
-                    },
-                );
-            }
 
-            return true;
+            return Self::propagate_event(
+                entity,
+                frame,
+                on_scroll(),
+                Scroll {
+                    delta,
+                    modifiers: self.modifiers,
+                },
+            );
         }
 
         false
