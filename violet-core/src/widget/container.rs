@@ -1,9 +1,9 @@
 use futures_signals::signal::Mutable;
-use glam::{BVec2, Mat4, Vec2, Vec3, Vec3Swizzles};
+use glam::{BVec2, Vec2};
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, offset, rect, screen_transform, transform},
+    components::{anchor, layout, offset, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
@@ -240,14 +240,7 @@ impl<W: Widget> Widget for Movable<W> {
             .on_event(on_mouse_input(), {
                 let start_offset = start_offset.clone();
                 move |scope, input| {
-                    let transform = scope
-                        .get_copy(screen_transform())
-                        .unwrap_or_default()
-                        .transform_point3(Vec3::ZERO)
-                        .xy();
-
                     if input.state == ElementState::Pressed {
-                        tracing::info!(%input.cursor.local_pos);
                         let cursor_pos = input.cursor.local_pos;
                         tracing::info!(?cursor_pos, "grab");
                         *start_offset.lock_mut() = cursor_pos;

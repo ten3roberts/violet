@@ -14,7 +14,7 @@ use violet::core::{
     Widget,
 };
 use violet_core::{
-    state::{State, StateStream},
+    state::{StateExt, StateStream},
     style::{spacing_medium, surface_secondary, Background},
     utils::zip_latest,
     widget::{label, Button, Checkbox, ScrollArea, SliderWithLabel, StreamWidget, WidgetExt},

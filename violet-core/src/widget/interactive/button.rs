@@ -219,7 +219,7 @@ impl<W> SizeExt for Button<W> {
 }
 
 impl<W: Widget> Widget for Button<W> {
-    fn mount(mut self, scope: &mut Scope<'_>) {
+    fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
         let pressed = self.style.pressed.resolve(&stylesheet);

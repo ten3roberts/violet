@@ -6,8 +6,8 @@ use violet::{
         layout::Align,
         state::{StateExt, StateStream},
         style::{
-            base_colors::*, default_corner_radius, spacing_small, surface_danger,
-            surface_primary, surface_warning, text_medium, SizeExt,
+            base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
+            surface_warning, text_medium, SizeExt,
         },
         text::Wrap,
         unit::Unit,

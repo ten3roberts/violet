@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use violet::core::style::{base_colors::*, default_corner_radius, spacing_medium};
+use violet::core::style::{base_colors::*, default_corner_radius};
 use violet::core::{
     style::{spacing_small, SizeExt},
     unit::Unit,

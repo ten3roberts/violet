@@ -404,7 +404,7 @@ impl Widget for TextContent {
             if let Some(text) = text {
                 if let Some(&id) = text_items.get(row) {
                     // Access and update the text widget
-                    let mut scope = scope.frame_mut().scoped(id).unwrap();
+                    let scope = scope.frame_mut().scoped(id).unwrap();
 
                     scope.entity().get_mut(components::text()).unwrap()[0].text = text;
                 } else {

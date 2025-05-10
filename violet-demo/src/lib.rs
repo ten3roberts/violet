@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use futures::StreamExt;
 use glam::Vec2;
 use violet::{
