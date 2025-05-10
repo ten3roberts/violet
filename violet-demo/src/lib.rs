@@ -113,6 +113,7 @@ pub fn run() {
 
     AppBuilder::new()
         .with_title("Demo")
+        .with_font(violet::lucide::font_source())
         .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(multi_app())
         .unwrap();
