@@ -1,10 +1,8 @@
-use futures::StreamExt;
 use glam::{BVec2, Vec2};
 use itertools::Itertools;
 use violet::{
     core::{
         layout::Align,
-        state::{StateExt, StateStream},
         style::{
             base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
             surface_warning, text_medium, SizeExt,
@@ -14,8 +12,8 @@ use violet::{
         widget::{
             card, col,
             interactive::{select_list::SelectList, tooltip::Tooltip},
-            label, pill, row, subtitle, title, Button, Checkbox, Radio, Rectangle, ScrollArea,
-            SliderWithLabel, StreamWidget, Text, TextInput,
+            label, pill, row, subtitle, title, Button, Collapsible, Radio, Rectangle, ScrollArea,
+            SliderWithLabel, Text, TextInput,
         },
         Widget,
     },
@@ -163,8 +161,6 @@ fn icons() -> impl Widget {
 fn inputs() -> impl Widget {
     let selection = Mutable::new(0);
 
-    let checkbox = Mutable::new(false);
-
     card(
         col((
             title("Input"),
@@ -174,17 +170,15 @@ fn inputs() -> impl Widget {
             row((0..10)
                 .map(|i| Radio::new_indexed(label(format!("{i}")), selection.clone(), i))
                 .collect_vec()),
-            Checkbox::label("Enable", checkbox.clone()),
-            StreamWidget::new(checkbox.dedup().stream().map(|enable| {
-                let extra_options = col((
+            Collapsible::label(
+                "Options",
+                col((
                     SliderWithLabel::new(Mutable::new(0.5), 0.0, 1.0)
                         .editable(true)
                         .precision(2),
                     TextInput::new(Mutable::new("Multiple\nLines\n\nOf Text".to_string())),
-                ));
-
-                enable.then_some(extra_options)
-            })),
+                )),
+            ),
         ))
         .with_stretch(true)
         .with_cross_align(Align::Center),

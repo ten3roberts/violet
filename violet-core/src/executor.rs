@@ -166,7 +166,6 @@ impl<Data> Executor<Data> {
             .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
-            tracing::info!("Executor ready");
             self.tick(data);
             Poll::Ready(())
         } else {

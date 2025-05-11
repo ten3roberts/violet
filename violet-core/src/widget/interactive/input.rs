@@ -107,11 +107,11 @@ impl Widget for TextInput {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let cursor_color = self.style.cursor_color.resolve(&stylesheet);
+        let cursor_color = self.style.cursor_color.resolve(stylesheet);
         let selection_color = self
             .style
             .selection_color
-            .resolve(&stylesheet)
+            .resolve(stylesheet)
             .with_alpha(0.2);
 
         let (tx, rx) = flume::unbounded();

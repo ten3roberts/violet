@@ -2,11 +2,9 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
-use super::{
-    apply_layout, resolve_pos, Align, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing,
-};
+use super::{apply_layout, resolve_pos, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
 use crate::{
-    components::{self},
+    components::{self, item_align, LayoutAlignment},
     layout::{query_size, LayoutArgs, SizingHints},
     Edges, Rect,
 };
@@ -31,8 +29,7 @@ use crate::{
 /// By default, the stack layout will inherit the margins of the inner children
 #[derive(Default, Debug, Clone)]
 pub struct StackLayout {
-    pub horizontal_alignment: Align,
-    pub vertical_alignment: Align,
+    pub alignment: LayoutAlignment,
     pub clip: BVec2,
 }
 
@@ -48,7 +45,7 @@ impl StackLayout {
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
         let child_limits = LayoutLimits {
-            min_size: Vec2::ZERO,
+            min_size: args.limits.min_size,
             max_size: args.limits.max_size,
         };
 
@@ -74,7 +71,10 @@ impl StackLayout {
             .collect_vec();
 
         // The size used for alignment calculation
-        let total_size = bounds.size().max(args.preferred_size);
+        let total_size = bounds
+            .size()
+            .max(args.preferred_size)
+            .max(args.limits.min_size);
 
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(args.preferred_size, args.offset));
@@ -88,12 +88,10 @@ impl StackLayout {
             let block_size = block.rect.size();
 
             let offset = offset
-                + vec2(
-                    self.horizontal_alignment
-                        .align_offset(total_size.x, block_size.x),
-                    self.vertical_alignment
-                        .align_offset(total_size.y, block_size.y),
-                );
+                + entity
+                    .get_copy(item_align())
+                    .unwrap_or(self.alignment)
+                    .align(total_size, block_size);
 
             let clip_mask = Rect::from_size(clip * args.limits.max_size + Vec2::MAX * (1.0 - clip));
 
@@ -143,7 +141,7 @@ impl StackLayout {
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
         let child_limits = LayoutLimits {
-            min_size: Vec2::ZERO,
+            min_size: args.limits.min_size,
             max_size: args.limits.max_size,
         };
 

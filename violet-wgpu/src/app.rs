@@ -1,7 +1,7 @@
 use std::{mem, sync::Arc};
 
 use cosmic_text::fontdb::Source;
-use flax::{components::name, Entity, Schedule, World};
+use flax::{components::name, Entity, EntityBuilder, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
 use violet_core::{
@@ -12,10 +12,10 @@ use violet_core::{
     input::{request_focus_sender, InputState},
     io::{self, Clipboard},
     layout::cache::LayoutUpdateEvent,
-    style::{setup_stylesheet, stylesheet},
+    style::{stylesheet, StylesheetOptions},
     systems::{
-        hydrate_text, invalidate_cached_layout_system, layout_system, templating_system,
-        transform_system,
+        compute_transform_system, hydrate_text, invalidate_cached_layout_system, layout_system,
+        templating_system, transform_system,
     },
     widget::interactive::overlay::OverlayStack,
     Frame, FutureEffect, Rect, Scope, Widget,
@@ -55,9 +55,10 @@ impl<W: Widget> Widget for Canvas<W> {
 
 pub struct AppBuilder {
     renderer_config: MainRendererConfig,
-    resize_window: bool,
+    allow_resize: bool,
     title: String,
     fonts: Vec<Source>,
+    stylesheet: Option<EntityBuilder>,
 }
 
 impl AppBuilder {
@@ -71,8 +72,9 @@ impl AppBuilder {
         Self {
             renderer_config: Default::default(),
             title: "Violet".to_string(),
-            resize_window: false,
+            allow_resize: false,
             fonts,
+            stylesheet: None,
         }
     }
 
@@ -82,8 +84,14 @@ impl AppBuilder {
         self
     }
 
+    /// Provide a custom stylesheet
+    pub fn with_stylesheet(mut self, stylesheet: EntityBuilder) -> Self {
+        self.stylesheet = Some(stylesheet);
+        self
+    }
+
     pub fn with_resize_window(mut self, enable: bool) -> Self {
-        self.resize_window = enable;
+        self.allow_resize = enable;
         self
     }
 
@@ -98,26 +106,28 @@ impl AppBuilder {
         self
     }
 
+    /// Build the application without running it
     pub fn build(self, root: impl Widget) -> AppInstance {
         AppInstance::new(
             root,
-            self.resize_window,
+            self.allow_resize,
             Arc::new(Mutex::new(TextSystem::new_with_fonts(
                 self.fonts.into_iter().rev(),
             ))),
+            self.stylesheet
+                .unwrap_or_else(|| StylesheetOptions::new().build()),
         )
     }
 
+    /// Build and run the app in an event loop
     pub fn run(self, root: impl Widget) -> anyhow::Result<()> {
         let event_loop = EventLoop::builder().build()?;
 
-        let instance = AppInstance::new(
-            root,
-            self.resize_window,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(
-                self.fonts.into_iter().rev(),
-            ))),
-        );
+        let resize_window = self.allow_resize;
+        let renderer_config = self.renderer_config.clone();
+        let title = self.title.clone();
+
+        let instance = self.build(root);
 
         let (renderer_tx, renderer_rx) = flume::unbounded();
 
@@ -130,9 +140,9 @@ impl AppBuilder {
             window: None,
             renderer_tx,
             renderer_rx,
-            renderer_config: self.renderer_config,
-            title: self.title,
-            resize_window: self.resize_window,
+            renderer_config,
+            title,
+            resize_window,
         };
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -147,40 +157,6 @@ impl AppBuilder {
         }
 
         Ok(())
-    }
-}
-
-pub struct AppInstanceBuilder {
-    resize_window: bool,
-    fonts: Vec<Source>,
-}
-
-impl AppInstanceBuilder {
-    pub fn new() -> Self {
-        let fonts = vec![
-            Source::Binary(Arc::new(INTER_FONT.to_vec())),
-            Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
-            Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
-        ];
-
-        Self {
-            resize_window: false,
-            fonts,
-        }
-    }
-
-    pub fn build(self, root: impl Widget) -> AppInstance {
-        AppInstance::new(
-            root,
-            self.resize_window,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
-        )
-    }
-}
-
-impl Default for AppInstanceBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -205,6 +181,7 @@ impl AppInstance {
         root: impl Widget,
         resize_canvas: bool,
         text_system: Arc<Mutex<TextSystem>>,
+        mut stylesheet: EntityBuilder,
     ) -> AppInstance {
         let executor = Executor::new();
 
@@ -212,7 +189,7 @@ impl AppInstance {
 
         let mut frame = Frame::new(spawner, AssetCache::new(), World::new());
 
-        let stylesheet = setup_stylesheet().spawn(frame.world_mut());
+        let stylesheet = stylesheet.spawn(frame.world_mut());
 
         let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
         frame.set_atom(io::clipboard(), clipboard);
@@ -235,6 +212,7 @@ impl AppInstance {
             .with_system(update_text_buffers(text_system.clone()))
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(layout_system(root, resize_canvas))
+            .with_system(compute_transform_system())
             .with_system(transform_system(root));
 
         let input_state = InputState::new(root, Vec2::ZERO, request_focus_rx);

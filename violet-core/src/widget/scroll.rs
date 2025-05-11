@@ -99,13 +99,10 @@ impl<W: Widget> Widget for ScrollArea<W> {
 
         scope.set(interactive(), ());
 
-        let scroll = zip_latest(size.stream(), outer_size.stream()).map(|(size, outer_size)| {
-            // tracing::info!(%size, %outer_size);
-            size.cmpgt(outer_size)
-        });
+        let scroll = zip_latest(size.stream(), outer_size.stream())
+            .map(|(size, outer_size)| size.cmpgt(outer_size));
 
         scope.spawn_stream(scroll, |scope, needs_scroll| {
-            // tracing::info!(%needs_scroll);
             scope
                 .update_dedup(
                     padding(),
@@ -143,7 +140,7 @@ impl<W: Widget> Widget for ScrollArea<W> {
         };
 
         let stylesheet = scope.stylesheet();
-        let padding = self.size.padding.unwrap_or_default().resolve(&stylesheet);
+        let padding = self.size.padding.unwrap_or_default().resolve(stylesheet);
 
         self.size.mount(scope);
 
@@ -263,7 +260,6 @@ impl<W: Widget> Widget for ScrolledContent<W> {
                 self.scroll_pos.stream(),
             ),
             |scope, ((size, outer_size), scroll)| {
-                // tracing::info!(%scroll, %size);
                 let max_scroll = (size - outer_size).max(Vec2::ZERO);
                 let scroll = scroll.clamp(Vec2::ZERO, max_scroll);
                 scope.set(transform(), Mat4::from_translation(-scroll.extend(0.0)));

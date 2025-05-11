@@ -37,7 +37,7 @@ impl<T> ColorPair<T> {
 impl<T: ResolvableStyle> ResolvableStyle for ColorPair<T> {
     type Value = ColorPair<T::Value>;
 
-    fn resolve(self, stylesheet: &EntityRef<'_>) -> ColorPair<T::Value> {
+    fn resolve(&self, stylesheet: EntityRef<'_>) -> ColorPair<T::Value> {
         ColorPair {
             surface: self.surface.resolve(stylesheet),
             element: self.element.resolve(stylesheet),
@@ -236,9 +236,9 @@ impl<W: Widget> Widget for Button<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let pressed = self.style.pressed.resolve(&stylesheet);
-        let normal = self.style.normal.resolve(&stylesheet);
-        let _hover = self.style.hover.resolve(&stylesheet);
+        let pressed = self.style.pressed.resolve(stylesheet);
+        let normal = self.style.normal.resolve(stylesheet);
+        let _hover = self.style.hover.resolve(stylesheet);
 
         let _content = scope.attach(self.label);
 
@@ -301,9 +301,9 @@ impl<W: Widget> Widget for Checkbox<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let pressed = self.style.pressed.resolve(&stylesheet);
-        let normal = self.style.normal.resolve(&stylesheet);
-        let _hover = self.style.hover.resolve(&stylesheet);
+        let pressed = self.style.pressed.resolve(stylesheet);
+        let normal = self.style.normal.resolve(stylesheet);
+        let _hover = self.style.hover.resolve(stylesheet);
 
         let content = scope.attach(self.label);
 
@@ -396,9 +396,9 @@ impl<W: Widget> Widget for Radio<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let pressed = self.style.pressed.resolve(&stylesheet);
-        let normal = self.style.normal.resolve(&stylesheet);
-        let _hover = self.style.hover.resolve(&stylesheet);
+        let pressed = self.style.pressed.resolve(stylesheet);
+        let normal = self.style.normal.resolve(stylesheet);
+        let _hover = self.style.hover.resolve(stylesheet);
 
         let content = scope.attach(self.label);
 

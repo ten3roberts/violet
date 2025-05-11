@@ -7,12 +7,13 @@ use violet::{
         state::{StateExt, StateStream},
         style::{
             element_hover, element_interactive, element_pressed, surface_hover, surface_pressed,
-            surface_primary, SizeExt, StyleExt,
+            surface_primary, SizeExt, StyleExt, StylesheetOptions,
         },
         widget::{card, col, panel, row, ButtonStyle, ColorPair, Radio, StreamWidget, WidgetExt},
         Edges, Widget,
     },
     futures_signals::signal::Mutable,
+    lucide,
     palette::Srgba,
     wgpu::{renderer::MainRendererConfig, AppBuilder},
 };
@@ -113,7 +114,12 @@ pub fn run() {
 
     AppBuilder::new()
         .with_title("Demo")
-        .with_font(violet::lucide::font_source())
+        .with_font(lucide::font_source())
+        .with_stylesheet(
+            StylesheetOptions::new()
+                .with_icons(lucide::icon_set())
+                .build(),
+        )
         .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(multi_app())
         .unwrap();

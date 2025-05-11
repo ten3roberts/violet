@@ -234,7 +234,6 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
         tracing::debug_span!("query_size", name=entity.name().as_deref(), ?args.limits, %args.content_area)
             .entered();
 
-    // tracing::info!(name=entity.name().as_deref(), ?limits, %content_area, ?direction, "query_size");
     let query = (
         layout_cache().as_mut(),
         components::margin().opt_or_default(),

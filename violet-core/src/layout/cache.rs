@@ -115,7 +115,6 @@ impl LayoutCache {
 /// Invalidates a widgets layout cache along with its ancestors
 pub(crate) fn invalidate_widget(world: &World, id: Entity) {
     let entity = world.entity(id).unwrap();
-    // tracing::info!(%entity, "invalidating widget");
 
     let query = (layout_cache().as_mut(), child_of.first_relation().opt());
     let mut query = entity.query(&query);
@@ -171,8 +170,6 @@ pub(crate) fn validate_cached_layout(
     let value = &cache.value;
 
     let size = value.rect.size().min(cache.limits.max_size);
-
-    // tracing::info!( %size, %cache.limits.max_size, %limits.max_size, "validate_cached_layout");
 
     size.x >= limits.min_size.x - LAYOUT_TOLERANCE
         && size.y >= limits.min_size.y - LAYOUT_TOLERANCE

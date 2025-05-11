@@ -206,7 +206,6 @@ impl Timers {
     #[cfg(target_arch = "wasm32")]
     pub async fn run_web(mut self) {
         loop {
-            tracing::info!("Polling timers");
             let now = Instant::now();
             let next = match self.tick(now) {
                 Ok(v) => v,
@@ -267,8 +266,6 @@ impl Future for TickFuture {
             .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
             .is_ok()
         {
-            tracing::info!("Timers finished");
-
             return Poll::Ready(());
         }
 

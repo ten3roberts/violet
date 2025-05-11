@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use violet_core::text::Source;
+use icons::LUCIDE_CHEVRON_RIGHT;
+use violet_core::{style::IconSet, text::Source};
 
 /// All icon glyphs.
 pub mod icons;
@@ -25,4 +26,11 @@ pub mod icons;
 /// Icons font source
 pub fn font_source() -> Source {
     Source::Binary(Arc::new(include_bytes!("../bin/lucide/lucide.ttf")))
+}
+
+/// Returns an icon set for styling
+pub fn icon_set() -> IconSet {
+    IconSet {
+        chevron: LUCIDE_CHEVRON_RIGHT.into(),
+    }
 }

@@ -5,14 +5,14 @@ use flax::{
     filter::{self, All, Cmp, With},
     CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, Opt, OptOr, Query,
 };
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec4};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec4};
 use image::{DynamicImage, ImageBuffer};
 use palette::Srgba;
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{
-        anchor, color, computed_opacity, computed_visible, draw_shape, image, rect,
-        screen_clip_mask, screen_transform, widget_corner_radius,
+        color, computed_opacity, computed_visible, draw_shape, image, rect, screen_clip_mask,
+        screen_transform, widget_corner_radius,
     },
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
@@ -70,7 +70,7 @@ struct RectObjectQuery {
     rect: Component<Rect>,
     // screen_rect: Component<Rect>,
     // rotation: OptOr<Component<f32>, f32>,
-    anchor: OptOr<Component<Unit<Vec2>>, Unit<Vec2>>,
+    // anchor: OptOr<Component<Unit<Vec2>>, Unit<Vec2>>,
     // pos: Component<Vec2>,
     // local_pos: Component<Vec2>,
     color: OptOr<Component<Srgba>, Srgba>,
@@ -86,7 +86,6 @@ impl RectObjectQuery {
             // rotation: rotation().opt_or(0.0),
             rect: rect(),
             transform: screen_transform(),
-            anchor: anchor().opt_or_default(),
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
             corner_radius: widget_corner_radius().opt_or_default(),

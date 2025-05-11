@@ -33,6 +33,24 @@ impl ContainerStyle {
     }
 }
 
+/// The stack layout
+///
+/// A stack layout is the Swiss army knife of layouts.
+///
+/// It can be used to create a stacked arrangement of widgets, aligning widgets in a horizontal or
+/// vertical direction, or constraining and offsetting widgets within.
+///
+/// In short, this layout can works as one of the following:
+/// - Stack
+/// - Overlaying widgets
+/// - Horizontal or vertical alignment
+/// - Padding and margin with background colors (widgets don't inherently have a concept of "inner"
+///     content, as they are their own content)
+/// - Centering widgets (this isn't HTML :P)
+/// - Limiting and expanding size of widgets
+///
+/// Margins:
+/// By default, the stack layout will inherit the margins of the inner children
 pub struct Stack<W> {
     items: W,
 
@@ -56,19 +74,19 @@ impl<W> Stack<W> {
 
     /// Set the horizontal alignment
     pub fn with_horizontal_alignment(mut self, align: Align) -> Self {
-        self.layout.horizontal_alignment = align;
+        self.layout.alignment.horizontal = align;
         self
     }
 
     /// Set the vertical alignment
     pub fn with_vertical_alignment(mut self, align: Align) -> Self {
-        self.layout.vertical_alignment = align;
+        self.layout.alignment.vertical = align;
         self
     }
 
     pub fn with_alignment(mut self, horizontal: Align, vertical: Align) -> Self {
-        self.layout.horizontal_alignment = horizontal;
-        self.layout.vertical_alignment = vertical;
+        self.layout.alignment.horizontal = horizontal;
+        self.layout.alignment.vertical = vertical;
         self
     }
 

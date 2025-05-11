@@ -11,16 +11,16 @@ use flax::{
     entity_ids,
     events::{EventData, EventSubscriber},
     filter::Or,
-    BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, DfsBorrow, Entity, EntityBuilder,
-    Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
+    system, BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, DfsBorrow, Entity,
+    EntityBuilder, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
 use crate::{
     components::{
         self, children, clip_mask, computed_opacity, computed_visible, layout_args, layout_bounds,
-        local_position, opacity, rect, screen_clip_mask, screen_transform, text, transform,
-        visible,
+        local_position, opacity, rect, rotation, screen_clip_mask, screen_transform, text,
+        transform, transform_origin, translation, visible,
     },
     layout::{
         apply_layout,
@@ -216,6 +216,25 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
             }
         })
         .boxed()
+}
+
+/// Computes transform from rotation, translation, and transform origin
+// #[system(args(rotation=rotation().modified().copied(), translation=translation().modified().copied(), transform_origin=transform_origin().modified().copied()))]
+#[system]
+pub fn compute_transform_system(
+    transform: &mut Mat4,
+    rotation: f32,
+    translation: Vec2,
+    transform_origin: Vec2,
+    rect: Rect,
+) {
+    let size = rect.size();
+
+    let origin = transform_origin * size;
+    *transform = Mat4::from_translation(translation.extend(0.0))
+        * Mat4::from_translation(origin.extend(0.0))
+        * Mat4::from_rotation_z(rotation)
+        * Mat4::from_translation(-origin.extend(0.0));
 }
 
 #[derive(Fetch)]

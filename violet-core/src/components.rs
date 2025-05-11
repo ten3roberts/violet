@@ -7,12 +7,35 @@ use palette::Srgba;
 
 use crate::{
     assets::Asset,
-    layout::{Layout, LayoutArgs, SizeResolver},
+    layout::{Align, Layout, LayoutArgs, SizeResolver},
     stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
     Edges, Frame, Rect,
 };
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct LayoutAlignment {
+    pub horizontal: Align,
+    pub vertical: Align,
+}
+
+impl LayoutAlignment {
+    pub fn new(horizontal: Align, vertical: Align) -> Self {
+        Self {
+            horizontal,
+            vertical,
+        }
+    }
+}
+
+impl LayoutAlignment {
+    pub fn align(&self, total_size: Vec2, item_size: Vec2) -> Vec2 {
+        let x = self.horizontal.align_offset(total_size.x, item_size.x);
+        let y = self.vertical.align_offset(total_size.y, item_size.y);
+        Vec2::new(x, y)
+    }
+}
 
 component! {
     /// Ordered list of children for an entity
@@ -40,6 +63,12 @@ component! {
 
     /// Optional transform of the widget. Applied after layout
     pub transform: Mat4,
+
+    pub rotation: f32 => [ Debuggable ],
+
+    pub transform_origin: Vec2 => [ Debuggable ],
+
+    pub translation: Vec2 => [ Debuggable ],
 
     pub screen_transform: Mat4,
 
@@ -77,6 +106,11 @@ component! {
     ///
     /// Only applicable for containers
     pub padding: Edges => [ Debuggable ],
+
+    /// Override alignment of a single item for supported containers.
+    ///
+    /// Useful for aligning individual items within a [`Stack`](crate::widget::Stack)
+    pub item_align: LayoutAlignment => [ Debuggable ],
     /// Spacing between the item outer bounds and another items outer bounds
     ///
     /// Margins will be merged

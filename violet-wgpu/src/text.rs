@@ -103,8 +103,6 @@ impl SizeResolver for TextSizeResolver {
         //     tracing::error!(%entity, text=?state.text(), %min, %preferred, ?args.direction, %args.limits.max_size, "Text wrapping failed");
         // }
 
-        // tracing::info!(?wrapped_lines, ?preferred_lines, "Text wrapping results");
-
         (
             if args.direction.is_horizontal() {
                 most_wrapped
@@ -205,8 +203,6 @@ fn measure(buffer: &Buffer) -> (Vec2, BVec2, usize) {
                 }
             });
 
-    // tracing::info!(?total_lines, lines = buffer.lines.len(), "measure");
-
     (
         vec2(width, total_lines as f32 * buffer.metrics().line_height),
         BVec2::new(total_lines > buffer.lines.len(), false),
@@ -235,7 +231,7 @@ impl TextBufferState {
         self.buffer.set_rich_text(
             font_system,
             text.iter().map(|v| {
-                let color: Srgba<u8> = v.color.resolve(stylesheet).into_format();
+                let color: Srgba<u8> = v.color.resolve(*stylesheet).into_format();
 
                 (
                     &*v.text,

@@ -43,7 +43,7 @@ impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         self.size.mount(scope);
 
-        let c = self.color.resolve(&scope.stylesheet());
+        let c = self.color.resolve(scope.stylesheet());
 
         scope
             .set(draw_shape(shape::shape_rectangle()), ())
@@ -159,9 +159,9 @@ impl Widget for Text {
         self.size.mount(scope);
 
         let stylesheet = scope.stylesheet();
-        let font_size = self.style.font_size.resolve(&stylesheet);
+        let font_size = self.style.font_size.resolve(stylesheet);
 
-        let font_color = self.style.color.resolve(&stylesheet);
+        let font_color = self.style.color.resolve(stylesheet);
         scope
             .set(draw_shape(shape::shape_text()), ())
             .set(components::font_size(), font_size)

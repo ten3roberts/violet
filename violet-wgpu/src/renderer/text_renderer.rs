@@ -375,8 +375,6 @@ impl TextRenderer {
             .for_each(|item| {
                 let _span = tracing::debug_span!("update_mesh").entered();
 
-                // tracing::info!(%item.id, "update text mesh");
-
                 // Update intrinsic sizes
                 {
                     let mut buffer = item.state.buffer.borrow_with(&mut text_system.font_system);

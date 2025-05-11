@@ -11,8 +11,8 @@ use palette::{IntoColor, Oklab, Srgba};
 pub use self::color::*;
 use crate::{
     components::{
-        color, draw_shape, margin, max_size, maximize, min_size, padding, size,
-        widget_corner_radius,
+        color, draw_shape, item_align, margin, max_size, maximize, min_size, padding, size,
+        widget_corner_radius, LayoutAlignment,
     },
     input::interactive,
     shape::shape_rectangle,
@@ -60,6 +60,7 @@ pub struct WidgetSizeProps {
     pub padding: Option<ValueOrRef<Edges>>,
     pub corner_radius: Option<ValueOrRef<Unit<f32>>>,
     pub maximize: Option<Vec2>,
+    pub item_align: Option<LayoutAlignment>,
 }
 
 impl WidgetSizeProps {
@@ -70,9 +71,9 @@ impl WidgetSizeProps {
     pub fn mount(&self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let m = self.margin.map(|v| v.resolve(&stylesheet));
-        let p = self.padding.map(|v| v.resolve(&stylesheet));
-        let corner = self.corner_radius.map(|v| v.resolve(&stylesheet));
+        let m = self.margin.map(|v| v.resolve(stylesheet));
+        let p = self.padding.map(|v| v.resolve(stylesheet));
+        let corner = self.corner_radius.map(|v| v.resolve(stylesheet));
 
         scope
             .set_opt(margin(), m)
@@ -81,7 +82,8 @@ impl WidgetSizeProps {
             .set_opt(widget_corner_radius(), corner)
             .set_opt(min_size(), self.min_size)
             .set_opt(max_size(), self.max_size)
-            .set_opt(maximize(), self.maximize);
+            .set_opt(maximize(), self.maximize)
+            .set_opt(item_align(), self.item_align);
     }
 
     /// Set the size
@@ -123,6 +125,11 @@ impl WidgetSizeProps {
     /// Maximize the widget to the available size with the given weight.
     pub fn with_maximize(mut self, maximize: Vec2) -> Self {
         self.maximize = Some(maximize);
+        self
+    }
+
+    pub fn with_item_align(mut self, item_align: LayoutAlignment) -> Self {
+        self.item_align = Some(item_align);
         self
     }
 }
@@ -215,6 +222,15 @@ pub trait SizeExt {
         self
     }
 
+    /// Set the alignment of a single item for supported containers.
+    fn with_item_align(mut self, item_align: LayoutAlignment) -> Self
+    where
+        Self: Sized,
+    {
+        self.size_mut().item_align = Some(item_align);
+        self
+    }
+
     fn size_mut(&mut self) -> &mut WidgetSizeProps;
 }
 
@@ -252,12 +268,12 @@ impl<T> From<T> for ValueOrRef<T> {
     }
 }
 
-impl<T: Copy + ComponentValue> ResolvableStyle for ValueOrRef<T> {
+impl<T: Clone + ComponentValue> ResolvableStyle for ValueOrRef<T> {
     type Value = T;
-    fn resolve(self, stylesheet: &EntityRef<'_>) -> T {
+    fn resolve(&self, stylesheet: EntityRef<'_>) -> T {
         match self {
-            ValueOrRef::Value(value) => value,
-            ValueOrRef::Ref(component) => stylesheet.get_copy(component).unwrap(),
+            ValueOrRef::Value(value) => value.clone(),
+            ValueOrRef::Ref(component) => stylesheet.get_clone(*component).unwrap(),
         }
     }
 }
@@ -265,7 +281,7 @@ impl<T: Copy + ComponentValue> ResolvableStyle for ValueOrRef<T> {
 pub trait ResolvableStyle {
     type Value;
 
-    fn resolve(self, stylesheet: &EntityRef<'_>) -> Self::Value;
+    fn resolve(&self, stylesheet: EntityRef<'_>) -> Self::Value;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -281,7 +297,7 @@ impl Background {
     }
 
     pub fn mount(self, scope: &mut Scope) {
-        let c = self.color.resolve(&scope.stylesheet());
+        let c = self.color.resolve(scope.stylesheet());
         scope
             .set(draw_shape(shape_rectangle()), ())
             .set(color(), c)
@@ -309,23 +325,77 @@ pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
     entity.world().entity(id).unwrap()
 }
 
-pub fn setup_stylesheet() -> EntityBuilder {
-    let mut builder = Entity::builder();
+/// Provides a set of glyphs for the UI, such as chevrons, arrows, etc.
+pub struct IconSet {
+    pub chevron: String,
+}
 
-    ColorPalette::new().install(&mut builder);
+impl Default for IconSet {
+    fn default() -> Self {
+        Self {
+            chevron: ">".to_string(),
+        }
+    }
+}
 
-    builder
-        // spacing
-        .set(spacing_small(), 4.0.into())
-        .set(spacing_medium(), 8.0.into())
-        .set(spacing_large(), 16.0.into())
-        .set(default_corner_radius(), Unit::px(4.0))
-        // text size
-        .set(text_small(), 16.0)
-        .set(text_medium(), 24.0)
-        .set(text_large(), 36.0);
+/// Easily setup the default stylesheet
+pub struct StylesheetOptions {
+    pub icons: IconSet,
+    pub base_spacing: f32,
+    pub base_text_size: f32,
+}
 
-    builder
+impl StylesheetOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_icons(mut self, icons: IconSet) -> Self {
+        self.icons = icons;
+        self
+    }
+
+    pub fn with_base_spacing(mut self, base_spacing: f32) -> Self {
+        self.base_spacing = base_spacing;
+        self
+    }
+
+    pub fn with_base_text_size(mut self, base_text_size: f32) -> Self {
+        self.base_text_size = base_text_size;
+        self
+    }
+
+    /// Build the stylesheet entity
+    pub fn build(self) -> EntityBuilder {
+        let mut builder = Entity::builder();
+
+        ColorPalette::new().install(&mut builder);
+
+        builder
+            // spacing
+            .set(spacing_small(), Edges::even(self.base_spacing))
+            .set(spacing_medium(), Edges::even(self.base_spacing * 2.0))
+            .set(spacing_large(), Edges::even(self.base_spacing * 3.0))
+            .set(default_corner_radius(), Unit::px(4.0))
+            // text size
+            .set(text_small(), self.base_text_size)
+            .set(text_medium(), self.base_text_size * 1.25)
+            .set(text_large(), self.base_text_size * 1.5)
+            // icons
+            .set(icon_chevron(), self.icons.chevron);
+
+        builder
+    }
+}
+
+impl Default for StylesheetOptions {
+    fn default() -> Self {
+        Self {
+            icons: Default::default(),
+            base_spacing: 4.0,
+            base_text_size: 16.0,
+        }
+    }
 }
 
 // Declares components attached to the currently active stylesheet entity.
@@ -340,6 +410,8 @@ flax::component! {
     pub spacing_large: Edges,
 
     pub default_corner_radius: Unit<f32>,
+
+    pub icon_chevron: String,
 
     pub text_small: f32,
     pub text_medium: f32,

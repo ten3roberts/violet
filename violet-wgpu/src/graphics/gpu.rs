@@ -29,7 +29,6 @@ impl Surface {
     pub fn resize(&mut self, gpu: &Gpu, new_size: PhysicalSize<u32>) {
         tracing::info_span!("resize", ?new_size);
         if Some(new_size) == self.size {
-            tracing::info!(size=?new_size, "Duplicate resize message ignored");
             return;
         }
 
@@ -64,23 +63,17 @@ impl Surface {
 impl Gpu {
     // Creating some of the wgpu types requires async code
     pub async fn with_surface(window: Arc<Window>) -> (Self, Surface) {
-        tracing::info!("creating with surface");
-
         #[cfg(not(target_arch = "wasm32"))]
         let backends = Backends::all();
 
         #[cfg(target_arch = "wasm32")]
         let backends = Backends::GL;
 
-        tracing::info!(?backends);
-
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends,
             dx12_shader_compiler: Default::default(),
             ..Default::default()
         });
-
-        tracing::info!("creating surface");
 
         // # Safety
         //
