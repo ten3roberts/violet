@@ -158,4 +158,11 @@ component! {
     pub handles: Vec<UntypedHandle>,
 }
 
+component! {
+    /// Singleton app instance entity
+    pub app_instance,
+
+    pub delta_time: Duration,
+}
+
 pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration) + Send + Sync>;

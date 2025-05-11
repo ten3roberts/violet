@@ -3,9 +3,10 @@ use std::f32::consts::PI;
 use futures_signals::signal::Mutable;
 use glam::{vec2, BVec2};
 use palette::Srgba;
+use tween::Tweener;
 
 use crate::{
-    components::{max_size, rotation, transform_origin, translation},
+    components::{max_size, rect, rotation, transform_origin, translation},
     layout::Align,
     state::StateStream,
     stored::WeakHandle,
@@ -13,7 +14,9 @@ use crate::{
         icon_chevron, surface_secondary, Background, ResolvableStyle, SizeExt, StyleExt,
         ValueOrRef, WidgetSizeProps,
     },
+    tweens::tweens,
     unit::Unit,
+    utils::zip_latest,
     widget::{col, label, row, Button, ButtonStyle, Stack, Text},
     Scope, Widget,
 };
@@ -115,15 +118,24 @@ impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
             row((
                 |scope: &mut Scope| {
                     scope.spawn_stream(scope.read(&self.collapse).stream(), |scope, value| {
-                        scope
-                            .update_dedup(rotation(), !value as i32 as f32 * PI / 2.0)
-                            .unwrap();
+                        let current_rotation =
+                            scope.entity().get_copy(rotation()).unwrap_or_default();
+
+                        scope.add_tween(
+                            rotation(),
+                            Tweener::sine_in_out(
+                                current_rotation,
+                                !value as i32 as f32 * PI / 2.0,
+                                0.2,
+                            ),
+                        );
                     });
 
                     scope
                         .set(transform_origin(), vec2(0.5, 0.5))
                         .set_default(rotation())
-                        .set_default(translation());
+                        .set_default(translation())
+                        .set_default(tweens());
 
                     label(chevron).mount(scope);
                 },
@@ -147,22 +159,38 @@ struct CollapsibleContent<W> {
 
 impl<W: Widget> Widget for CollapsibleContent<W> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        scope.spawn_stream(scope.read(&self.collapsed).stream(), |scope, collapsed| {
-            if collapsed {
-                scope
-                    .update_dedup(max_size(), Unit::px2(f32::MAX, 0.0))
-                    .unwrap();
+        let inner_size = Mutable::new(Default::default());
+
+        let stream = zip_latest(scope.read(&self.collapsed).stream(), inner_size.stream());
+        scope.spawn_stream(stream, |scope, (collapsed, inner_size)| {
+            let old_size = if collapsed { inner_size } else { 0.0 };
+
+            let new_height = if collapsed {
+                Unit::px2(f32::MAX, 0.0)
             } else {
-                scope
-                    .update_dedup(max_size(), Unit::px2(f32::MAX, f32::MAX))
-                    .unwrap();
-            }
+                Unit::px2(f32::MAX, inner_size)
+            };
+
+            scope.add_tween(
+                max_size(),
+                Tweener::cubic_in_out(Unit::px2(f32::MAX, old_size), new_height, 0.2),
+            );
         });
 
-        scope.set(max_size(), Unit::px2(f32::MAX, f32::MAX));
-        Stack::new(self.inner)
-            .with_clip(BVec2::new(false, true))
-            .mount(scope);
+        scope
+            .set(max_size(), Unit::px2(f32::MAX, f32::MAX))
+            .set_default(tweens());
+        Stack::new(|scope: &mut Scope<'_>| {
+            scope.monitor(rect(), move |v| {
+                if let Some(v) = v {
+                    inner_size.set(v.size().y);
+                }
+            });
+
+            self.inner.mount(scope);
+        })
+        .with_clip(BVec2::new(false, true))
+        .mount(scope);
     }
 }
 

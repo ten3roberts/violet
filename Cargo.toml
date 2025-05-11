@@ -43,6 +43,7 @@ arrayvec = "0.7"
 sync_wrapper = "1.0"
 smallvec = "1.13"
 arboard = "3.4"
+tween = { version = "2.0.4", features = ["glam"] }
 
 bytemuck = { version = "1.17", features = ["derive"] }
 winit = "0.30"
@@ -127,6 +128,7 @@ opt-level = 2
 
 [patch.crates-io]
 palette = { git = "https://github.com/Ogeon/palette" }
+tween = { git = "https://github.com/ten3roberts/tween" }
 
 [profile.release]
 opt-level = 2

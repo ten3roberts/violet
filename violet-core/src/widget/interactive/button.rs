@@ -3,12 +3,13 @@ use palette::Srgba;
 use winit::event::{ElementState, MouseButton};
 
 use crate::{
-    components::{self},
+    components::color,
     input::{interactive, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
     state::{StateDuplex, StateExt, StateStream, WatchState},
     style::*,
+    tweens::tweens,
     unit::Unit,
     widget::{label, ContainerStyle, Stack, Text},
     Scope, Widget, WidgetCollection,
@@ -247,11 +248,14 @@ impl<W: Widget> Widget for Button<W> {
             .with_horizontal_alignment(Align::Center)
             .with_vertical_alignment(Align::Center);
 
+        scope.set_default(tweens());
+
         InteractiveWidget::new(inner)
             .with_size_props(self.size)
             .on_click(move |scope| (self.on_click)(scope))
             .on_press(move |scope, state| {
-                let color = if state.is_pressed() { pressed } else { normal };
+                // let current_color = scope.get(color());
+                let new_color = if state.is_pressed() { pressed } else { normal };
 
                 // scope
                 //     .world()
@@ -259,7 +263,9 @@ impl<W: Widget> Widget for Button<W> {
                 //     .unwrap()
                 //     .update_dedup(components::color(), color.element);
 
-                scope.update_dedup(components::color(), color.surface);
+                // TODO: support tween for Srgba
+                // scope.add_tween(color(), Tweener::linear(current_color, color.surface, 0.2));
+                scope.update_dedup(color(), new_color.surface);
             })
             .with_tooltip_opt(self.tooltip)
             .mount(scope);
@@ -309,15 +315,15 @@ impl<W: Widget> Widget for Checkbox<W> {
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
-                let color = if state { pressed } else { normal };
+                let new_color = if state { pressed } else { normal };
 
                 scope
                     .world()
                     .entity(content)
                     .unwrap()
-                    .update_dedup(components::color(), color.element);
+                    .update_dedup(color(), new_color.element);
 
-                scope.set(components::color(), color.surface);
+                scope.set(color(), new_color.surface);
             }
         });
 
@@ -404,14 +410,14 @@ impl<W: Widget> Widget for Radio<W> {
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
-                let color = if state { pressed } else { normal };
+                let new_color = if state { pressed } else { normal };
 
                 scope
                     .world()
                     .entity(content)
                     .unwrap()
-                    .update_dedup(components::color(), color.element);
-                scope.set(components::color(), color.surface);
+                    .update_dedup(color(), new_color.element);
+                scope.set(color(), new_color.surface);
             }
         });
 

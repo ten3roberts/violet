@@ -29,6 +29,7 @@ tynm.workspace = true
 arrayvec.workspace = true
 sync_wrapper.workspace = true
 ropey.workspace = true
+tween.workspace = true
 
 bytemuck.workspace = true
 palette.workspace = true

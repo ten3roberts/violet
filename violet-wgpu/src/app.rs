@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, rect},
+    components::{self, app_instance, delta_time, rect},
     executor::Executor,
     input::{request_focus_sender, InputState},
     io::{self, Clipboard},
@@ -17,6 +17,7 @@ use violet_core::{
         compute_transform_system, hydrate_text, invalidate_cached_layout_system, layout_system,
         templating_system, transform_system,
     },
+    tweens,
     widget::interactive::overlay::OverlayStack,
     Frame, FutureEffect, Rect, Scope, Widget,
 };
@@ -210,6 +211,7 @@ impl AppInstance {
             .with_system(register_text_buffers(text_system.clone()))
             .flush()
             .with_system(update_text_buffers(text_system.clone()))
+            .with_system(tweens::update_tweens_system())
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(layout_system(root, resize_canvas))
             .with_system(compute_transform_system())
@@ -270,13 +272,24 @@ impl AppInstance {
 
         let new_time = Instant::now();
 
+        let delta_time = new_time - self.current_time;
         self.current_time = new_time;
 
         self.executor.tick(&mut self.frame);
 
-        update_animations(&mut self.frame, self.current_time - self.start_time);
+        let elapsed = self.current_time - self.start_time;
+        update_animations(&mut self.frame, elapsed);
 
         {
+            self.frame
+                .world
+                .set(
+                    app_instance(),
+                    violet_core::components::delta_time(),
+                    delta_time,
+                )
+                .unwrap();
+
             self.schedule.execute_seq(&mut self.frame.world).unwrap();
         }
     }

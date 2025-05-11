@@ -4,16 +4,17 @@ use std::{
     task::{Context, Poll},
 };
 
-use atomic_refcell::AtomicRef;
+use atomic_refcell::{AtomicRef, AtomicRefMut};
 use flax::{
     component::ComponentValue,
     components::{child_of, name},
     entity_ids,
     error::MissingComponent,
-    Component, Entity, EntityBuilder, EntityRef, EntityRefMut, Query, World,
+    Component, Entity, EntityBuilder, EntityRef, EntityRefMut, Query, RefMut, World,
 };
 use futures::{Future, Stream};
 use pin_project::pin_project;
+use tween::{Tween, TweenValue, Tweener};
 
 use crate::{
     assets::AssetCache,
@@ -24,7 +25,7 @@ use crate::{
     stored::{UntypedHandle, WeakHandle},
     style::get_stylesheet_from_entity,
     systems::widget_template,
-    Frame, FutureEffect, StreamEffect, Widget,
+    tweens, Frame, FutureEffect, StreamEffect, Widget,
 };
 
 /// The scope to modify and mount a widget
@@ -140,6 +141,18 @@ impl<'a> Scope<'a> {
     pub fn entity_mut(&mut self) -> EntityRefMut {
         self.flush();
         self.frame.world_mut().entity_mut(self.id).unwrap()
+    }
+
+    pub fn add_tween<T: ComponentValue + TweenValue, A: 'static + Send + Sync + Tween<T>>(
+        &mut self,
+        component: Component<T>,
+        tween: Tweener<T, f32, A>,
+    ) {
+        self.flush();
+        self.entity_mut()
+            .entry(tweens::tweens())
+            .or_default()
+            .add_tween(component, tween);
     }
 
     /// Attaches a widget in a sub-scope.
@@ -486,6 +499,18 @@ impl<'a> ScopeRef<'a> {
 
     pub fn get_context_cloned<T: ComponentValue + Clone>(&self, context: Component<T>) -> T {
         self.get_context(context).clone()
+    }
+
+    pub fn add_tween<T: ComponentValue + TweenValue, A: 'static + Send + Sync + Tween<T>>(
+        &mut self,
+        component: Component<T>,
+        tween: Tweener<T, f32, A>,
+    ) -> Result<(), MissingComponent> {
+        self.entity()
+            .get_mut(tweens::tweens())?
+            .add_tween(component, tween);
+
+        Ok(())
     }
 }
 

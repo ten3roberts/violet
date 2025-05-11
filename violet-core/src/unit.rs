@@ -4,6 +4,7 @@ use std::{
 };
 
 use glam::{BVec2, IVec2, Vec2};
+use tween::TweenValue;
 
 /// Represents a unit of measurement
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -159,6 +160,28 @@ impl Mul<f32> for Unit<Vec2> {
     }
 }
 
+impl Mul<Self> for Unit<Vec2> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            px: self.px * rhs.px,
+            rel: self.rel * rhs.rel,
+        }
+    }
+}
+
+impl Add<Vec2> for Unit<Vec2> {
+    type Output = Self;
+
+    fn add(self, rhs: Vec2) -> Self::Output {
+        Self {
+            px: self.px + rhs,
+            rel: self.rel + rhs,
+        }
+    }
+}
+
 impl MulAssign<f32> for Unit<Vec2> {
     fn mul_assign(&mut self, rhs: f32) {
         self.px *= rhs;
@@ -169,5 +192,17 @@ impl MulAssign<f32> for Unit<Vec2> {
 impl<T: Display> Display for Unit<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "(px: {}, rel: {})", self.px, self.rel)
+    }
+}
+
+impl<T: TweenValue> TweenValue for Unit<T>
+where
+    T: Mul<Output = T> + Add<Output = T>,
+{
+    fn scale(self, scale: f32) -> Self {
+        Self {
+            px: self.px.scale(scale),
+            rel: self.rel.scale(scale),
+        }
     }
 }
