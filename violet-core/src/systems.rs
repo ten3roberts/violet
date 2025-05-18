@@ -47,6 +47,7 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
     entity
         .set(flax::components::name(), name)
         .set_default(screen_transform())
+        .set_default(children())
         .set(visible(), true)
         .set(computed_visible(), true)
         .set(opacity(), 1.0)

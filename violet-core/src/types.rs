@@ -113,6 +113,10 @@ impl Edges {
         vec2(self.right, self.bottom)
     }
 
+    pub fn bottomleft(&self) -> Vec2 {
+        vec2(self.left, self.bottom)
+    }
+
     pub fn max(&self, other: Self) -> Self {
         Self {
             left: self.left.max(other.left),

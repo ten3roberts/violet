@@ -318,6 +318,10 @@ impl AppInstance {
         self.root
     }
 
+    pub fn root_scope(&mut self) -> Scope<'_> {
+        Scope::try_from_id(&mut self.frame, self.root).expect("Invalid root scope")
+    }
+
     pub fn text_system(&self) -> &Arc<Mutex<TextSystem>> {
         &self.text_system
     }

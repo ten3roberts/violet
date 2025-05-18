@@ -72,7 +72,11 @@ impl<W> Collapsible<Text, W> {
 }
 
 impl<L, W> Collapsible<L, W> {
-    pub fn new(label: L, inner: W) -> Self {
+    pub fn new(label: L, inner: W) -> Self
+    where
+        L: Widget,
+        W: Widget,
+    {
         Self {
             size: Default::default(),
             inner,
@@ -99,6 +103,7 @@ impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
         ))
         .with_background(Background::new(self.style.content))
         .with_stretch(true)
+        .with_size_props(self.size)
         .mount(scope);
     }
 }
@@ -159,21 +164,27 @@ struct CollapsibleContent<W> {
 
 impl<W: Widget> Widget for CollapsibleContent<W> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        let inner_size = Mutable::new(Default::default());
+        let inner_size = Mutable::new(None);
+        let mut old_size = None;
 
         let stream = zip_latest(scope.read(&self.collapsed).stream(), inner_size.stream());
-        scope.spawn_stream(stream, |scope, (collapsed, inner_size)| {
-            let old_size = if collapsed { inner_size } else { 0.0 };
-
-            let new_height = if collapsed {
-                Unit::px2(f32::MAX, 0.0)
-            } else {
-                Unit::px2(f32::MAX, inner_size)
+        scope.spawn_stream(stream, move |scope, (collapsed, inner_size)| {
+            let Some(inner_size) = inner_size else {
+                return;
             };
+            // let old_size = if collapsed { inner_size } else { 0.0 };
+
+            let new_height = if collapsed { 0.0 } else { inner_size };
+
+            let old_size = old_size.replace(new_height).unwrap_or(new_height);
 
             scope.add_tween(
                 max_size(),
-                Tweener::cubic_in_out(Unit::px2(f32::MAX, old_size), new_height, 0.2),
+                Tweener::cubic_in_out(
+                    Unit::px2(f32::MAX, old_size),
+                    Unit::px2(f32::MAX, new_height),
+                    0.2,
+                ),
             );
         });
 
@@ -183,7 +194,7 @@ impl<W: Widget> Widget for CollapsibleContent<W> {
         Stack::new(|scope: &mut Scope<'_>| {
             scope.monitor(rect(), move |v| {
                 if let Some(v) = v {
-                    inner_size.set(v.size().y);
+                    inner_size.set(Some(v.size().y));
                 }
             });
 

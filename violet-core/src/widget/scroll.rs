@@ -8,8 +8,8 @@ use crate::{
     input::{interactive, on_scroll},
     state::{StateMut, StateStream},
     style::{
-        default_corner_radius, surface_interactive_accent, Background, ResolvableStyle, SizeExt,
-        WidgetSizeProps,
+        default_corner_radius, scrollbar_size, spacing_small, surface_interactive_accent,
+        Background, ResolvableStyle, SizeExt, WidgetSizeProps,
     },
     to_owned,
     unit::Unit,
@@ -70,8 +70,6 @@ impl<W> ScrollArea<W> {
     }
 }
 
-const SCROLLBAR_SIZE: f32 = 8.0;
-
 impl<W: Widget> Widget for ScrollArea<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let size = Mutable::new(Vec2::ZERO);
@@ -102,19 +100,27 @@ impl<W: Widget> Widget for ScrollArea<W> {
         let scroll = zip_latest(size.stream(), outer_size.stream())
             .map(|(size, outer_size)| size.cmpgt(outer_size));
 
-        scope.spawn_stream(scroll, |scope, needs_scroll| {
-            scope
-                .update_dedup(
-                    padding(),
-                    Edges::new(
-                        0.0,
-                        needs_scroll.y as u32 as f32 * SCROLLBAR_SIZE,
-                        0.0,
-                        needs_scroll.x as u32 as f32 * SCROLLBAR_SIZE,
-                    ),
-                )
-                .unwrap();
-        });
+        let stylesheet = scope.stylesheet();
+
+        let scrollbar_size = stylesheet.get_copy(scrollbar_size()).unwrap_or_default();
+        // let scrollbar_padding = stylesheet.get_copy(spacing_small()).unwrap_or_default();
+        let scrollbar_padding = Edges::even(8.0);
+
+        // scope.spawn_stream(scroll, move |scope, needs_scroll| {
+        //     scope
+        //         .update_dedup(
+        //             padding(),
+        //             Edges::new(
+        //                 0.0,
+        //                 needs_scroll.y as u32 as f32
+        //                     * (scrollbar_size + scrollbar_padding.left + scrollbar_padding.right),
+        //                 0.0,
+        //                 needs_scroll.x as u32 as f32
+        //                     * (scrollbar_size + scrollbar_padding.bottom + scrollbar_padding.top),
+        //             ),
+        //         )
+        //         .unwrap();
+        // });
 
         let padded_scroll_area = {
             to_owned![scroll_pos, size, outer_size];
@@ -151,22 +157,27 @@ impl<W: Widget> Widget for ScrollArea<W> {
                 outer_size: outer_size.clone(),
                 scroll_pos: scroll_pos.clone(),
                 axis: Vec2::X,
+                scrollbar_size,
+                scrollbar_padding,
             },
             Scrollbar {
                 size,
                 outer_size,
                 scroll_pos,
                 axis: Vec2::Y,
+                scrollbar_size,
+                scrollbar_padding,
             },
         ))
         .with_padding(
-            padding
-                + Edges {
-                    left: 0.0,
-                    right: SCROLLBAR_SIZE,
-                    top: 0.0,
-                    bottom: SCROLLBAR_SIZE,
-                },
+            padding,
+            // padding
+            //     + Edges {
+            //         left: 0.0,
+            //         right: scrollbar_size, //+ scrollbar_padding.left + scrollbar_padding.right * 0.0,
+            //         top: 0.0,
+            //         bottom: scrollbar_size, // + scrollbar_padding.bottom + scrollbar_padding.top * 0.0,
+            //     },
         )
         .with_background_opt(self.background)
         .mount(scope)
@@ -184,6 +195,8 @@ struct Scrollbar {
     size: Mutable<Vec2>,
     outer_size: Mutable<Vec2>,
     scroll_pos: Mutable<Vec2>,
+    scrollbar_size: f32,
+    scrollbar_padding: Edges,
 }
 
 impl Widget for Scrollbar {
@@ -209,12 +222,16 @@ impl Widget for Scrollbar {
             let progress = ((pos / size) * outer_size).min(outer_size - h) * self.axis;
 
             let perp = vec2(self.axis.y, self.axis.x);
+            let padded_outer_size = outer_size + self.scrollbar_padding.topleft();
 
-            (h + perp * SCROLLBAR_SIZE, progress + outer_size * perp)
+            (
+                h + perp * self.scrollbar_size,
+                progress + padded_outer_size * perp,
+            )
         });
 
         let handle = |scope: &mut Scope<'_>| {
-            scope.spawn_stream(stream, |scope, (size, pos)| {
+            scope.spawn_stream(stream, move |scope, (size, pos)| {
                 scope.update_dedup(min_size(), Unit::px(size)).unwrap();
                 scope.update_dedup(offset(), Unit::px(pos)).unwrap();
             });
@@ -229,6 +246,7 @@ impl Widget for Scrollbar {
                 let outer_size = outer_size.get();
                 let max_scroll = (size - outer_size).max(Vec2::ZERO);
                 let new_scroll_pos = (v / outer_size * size).clamp(Vec2::ZERO, max_scroll);
+
                 scroll_pos.write_mut(|v| {
                     let perp = self.axis.yx();
                     *v = *v * perp + new_scroll_pos * self.axis;

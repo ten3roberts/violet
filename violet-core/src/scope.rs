@@ -4,13 +4,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use atomic_refcell::{AtomicRef, AtomicRefMut};
+use atomic_refcell::AtomicRef;
 use flax::{
     component::ComponentValue,
     components::{child_of, name},
     entity_ids,
     error::MissingComponent,
-    Component, Entity, EntityBuilder, EntityRef, EntityRefMut, Query, RefMut, World,
+    Component, Entity, EntityBuilder, EntityRef, EntityRefMut, Query, World,
 };
 use futures::{Future, Stream};
 use pin_project::pin_project;
@@ -56,7 +56,7 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub(crate) fn try_from_id(frame: &'a mut Frame, id: Entity) -> Option<Self> {
+    pub fn try_from_id(frame: &'a mut Frame, id: Entity) -> Option<Self> {
         if frame.world().is_alive(id) {
             Some(Self {
                 frame,
@@ -232,6 +232,13 @@ impl<'a> Scope<'a> {
             .retain(|&x| x != id);
 
         self.frame.world.despawn_recursive(id, child_of).unwrap();
+    }
+
+    pub fn detach_all(&mut self) {
+        let children = self.children().clone();
+        for child in children.iter() {
+            self.detach(*child);
+        }
     }
 
     pub fn children(&self) -> AtomicRef<'_, Vec<Entity>> {

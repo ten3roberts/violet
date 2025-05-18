@@ -31,9 +31,9 @@ use violet::core::{
     unit::Unit,
     utils::zip_latest,
     widget::{
-        card, col, header, label, panel, row, Button, Checkbox, EmptyWidget, InteractiveExt, Radio,
-        Rectangle, ScrollArea, SignalWidget, SliderStyle, SliderValue, SliderWithLabel, Stack,
-        StreamWidget, Text, TextInput, WidgetExt,
+        card, col, header, label, panel, row, Button, Checkbox, Collapsible, EmptyWidget,
+        InteractiveExt, Radio, Rectangle, ScrollArea, SignalWidget, SliderStyle, SliderValue,
+        SliderWithLabel, Stack, StreamWidget, Text, TextInput, WidgetExt,
     },
     FutureEffect, Scope, ScopeRef, Widget,
 };
@@ -71,72 +71,61 @@ impl Default for AutoPaletteSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            min_lum: 0.17,
-            max_lum: 0.97,
-            falloff: 15.0,
+            min_lum: 0.15,
+            max_lum: 0.95,
+            falloff: 10.0,
         }
     }
 }
 
 pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget {
-    let open = Mutable::new(false);
-    let checkbox = Checkbox::label("Auto Tints", open.clone());
+    let settings_widget = col((
+        Checkbox::label(
+            "Enabled",
+            settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
+        ),
+        row((
+            col((
+                header("Min Lightness"),
+                header("Max Lightness"),
+                header("Chroma Falloff"),
+            )),
+            col((
+                precise_slider(
+                    settings.clone().transform(
+                        |v| v.min_lum,
+                        |settings, v| {
+                            settings.min_lum = v;
+                            settings.max_lum = settings.max_lum.max(v);
+                        },
+                    ),
+                    0.0,
+                    1.0,
+                )
+                .precision(ROUNDING),
+                precise_slider(
+                    settings.clone().transform(
+                        |v| v.max_lum,
+                        |settings, v| {
+                            settings.max_lum = v;
+                            settings.min_lum = settings.min_lum.min(v);
+                        },
+                    ),
+                    0.0,
+                    1.0,
+                )
+                .precision(ROUNDING),
+                precise_slider(
+                    settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
+                    0.0,
+                    30.0,
+                )
+                .precision(ROUNDING),
+            )),
+        )),
+    ));
 
-    let settings2 = settings.clone();
-    let stream_widget = StreamWidget::new(open.signal().dedupe().to_stream().map(move |enabled| {
-        if enabled {
-            (col((
-                Checkbox::label(
-                    "Enabled",
-                    settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
-                ),
-                row((
-                    col((
-                        header("Min Lightness"),
-                        header("Max Lightness"),
-                        header("Chroma Falloff"),
-                    )),
-                    col((
-                        precise_slider(
-                            settings.clone().transform(
-                                |v| v.min_lum,
-                                |settings, v| {
-                                    settings.min_lum = v;
-                                    settings.max_lum = settings.max_lum.max(v);
-                                },
-                            ),
-                            0.0,
-                            1.0,
-                        )
-                        .precision(ROUNDING),
-                        precise_slider(
-                            settings.clone().transform(
-                                |v| v.max_lum,
-                                |settings, v| {
-                                    settings.max_lum = v;
-                                    settings.min_lum = settings.min_lum.min(v);
-                                },
-                            ),
-                            0.0,
-                            1.0,
-                        )
-                        .precision(ROUNDING),
-                        precise_slider(
-                            settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
-                            0.0,
-                            30.0,
-                        )
-                        .precision(ROUNDING),
-                    )),
-                )),
-            )))
-            .boxed()
-        } else {
-            EmptyWidget.boxed()
-        }
-    }));
-
-    let enabled_indicator = SignalWidget::new(settings2.signal().map(|v| v.enabled).dedupe().map(
+    let enabled_indicator = SignalWidget::new(settings.signal().map(|v| v.enabled).dedupe().map(
         |enabled| {
             Rectangle::new(if enabled {
                 surface_pressed()
@@ -148,21 +137,17 @@ pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget
         },
     ))
     .on_press(move |_| {
-        let enabled = &mut settings2.lock_mut().enabled;
+        let enabled = &mut settings.lock_mut().enabled;
         *enabled = !*enabled;
         None
     });
 
     card(
-        col((
-            row((
-                checkbox,
-                label("Configure automatic shades"),
-                enabled_indicator,
-            ))
-            .with_cross_align(Align::Center),
-            stream_widget,
-        ))
+        Collapsible::new(
+            row((label("Configure auto shades"), enabled_indicator))
+                .with_cross_align(Align::Center),
+            settings_widget,
+        )
         .with_size(Unit::px2(950.0, 0.0)),
     )
 }
@@ -513,6 +498,7 @@ fn swatch_editor(
             .with_aspect_ratio(1.0)
             .with_min_size(Unit::px2(300.0, 300.0))
             .with_margin(spacing_small())
+            .with_corner_radius(default_corner_radius())
     });
 
     card(

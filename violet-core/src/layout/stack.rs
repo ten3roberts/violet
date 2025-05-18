@@ -179,11 +179,11 @@ impl StackLayout {
         let preferred = preferred_rect.max_size(preferred_size);
 
         // if clip, clamp to limited max size, otherwise, clip to max
-        let clamp_size = args.limits.max_size * clip + Vec2::MAX * (1.0 - clip);
+        let scissor_size = args.limits.max_size * clip + Vec2::MAX * (1.0 - clip);
 
         Sizing {
             min: min.min_size((1.0 - clip) * min.size()),
-            preferred: preferred.min_size(clamp_size),
+            preferred: preferred.clamp_size(min.size(), scissor_size),
             margin: min_margin.max(preferred_margin),
             hints,
             maximize,
