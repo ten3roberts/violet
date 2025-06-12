@@ -11,15 +11,14 @@ use violet_core::{
 };
 use wgpu::{BindGroup, BindGroupLayout, SamplerDescriptor, ShaderStages, TextureFormat};
 
-use super::{
-    rect_renderer::ImageFromColor, DrawCommand, ObjectData, RendererContext, RendererStore,
-};
+use super::{rect_renderer::ImageFromColor, ObjectData, RendererContext, RendererStore};
 use crate::{
     graphics::{
         shader::ShaderDesc, texture::Texture, BindGroupBuilder, BindGroupLayoutBuilder, Shader,
         Vertex, VertexDesc,
     },
     mesh_buffer::MeshHandle,
+    renderer::ComputedDrawCommand,
 };
 
 pub struct DebugRenderer {
@@ -31,7 +30,7 @@ pub struct DebugRenderer {
 
     layout_changes_rx: flume::Receiver<(Entity, LayoutUpdateEvent)>,
     layout_changes: BTreeMap<(Entity, LayoutUpdateEvent), usize>,
-    objects: Vec<(DrawCommand, ObjectData)>,
+    objects: Vec<(ComputedDrawCommand, ObjectData)>,
 }
 
 impl DebugRenderer {
@@ -153,7 +152,7 @@ impl DebugRenderer {
             };
 
             Some((
-                DrawCommand {
+                ComputedDrawCommand {
                     shader: shader.clone(),
                     bind_group: self.bind_group.clone(),
                     mesh: self.mesh.clone(),
@@ -175,7 +174,7 @@ impl DebugRenderer {
         });
     }
 
-    pub fn draw_commands(&self) -> &[(DrawCommand, ObjectData)] {
+    pub fn draw_commands(&self) -> &[(ComputedDrawCommand, ObjectData)] {
         &self.objects
     }
 }

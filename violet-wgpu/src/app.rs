@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
-    components::{self, app_instance, delta_time, rect},
+    components::{self, app_instance, rect},
     executor::Executor,
     input::{request_focus_sender, InputState},
     io::{self, Clipboard},
@@ -192,6 +192,8 @@ impl AppInstance {
 
         let stylesheet = stylesheet.spawn(frame.world_mut());
 
+        let system = transform_system(&mut frame.world);
+
         let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
         frame.set_atom(io::clipboard(), clipboard);
 
@@ -215,7 +217,7 @@ impl AppInstance {
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(layout_system(root, resize_canvas))
             .with_system(compute_transform_system())
-            .with_system(transform_system(root));
+            .with_system(system);
 
         let input_state = InputState::new(root, Vec2::ZERO, request_focus_rx);
 

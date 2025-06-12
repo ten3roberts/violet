@@ -81,12 +81,13 @@ pub fn multi_app() -> impl Widget {
             label,
             state.clone().map_value(move |s| s == value, move |_| value),
         )
-        .with_margin(Edges::ZERO)
         .with_style(ButtonStyle {
             normal: ColorPair::new(transparent, element_interactive()),
             pressed: ColorPair::new(surface_pressed(), element_pressed()),
             hover: ColorPair::new(surface_hover(), element_hover()),
+            size: Default::default(),
         })
+        .with_margin(Edges::ZERO)
     };
 
     let selection = col((

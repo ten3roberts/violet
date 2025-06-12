@@ -12,7 +12,7 @@ use palette::Srgba;
 use parking_lot::Mutex;
 use smallvec::SmallVec;
 use violet_core::{
-    components::{children, computed_visible, draw_shape},
+    components::{children, computed_visible, draw_shape, screen_clip_mask},
     layout::cache::LayoutUpdateEvent,
     stored::{self, Store},
     Frame, Rect,
@@ -110,13 +110,21 @@ pub(crate) struct DrawCommand {
     pub(crate) mesh: Arc<MeshHandle>,
     /// TODO: generate inside renderer
     pub(crate) index_count: u32,
-    clip_mask: Rect,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ComputedDrawCommand {
+    pub(crate) shader: stored::Handle<Shader>,
+    pub(crate) bind_group: stored::Handle<BindGroup>,
+    pub(crate) mesh: Arc<MeshHandle>,
+    pub(crate) index_count: u32,
+    pub(crate) clip_mask: Rect,
 }
 
 /// Compatible draw commands are given an instance in the object buffer and merged together
 #[derive(Debug)]
 struct InstancedDrawCommand {
-    draw_cmd: DrawCommand,
+    draw_cmd: ComputedDrawCommand,
     first_instance: u32,
     instance_count: u32,
 }
@@ -135,6 +143,7 @@ pub(crate) struct DrawQuery {
     pub(crate) shape: NthRelation<()>,
     pub(crate) draw_cmd: Component<DrawCommand>,
     pub(crate) visible: Component<bool>,
+    pub(crate) clip_mask: Component<Rect>,
 }
 
 impl DrawQuery {
@@ -145,6 +154,7 @@ impl DrawQuery {
             shape: draw_shape.first_relation(),
             draw_cmd: draw_cmd(),
             visible: computed_visible(),
+            clip_mask: screen_clip_mask(),
         }
     }
 }
@@ -324,8 +334,15 @@ impl MainRenderer {
                 if !item.visible {
                     return None;
                 }
+                let cmd = ComputedDrawCommand {
+                    shader: item.draw_cmd.shader.clone(),
+                    bind_group: item.draw_cmd.bind_group.clone(),
+                    mesh: item.draw_cmd.mesh.clone(),
+                    index_count: item.draw_cmd.index_count,
+                    clip_mask: *item.clip_mask,
+                };
 
-                Some((item.draw_cmd.clone(), *item.object_data))
+                Some((cmd, *item.object_data))
             })
             .chain(
                 self.debug_renderer
@@ -411,7 +428,7 @@ impl MainRenderer {
 }
 
 fn collect_draw_commands(
-    entities: impl Iterator<Item = (DrawCommand, ObjectData)>,
+    entities: impl Iterator<Item = (ComputedDrawCommand, ObjectData)>,
     objects: &mut Vec<ObjectData>,
     draw_cmds: &mut Vec<(usize, InstancedDrawCommand)>,
 ) {

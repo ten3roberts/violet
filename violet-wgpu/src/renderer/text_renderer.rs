@@ -14,8 +14,7 @@ use parking_lot::Mutex;
 use violet_core::{
     assets::AssetCache,
     components::{
-        color, computed_visible, draw_shape, font_size, layout_bounds, rect, screen_clip_mask,
-        screen_transform, text,
+        color, computed_visible, draw_shape, font_size, layout_bounds, rect, screen_transform, text,
     },
     shape::shape_text,
     stored::{self, Handle},
@@ -295,9 +294,6 @@ pub(crate) struct TextMeshQuery {
     text: Component<Vec<TextSegment>>,
     layout_bounds: Component<Vec2>,
     font_size: OptOr<Component<f32>, f32>,
-
-    // #[fetch(ignore)]
-    clip_mask: Component<Rect>,
 }
 
 impl TextMeshQuery {
@@ -311,7 +307,6 @@ impl TextMeshQuery {
             layout_bounds: layout_bounds(),
             font_size: font_size().opt_or(16.0),
             state: text_buffer_state().as_mut(),
-            clip_mask: screen_clip_mask(),
         }
     }
 }
@@ -419,7 +414,6 @@ impl TextRenderer {
                         shader: self.mesh_generator.shader.clone(),
                         mesh: text_mesh.clone(),
                         index_count,
-                        clip_mask: *item.clip_mask,
                     },
                 );
 

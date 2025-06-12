@@ -2,7 +2,7 @@ use std::{convert::Infallible, sync::Arc};
 
 use flax::{
     entity_ids,
-    filter::{self, All, Cmp, With},
+    filter::{All, With},
     CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, Opt, OptOr, Query,
 };
 use glam::{vec2, vec3, vec4, Mat4, Quat, Vec4};
@@ -11,8 +11,7 @@ use palette::Srgba;
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{
-        color, computed_opacity, computed_visible, draw_shape, image, rect, screen_clip_mask,
-        screen_transform, widget_corner_radius,
+        color, computed_opacity, draw_shape, image, rect, screen_transform, widget_corner_radius,
     },
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
@@ -102,8 +101,6 @@ struct RectDrawQuery {
     image: Opt<Component<Asset<DynamicImage>>>,
     texture_handle: Opt<Component<Option<Asset<TextureView>>>>,
     shape: Component<()>,
-    clip_mask: Component<Rect>,
-    visible: Cmp<Component<bool>, filter::Equal<bool>>,
 }
 
 impl RectDrawQuery {
@@ -113,8 +110,6 @@ impl RectDrawQuery {
             image: image().opt(),
             texture_handle: texture_handle().opt(),
             shape: draw_shape(shape::shape_rectangle()),
-            clip_mask: screen_clip_mask(),
-            visible: computed_visible().eq(true),
         }
     }
 }
@@ -252,7 +247,6 @@ impl RectRenderer {
                         shader: self.shader.clone(),
                         mesh: self.mesh.clone(),
                         index_count: 6,
-                        clip_mask: *item.clip_mask,
                     },
                 );
             });

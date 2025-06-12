@@ -2,17 +2,16 @@ use std::sync::Arc;
 
 use cosmic_text::Wrap;
 use flax::{
-    components::child_of,
     entity_ids,
-    fetch::{Modified, TransformFetch},
+    fetch::{entity_refs, EntityRefs, Modified, TransformFetch},
     BoxedSystem, CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, OptOr, Query,
-    QueryBorrow, RelationExt, System, World,
+    QueryBorrow, System,
 };
 use parking_lot::Mutex;
 use puffin::profile_scope;
 use violet_core::{
     components::{font_size, layout_glyphs, size_resolver, text, text_wrap},
-    style::stylesheet,
+    style::get_stylesheet_from_entity,
     text::{LayoutGlyphs, TextSegment},
 };
 
@@ -26,7 +25,7 @@ use crate::text::TextSystem;
 #[fetch(transforms = [Modified])]
 struct TextBufferQuery {
     #[fetch(ignore)]
-    id: EntityIds,
+    entity: EntityRefs,
     #[fetch(ignore)]
     state: ComponentMut<TextBufferState>,
     text: Component<Vec<TextSegment>>,
@@ -37,41 +36,30 @@ struct TextBufferQuery {
 impl TextBufferQuery {
     fn new() -> Self {
         Self {
-            id: entity_ids(),
+            entity: entity_refs(),
             state: text_buffer_state().as_mut(),
             // layout_bounds: layout_bounds(),
             text: text(),
             // rect: rect(),
             font_size: font_size(),
             wrap: text_wrap().opt_or(Wrap::Word),
-            // layout_glyphs: layout_glyphs().as_mut(),
         }
     }
 }
 
 /// Updates text buffers with new text and layout information.
 pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
-    let stylesheet_query = stylesheet.first_relation().traverse(child_of);
     System::builder()
-        .with_world()
-        .with_query(Query::new((
-            stylesheet_query,
-            TextBufferQuery::new().modified(),
-        )))
+        .with_query(Query::new(TextBufferQuery::new().modified()))
         .build(
-            move |world: &World,
-                  mut query: QueryBorrow<
-                (_, <TextBufferQuery as TransformFetch<Modified>>::Output),
+            move |mut query: QueryBorrow<
+                <TextBufferQuery as TransformFetch<Modified>>::Output,
                 _,
             >| {
-                puffin::profile_scope!("update_text_buffers");
                 let text_system = &mut *text_system.lock();
-                query.iter().for_each(|((stylesheet_id, &()), item)| {
-                    let _span = tracing::debug_span!("update_text_buffers", %item.id).entered();
 
-                    tracing::debug!(?item.text);
-
-                    let stylesheet = world.entity(stylesheet_id).unwrap();
+                for item in &mut query {
+                    let stylesheet = get_stylesheet_from_entity(&item.entity);
 
                     item.state
                         .update_text(&stylesheet, &mut text_system.font_system, item.text);
@@ -94,7 +82,7 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                     // buffer.set_size(&mut text_system.font_system, Some(size.x), Some(size.y));
 
                     // *item.layout_glyphs = item.state.layout_glyphs();
-                });
+                }
             },
         )
         .boxed()

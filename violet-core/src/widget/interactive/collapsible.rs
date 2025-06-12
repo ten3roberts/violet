@@ -6,7 +6,7 @@ use palette::Srgba;
 use tween::Tweener;
 
 use crate::{
-    components::{max_size, rect, rotation, transform_origin, translation},
+    components::{max_size, rect, rotation, transform_origin, translation, visible},
     layout::Align,
     state::StateStream,
     stored::WeakHandle,
@@ -60,6 +60,7 @@ pub struct Collapsible<L, W> {
     size: WidgetSizeProps,
     inner: W,
     style: CollapsibleStyle,
+    can_collapse: bool,
 }
 
 impl<W> Collapsible<Text, W> {
@@ -82,7 +83,13 @@ impl<L, W> Collapsible<L, W> {
             inner,
             label,
             style: Default::default(),
+            can_collapse: true,
         }
+    }
+
+    pub fn can_collapse(mut self, can_collapse: bool) -> Self {
+        self.can_collapse = can_collapse;
+        self
     }
 }
 
@@ -95,6 +102,7 @@ impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
                 label: self.label,
                 collapse: collapsed,
                 style: &self.style,
+                can_collapse: self.can_collapse,
             },
             CollapsibleContent {
                 collapsed,
@@ -109,6 +117,7 @@ impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
 }
 
 struct CollapsibleHeader<'a, L> {
+    can_collapse: bool,
     collapse: WeakHandle<Mutable<bool>>,
     style: &'a CollapsibleStyle,
 
@@ -117,32 +126,12 @@ struct CollapsibleHeader<'a, L> {
 
 impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        let chevron = self.style.chevron.resolve(scope.stylesheet());
-
         Button::new(
             row((
-                |scope: &mut Scope| {
-                    scope.spawn_stream(scope.read(&self.collapse).stream(), |scope, value| {
-                        let current_rotation =
-                            scope.entity().get_copy(rotation()).unwrap_or_default();
-
-                        scope.add_tween(
-                            rotation(),
-                            Tweener::sine_in_out(
-                                current_rotation,
-                                !value as i32 as f32 * PI / 2.0,
-                                0.2,
-                            ),
-                        );
-                    });
-
-                    scope
-                        .set(transform_origin(), vec2(0.5, 0.5))
-                        .set_default(rotation())
-                        .set_default(translation())
-                        .set_default(tweens());
-
-                    label(chevron).mount(scope);
+                CollapsibleChevron {
+                    collapse: self.collapse.clone(),
+                    style: self.style,
+                    can_collapse: self.can_collapse,
                 },
                 self.label,
             ))
@@ -154,6 +143,35 @@ impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
             *value = !*value;
         })
         .mount(scope);
+    }
+}
+
+struct CollapsibleChevron<'a> {
+    can_collapse: bool,
+    collapse: WeakHandle<Mutable<bool>>,
+    style: &'a CollapsibleStyle,
+}
+
+impl Widget for CollapsibleChevron<'_> {
+    fn mount(self, scope: &mut crate::Scope<'_>) {
+        let chevron = self.style.chevron.resolve(scope.stylesheet());
+        scope.spawn_stream(scope.read(&self.collapse).stream(), |scope, value| {
+            let current_rotation = scope.entity().get_copy(rotation()).unwrap_or_default();
+
+            scope.add_tween(
+                rotation(),
+                Tweener::sine_in_out(current_rotation, !value as i32 as f32 * PI / 2.0, 0.2),
+            );
+        });
+
+        scope
+            .set(visible(), self.can_collapse)
+            .set(transform_origin(), vec2(0.5, 0.5))
+            .set_default(rotation())
+            .set_default(translation())
+            .set_default(tweens());
+
+        label(chevron).mount(scope);
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
     tweens::tweens,
     unit::Unit,
     widget::{label, ContainerStyle, Stack, Text},
-    Scope, Widget, WidgetCollection,
+    Edges, Scope, Widget, WidgetCollection,
 };
 
 use super::base::{InteractiveWidget, TooltipOptions};
@@ -51,6 +51,7 @@ pub struct ButtonStyle {
     pub normal: ColorPair<ValueOrRef<Srgba>>,
     pub pressed: ColorPair<ValueOrRef<Srgba>>,
     pub hover: ColorPair<ValueOrRef<Srgba>>,
+    pub size: WidgetSizeProps,
 }
 
 impl ButtonStyle {
@@ -63,6 +64,7 @@ impl ButtonStyle {
             normal,
             pressed,
             hover,
+            ..Default::default()
         }
     }
 
@@ -71,6 +73,7 @@ impl ButtonStyle {
             normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
             pressed: ColorPair::new(surface_pressed_success(), element_pressed_success()),
             hover: ColorPair::new(surface_hover_success(), element_hover_success()),
+            ..Default::default()
         }
     }
 
@@ -79,6 +82,7 @@ impl ButtonStyle {
             normal: ColorPair::new(surface_interactive_danger(), element_interactive_danger()),
             pressed: ColorPair::new(surface_pressed_danger(), element_pressed_danger()),
             hover: ColorPair::new(surface_hover_danger(), element_hover_danger()),
+            ..Default::default()
         }
     }
 
@@ -87,6 +91,7 @@ impl ButtonStyle {
             normal: ColorPair::new(surface_interactive_warning(), element_interactive_warning()),
             pressed: ColorPair::new(surface_pressed_warning(), element_pressed_warning()),
             hover: ColorPair::new(surface_hover_warning(), element_hover_warning()),
+            ..Default::default()
         }
     }
 
@@ -95,6 +100,18 @@ impl ButtonStyle {
             normal: ColorPair::new(surface_interactive_accent(), element_interactive_accent()),
             pressed: ColorPair::new(surface_pressed_accent(), element_pressed_accent()),
             hover: ColorPair::new(surface_hover_accent(), element_hover_accent()),
+            ..Default::default()
+        }
+    }
+
+    pub fn selectable_entry() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(Srgba::new(0.0, 0.0, 0.0, 0.0), element_interactive()),
+            pressed: ColorPair::new(surface_pressed(), element_pressed()),
+            hover: ColorPair::new(surface_hover(), element_hover()),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_small())
+                .with_margin(Edges::ZERO),
         }
     }
 }
@@ -105,6 +122,10 @@ impl Default for ButtonStyle {
             normal: ColorPair::new(surface_interactive(), element_interactive()),
             pressed: ColorPair::new(surface_pressed(), element_pressed()),
             hover: ColorPair::new(surface_hover(), element_hover()),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_medium())
+                .with_margin(spacing_medium())
+                .with_corner_radius(default_corner_radius()),
         }
     }
 }
@@ -116,7 +137,6 @@ pub struct Button<W = Text> {
     tooltip: Option<TooltipOptions>,
     label: W,
     style: ButtonStyle,
-    size: WidgetSizeProps,
     is_pressed: bool,
 }
 
@@ -130,11 +150,6 @@ impl<W> Button<W> {
             on_click: Box::new(|_| {}),
             label,
             style: Default::default(),
-            size: WidgetSizeProps::default()
-                .with_padding(spacing_medium())
-                .with_margin(spacing_medium())
-                .with_corner_radius(default_corner_radius()),
-            // .with_min_size(Unit::px2(28.0, 28.0)),
             is_pressed: false,
             tooltip: None,
         }
@@ -229,7 +244,7 @@ impl<W> StyleExt for Checkbox<W> {
 
 impl<W> SizeExt for Button<W> {
     fn size_mut(&mut self) -> &mut WidgetSizeProps {
-        &mut self.size
+        &mut self.style.size
     }
 }
 
@@ -251,7 +266,7 @@ impl<W: Widget> Widget for Button<W> {
         scope.set_default(tweens());
 
         InteractiveWidget::new(inner)
-            .with_size_props(self.size)
+            .with_size_props(self.style.size)
             .on_click(move |scope| (self.on_click)(scope))
             .on_press(move |scope, state| {
                 // let current_color = scope.get(color());
@@ -356,7 +371,6 @@ impl<W: Widget> Widget for Checkbox<W> {
 pub struct Radio<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     style: ButtonStyle,
-    size: WidgetSizeProps,
     label: W,
 }
 
@@ -365,11 +379,6 @@ impl<W: WidgetCollection> Radio<W> {
         Self {
             state: Box::new(state),
             style: Default::default(),
-            size: WidgetSizeProps::default()
-                .with_padding(spacing_medium())
-                .with_margin(spacing_medium())
-                .with_corner_radius(default_corner_radius())
-                .with_min_size(Unit::px2(28.0, 28.0)),
             label,
         }
     }
@@ -378,6 +387,14 @@ impl<W: WidgetCollection> Radio<W> {
         label: W,
         state: impl 'static + Send + Sync + StateDuplex<Item = usize>,
         index: usize,
+    ) -> Self {
+        Self::new(label, state.map_value(move |v| v == index, move |_| index))
+    }
+
+    pub fn new_enum<T: 'static + Send + Sync + Copy + PartialEq>(
+        label: W,
+        state: impl 'static + Send + Sync + StateDuplex<Item = T>,
+        index: T,
     ) -> Self {
         Self::new(label, state.map_value(move |v| v == index, move |_| index))
     }
@@ -394,7 +411,7 @@ impl Radio<Text> {
 
 impl<T> SizeExt for Radio<T> {
     fn size_mut(&mut self) -> &mut WidgetSizeProps {
-        &mut self.size
+        &mut self.style.size
     }
 }
 
@@ -437,7 +454,7 @@ impl<W: Widget> Widget for Radio<W> {
             })
             .with_horizontal_alignment(Align::Center)
             .with_vertical_alignment(Align::Center)
-            .with_size_props(self.size)
+            .with_size_props(self.style.size)
             .mount(scope);
     }
 }

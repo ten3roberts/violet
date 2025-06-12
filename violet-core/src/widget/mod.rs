@@ -194,6 +194,23 @@ impl<W: Widget> WidgetCollection for Vec<W> {
     }
 }
 
+pub struct IterWidgetCollection<I>(I)
+where
+    I: Iterator,
+    I::Item: Widget;
+
+impl<I> WidgetCollection for IterWidgetCollection<I>
+where
+    I: Iterator,
+    I::Item: Widget,
+{
+    fn attach(self, scope: &mut Scope) {
+        for widget in self.0 {
+            scope.attach(widget);
+        }
+    }
+}
+
 pub struct EmptyWidget;
 
 impl Widget for EmptyWidget {

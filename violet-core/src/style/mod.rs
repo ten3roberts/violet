@@ -51,7 +51,7 @@ pub trait StyleExt {
 }
 
 /// Base properties for widget size and spacing
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct WidgetSizeProps {
     pub size: Option<Unit<Vec2>>,
     pub min_size: Option<Unit<Vec2>>,

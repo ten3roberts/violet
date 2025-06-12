@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     sync::{Arc, Weak},
 };
 
@@ -7,12 +7,13 @@ use atomic_refcell::AtomicRefCell;
 use flax::{
     archetype::ArchetypeStorage,
     component::ComponentValue,
-    components::child_of,
+    components::{child_of, name},
     entity_ids,
-    events::{EventData, EventSubscriber},
+    events::{EventData, EventKindFilter, EventSubscriber},
+    fetch::{FromRelation, Source},
     filter::Or,
-    system, BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, DfsBorrow, Entity,
-    EntityBuilder, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
+    system, BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, Entity, EntityBuilder,
+    EntityIds, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
@@ -63,7 +64,7 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
 pub fn templating_system(
     layout_changes_tx: flume::Sender<(Entity, LayoutUpdateEvent)>,
 ) -> BoxedSystem {
-    let query = Query::new(entity_ids()).with_filter(Or((rect().with(), layout_cache().without())));
+    let query = Query::new((entity_ids(), layout_cache().without()));
 
     System::builder()
         .with_name("templating_system")
@@ -72,7 +73,7 @@ pub fn templating_system(
         .build(
             move |mut query: QueryBorrow<_, _>, cmd: &mut CommandBuffer| {
                 puffin::profile_scope!("templating_system");
-                for id in query.iter() {
+                for (id, _) in query.iter() {
                     puffin::profile_scope!("apply", format!("{id}"));
                     tracing::debug!(%id, "incomplete widget");
 
@@ -220,84 +221,154 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
 }
 
 /// Computes transform from rotation, translation, and transform origin
-// #[system(args(rotation=rotation().modified().copied(), translation=translation().modified().copied(), transform_origin=transform_origin().modified().copied()))]
-#[system]
+#[system(args(transforms=(rotation(), translation()).modified()))]
 pub fn compute_transform_system(
     transform: &mut Mat4,
-    rotation: f32,
-    translation: Vec2,
+    transforms: (&f32, &Vec2),
     transform_origin: Vec2,
     rect: Rect,
 ) {
     let size = rect.size();
 
+    let (rotation, translation) = transforms;
     let origin = transform_origin * size;
     *transform = Mat4::from_translation(translation.extend(0.0))
         * Mat4::from_translation(origin.extend(0.0))
-        * Mat4::from_rotation_z(rotation)
+        * Mat4::from_rotation_z(*rotation)
         * Mat4::from_translation(-origin.extend(0.0));
 }
 
 #[derive(Fetch)]
-struct TreeUpdateQuery {
+struct TreeUpdateTarget {
     screen_transform: ComponentMut<Mat4>,
+
     screen_clip_mask: ComponentMut<Rect>,
-    clip_mask: Component<Rect>,
-    local_position: Component<Vec2>,
-    transform: Component<Mat4>,
-    visible: Component<bool>,
     computed_visible: ComponentMut<bool>,
-    opacity: Component<f32>,
     computed_opacity: ComponentMut<f32>,
 }
 
-impl TreeUpdateQuery {
+impl TreeUpdateTarget {
     pub fn new() -> Self {
         Self {
             screen_transform: screen_transform().as_mut(),
             screen_clip_mask: screen_clip_mask().as_mut(),
-            clip_mask: clip_mask(),
-            local_position: local_position(),
-            transform: transform(),
-            visible: visible(),
             computed_visible: computed_visible().as_mut(),
-            opacity: opacity(),
             computed_opacity: computed_opacity().as_mut(),
         }
     }
 }
 
+#[derive(Fetch)]
+struct TreeUpdateQuery {
+    id: EntityIds,
+    clip_mask: Component<Rect>,
+    local_position: Component<Vec2>,
+    transform: Component<Mat4>,
+    visible: Component<bool>,
+    opacity: Component<f32>,
+}
+
+impl TreeUpdateQuery {
+    pub fn new() -> Self {
+        Self {
+            id: entity_ids(),
+            clip_mask: clip_mask(),
+            local_position: local_position(),
+            transform: transform(),
+            visible: visible(),
+            opacity: opacity(),
+        }
+    }
+}
+
 /// Updates the apparent screen position of entities based on the hierarchy
-pub fn transform_system(root: Entity) -> BoxedSystem {
+pub fn transform_system(world: &mut World) -> BoxedSystem {
+    let components = [
+        local_position().key(),
+        transform().key(),
+        visible().key(),
+        opacity().key(),
+        children().key(),
+        clip_mask().key(),
+    ];
+
+    let (tx, rx) = flume::unbounded();
+
+    world.subscribe(
+        tx.filter_event_kind(EventKindFilter::MODIFIED | EventKindFilter::ADDED)
+            .filter_components(components),
+    );
+
+    let mut tree_query = Query::new((TreeUpdateQuery::new(), TreeUpdateTarget::new()))
+        .with_strategy(Dfs::new(child_of));
+
+    let mut traversed = BTreeSet::new();
     System::builder()
-        .with_query(Query::new(TreeUpdateQuery::new()).with_strategy(Dfs::new(child_of)))
-        .build(move |mut query: DfsBorrow<_>| {
-            query.traverse_from(
-                root,
-                &(Mat4::IDENTITY, Rect::new(Vec2::MIN, Vec2::MAX), true, 1.0),
-                |item: TreeUpdateQueryItem,
-                 _,
-                 &(parent, parent_mask, parent_visible, parent_opacity)| {
-                    let local_transform =
-                        Mat4::from_translation(item.local_position.extend(0.0)) * *item.transform;
-
-                    let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
-                    *item.screen_clip_mask =
-                        item.clip_mask.translate(mask_offset).intersect(parent_mask);
-
-                    *item.screen_transform = parent * local_transform;
-                    *item.computed_visible = *item.visible && parent_visible;
-                    *item.computed_opacity = item.opacity * parent_opacity;
-
+        .with_query(Query::new(
+            (screen_transform(), screen_clip_mask(), visible(), opacity()).relation(child_of),
+        ))
+        .with_world()
+        .build(
+            move |mut parent_query: QueryBorrow<
+                Source<
                     (
-                        *item.screen_transform,
-                        *item.screen_clip_mask,
-                        *item.computed_visible,
-                        *item.computed_opacity,
-                    )
-                },
-            );
-        })
+                        Component<Mat4>,
+                        Component<Rect>,
+                        Component<bool>,
+                        Component<f32>,
+                    ),
+                    FromRelation,
+                >,
+            >,
+                  world: &World| {
+                traversed.clear();
+                for modified_subtree in rx.try_iter() {
+                    if traversed.contains(&modified_subtree.id) {
+                        continue;
+                    }
+
+                    let name = world.get(modified_subtree.id, name()).ok();
+                    let parent = parent_query.get(modified_subtree.id).ok();
+                    tracing::info!(?modified_subtree.id, ?name, event=?modified_subtree.kind, has_parent=?parent.is_some(), "modified subtree");
+                    let (&parent_transform, &parent_mask, &parent_visible, &parent_opacity) =
+                        parent.unwrap_or((
+                            &Mat4::IDENTITY,
+                            &Rect::new(Vec2::MIN, Vec2::MAX),
+                            &true,
+                            &1.0,
+                        ));
+
+                    parent_query.clear_borrows();
+                    tree_query.borrow(world).traverse_from(
+                    modified_subtree.id,
+                    &(parent_transform, parent_mask, parent_visible, parent_opacity),
+                    |(item, target): (TreeUpdateQueryItem, TreeUpdateTargetItem),
+                     _,
+                     &(parent, parent_mask, parent_visible, parent_opacity)| {
+                         traversed.insert(item.id);
+                        let local_transform =
+                            Mat4::from_translation(item.local_position.extend(0.0))
+                                * *item.transform;
+
+                        let mask_offset = parent.transform_point3(Vec3::ZERO).xy();
+                        *target.screen_clip_mask =
+                            item.clip_mask.translate(mask_offset).intersect(parent_mask);
+
+                        *target.screen_transform = parent * local_transform;
+                        *target.computed_visible = *item.visible && parent_visible;
+                        *target.computed_opacity = item.opacity * parent_opacity;
+
+                        (
+                            *target.screen_transform,
+                            *target.screen_clip_mask,
+                            *target.computed_visible,
+                            *target.computed_opacity,
+                        )
+                    },
+                    );
+                }
+            },
+        )
         .boxed()
 }
 
