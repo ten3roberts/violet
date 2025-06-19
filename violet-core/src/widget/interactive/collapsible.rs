@@ -6,7 +6,7 @@ use palette::Srgba;
 use tween::Tweener;
 
 use crate::{
-    components::{max_size, rect, rotation, transform_origin, translation, visible},
+    components::{max_size, min_size, rect, rotation, transform_origin, translation, visible},
     layout::Align,
     state::StateStream,
     stored::WeakHandle,
@@ -30,7 +30,7 @@ pub struct CollapsibleStyle {
 impl Default for CollapsibleStyle {
     fn default() -> Self {
         Self {
-            button: Default::default(),
+            button: ButtonStyle::hidden(),
             content: surface_secondary().into(),
             chevron: icon_chevron().into(),
         }
@@ -109,7 +109,7 @@ impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
                 inner: self.inner,
             },
         ))
-        .with_background(Background::new(self.style.content))
+        // .with_background(Background::new(self.style.content))
         .with_stretch(true)
         .with_size_props(self.size)
         .mount(scope);
@@ -158,9 +158,10 @@ impl Widget for CollapsibleChevron<'_> {
         scope.spawn_stream(scope.read(&self.collapse).stream(), |scope, value| {
             let current_rotation = scope.entity().get_copy(rotation()).unwrap_or_default();
 
+            scope.stop_tweens(rotation());
             scope.add_tween(
                 rotation(),
-                Tweener::sine_in_out(current_rotation, !value as i32 as f32 * PI / 2.0, 0.2),
+                Tweener::back_out(current_rotation, !value as i32 as f32 * PI / 2.0, 0.2),
             );
         });
 
@@ -198,6 +199,14 @@ impl<W: Widget> Widget for CollapsibleContent<W> {
 
             scope.add_tween(
                 max_size(),
+                Tweener::cubic_in_out(
+                    Unit::px2(f32::MAX, old_size),
+                    Unit::px2(f32::MAX, new_height),
+                    0.2,
+                ),
+            );
+            scope.add_tween(
+                min_size(),
                 Tweener::cubic_in_out(
                     Unit::px2(f32::MAX, old_size),
                     Unit::px2(f32::MAX, new_height),

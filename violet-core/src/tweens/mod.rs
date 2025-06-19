@@ -1,5 +1,8 @@
 use crate::components::{app_instance, delta_time};
-use flax::{component, component::ComponentValue, system, Component, EntityRef, FetchExt};
+use flax::{
+    component::{self, ComponentDesc, ComponentValue},
+    system, Component, EntityRef, FetchExt,
+};
 use std::time::Duration;
 use tween::{Tween, TweenValue, Tweener};
 
@@ -21,6 +24,11 @@ impl Tweens {
     {
         self.active_tweens
             .push(Box::new(ComponentTween::new(target, tween)));
+    }
+
+    pub fn stop_tweens<T: ComponentValue>(&mut self, target: Component<T>) {
+        self.active_tweens
+            .retain_mut(|v| v.target() != target.desc());
     }
 
     /// Update all active tweens
@@ -48,6 +56,7 @@ impl<T, A> ComponentTween<T, A> {
 
 pub trait ComponentTweenDyn: Send + Sync {
     fn update(&mut self, entity: EntityRef, delta: Duration) -> bool;
+    fn target(&self) -> ComponentDesc;
 }
 
 impl<T, A> ComponentTweenDyn for ComponentTween<T, A>
@@ -64,9 +73,13 @@ where
 
         !self.tween.is_finished()
     }
+
+    fn target(&self) -> ComponentDesc {
+        self.target.desc()
+    }
 }
 
-component! {
+flax::component! {
     pub tweens: Tweens,
 }
 

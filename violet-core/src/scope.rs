@@ -155,6 +155,14 @@ impl<'a> Scope<'a> {
             .add_tween(component, tween);
     }
 
+    pub fn stop_tweens<T: ComponentValue + TweenValue>(&mut self, component: Component<T>) {
+        self.flush();
+        self.entity_mut()
+            .entry(tweens::tweens())
+            .or_default()
+            .stop_tweens(component);
+    }
+
     /// Attaches a widget in a sub-scope.
     pub fn attach<W: Widget>(&mut self, widget: W) -> Entity {
         self.flush();

@@ -104,6 +104,11 @@ impl<W> Stack<W> {
         self.layout.clip = clip.into();
         self
     }
+
+    pub fn with_grow(mut self, grow: impl Into<BVec2>) -> Self {
+        self.layout.grow = grow.into();
+        self
+    }
 }
 
 impl<W> StyleExt for Stack<W> {

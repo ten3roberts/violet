@@ -68,6 +68,28 @@ impl ButtonStyle {
         }
     }
 
+    pub fn hidden() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(
+                Srgba::new(0.0, 0.0, 0.0, 0.0),
+                Srgba::new(0.0, 0.0, 0.0, 0.0),
+            ),
+            pressed: ColorPair::new(
+                Srgba::new(0.0, 0.0, 0.0, 0.0),
+                Srgba::new(0.0, 0.0, 0.0, 0.0),
+            ),
+            hover: ColorPair::new(
+                Srgba::new(0.0, 0.0, 0.0, 0.0),
+                Srgba::new(0.0, 0.0, 0.0, 1.0),
+            ),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_small())
+                .with_margin(spacing_small())
+                .with_corner_radius(default_corner_radius()),
+            ..Default::default()
+        }
+    }
+
     pub fn success() -> Self {
         ButtonStyle {
             normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
@@ -370,6 +392,7 @@ impl<W: Widget> Widget for Checkbox<W> {
 /// A button that can only be set
 pub struct Radio<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
+    tooltip: Option<TooltipOptions>,
     style: ButtonStyle,
     label: W,
 }
@@ -380,6 +403,7 @@ impl<W: WidgetCollection> Radio<W> {
             state: Box::new(state),
             style: Default::default(),
             label,
+            tooltip: None,
         }
     }
 
@@ -397,6 +421,11 @@ impl<W: WidgetCollection> Radio<W> {
         index: T,
     ) -> Self {
         Self::new(label, state.map_value(move |v| v == index, move |_| index))
+    }
+
+    pub fn with_tooltip(mut self, tooltip: TooltipOptions) -> Self {
+        self.tooltip = Some(tooltip);
+        self
     }
 }
 
@@ -434,27 +463,26 @@ impl<W: Widget> Widget for Radio<W> {
                     .entity(content)
                     .unwrap()
                     .update_dedup(color(), new_color.element);
+
                 scope.set(color(), new_color.surface);
             }
         });
 
-        scope
-            .set(interactive(), ())
-            .on_event(on_mouse_input(), move |_, input| {
-                if input.state == ElementState::Pressed {
+        let inner = Stack::new(())
+            .with_background(Background::new(normal.surface))
+            .with_horizontal_alignment(Align::Center)
+            .with_vertical_alignment(Align::Center);
+
+        scope.set_default(tweens());
+
+        InteractiveWidget::new(inner)
+            .with_size_props(self.style.size)
+            .on_press(move |_, state| {
+                if state.is_pressed() {
                     self.state.send(true)
                 }
-
-                None
-            });
-
-        Stack::new(())
-            .with_style(ContainerStyle {
-                background: Some(Background::new(normal.surface)),
             })
-            .with_horizontal_alignment(Align::Center)
-            .with_vertical_alignment(Align::Center)
-            .with_size_props(self.style.size)
+            .with_tooltip_opt(self.tooltip)
             .mount(scope);
     }
 }

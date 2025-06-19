@@ -11,7 +11,6 @@ use flax::{
     entity_ids,
     events::{EventData, EventKindFilter, EventSubscriber},
     fetch::{FromRelation, Source},
-    filter::Or,
     system, BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, Entity, EntityBuilder,
     EntityIds, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
@@ -329,7 +328,6 @@ pub fn transform_system(world: &mut World) -> BoxedSystem {
 
                     let name = world.get(modified_subtree.id, name()).ok();
                     let parent = parent_query.get(modified_subtree.id).ok();
-                    tracing::info!(?modified_subtree.id, ?name, event=?modified_subtree.kind, has_parent=?parent.is_some(), "modified subtree");
                     let (&parent_transform, &parent_mask, &parent_visible, &parent_opacity) =
                         parent.unwrap_or((
                             &Mat4::IDENTITY,

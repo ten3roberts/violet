@@ -1,4 +1,3 @@
-use glam::BVec2;
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
@@ -6,7 +5,7 @@ use tracing_tree::HierarchicalLayer;
 use violet_core::{
     style::{base_colors::*, SizeExt, StylesheetOptions},
     unit::Unit,
-    widget::{card, col, row, Button, Collapsible, Rectangle, ScrollArea, Stack},
+    widget::{card, col, row, Rectangle, ScrollArea},
     Widget,
 };
 use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};

@@ -105,7 +105,7 @@ impl ColorPalette {
             element_secondary,
             element_tertiary: PLATINUM_200,
             //
-            surface_interactive: ZINC_800,
+            surface_interactive: ZINC_700,
             surface_interactive_accent: EMERALD_500,
             surface_interactive_danger: RUBY_500,
             surface_interactive_success: EMERALD_500,

@@ -31,9 +31,9 @@ use violet::core::{
     unit::Unit,
     utils::zip_latest,
     widget::{
-        card, col, header, label, panel, row, Button, Checkbox, Collapsible, EmptyWidget,
-        InteractiveExt, Radio, Rectangle, ScrollArea, SignalWidget, SliderStyle, SliderValue,
-        SliderWithLabel, Stack, StreamWidget, Text, TextInput, WidgetExt,
+        card, col, header, label, panel, row, Button, Checkbox, Collapsible, InteractiveExt, Radio,
+        Rectangle, ScrollArea, SignalWidget, SliderStyle, SliderValue, SliderWithLabel, Stack,
+        StreamWidget, Text, TextInput,
     },
     FutureEffect, Scope, ScopeRef, Widget,
 };

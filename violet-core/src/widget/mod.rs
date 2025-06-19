@@ -199,6 +199,16 @@ where
     I: Iterator,
     I::Item: Widget;
 
+impl<I> IterWidgetCollection<I>
+where
+    I: Iterator,
+    I::Item: Widget,
+{
+    pub fn new(iter: I) -> Self {
+        Self(iter)
+    }
+}
+
 impl<I> WidgetCollection for IterWidgetCollection<I>
 where
     I: Iterator,

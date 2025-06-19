@@ -4,12 +4,12 @@ use glam::{vec2, BVec2, Mat4, Vec2, Vec2Swizzles};
 
 use super::{Float, Movable, Rectangle, Stack};
 use crate::{
-    components::{min_size, offset, padding, rect, transform},
+    components::{min_size, offset, rect, transform},
     input::{interactive, on_scroll},
     state::{StateMut, StateStream},
     style::{
-        default_corner_radius, scrollbar_size, spacing_small, surface_interactive_accent,
-        Background, ResolvableStyle, SizeExt, WidgetSizeProps,
+        default_corner_radius, scrollbar_size, surface_interactive_accent, Background,
+        ResolvableStyle, SizeExt, WidgetSizeProps,
     },
     to_owned,
     unit::Unit,

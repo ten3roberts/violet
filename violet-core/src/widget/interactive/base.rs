@@ -37,6 +37,11 @@ impl TooltipOptions {
         }
     }
 
+    pub fn label(tooltip: impl Into<String>) -> Self {
+        let tooltip = tooltip.into();
+        Self::new(move || label(&tooltip))
+    }
+
     pub fn with_offset(mut self, offset: Vec2) -> Self {
         self.offset = offset;
         self

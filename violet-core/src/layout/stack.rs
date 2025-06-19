@@ -27,10 +27,21 @@ use crate::{
 ///
 /// Margins:
 /// By default, the stack layout will inherit the margins of the inner children
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct StackLayout {
     pub alignment: LayoutAlignment,
     pub clip: BVec2,
+    pub grow: BVec2,
+}
+
+impl Default for StackLayout {
+    fn default() -> Self {
+        Self {
+            alignment: Default::default(),
+            clip: Default::default(),
+            grow: BVec2::TRUE,
+        }
+    }
 }
 
 impl StackLayout {
@@ -44,6 +55,8 @@ impl StackLayout {
         };
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
+        let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
+
         let child_limits = LayoutLimits {
             min_size: args.limits.min_size,
             max_size: args.limits.max_size,
@@ -140,6 +153,7 @@ impl StackLayout {
         let mut maximize = Vec2::ZERO;
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
+        let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
         let child_limits = LayoutLimits {
             min_size: args.limits.min_size,
             max_size: args.limits.max_size,
@@ -179,10 +193,10 @@ impl StackLayout {
         let preferred = preferred_rect.max_size(preferred_size);
 
         // if clip, clamp to limited max size, otherwise, clip to max
-        let scissor_size = args.limits.max_size * clip + Vec2::MAX * (1.0 - clip);
+        let scissor_size = args.limits.max_size * grow + Vec2::MAX * (1.0 - grow);
 
         Sizing {
-            min: min.min_size((1.0 - clip) * min.size()),
+            min: min.min_size((1.0 - grow) * min.size()),
             preferred: preferred.clamp_size(min.size(), scissor_size),
             margin: min_margin.max(preferred_margin),
             hints,
