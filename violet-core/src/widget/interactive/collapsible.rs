@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{cell::RefCell, f32::consts::PI, time::Duration};
 
 use futures_signals::signal::Mutable;
 use glam::{vec2, BVec2};
@@ -7,18 +7,24 @@ use tween::Tweener;
 
 use crate::{
     components::{max_size, min_size, rect, rotation, transform_origin, translation, visible},
+    executor::TaskHandle,
     layout::Align,
     state::StateStream,
     stored::WeakHandle,
     style::{
-        icon_chevron, surface_secondary, Background, ResolvableStyle, SizeExt, StyleExt,
-        ValueOrRef, WidgetSizeProps,
+        icon_chevron, surface_secondary, ResolvableStyle, SizeExt, StyleExt, ValueOrRef,
+        WidgetSizeProps,
     },
+    time::sleep,
     tweens::tweens,
     unit::Unit,
     utils::zip_latest,
-    widget::{col, label, row, Button, ButtonStyle, Stack, Text},
-    Scope, Widget,
+    widget::{
+        col,
+        interactive::base::{ClickCallback, InteractiveWidget},
+        label, row, Button, ButtonStyle, Stack, Text,
+    },
+    FutureEffect, Scope, ScopeRef, Widget,
 };
 
 pub struct CollapsibleStyle {
@@ -61,6 +67,7 @@ pub struct Collapsible<L, W> {
     inner: W,
     style: CollapsibleStyle,
     can_collapse: bool,
+    on_click: Option<ClickCallback>,
 }
 
 impl<W> Collapsible<Text, W> {
@@ -84,7 +91,16 @@ impl<L, W> Collapsible<L, W> {
             label,
             style: Default::default(),
             can_collapse: true,
+            on_click: None,
         }
+    }
+
+    pub fn on_click<F>(mut self, on_click: F) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
+    {
+        self.on_click = Some(Box::new(on_click));
+        self
     }
 
     pub fn can_collapse(mut self, can_collapse: bool) -> Self {
@@ -103,6 +119,7 @@ impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
                 collapse: collapsed,
                 style: &self.style,
                 can_collapse: self.can_collapse,
+                on_click: self.on_click,
             },
             CollapsibleContent {
                 collapsed,
@@ -120,25 +137,50 @@ struct CollapsibleHeader<'a, L> {
     can_collapse: bool,
     collapse: WeakHandle<Mutable<bool>>,
     style: &'a CollapsibleStyle,
+    on_click: Option<ClickCallback>,
 
     label: L,
 }
 
 impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
+        let on_click = self.on_click.map(|v| scope.store(RefCell::new(v)));
+
+        let mut click_action = None as Option<TaskHandle>;
         Button::new(
             row((
-                CollapsibleChevron {
+                InteractiveWidget::new(CollapsibleChevron {
                     collapse: self.collapse.clone(),
                     style: self.style,
                     can_collapse: self.can_collapse,
-                },
+                })
+                .on_click(move |scope| {
+                    let value = &mut *scope.read(self.collapse).lock_mut();
+                    *value = !*value;
+                }),
                 self.label,
             ))
             .with_cross_align(Align::Center),
         )
         .with_style(self.style.button)
         .on_click(move |scope| {
+            if let Some(on_click) = on_click {
+                if let Some(click_action) = click_action.take() {
+                    // second click, abort the previous action
+                    click_action.abort();
+                } else {
+                    // first click
+                    click_action = Some(scope.spawn_effect(FutureEffect::new(
+                        sleep(Duration::from_millis(300)),
+                        move |scope: &mut Scope, _| {
+                            (scope.read(&on_click).borrow_mut())(&ScopeRef::from_scope(scope))
+                        },
+                    )));
+
+                    return;
+                }
+            }
+
             let value = &mut *scope.read(self.collapse).lock_mut();
             *value = !*value;
         })
@@ -199,7 +241,7 @@ impl<W: Widget> Widget for CollapsibleContent<W> {
 
             scope.add_tween(
                 max_size(),
-                Tweener::cubic_in_out(
+                Tweener::back_out(
                     Unit::px2(f32::MAX, old_size),
                     Unit::px2(f32::MAX, new_height),
                     0.2,
@@ -207,7 +249,7 @@ impl<W: Widget> Widget for CollapsibleContent<W> {
             );
             scope.add_tween(
                 min_size(),
-                Tweener::cubic_in_out(
+                Tweener::back_out(
                     Unit::px2(f32::MAX, old_size),
                     Unit::px2(f32::MAX, new_height),
                     0.2,
@@ -218,6 +260,7 @@ impl<W: Widget> Widget for CollapsibleContent<W> {
         scope
             .set(max_size(), Unit::px2(f32::MAX, f32::MAX))
             .set_default(tweens());
+
         Stack::new(|scope: &mut Scope<'_>| {
             scope.monitor(rect(), move |v| {
                 if let Some(v) = v {

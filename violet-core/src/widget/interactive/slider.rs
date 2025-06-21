@@ -391,6 +391,7 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd + Copy> Widget
                 self.slider,
                 TextInput::new(text_value)
                     .with_min_size(Unit::px2(48.0, 16.0))
+                    .with_max_size(Unit::px2(48.0, 30.0))
                     .with_style(TextInputStyle {
                         align: Align::End,
                         ..Default::default()

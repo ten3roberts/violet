@@ -16,9 +16,9 @@ use super::{
     tooltip::TooltipOverlay,
 };
 
-type ClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
-type PressCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, ElementState)>;
-type CreateTooltip = Box<dyn Send + Sync + Fn() -> Box<dyn Send + Widget>>;
+pub type ClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
+pub type PointerPressCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, ElementState)>;
+pub type CreateTooltip = Box<dyn Send + Sync + Fn() -> Box<dyn Send + Widget>>;
 
 pub struct TooltipOptions {
     pub delay: Duration,
@@ -60,7 +60,7 @@ impl TooltipOptions {
 /// Consumes click events.
 pub struct InteractiveWidget<W> {
     on_click: Option<ClickCallback>,
-    on_press: Option<PressCallback>,
+    on_press: Option<PointerPressCallback>,
     size: WidgetSizeProps,
     tooltip: Option<TooltipOptions>,
     inner: W,
@@ -85,7 +85,7 @@ impl<W: Widget> InteractiveWidget<W> {
         self
     }
 
-    pub fn on_press<F>(mut self, on_press: F) -> Self
+    pub fn on_pointer_press<F>(mut self, on_press: F) -> Self
     where
         F: FnMut(&ScopeRef<'_>, ElementState) + Send + Sync + 'static,
     {

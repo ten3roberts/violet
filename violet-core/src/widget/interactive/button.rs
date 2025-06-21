@@ -1,6 +1,6 @@
 use flax::EntityRef;
 use palette::Srgba;
-use winit::event::{ElementState, MouseButton};
+use winit::event::ElementState;
 
 use crate::{
     components::color,
@@ -11,14 +11,13 @@ use crate::{
     style::*,
     tweens::tweens,
     unit::Unit,
-    widget::{label, ContainerStyle, Stack, Text},
+    widget::{label, ContainerStyle, Rectangle, Stack, Text},
     Edges, Scope, Widget, WidgetCollection,
 };
 
 use super::base::{InteractiveWidget, TooltipOptions};
 
-type ButtonCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, winit::event::MouseButton)>;
-type ButtonClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
+pub type ButtonClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ColorPair<T> {
@@ -136,6 +135,20 @@ impl ButtonStyle {
                 .with_margin(Edges::ZERO),
         }
     }
+
+    pub fn radio() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_interactive(), surface_interactive()),
+            pressed: ColorPair::new(surface_interactive(), surface_pressed()),
+            hover: ColorPair::new(surface_interactive(), surface_hover()),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_small())
+                .with_margin(spacing_small())
+                .with_corner_radius(Unit::rel(1.0))
+                .with_min_size(Unit::px2(20.0, 20.0)),
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for ButtonStyle {
@@ -154,7 +167,6 @@ impl Default for ButtonStyle {
 
 /// A button which invokes the callback when clicked
 pub struct Button<W = Text> {
-    on_press: ButtonCallback,
     on_click: ButtonClickCallback,
     tooltip: Option<TooltipOptions>,
     label: W,
@@ -168,23 +180,12 @@ impl<W> Button<W> {
         W: Widget,
     {
         Self {
-            on_press: Box::new(|_, _| {}),
             on_click: Box::new(|_| {}),
             label,
             style: Default::default(),
             is_pressed: false,
             tooltip: None,
         }
-    }
-
-    /// Handle the button press
-    #[deprecated = "use on_click"]
-    pub fn on_mousebutton_down(
-        mut self,
-        on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, MouseButton),
-    ) -> Self {
-        self.on_press = Box::new(on_press);
-        self
     }
 
     /// Handle the button press
@@ -246,7 +247,7 @@ impl<W> StyleExt for Button<W> {
     }
 }
 
-impl<W> StyleExt for Radio<W> {
+impl StyleExt for Radio {
     type Style = ButtonStyle;
 
     fn with_style(mut self, style: Self::Style) -> Self {
@@ -290,7 +291,7 @@ impl<W: Widget> Widget for Button<W> {
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
             .on_click(move |scope| (self.on_click)(scope))
-            .on_press(move |scope, state| {
+            .on_pointer_press(move |scope, state| {
                 // let current_color = scope.get(color());
                 let new_color = if state.is_pressed() { pressed } else { normal };
 
@@ -390,14 +391,100 @@ impl<W: Widget> Widget for Checkbox<W> {
 }
 
 /// A button that can only be set
-pub struct Radio<W> {
+pub struct Radio {
+    state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
+    tooltip: Option<TooltipOptions>,
+    style: ButtonStyle,
+}
+
+impl Radio {
+    pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
+        Self {
+            state: Box::new(state),
+            style: ButtonStyle::radio(),
+            tooltip: None,
+        }
+    }
+
+    pub fn new_indexed(
+        state: impl 'static + Send + Sync + StateDuplex<Item = usize>,
+        index: usize,
+    ) -> Self {
+        Self::new(state.map_value(move |v| v == index, move |_| index))
+    }
+
+    pub fn new_value<T: 'static + Send + Sync + Copy + PartialEq>(
+        state: impl 'static + Send + Sync + StateDuplex<Item = T>,
+        index: T,
+    ) -> Self {
+        Self::new(state.map_value(move |v| v == index, move |_| index))
+    }
+
+    pub fn with_tooltip(mut self, tooltip: TooltipOptions) -> Self {
+        self.tooltip = Some(tooltip);
+        self
+    }
+}
+
+impl SizeExt for Radio {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
+        &mut self.style.size
+    }
+}
+
+impl Widget for Radio {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let stylesheet = scope.stylesheet();
+
+        let pressed = self.style.pressed.resolve(stylesheet);
+        let normal = self.style.normal.resolve(stylesheet);
+        let _hover = self.style.hover.resolve(stylesheet);
+
+        let content =
+            scope.attach(Rectangle::new(normal.element).with_corner_radius(Unit::rel(1.0)));
+
+        scope.spawn_stream(self.state.stream(), {
+            move |scope, state| {
+                let new_color = if state { pressed } else { normal };
+
+                scope
+                    .world()
+                    .entity(content)
+                    .unwrap()
+                    .update_dedup(color(), new_color.element);
+
+                scope.set(color(), new_color.surface);
+            }
+        });
+
+        let inner = Stack::new(())
+            .with_background(Background::new(normal.surface))
+            .with_horizontal_alignment(Align::Center)
+            .with_vertical_alignment(Align::Center);
+
+        scope.set_default(tweens());
+
+        InteractiveWidget::new(inner)
+            .with_size_props(self.style.size)
+            .on_pointer_press(move |_, state| {
+                if state.is_pressed() {
+                    self.state.send(true)
+                }
+            })
+            .with_tooltip_opt(self.tooltip)
+            .mount(scope);
+    }
+}
+
+/// A button that can only be set
+pub struct Selectable<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     tooltip: Option<TooltipOptions>,
     style: ButtonStyle,
     label: W,
 }
 
-impl<W: WidgetCollection> Radio<W> {
+impl<W: WidgetCollection> Selectable<W> {
     pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
@@ -415,7 +502,7 @@ impl<W: WidgetCollection> Radio<W> {
         Self::new(label, state.map_value(move |v| v == index, move |_| index))
     }
 
-    pub fn new_enum<T: 'static + Send + Sync + Copy + PartialEq>(
+    pub fn new_value<T: 'static + Send + Sync + Copy + PartialEq>(
         label: W,
         state: impl 'static + Send + Sync + StateDuplex<Item = T>,
         index: T,
@@ -429,7 +516,7 @@ impl<W: WidgetCollection> Radio<W> {
     }
 }
 
-impl Radio<Text> {
+impl Selectable<Text> {
     pub fn label(
         label: impl Into<String>,
         state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
@@ -438,13 +525,13 @@ impl Radio<Text> {
     }
 }
 
-impl<T> SizeExt for Radio<T> {
+impl<T> SizeExt for Selectable<T> {
     fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.style.size
     }
 }
 
-impl<W: Widget> Widget for Radio<W> {
+impl<W: Widget> Widget for Selectable<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
@@ -477,12 +564,21 @@ impl<W: Widget> Widget for Radio<W> {
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
-            .on_press(move |_, state| {
+            .on_pointer_press(move |_, state| {
                 if state.is_pressed() {
                     self.state.send(true)
                 }
             })
             .with_tooltip_opt(self.tooltip)
             .mount(scope);
+    }
+}
+
+impl<W> StyleExt for Selectable<W> {
+    type Style = ButtonStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
+        self
     }
 }

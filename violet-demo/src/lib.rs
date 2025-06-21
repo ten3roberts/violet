@@ -9,7 +9,10 @@ use violet::{
             element_hover, element_interactive, element_pressed, surface_hover, surface_pressed,
             surface_primary, SizeExt, StyleExt, StylesheetOptions,
         },
-        widget::{card, col, panel, row, ButtonStyle, ColorPair, Radio, StreamWidget, WidgetExt},
+        widget::{
+            self, card, col, label, panel, row, ButtonStyle, ColorPair, Radio, Selectable,
+            StreamWidget, WidgetExt,
+        },
         Edges, Widget,
     },
     futures_signals::signal::Mutable,
@@ -77,17 +80,14 @@ pub fn multi_app() -> impl Widget {
     let transparent = Srgba::new(0.0, 0.0, 0.0, 0.0);
 
     let radio_label = |label: &str, value: DemoState| {
-        Radio::label(
-            label,
-            state.clone().map_value(move |s| s == value, move |_| value),
-        )
-        .with_style(ButtonStyle {
-            normal: ColorPair::new(transparent, element_interactive()),
-            pressed: ColorPair::new(surface_pressed(), element_pressed()),
-            hover: ColorPair::new(surface_hover(), element_hover()),
-            size: Default::default(),
-        })
-        .with_margin(Edges::ZERO)
+        Selectable::new_value(widget::label(label), state.clone(), value)
+            .with_style(ButtonStyle {
+                normal: ColorPair::new(transparent, element_interactive()),
+                pressed: ColorPair::new(surface_pressed(), element_pressed()),
+                hover: ColorPair::new(surface_hover(), element_hover()),
+                size: Default::default(),
+            })
+            .with_margin(Edges::ZERO)
     };
 
     let selection = col((

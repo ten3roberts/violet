@@ -59,7 +59,7 @@ impl StackLayout {
 
         let child_limits = LayoutLimits {
             min_size: args.limits.min_size,
-            max_size: args.limits.max_size,
+            max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.max_size,
         };
 
         let blocks = args
@@ -97,30 +97,31 @@ impl StackLayout {
         let offset = args.offset;
         let start_position = resolve_pos(entity, args.content_area, total_size);
 
-        for (entity, block) in blocks {
+        for (child, block) in blocks {
             let block_size = block.rect.size();
 
-            let offset = offset
-                + entity
+            let local_offset = offset
+                + child
                     .get_copy(item_align())
                     .unwrap_or(self.alignment)
                     .align(total_size, block_size);
 
-            let clip_mask = Rect::from_size(clip * args.limits.max_size + Vec2::MAX * (1.0 - clip));
+            let clip_mask = Rect::from_size(clip * args.limits.max_size + Vec2::MAX * (1.0 - clip))
+                .translate(clip * offset);
 
             aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
-                block.rect.translate(offset),
+                block.rect.translate(local_offset),
                 block.margin,
             ));
 
             can_grow |= block.can_grow;
 
-            entity.update_dedup(components::rect(), block.rect).unwrap();
-            entity
-                .update_dedup(components::local_position(), offset + start_position)
+            child.update_dedup(components::rect(), block.rect).unwrap();
+            child
+                .update_dedup(components::local_position(), local_offset + start_position)
                 .unwrap();
 
-            entity
+            child
                 .update_dedup(components::clip_mask(), clip_mask)
                 .unwrap();
         }
@@ -154,9 +155,10 @@ impl StackLayout {
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
         let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
+
         let child_limits = LayoutLimits {
             min_size: args.limits.min_size,
-            max_size: args.limits.max_size,
+            max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.max_size,
         };
 
         for &child in children.iter() {

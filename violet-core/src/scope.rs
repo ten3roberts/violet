@@ -21,6 +21,7 @@ use crate::{
     atom::Atom,
     components::{children, context_store, handles},
     effect::Effect,
+    executor::TaskHandle,
     input::InputEventHandler,
     stored::{UntypedHandle, WeakHandle},
     style::get_stylesheet_from_entity,
@@ -432,6 +433,12 @@ impl<'a> Deref for ScopeRef<'a> {
 }
 
 impl<'a> ScopeRef<'a> {
+    pub fn from_scope(scope: &'a Scope<'_>) -> Self {
+        let entity = scope.entity();
+        let frame = scope.frame();
+        Self { frame, entity }
+    }
+
     pub fn new(frame: &'a Frame, entity: EntityRef<'a>) -> Self {
         Self { frame, entity }
     }
@@ -446,14 +453,14 @@ impl<'a> ScopeRef<'a> {
     }
 
     /// Spawns an effect scoped to the lifetime of this entity and scope
-    pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
+    pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) -> TaskHandle {
         self.frame.spawn(ScopedEffect {
             id: self.entity.id(),
             effect,
-        });
+        })
     }
 
-    pub fn spawn(&self, fut: impl 'static + Future) {
+    pub fn spawn(&self, fut: impl 'static + Future) -> TaskHandle {
         self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
     }
 
@@ -462,13 +469,13 @@ impl<'a> ScopeRef<'a> {
         &mut self,
         stream: S,
         func: impl 'static + FnMut(&mut Scope<'_>, S::Item),
-    ) {
+    ) -> TaskHandle {
         self.spawn_effect(StreamEffect::new(stream, func))
     }
 
     /// Spawns an effect which is *not* scoped to the widget
-    pub fn spawn_unscoped(&self, effect: impl 'static + for<'x> Effect<Frame>) {
-        self.frame.spawn(effect);
+    pub fn spawn_unscoped(&self, effect: impl 'static + for<'x> Effect<Frame>) -> TaskHandle {
+        self.frame.spawn(effect)
     }
 
     pub fn id(&self) -> Entity {

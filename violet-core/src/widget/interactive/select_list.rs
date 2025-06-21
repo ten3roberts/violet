@@ -4,8 +4,8 @@ use itertools::Itertools;
 
 use crate::{
     state::{StateDuplex, StateExt},
-    style::{SizeExt, WidgetSizeProps},
-    widget::{col, Radio, ScrollArea},
+    style::{SizeExt, StyleExt, WidgetSizeProps},
+    widget::{col, Button, ButtonStyle, Radio, ScrollArea, Selectable},
     Scope, Widget,
 };
 
@@ -44,11 +44,12 @@ where
                 .into_iter()
                 .enumerate()
                 .map(|(i, item)| {
-                    Radio::new_indexed(
+                    Selectable::new_indexed(
                         item,
                         self.selection.clone().filter_map(|v| v, |v| Some(Some(v))),
                         i,
                     )
+                    .with_style(ButtonStyle::selectable_entry())
                 })
                 .collect_vec())
             .with_stretch(true),

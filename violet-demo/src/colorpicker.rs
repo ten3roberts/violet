@@ -32,8 +32,8 @@ use violet::core::{
     utils::zip_latest,
     widget::{
         card, col, header, label, panel, row, Button, Checkbox, Collapsible, InteractiveExt, Radio,
-        Rectangle, ScrollArea, SignalWidget, SliderStyle, SliderValue, SliderWithLabel, Stack,
-        StreamWidget, Text, TextInput,
+        Rectangle, ScrollArea, Selectable, SignalWidget, SliderStyle, SliderValue, SliderWithLabel,
+        Stack, StreamWidget, Text, TextInput,
     },
     FutureEffect, Scope, ScopeRef, Widget,
 };
@@ -806,7 +806,7 @@ pub fn export_controls(palettes: Mutable<PaletteCollection>) -> impl Widget {
         }
     };
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, PartialEq, PartialOrd)]
     enum ExportFormat {
         Tailwind,
         Rust,
@@ -871,19 +871,8 @@ pub fn export_controls(palettes: Mutable<PaletteCollection>) -> impl Widget {
         Button::label("Load").on_click(load),
         Button::label("Export").on_click(export),
         Button::label("Export To Clipboard").on_click(export_clipboard),
-        Radio::label(
-            "Json",
-            export_format.clone().map_value(
-                |v| matches!(v, ExportFormat::Tailwind),
-                |_| ExportFormat::Tailwind,
-            ),
-        ),
-        Radio::label(
-            "Rust",
-            export_format
-                .clone()
-                .map_value(|v| matches!(v, ExportFormat::Rust), |_| ExportFormat::Rust),
-        ),
+        Selectable::new_value(label("Json"), export_format.clone(), ExportFormat::Tailwind),
+        Selectable::new_value(label("Rust"), export_format.clone(), ExportFormat::Rust),
         StreamWidget::new(result_rx.into_stream()),
     ))
     .with_cross_align(Align::Center)

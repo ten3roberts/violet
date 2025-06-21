@@ -1,9 +1,9 @@
 use core::panic;
-use std::{fmt::Display, future::ready, str::FromStr, sync::Arc};
+use std::{future::Future, str::FromStr, sync::Arc};
 
 use futures::StreamExt;
 use futures_signals::signal::{self, Mutable, SignalExt};
-use glam::{vec2, Mat4, Vec2, Vec3, Vec3Swizzles};
+use glam::{vec2, BVec2, Mat4, Vec2, Vec3, Vec3Swizzles};
 use itertools::Itertools;
 use palette::{Srgba, WithAlpha};
 use web_time::Duration;
@@ -19,7 +19,7 @@ use crate::{
         interactive, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
     },
-    io,
+    io::{self, Clipboard},
     layout::Align,
     state::{StateDuplex, StateExt, StateSink, StateStream},
     style::*,
@@ -28,9 +28,7 @@ use crate::{
     to_owned,
     unit::Unit,
     utils::throttle,
-    widget::{
-        col, row, EmptyWidget, Float, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt,
-    },
+    widget::{col, Float, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
     Edges, Rect, Scope, Widget,
 };
 
@@ -54,11 +52,24 @@ impl Default for TextInputStyle {
     }
 }
 
+pub struct TextOptions {
+    allow_newlines: bool,
+}
+
+impl Default for TextOptions {
+    fn default() -> Self {
+        Self {
+            allow_newlines: false,
+        }
+    }
+}
+
 /// Text field allowing arbitrary user input
 pub struct TextInput {
     style: TextInputStyle,
     content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
     size: WidgetSizeProps,
+    options: TextOptions,
 }
 
 impl TextInput {
@@ -67,10 +78,11 @@ impl TextInput {
             content: Arc::new(content),
             style: Default::default(),
             size: WidgetSizeProps::default()
-                .with_min_size(Unit::px2(32.0, 16.0))
+                .with_min_size(Unit::px2(32.0, 0.0))
                 .with_margin(spacing_small())
                 .with_padding(spacing_small())
                 .with_corner_radius(default_corner_radius()),
+            options: Default::default(),
         }
     }
 
@@ -114,7 +126,7 @@ impl Widget for TextInput {
             .resolve(stylesheet)
             .with_alpha(0.2);
 
-        let (tx, rx) = flume::unbounded();
+        let (tx, actions_rx) = flume::unbounded();
 
         let focused = Mutable::new(false);
 
@@ -143,8 +155,10 @@ impl Widget for TextInput {
 
         editor.set_cursor_at_end();
 
-        let (editor_props_tx, editor_props_rx) =
-            signal::channel(Box::new(EmptyWidget) as Box<dyn Widget>);
+        let visual_cursor = Mutable::new(VisualCursor {
+            lines: vec![],
+            cursor: Default::default(),
+        });
 
         let clipboard = scope
             .get_atom(io::clipboard())
@@ -153,118 +167,15 @@ impl Widget for TextInput {
 
         let clipboard = scope.frame().store().get(&clipboard).clone();
 
-        scope.spawn({
-            let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream().fuse();
-            let mut focused_signal = focused.stream().fuse();
-            async move {
-                let mut rx = rx.into_stream().fuse();
-
-                let mut glyphs: LayoutGlyphs = LayoutGlyphs::default();
-
-                let content = self.content.dedup().prevent_feedback();
-                let mut new_text =
-                    throttle(content.stream(), || sleep(Duration::from_millis(100))).fuse();
-
-                let mut focused = false;
-
-                loop {
-                    futures::select! {
-                        focus = focused_signal.select_next_some() => {
-                            focused = focus;
-                        }
-                        new_text = new_text.select_next_some() => {
-                            editor.set_text(new_text.split('\n'));
-                        }
-                        action = rx.select_next_some() => {
-                            match action {
-                                Action::Editor(editor_action) => editor.apply_action(editor_action),
-                                Action::Copy => {
-                                    if let Some(sel) = editor.selected_text() {
-                                        clipboard.set_text(sel.join("\n")).await;
-                                    }
-                                }
-                                Action::Paste => {
-                                    if let Some(text) = clipboard.get_text().await {
-                                        editor.edit(EditAction::InsertText(text));
-                                    }
-                                }
-                                Action::Cut => {
-                                    if let Some(sel) = editor.selected_text() {
-                                        clipboard.set_text(sel.join("\n")).await;
-                                        editor.delete_selected_text();
-                                    }
-                                }
-                            }
-
-                            content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
-                        }
-                        new_glyphs = layout_glyphs.select_next_some() => {
-                            glyphs = new_glyphs;
-                        }
-                    }
-
-                    let cursor_pos = calculate_position(&glyphs, editor.cursor());
-
-                    let selection = if let Some((start, end)) = editor.selection_bounds() {
-                        let selected_lines = glyphs
-                            .lines()
-                            .enumerate()
-                            .filter(|(_, v)| v.row >= start.row && v.row <= end.row);
-
-                        let selection = selected_lines
-                            .filter_map(|(ln, v)| {
-                                let left = if v.row == start.row {
-                                    v.glyphs.iter().find(|v| {
-                                        v.start >= start.col
-                                            && (start.row != end.row || v.start < end.col)
-                                    })
-                                } else {
-                                    // None
-                                    v.glyphs.first()
-                                }?;
-                                let right = if v.row == end.row {
-                                    v.glyphs.iter().rev().find(|v| {
-                                        v.end <= end.col
-                                            && (start.row != end.row || v.end > start.col)
-                                    })
-                                } else {
-                                    // None
-                                    v.glyphs.last()
-                                }?;
-
-                                let rect = Rect::new(
-                                    left.bounds.min + vec2(0.0, ln as f32 * glyphs.line_height),
-                                    right.bounds.max + vec2(0.0, ln as f32 * glyphs.line_height),
-                                );
-
-                                Some(
-                                    Positioned::new(
-                                        Rectangle::new(selection_color)
-                                            .with_min_size(Unit::px(rect.size())),
-                                    )
-                                    .with_offset(Unit::px(rect.pos())),
-                                )
-                            })
-                            .collect_vec();
-
-                        Some(Stack::new(selection))
-                    } else {
-                        None
-                    };
-                    let props = Stack::new((
-                        focused.then(|| {
-                            Positioned::new(
-                                Rectangle::new(cursor_color).with_min_size(Unit::px2(2.0, 16.0)),
-                            )
-                            .with_offset(Unit::px(cursor_pos))
-                        }),
-                        selection,
-                    ));
-
-                    editor_props_tx.send(Box::new(props)).ok();
-                }
-            }
-        });
+        scope.spawn(process_edit_commands(
+            focused.clone(),
+            layout_glyphs.clone(),
+            actions_rx,
+            editor,
+            clipboard,
+            self.content.clone(),
+            visual_cursor.clone(),
+        ));
 
         let dragging = Mutable::new(None);
 
@@ -362,12 +273,155 @@ impl Widget for TextInput {
                 text_bounds: text_bounds.clone(),
                 layout_glyphs: layout_glyphs.clone(),
             },
-            Float::new(StreamWidget(editor_props_rx.to_stream())),
+            Float::new(StreamWidget(
+                visual_cursor
+                    .signal_ref(move |v| {
+                        let lines = v
+                            .lines
+                            .iter()
+                            .map(move |line| {
+                                Positioned::new(
+                                    Rectangle::new(selection_color)
+                                        .with_exact_size(Unit::px(line.size())),
+                                )
+                                .with_offset(Unit::px(line.pos()))
+                            })
+                            .chain([Positioned::new(
+                                Rectangle::new(cursor_color)
+                                    .with_exact_size(Unit::px(v.cursor.size())),
+                            )
+                            .with_offset(Unit::px(v.cursor.pos()))]);
+
+                        Stack::new(lines.collect_vec())
+                    })
+                    .to_stream(),
+            )),
         )))
         .with_size_props(self.size)
         .with_horizontal_alignment(self.style.align)
         .with_background(self.style.background)
+        .with_clip(BVec2::TRUE)
         .mount(scope)
+    }
+}
+
+struct VisualCursor {
+    lines: Vec<Rect>,
+    cursor: Rect,
+}
+
+fn process_edit_commands(
+    focused: Mutable<bool>,
+    layout_glyphs: Mutable<LayoutGlyphs>,
+    rx: flume::Receiver<Action>,
+    mut editor: TextEditorCore,
+    clipboard: Arc<Clipboard>,
+    source_content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
+    cursor: Mutable<VisualCursor>,
+) -> impl Future<Output = ()> {
+    let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream().fuse();
+    let mut focused_signal = focused.stream().fuse();
+    async move {
+        let mut rx = rx.into_stream().fuse();
+
+        let mut glyphs: LayoutGlyphs = LayoutGlyphs::default();
+
+        let source_content = source_content.dedup().prevent_feedback();
+        let mut new_text = throttle(source_content.stream(), || {
+            sleep(Duration::from_millis(100))
+        })
+        .fuse();
+
+        let mut focused = false;
+
+        loop {
+            futures::select! {
+                focus = focused_signal.select_next_some() => {
+                    focused = focus;
+                }
+                new_text = new_text.select_next_some() => {
+                    editor.set_text(new_text.split('\n'));
+                }
+                action = rx.select_next_some() => {
+                    match action {
+                        Action::Editor(editor_action) => editor.apply_action(editor_action),
+                        Action::Copy => {
+                            if let Some(sel) = editor.selected_text() {
+                                clipboard.set_text(sel.join("\n")).await;
+                            }
+                        }
+                        Action::Paste => {
+                            if let Some(text) = clipboard.get_text().await {
+                                editor.edit(EditAction::InsertText(text));
+                            }
+                        }
+                        Action::Cut => {
+                            if let Some(sel) = editor.selected_text() {
+                                clipboard.set_text(sel.join("\n")).await;
+                                editor.delete_selected_text();
+                            }
+                        }
+                    }
+
+                    source_content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
+                }
+                new_glyphs = layout_glyphs.select_next_some() => {
+                    glyphs = new_glyphs;
+                }
+            }
+
+            let cursor_pos = calculate_position(&glyphs, editor.cursor());
+
+            let mut cursor = cursor.lock_mut();
+            if let Some((start, end)) = editor.selection_bounds() {
+                let selected_lines = glyphs
+                    .lines()
+                    .enumerate()
+                    .filter(|(_, v)| v.row >= start.row && v.row <= end.row);
+
+                let lines = selected_lines.filter_map(|(ln, v)| {
+                    let left = if v.row == start.row {
+                        v.glyphs.iter().find(|v| {
+                            v.start >= start.col && (start.row != end.row || v.start < end.col)
+                        })
+                    } else {
+                        // None
+                        v.glyphs.first()
+                    }?;
+                    let right = if v.row == end.row {
+                        v.glyphs.iter().rev().find(|v| {
+                            v.end <= end.col && (start.row != end.row || v.end > start.col)
+                        })
+                    } else {
+                        // None
+                        v.glyphs.last()
+                    }?;
+
+                    let rect = Rect::new(
+                        left.bounds.min + vec2(0.0, ln as f32 * glyphs.line_height),
+                        right.bounds.max + vec2(0.0, ln as f32 * glyphs.line_height),
+                    );
+
+                    Some(
+                        rect, // Positioned::new(
+                             // Rectangle::new(selection_color)
+                             //     .with_min_size(Unit::px(rect.size())),
+                             // )
+                             // .with_offset(Unit::px(rect.pos())),
+                    )
+                });
+
+                cursor.lines.clear();
+                cursor.lines.extend(lines);
+            } else if focused {
+                cursor.lines.clear();
+
+                cursor.cursor = Rect::from_size_pos(vec2(2.0, 16.0), cursor_pos);
+            } else {
+                cursor.cursor = Rect::default();
+                cursor.lines.clear();
+            };
+        }
     }
 }
 
@@ -500,53 +554,5 @@ fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
         send(Action::Editor(EditorAction::Edit(EditAction::InsertText(
             text.into(),
         ))));
-    }
-}
-
-pub struct InputField<V> {
-    label: String,
-    value: Arc<dyn StateDuplex<Item = V>>,
-}
-
-impl<V> InputField<V> {
-    pub fn new(
-        label: impl Into<String>,
-        value: impl 'static + Send + Sync + StateDuplex<Item = V>,
-    ) -> Self {
-        Self {
-            label: label.into(),
-            value: Arc::new(value),
-        }
-    }
-}
-
-impl<V: 'static + Display + FromStr> Widget for InputField<V> {
-    fn mount(self, scope: &mut Scope<'_>) {
-        let text_value = Mutable::new(String::new());
-        let value = self.value.clone();
-
-        scope.spawn(
-            text_value
-                .signal_cloned()
-                .dedupe_cloned()
-                .to_stream()
-                .filter_map(|v| ready(v.trim().parse().ok()))
-                .for_each(move |v| {
-                    value.send(v);
-                    async {}
-                }),
-        );
-
-        scope.spawn(self.value.stream().map(|v| v.to_string()).for_each({
-            to_owned![text_value];
-            move |v| {
-                text_value.set(v);
-                async {}
-            }
-        }));
-
-        let editor = TextInput::new(text_value);
-
-        row((Text::new(self.label), editor)).mount(scope);
     }
 }

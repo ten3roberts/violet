@@ -1,0 +1,5 @@
+disallowed-types = [
+    # Can use a string as the path of the disallowed type.
+    { path = "std::sync::Mutex", reason = "prefer faster & simpler non-poisonable mutex", replacement = "parking_lot::Mutex" },
+    { path = "std::time::Instant", reason = "Prefer web combatible time", replacement = "web_time::Instant" },
+]

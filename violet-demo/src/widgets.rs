@@ -7,22 +7,25 @@ use violet::{
             base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
             surface_warning, text_medium, SizeExt,
         },
-        text::Wrap,
         unit::Unit,
         widget::{
-            card, col,
-            interactive::{select_list::SelectList, tooltip::Tooltip},
-            label, pill, row, subtitle, title, Button, Collapsible, Radio, Rectangle, ScrollArea,
-            SliderWithLabel, Text, TextInput,
+            card, col, interactive::select_list::SelectList, label, pill, row, subtitle, title,
+            Button, Collapsible, Radio, Rectangle, ScrollArea, SignalWidget, SliderWithLabel, Text,
+            TextInput,
         },
-        Widget,
+        Edges, Widget,
     },
-    futures_signals::signal::Mutable,
+    futures_signals::signal::{Mutable, SignalExt},
     lucide::icons::*,
     palette::Srgba,
 };
+use web_sys::console::info;
 
 use crate::drag;
+
+fn dialog(name: impl Into<String>, content: impl Widget) -> impl Widget {
+    card(Collapsible::new(title(name), content))
+}
 
 pub fn main_app() -> impl Widget {
     ScrollArea::new(
@@ -38,9 +41,9 @@ pub fn main_app() -> impl Widget {
 }
 
 fn buttons() -> impl Widget {
-    card(
+    dialog(
+        "Buttons",
         col((
-            title("Buttons"),
             Button::label("Default"),
             Button::label("Success").success(),
             Button::label("Warning").warning(),
@@ -53,7 +56,8 @@ fn buttons() -> impl Widget {
 }
 
 fn texts() -> impl Widget {
-    card(
+    dialog(
+        "Text",
         col((
             title("Title"),
             subtitle("Subtitle"),
@@ -79,7 +83,8 @@ fn colors() -> impl Widget {
             .with_corner_radius(default_corner_radius())
     }
 
-    card(
+    dialog(
+        "Colors",
         col((
             row((color(RUBY_400), color(RUBY_500), color(RUBY_600))),
             row((color(CHERRY_400), color(CHERRY_500), color(CHERRY_600))),
@@ -103,24 +108,22 @@ fn colors() -> impl Widget {
 fn list() -> impl Widget {
     let selection = Mutable::new(None);
 
-    card(
-        col((
-            title("Selection"),
-            SelectList::new(
-                selection,
-                ('A'..='Z')
-                    .map(|v| label(format!("Item {v}")).with_min_size(Unit::px2(140.0, 0.0)))
-                    .collect_vec(),
-            )
-            .with_min_size(Unit::px2(140.0, 400.0))
-            .with_max_size(Unit::px2(f32::MAX, 400.0)),
-        ))
+    dialog(
+        "Selection",
+        col((SelectList::new(
+            selection,
+            ('A'..='Z')
+                .map(|v| label(format!("Item {v}")).with_min_size(Unit::px2(140.0, 0.0)))
+                .collect_vec(),
+        )
+        .with_min_size(Unit::px2(140.0, 400.0))
+        .with_max_size(Unit::px2(f32::MAX, 400.0)),))
         .with_cross_align(Align::Center),
     )
 }
 
 fn drag_and_drop() -> impl Widget {
-    card(col((title("Drag and Drop"), drag::app())))
+    dialog("Drag and Drop", drag::app())
 }
 
 fn icons() -> impl Widget {
@@ -132,16 +135,9 @@ fn icons() -> impl Widget {
         Button::new(w).with_corner_radius(Unit::rel(1.0))
     }
 
-    card(col((
-        title("Icons"),
-        row((
-            label("Lucide Icons:").with_wrap(Wrap::None),
-            Tooltip::new(icon_large(LUCIDE_USER_ROUND), || label("Profile")),
-            Tooltip::new(icon_large(LUCIDE_BOOK), || label("Reading List")),
-        ))
-        .with_cross_align(Align::Center),
-        row((
-            label("Colors:").with_wrap(Wrap::None),
+    dialog(
+        "Icons",
+        col((row((
             icon_button(icon_large(LUCIDE_COG).with_color(AMBER_300)).with_tooltip_text("Settings"),
             icon_button(icon_large(LUCIDE_CHECK).with_color(EMERALD_500))
                 .with_tooltip_text("Success"),
@@ -151,25 +147,34 @@ fn icons() -> impl Widget {
                 .with_tooltip_text("Warning"),
             icon_button(icon_large(LUCIDE_CIRCLE_X).with_color(surface_danger()))
                 .with_tooltip_text("Error"),
-            icon_button(row((label("Text"), label(LUCIDE_PENCIL))).with_cross_align(Align::Center))
-                .with_tooltip_text("Error"),
+            icon_button(
+                row((
+                    TextInput::new(Mutable::new("Text".to_string())).with_padding(Edges::ZERO),
+                    icon_large(LUCIDE_PENCIL).with_color(OCEAN_400),
+                ))
+                .with_cross_align(Align::Center),
+            )
+            .with_tooltip_text("Write some text"),
         ))
-        .with_cross_align(Align::Center),
-    )))
+        .with_cross_align(Align::Center),)),
+    )
 }
 
 fn inputs() -> impl Widget {
     let selection = Mutable::new(0);
 
-    card(
+    dialog(
+        "Input",
         col((
-            title("Input"),
             SliderWithLabel::new(Mutable::new(50), 0, 100),
             SliderWithLabel::new(Mutable::new(50), 0, 100).editable(true),
             TextInput::new(Mutable::new("Text Input".to_string())),
-            row((0..10)
-                .map(|i| Radio::new_indexed(label(format!("{i}")), selection.clone(), i))
-                .collect_vec()),
+            row((
+                row((0..10)
+                    .map(|i| Radio::new_indexed(selection.clone(), i))
+                    .collect_vec()),
+                SignalWidget::new(selection.signal().map(|v| label(format!("Selected: {v}")))),
+            )),
             Collapsible::label(
                 "Options",
                 col((
@@ -178,7 +183,10 @@ fn inputs() -> impl Widget {
                         .precision(2),
                     TextInput::new(Mutable::new("Multiple\nLines\n\nOf Text".to_string())),
                 )),
-            ),
+            )
+            .on_click(|scope| {
+                eprintln!("Clicked collapsible header");
+            }),
         ))
         .with_stretch(true)
         .with_cross_align(Align::Center),
