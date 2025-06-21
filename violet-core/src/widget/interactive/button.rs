@@ -132,7 +132,8 @@ impl ButtonStyle {
             hover: ColorPair::new(surface_hover(), element_hover()),
             size: WidgetSizeProps::default()
                 .with_padding(spacing_small())
-                .with_margin(Edges::ZERO),
+                .with_margin(spacing_small())
+                .with_corner_radius(default_corner_radius()),
         }
     }
 
@@ -488,7 +489,7 @@ impl<W: WidgetCollection> Selectable<W> {
     pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
-            style: Default::default(),
+            style: ButtonStyle::selectable_entry(),
             label,
             tooltip: None,
         }

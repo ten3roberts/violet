@@ -9,6 +9,7 @@ use violet::{
             element_hover, element_interactive, element_pressed, surface_hover, surface_pressed,
             surface_primary, SizeExt, StyleExt, StylesheetOptions,
         },
+        text::Wrap,
         widget::{
             self, card, col, label, panel, row, ButtonStyle, ColorPair, Radio, Selectable,
             StreamWidget, WidgetExt,
@@ -80,14 +81,11 @@ pub fn multi_app() -> impl Widget {
     let transparent = Srgba::new(0.0, 0.0, 0.0, 0.0);
 
     let radio_label = |label: &str, value: DemoState| {
-        Selectable::new_value(widget::label(label), state.clone(), value)
-            .with_style(ButtonStyle {
-                normal: ColorPair::new(transparent, element_interactive()),
-                pressed: ColorPair::new(surface_pressed(), element_pressed()),
-                hover: ColorPair::new(surface_hover(), element_hover()),
-                size: Default::default(),
-            })
-            .with_margin(Edges::ZERO)
+        Selectable::new_value(
+            widget::label(label).with_wrap(Wrap::None),
+            state.clone(),
+            value,
+        )
     };
 
     let selection = col((
