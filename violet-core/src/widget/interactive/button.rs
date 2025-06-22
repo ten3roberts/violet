@@ -11,13 +11,11 @@ use crate::{
     style::*,
     tweens::tweens,
     unit::Unit,
-    widget::{label, ContainerStyle, Rectangle, Stack, Text},
+    widget::{interactive::base::ClickCallback, label, ContainerStyle, Rectangle, Stack, Text},
     Edges, Scope, Widget, WidgetCollection,
 };
 
 use super::base::{InteractiveWidget, TooltipOptions};
-
-pub type ButtonClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ColorPair<T> {
@@ -168,7 +166,8 @@ impl Default for ButtonStyle {
 
 /// A button which invokes the callback when clicked
 pub struct Button<W = Text> {
-    on_click: ButtonClickCallback,
+    on_click: ClickCallback,
+    on_double_click: Option<ClickCallback>,
     tooltip: Option<TooltipOptions>,
     label: W,
     style: ButtonStyle,
@@ -186,12 +185,28 @@ impl<W> Button<W> {
             style: Default::default(),
             is_pressed: false,
             tooltip: None,
+            on_double_click: None,
         }
     }
 
     /// Handle the button press
-    pub fn on_click(mut self, on_press: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>)) -> Self {
-        self.on_click = Box::new(on_press);
+    pub fn on_click(mut self, func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>)) -> Self {
+        self.on_click = Box::new(func);
+        self
+    }
+
+    /// Handle the button press
+    pub fn on_double_click(
+        mut self,
+        func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>),
+    ) -> Self {
+        self.on_double_click = Some(Box::new(func));
+        self
+    }
+
+    /// Handle the button press
+    pub fn on_double_click_opt(mut self, func: Option<ClickCallback>) -> Self {
+        self.on_double_click = func;
         self
     }
 
@@ -292,6 +307,7 @@ impl<W: Widget> Widget for Button<W> {
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
             .on_click(move |scope| (self.on_click)(scope))
+            .on_double_click_opt(self.on_double_click)
             .on_pointer_press(move |scope, state| {
                 // let current_color = scope.get(color());
                 let new_color = if state.is_pressed() { pressed } else { normal };
@@ -407,13 +423,6 @@ impl Radio {
         }
     }
 
-    pub fn new_indexed(
-        state: impl 'static + Send + Sync + StateDuplex<Item = usize>,
-        index: usize,
-    ) -> Self {
-        Self::new(state.map_value(move |v| v == index, move |_| index))
-    }
-
     pub fn new_value<T: 'static + Send + Sync + Copy + PartialEq>(
         state: impl 'static + Send + Sync + StateDuplex<Item = T>,
         index: T,
@@ -489,18 +498,22 @@ impl<W: WidgetCollection> Selectable<W> {
     pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
-            style: ButtonStyle::selectable_entry(),
+            style: ButtonStyle::default(),
             label,
             tooltip: None,
         }
     }
 
-    pub fn new_indexed(
+    pub fn selectable_entry(
         label: W,
-        state: impl 'static + Send + Sync + StateDuplex<Item = usize>,
-        index: usize,
+        state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
     ) -> Self {
-        Self::new(label, state.map_value(move |v| v == index, move |_| index))
+        Self {
+            state: Box::new(state),
+            style: ButtonStyle::selectable_entry(),
+            label,
+            tooltip: None,
+        }
     }
 
     pub fn new_value<T: 'static + Send + Sync + Copy + PartialEq>(

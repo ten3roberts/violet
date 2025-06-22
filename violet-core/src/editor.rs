@@ -121,6 +121,7 @@ pub enum EditorAction<S = String> {
     SelectionMove(CursorMove),
     SelectionStart,
     SelectionClear,
+    SelectAll,
     Edit(EditAction<S>),
     SetText(Vec<S>),
 }
@@ -390,6 +391,17 @@ impl TextEditorCore {
             EditorAction::SelectionStart => {
                 if self.selection.is_none() {
                     self.selection = Some(self.cursor);
+                }
+            }
+            EditorAction::SelectAll => {
+                self.cursor = CursorLocation { row: 0, col: 0 };
+                self.clear_selection();
+
+                if !self.text.is_empty() {
+                    self.selection = Some(CursorLocation {
+                        row: self.text.len() - 1,
+                        col: self.text.last().unwrap().len(),
+                    });
                 }
             }
         }

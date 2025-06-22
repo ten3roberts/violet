@@ -4,6 +4,8 @@ use glam::Vec2;
 use winit::event::ElementState;
 
 use crate::{
+    components::LayoutAlignment,
+    executor::TaskHandle,
     input::{interactive, on_cursor_hover, on_mouse_input, HoverState},
     style::{SizeExt, WidgetSizeProps},
     time::sleep,
@@ -60,6 +62,7 @@ impl TooltipOptions {
 /// Consumes click events.
 pub struct InteractiveWidget<W> {
     on_click: Option<ClickCallback>,
+    double_click: Option<ClickCallback>,
     on_press: Option<PointerPressCallback>,
     size: WidgetSizeProps,
     tooltip: Option<TooltipOptions>,
@@ -74,6 +77,7 @@ impl<W: Widget> InteractiveWidget<W> {
             tooltip: None,
             size: Default::default(),
             inner,
+            double_click: None,
         }
     }
 
@@ -82,6 +86,26 @@ impl<W: Widget> InteractiveWidget<W> {
         F: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
     {
         self.on_click = Some(Box::new(on_click));
+        self
+    }
+
+    pub fn on_double_click<F>(mut self, on_double_click: F) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
+    {
+        self.double_click = Some(Box::new(on_double_click));
+        self
+    }
+
+    pub fn on_double_click_opt<F>(mut self, on_double_click: Option<F>) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
+    {
+        if let Some(on_double_click) = on_double_click {
+            self.double_click = Some(Box::new(on_double_click));
+        } else {
+            self.double_click = None;
+        }
         self
     }
 
@@ -163,6 +187,37 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
             Some(event)
         });
 
+        let mut last_click = None as Option<web_time::Instant>;
+        let double_click_timeout = Duration::from_millis(250);
+        let on_click = self.on_click.map(|v| scope.store(RefCell::new(v)));
+
+        let mut click_action = None as Option<TaskHandle>;
+
+        let mut click_handler = move |scope: &ScopeRef| {
+            let now = web_time::Instant::now();
+            if last_click.is_some_and(|v| now.duration_since(v) < double_click_timeout) {
+                // second click, abort the previous action
+                click_action.take().map(|v| v.abort());
+                if let Some(double_click) = &mut self.double_click {
+                    double_click(scope);
+                }
+            } else if self.double_click.is_some() {
+                // delay normal click
+                click_action = Some(scope.spawn_effect(FutureEffect::new(
+                    sleep(double_click_timeout),
+                    move |scope: &mut Scope, _| {
+                        if let Some(on_click) = on_click {
+                            // If we have a click handler, call it
+                            (scope.read(&on_click).borrow_mut())(&ScopeRef::from_scope(scope));
+                        }
+                    },
+                )));
+                last_click = Some(now);
+            } else if let Some(on_click) = on_click {
+                (scope.read(on_click).borrow_mut())(scope);
+            }
+        };
+
         scope
             .set_default(interactive())
             .on_event(on_mouse_input(), move |scope, input| {
@@ -170,13 +225,11 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
                     (on_press)(scope, input.state)
                 }
 
-                if let Some(on_click) = &mut self.on_click {
-                    if input.state == ElementState::Pressed {
-                        is_pressed = true;
-                    } else if is_pressed {
-                        is_pressed = false;
-                        (on_click)(scope);
-                    }
+                if input.state == ElementState::Pressed {
+                    is_pressed = true;
+                } else if is_pressed {
+                    is_pressed = false;
+                    click_handler(scope)
                 }
 
                 None

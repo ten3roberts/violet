@@ -13,7 +13,7 @@ use flax::{component::ComponentValue, components::name, Component};
 pub use future::{FutureWidget, SignalWidget, StreamWidget};
 use futures_signals::signal::Mutable;
 pub use image::*;
-pub use interactive::{button::*, collapsible::*, drag::*, input::*, slider::*, InteractiveExt};
+pub use interactive::{button::*, collapsible::*, drag::*, input::*, slider::*};
 pub use scroll::ScrollArea;
 
 /// A widget is a description of a part of the Ui with the capability to mount itself into the world.

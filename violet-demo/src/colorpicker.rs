@@ -31,9 +31,9 @@ use violet::core::{
     unit::Unit,
     utils::zip_latest,
     widget::{
-        card, col, header, label, panel, row, Button, Checkbox, Collapsible, InteractiveExt, Radio,
-        Rectangle, ScrollArea, Selectable, SignalWidget, SliderStyle, SliderValue, SliderWithLabel,
-        Stack, StreamWidget, Text, TextInput,
+        card, col, header, interactive::base::InteractiveWidget, label, panel, row, Button,
+        Checkbox, Collapsible, Radio, Rectangle, ScrollArea, Selectable, SignalWidget, SliderStyle,
+        SliderValue, SliderWithLabel, Stack, StreamWidget, Text, TextInput,
     },
     FutureEffect, Scope, ScopeRef, Widget,
 };
@@ -125,21 +125,24 @@ pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget
         )),
     ));
 
-    let enabled_indicator = SignalWidget::new(settings.signal().map(|v| v.enabled).dedupe().map(
-        |enabled| {
-            Rectangle::new(if enabled {
-                surface_pressed()
-            } else {
-                surface_disabled()
-            })
-            .with_exact_size(Unit::px2(18.0, 18.0))
-            .with_corner_radius(Unit::rel(1.0))
-        },
+    let enabled_indicator = InteractiveWidget::new(SignalWidget::new(
+        settings
+            .signal()
+            .map(|v| v.enabled)
+            .dedupe()
+            .map(|enabled| {
+                Rectangle::new(if enabled {
+                    surface_pressed()
+                } else {
+                    surface_disabled()
+                })
+                .with_exact_size(Unit::px2(18.0, 18.0))
+                .with_corner_radius(Unit::rel(1.0))
+            }),
     ))
-    .on_press(move |_| {
+    .on_click(move |_| {
         let enabled = &mut settings.lock_mut().enabled;
         *enabled = !*enabled;
-        None
     });
 
     card(
@@ -172,7 +175,7 @@ fn palette_controls(
     let palettes = Arc::new(palettes);
     let selection = Arc::new(selection);
 
-    let add_swatch = Button::label("+").on_press({
+    let add_swatch = Button::label("+").on_click({
         to_owned!(palettes, selection);
         move |_| {
             palettes.write_mut(|palette| {
@@ -181,7 +184,6 @@ fn palette_controls(
 
                 selection.send((palette_index, palette.colors.len() - 1))
             });
-            None
         }
     });
 
@@ -230,31 +232,31 @@ fn palette_controls(
 
                         let is_selected = (palette_index, i) == v;
 
-                        Stack::new((
-                            StreamWidget::new(color.stream().map(|color| {
-                                Rectangle::new(color.as_rgb().with_alpha(1.0))
-                                    .with_min_size(Unit::px2(60.0, 60.0))
-                                    .with_corner_radius(default_corner_radius())
-                            })),
-                            Button::label("-")
-                                .with_padding(spacing_small())
-                                .with_margin(spacing_small())
-                                .on_press(move |_| {
-                                    palettes.write_mut(|v| v.colors.remove(i));
-                                    None
-                                }),
-                        ))
-                        .with_horizontal_alignment(Align::End)
-                        .with_background_opt(if is_selected {
-                            Some(Background::new(surface_interactive()))
-                        } else {
-                            None
-                        })
-                        .with_corner_radius(default_corner_radius())
-                        .with_padding(spacing_small())
-                        .on_press(move |_| {
+                        InteractiveWidget::new(
+                            Stack::new((
+                                StreamWidget::new(color.stream().map(|color| {
+                                    Rectangle::new(color.as_rgb().with_alpha(1.0))
+                                        .with_min_size(Unit::px2(60.0, 60.0))
+                                        .with_corner_radius(default_corner_radius())
+                                })),
+                                Button::label("-")
+                                    .with_padding(spacing_small())
+                                    .with_margin(spacing_small())
+                                    .on_click(move |_| {
+                                        palettes.write_mut(|v| v.colors.remove(i));
+                                    }),
+                            ))
+                            .with_horizontal_alignment(Align::End)
+                            .with_background_opt(if is_selected {
+                                Some(Background::new(surface_interactive()))
+                            } else {
+                                None
+                            })
+                            .with_corner_radius(default_corner_radius())
+                            .with_padding(spacing_small()),
+                        )
+                        .on_click(move |_| {
                             selection.send((palette_index, i));
-                            None
                         })
                     });
 
@@ -721,7 +723,7 @@ impl<W: Widget> Widget for TimedWidget<W> {
             move |scope: &mut Scope, _| {
                 scope.detach(id);
             },
-        ))
+        ));
     }
 }
 

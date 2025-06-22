@@ -92,7 +92,7 @@ where {
         Dedup::new(self)
     }
 
-    /// Prevents feedback loops in a stream of values.
+    /// Prevents receiving streams from receiving the value just sent over the state
     fn prevent_feedback(self) -> PreventFeedback<Self>
     where
         Self::Item: PartialEq + Clone,

@@ -20,6 +20,10 @@ use std::sync::Arc;
 use icons::LUCIDE_CHEVRON_RIGHT;
 use violet_core::{style::IconSet, text::Source};
 
+use crate::icons::{
+    LUCIDE_CHECK, LUCIDE_CIRCLE_X, LUCIDE_LIGHTBULB, LUCIDE_TRIANGLE, LUCIDE_TRIANGLE_ALERT,
+};
+
 /// All icon glyphs.
 pub mod icons;
 
@@ -32,5 +36,9 @@ pub fn font_source() -> Source {
 pub fn icon_set() -> IconSet {
     IconSet {
         chevron: LUCIDE_CHEVRON_RIGHT.into(),
+        warning: LUCIDE_TRIANGLE_ALERT.into(),
+        error: LUCIDE_CIRCLE_X.into(),
+        info: LUCIDE_LIGHTBULB.into(),
+        check: LUCIDE_CHECK.into(),
     }
 }

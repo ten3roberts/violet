@@ -4,6 +4,7 @@ use bytemuck::Zeroable;
 use flax::{
     entity_ids,
     fetch::{entity_refs, EntityRefs, NthRelation},
+    system::System,
     CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
 };
 use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
@@ -213,9 +214,14 @@ impl MainRenderer {
                 .bind_uniform_buffer(ShaderStages::VERTEX)
                 .build(&ctx.gpu);
 
-        let register_objects = flax::system::System::builder()
+        let register_objects = System::builder()
+            .with_name("MainRenderer::register_objects")
             .with_cmd_mut()
-            .with_query(Query::new(entity_ids()).with_relation(draw_shape))
+            .with_query(
+                Query::new(entity_ids())
+                    .without(object_data())
+                    .with_relation(draw_shape),
+            )
             .build(|cmd: &mut CommandBuffer, mut query: QueryBorrow<_, _>| {
                 (&mut query).into_iter().for_each(|id| {
                     cmd.set(id, object_data(), ObjectData::zeroed());

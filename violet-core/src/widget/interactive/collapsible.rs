@@ -144,10 +144,19 @@ struct CollapsibleHeader<'a, L> {
 
 impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        let on_click = self.on_click.map(|v| scope.store(RefCell::new(v)));
+        let toggle = move |scope: &ScopeRef| {
+            let value = &mut *scope.read(self.collapse).lock_mut();
+            *value = !*value;
+        };
+
+        let (click, double_click) = if let Some(on_click) = self.on_click {
+            (on_click, Some(Box::new(toggle) as ClickCallback))
+        } else {
+            (Box::new(toggle) as ClickCallback, None)
+        };
 
         let mut click_action = None as Option<TaskHandle>;
-        Button::new(
+        let mut button = Button::new(
             row((
                 InteractiveWidget::new(CollapsibleChevron {
                     collapse: self.collapse.clone(),
@@ -163,27 +172,8 @@ impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
             .with_cross_align(Align::Center),
         )
         .with_style(self.style.button)
-        .on_click(move |scope| {
-            if let Some(on_click) = on_click {
-                if let Some(click_action) = click_action.take() {
-                    // second click, abort the previous action
-                    click_action.abort();
-                } else {
-                    // first click
-                    click_action = Some(scope.spawn_effect(FutureEffect::new(
-                        sleep(Duration::from_millis(300)),
-                        move |scope: &mut Scope, _| {
-                            (scope.read(&on_click).borrow_mut())(&ScopeRef::from_scope(scope))
-                        },
-                    )));
-
-                    return;
-                }
-            }
-
-            let value = &mut *scope.read(self.collapse).lock_mut();
-            *value = !*value;
-        })
+        .on_click(click)
+        .on_double_click_opt(double_click)
         .mount(scope);
     }
 }

@@ -20,7 +20,7 @@ use crate::{
     to_owned,
     unit::Unit,
     utils::zip_latest,
-    widget::{row, Float, Positioned, Rectangle, Stack, StreamWidget, Text},
+    widget::{row, Float, InputBox, Positioned, Rectangle, Stack, StreamWidget, Text},
     Scope, StreamEffect, Widget,
 };
 
@@ -101,8 +101,7 @@ impl<V: SliderValue> Widget for Slider<V> {
 
         let track = scope.attach(
             Rectangle::new(track_color)
-                .with_min_size(track_size)
-                .with_size(track_size)
+                .with_exact_size(track_size)
                 .with_corner_radius(default_corner_radius()),
         );
 
@@ -367,42 +366,33 @@ impl SliderWithLabel<f32> {
     }
 }
 
-impl<V: SliderValue + FromStr + Display + Default + PartialOrd + Copy> Widget
-    for SliderWithLabel<V>
+impl<V> Widget for SliderWithLabel<V>
+where
+    V: SliderValue + FromStr + Display + Default + PartialOrd + Copy,
+    V::Err: 'static + std::fmt::Display,
 {
     fn mount(self, scope: &mut Scope<'_>) {
-        let text_value = Box::new(self.value.clone().dedup().prevent_feedback().filter_map(
-            move |v: V| Some(format!("{v}")),
+        let text_value = Box::new(self.value.clone().prevent_feedback().map_value(
+            move |v: V| v,
             move |v| {
-                v.parse::<V>().ok().map(|v| {
-                    if v < self.min {
-                        self.min
-                    } else if v > self.max {
-                        self.max
-                    } else {
-                        v
-                    }
-                })
+                if v < self.min {
+                    self.min
+                } else if v > self.max {
+                    self.max
+                } else {
+                    v
+                }
             },
         ));
 
         if self.editable {
-            row((
-                self.slider,
-                TextInput::new(text_value)
-                    .with_min_size(Unit::px2(48.0, 16.0))
-                    .with_max_size(Unit::px2(48.0, 30.0))
-                    .with_style(TextInputStyle {
-                        align: Align::End,
-                        ..Default::default()
-                    }),
-            ))
-            .with_cross_align(Align::Center)
-            .mount(scope)
+            row((self.slider, InputBox::<V>::new(text_value)))
+                .with_cross_align(Align::Center)
+                .mount(scope)
         } else {
             row((
                 self.slider,
-                StreamWidget(text_value.stream().map(Text::new)),
+                StreamWidget(self.value.stream().map(|v| Text::new(v.to_string()))),
             ))
             .with_cross_align(Align::Center)
             .mount(scope)

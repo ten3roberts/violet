@@ -1,8 +1,8 @@
 use core::panic;
-use std::{future::Future, str::FromStr, sync::Arc};
+use std::{fmt::Display, future::Future, str::FromStr, sync::Arc};
 
 use futures::StreamExt;
-use futures_signals::signal::{self, Mutable, SignalExt};
+use futures_signals::signal::{Mutable, SignalExt};
 use glam::{vec2, BVec2, Mat4, Vec2, Vec3, Vec3Swizzles};
 use itertools::Itertools;
 use palette::{Srgba, WithAlpha};
@@ -13,7 +13,7 @@ use winit::{
 };
 
 use crate::{
-    components::{self, screen_transform},
+    components::{self, screen_transform, LayoutAlignment},
     editor::{CursorMove, EditAction, EditorAction, EditorLine, TextChange, TextEditorCore},
     input::{
         interactive, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
@@ -28,7 +28,12 @@ use crate::{
     to_owned,
     unit::Unit,
     utils::throttle,
-    widget::{col, Float, Positioned, Rectangle, Stack, StreamWidget, Text, WidgetExt},
+    widget::{
+        bold, col,
+        interactive::{base::InteractiveWidget, tooltip::Tooltip},
+        label, pill, row, Float, Positioned, Rectangle, SignalWidget, Stack, StreamWidget, Text,
+        WidgetExt,
+    },
     Edges, Rect, Scope, Widget,
 };
 
@@ -38,6 +43,7 @@ pub struct TextInputStyle {
     pub background: Background,
     pub font_size: f32,
     pub align: Align,
+    pub size: WidgetSizeProps,
 }
 
 impl Default for TextInputStyle {
@@ -48,10 +54,16 @@ impl Default for TextInputStyle {
             background: Background::new(surface_interactive()),
             font_size: 16.0,
             align: Align::Start,
+            size: WidgetSizeProps::default()
+                .with_min_size(Unit::px2(32.0, 0.0))
+                .with_margin(spacing_small())
+                .with_padding(spacing_small())
+                .with_corner_radius(default_corner_radius()),
         }
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct TextOptions {
     allow_newlines: bool,
 }
@@ -68,8 +80,21 @@ impl Default for TextOptions {
 pub struct TextInput {
     style: TextInputStyle,
     content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
-    size: WidgetSizeProps,
     options: TextOptions,
+}
+
+impl TextInputStyle {
+    pub fn input_box() -> Self {
+        Self {
+            size: WidgetSizeProps::default()
+                .with_min_size(Unit::px2(64.0, 24.0))
+                .with_max_size(Unit::px2(64.0, 24.0))
+                .with_margin(spacing_small())
+                .with_padding(spacing_small())
+                .with_corner_radius(default_corner_radius()),
+            ..Default::default()
+        }
+    }
 }
 
 impl TextInput {
@@ -77,22 +102,20 @@ impl TextInput {
         Self {
             content: Arc::new(content),
             style: Default::default(),
-            size: WidgetSizeProps::default()
-                .with_min_size(Unit::px2(32.0, 0.0))
-                .with_margin(spacing_small())
-                .with_padding(spacing_small())
-                .with_corner_radius(default_corner_radius()),
             options: Default::default(),
         }
+    }
+
+    pub fn input_box(mut self) -> Self {
+        self.style = TextInputStyle::input_box();
+        self
     }
 
     pub fn new_parsed<T>(content: impl 'static + Send + Sync + StateDuplex<Item = T>) -> Self
     where
         T: 'static + Send + Sync + ToString + FromStr,
     {
-        let content = content
-            .filter_map(|v| Some(v.to_string()), |v| v.parse().ok())
-            .prevent_feedback();
+        let content = content.filter_map(|v| Some(v.to_string()), |v| v.parse().ok());
 
         let mut this = Self::new(content);
         this.style.align = Align::End;
@@ -111,7 +134,7 @@ impl StyleExt for TextInput {
 
 impl SizeExt for TextInput {
     fn size_mut(&mut self) -> &mut WidgetSizeProps {
-        &mut self.size
+        &mut self.style.size
     }
 }
 
@@ -175,9 +198,26 @@ impl Widget for TextInput {
             clipboard,
             self.content.clone(),
             visual_cursor.clone(),
+            self.options,
         ));
 
         let dragging = Mutable::new(None);
+
+        let mut last_click = None;
+        let mut process_double_click = {
+            to_owned!(tx);
+            move || {
+                let now = web_time::Instant::now();
+                if let Some(last_click) = last_click {
+                    if now.duration_since(last_click) < Duration::from_millis(200) {
+                        // Double click detected
+                        tx.send(Action::Editor(EditorAction::SelectAll)).ok();
+                    }
+                }
+
+                last_click = Some(now);
+            }
+        };
 
         scope
             .set(interactive(), ())
@@ -219,6 +259,8 @@ impl Widget for TextInput {
                                 )))
                                 .ok();
                             }
+
+                            process_double_click();
                         } else {
                             dragging.set(None)
                         }
@@ -257,16 +299,20 @@ impl Widget for TextInput {
                 to_owned![tx];
                 move |_, input| {
                     if input.state == ElementState::Pressed {
-                        handle_input(input, |v| {
-                            tx.send(v).ok();
-                        })
+                        handle_input(
+                            input,
+                            |v| {
+                                tx.send(v).ok();
+                            },
+                            &self.options,
+                        );
                     }
 
                     None
                 }
             });
 
-        Stack::new(Stack::new((
+        Stack::new((
             TextContent {
                 rx: dirty_rx,
                 font_size: self.style.font_size,
@@ -296,11 +342,11 @@ impl Widget for TextInput {
                     })
                     .to_stream(),
             )),
-        )))
-        .with_size_props(self.size)
+        ))
         .with_horizontal_alignment(self.style.align)
         .with_background(self.style.background)
         .with_clip(BVec2::TRUE)
+        .with_size_props(self.style.size)
         .mount(scope)
     }
 }
@@ -318,6 +364,7 @@ fn process_edit_commands(
     clipboard: Arc<Clipboard>,
     source_content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
     cursor: Mutable<VisualCursor>,
+    options: TextOptions,
 ) -> impl Future<Output = ()> {
     let mut layout_glyphs = layout_glyphs.signal_cloned().to_stream().fuse();
     let mut focused_signal = focused.stream().fuse();
@@ -326,7 +373,7 @@ fn process_edit_commands(
 
         let mut glyphs: LayoutGlyphs = LayoutGlyphs::default();
 
-        let source_content = source_content.dedup().prevent_feedback();
+        let source_content = source_content.dedup();
         let mut new_text = throttle(source_content.stream(), || {
             sleep(Duration::from_millis(100))
         })
@@ -352,6 +399,12 @@ fn process_edit_commands(
                         }
                         Action::Paste => {
                             if let Some(text) = clipboard.get_text().await {
+                                let text = if options.allow_newlines {
+                                    text
+                                } else {
+                                    text.replace('\n', "")
+                                };
+
                                 editor.edit(EditAction::InsertText(text));
                             }
                         }
@@ -512,7 +565,7 @@ fn handle_cursor_move(key: NamedKey, mods: ModifiersState) -> Option<CursorMove>
     }
 }
 
-fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
+fn handle_input(input: KeyboardInput, send: impl Fn(Action), options: &TextOptions) {
     let ctrl = input.modifiers.control_key();
     if let Key::Named(key) = input.key {
         if let Some(m) = handle_cursor_move(key, input.modifiers) {
@@ -536,7 +589,7 @@ fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
                     EditAction::DeleteBackwardChar,
                 )))
             }
-            NamedKey::Enter => {
+            NamedKey::Enter if options.allow_newlines => {
                 return send(Action::Editor(EditorAction::Edit(EditAction::InsertLine)))
             }
             _ => {}
@@ -551,8 +604,91 @@ fn handle_input(input: KeyboardInput, send: impl Fn(Action)) {
     }
 
     if let Some(text) = input.text {
+        let mut text = text.to_string();
+        if !options.allow_newlines {
+            text = text.replace('\n', "");
+        }
         send(Action::Editor(EditorAction::Edit(EditAction::InsertText(
-            text.into(),
+            text,
         ))));
+    }
+}
+
+pub struct InputBox<T> {
+    style: TextInputStyle,
+    content: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
+    options: TextOptions,
+}
+
+impl<T> InputBox<T> {
+    pub fn new(content: impl 'static + Send + Sync + StateDuplex<Item = T>) -> Self {
+        Self {
+            content: Arc::new(content),
+            style: TextInputStyle::input_box(),
+            options: Default::default(),
+        }
+    }
+}
+
+impl<T> StyleExt for InputBox<T> {
+    type Style = TextInputStyle;
+
+    fn with_style(mut self, style: Self::Style) -> Self {
+        self.style = style;
+        self
+    }
+}
+
+impl<T> SizeExt for InputBox<T> {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
+        &mut self.style.size
+    }
+}
+
+impl<T> Widget for InputBox<T>
+where
+    T: ToString + FromStr + 'static + Send + Sync,
+    T::Err: Display + 'static,
+{
+    fn mount(self, scope: &mut Scope<'_>) {
+        let warn_icon = scope.stylesheet().get_clone(icon_warning()).unwrap();
+
+        let parse_state = Mutable::new(Ok(()) as Result<(), String>);
+        let parse_state_content = parse_state.signal_ref(move |v| {
+            let warn_icon = &warn_icon;
+            v.as_ref().err().map(move |err| {
+                InteractiveWidget::new(label(warn_icon).with_color(surface_warning()))
+                    .with_tooltip_text(err)
+            })
+        });
+
+        let content = self.content.filter_map(
+            {
+                to_owned!(parse_state);
+                move |v| {
+                    parse_state.set(Ok(()));
+                    Some(v.to_string())
+                }
+            },
+            move |s| match s.parse() {
+                Ok(v) => {
+                    parse_state.set(Ok(()));
+                    Some(v)
+                }
+                Err(e) => {
+                    parse_state.set(Err(e.to_string()));
+                    None
+                }
+            },
+        );
+
+        Stack::new((
+            TextInput::new(content)
+                .with_size_props(self.style.size)
+                .with_style(self.style),
+            Stack::new((SignalWidget::new(parse_state_content),))
+                .with_item_align(LayoutAlignment::new(Align::End, Align::Center)),
+        ))
+        .mount(scope);
     }
 }

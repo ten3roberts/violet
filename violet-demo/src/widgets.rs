@@ -1,8 +1,10 @@
+use futures::StreamExt;
 use glam::{BVec2, Vec2};
 use itertools::Itertools;
 use violet::{
     core::{
         layout::Align,
+        state::{StateExt, StateStream},
         style::{
             base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
             surface_warning, text_medium, SizeExt,
@@ -10,8 +12,8 @@ use violet::{
         unit::Unit,
         widget::{
             card, col, interactive::select_list::SelectList, label, pill, row, subtitle, title,
-            Button, Collapsible, Radio, Rectangle, ScrollArea, SignalWidget, SliderWithLabel, Text,
-            TextInput,
+            Button, Collapsible, Radio, Rectangle, ScrollArea, SignalWidget, SliderWithLabel,
+            StreamWidget, Text, TextInput,
         },
         Edges, Widget,
     },
@@ -163,6 +165,7 @@ fn icons() -> impl Widget {
 fn inputs() -> impl Widget {
     let selection = Mutable::new(0);
 
+    let value = Mutable::new(0.5);
     dialog(
         "Input",
         col((
@@ -171,17 +174,17 @@ fn inputs() -> impl Widget {
             TextInput::new(Mutable::new("Text Input".to_string())),
             row((
                 row((0..10)
-                    .map(|i| Radio::new_indexed(selection.clone(), i))
+                    .map(|i| Radio::new_value(selection.clone(), i))
                     .collect_vec()),
                 SignalWidget::new(selection.signal().map(|v| label(format!("Selected: {v}")))),
             )),
             Collapsible::label(
                 "Options",
                 col((
-                    SliderWithLabel::new(Mutable::new(0.5), 0.0, 1.0)
+                    SliderWithLabel::new(value.clone(), 0.0, 10.0)
                         .editable(true)
                         .precision(2),
-                    TextInput::new(Mutable::new("Multiple\nLines\n\nOf Text".to_string())),
+                    TextInput::new(Mutable::new("This is an editable textbox.\n\nIt supports multiple lines of text, selections, copy/pasting and more".to_string())),
                 )),
             )
             .on_click(|scope| {

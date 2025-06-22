@@ -44,7 +44,7 @@ where
                 .into_iter()
                 .enumerate()
                 .map(|(i, item)| {
-                    Selectable::new_indexed(
+                    Selectable::new_value(
                         item,
                         self.selection.clone().filter_map(|v| v, |v| Some(Some(v))),
                         i,

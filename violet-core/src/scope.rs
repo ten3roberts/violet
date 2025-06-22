@@ -255,14 +255,14 @@ impl<'a> Scope<'a> {
     }
 
     /// Spawns an effect scoped to the lifetime of this entity and scope
-    pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) {
+    pub fn spawn_effect(&self, effect: impl 'static + for<'x> Effect<Scope<'x>>) -> TaskHandle {
         self.frame.spawn(ScopedEffect {
             id: self.id,
             effect,
-        });
+        })
     }
 
-    pub fn spawn(&self, fut: impl 'static + Future) {
+    pub fn spawn(&self, fut: impl 'static + Future) -> TaskHandle {
         self.spawn_effect(FutureEffect::new(fut, |_: &mut Scope<'_>, _| {}))
     }
 
@@ -271,7 +271,7 @@ impl<'a> Scope<'a> {
         &mut self,
         stream: S,
         func: impl 'static + FnMut(&mut Scope<'_>, S::Item),
-    ) {
+    ) -> TaskHandle {
         self.spawn_effect(StreamEffect::new(stream, func))
     }
 

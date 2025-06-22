@@ -3,7 +3,7 @@ use glam::{BVec2, Vec2};
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, layout, offset, rect},
+    components::{anchor, layout, offset, rect, LayoutAlignment},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
@@ -84,9 +84,8 @@ impl<W> Stack<W> {
         self
     }
 
-    pub fn with_alignment(mut self, horizontal: Align, vertical: Align) -> Self {
-        self.layout.alignment.horizontal = horizontal;
-        self.layout.alignment.vertical = vertical;
+    pub fn with_alignment(mut self, align: LayoutAlignment) -> Self {
+        self.layout.alignment = align;
         self
     }
 
