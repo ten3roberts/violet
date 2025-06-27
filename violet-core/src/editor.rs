@@ -510,6 +510,10 @@ impl TextEditorCore {
         };
 
         if start.row == end.row {
+            if self.text.len() <= start.row || self.text[start.row].len() < start.col {
+                return false;
+            }
+
             self.text[start.row].text.drain(start.col..end.col);
             self.on_change(TextChange::Delete(start, end));
         } else {

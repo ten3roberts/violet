@@ -71,14 +71,8 @@ impl ButtonStyle {
                 Srgba::new(0.0, 0.0, 0.0, 0.0),
                 Srgba::new(0.0, 0.0, 0.0, 0.0),
             ),
-            pressed: ColorPair::new(
-                Srgba::new(0.0, 0.0, 0.0, 0.0),
-                Srgba::new(0.0, 0.0, 0.0, 0.0),
-            ),
-            hover: ColorPair::new(
-                Srgba::new(0.0, 0.0, 0.0, 0.0),
-                Srgba::new(0.0, 0.0, 0.0, 1.0),
-            ),
+            pressed: ColorPair::new(surface_pressed(), element_pressed()),
+            hover: ColorPair::new(surface_hover(), element_hover()),
             size: WidgetSizeProps::default()
                 .with_padding(spacing_small())
                 .with_margin(spacing_small())
@@ -490,6 +484,7 @@ impl Widget for Radio {
 pub struct Selectable<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     tooltip: Option<TooltipOptions>,
+    on_double_click: Option<ClickCallback>,
     style: ButtonStyle,
     label: W,
 }
@@ -498,6 +493,7 @@ impl<W: WidgetCollection> Selectable<W> {
     pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
+            on_double_click: None,
             style: ButtonStyle::default(),
             label,
             tooltip: None,
@@ -510,18 +506,31 @@ impl<W: WidgetCollection> Selectable<W> {
     ) -> Self {
         Self {
             state: Box::new(state),
+            on_double_click: None,
             style: ButtonStyle::selectable_entry(),
             label,
             tooltip: None,
         }
     }
 
-    pub fn new_value<T: 'static + Send + Sync + Copy + PartialEq>(
+    pub fn new_value<T: 'static + Send + Sync + Clone + PartialEq>(
         label: W,
         state: impl 'static + Send + Sync + StateDuplex<Item = T>,
         index: T,
     ) -> Self {
-        Self::new(label, state.map_value(move |v| v == index, move |_| index))
+        let index2 = index.clone();
+        Self::new(
+            label,
+            state.map_value(move |v| v == index2, move |_| index.clone()),
+        )
+    }
+
+    pub fn on_double_click(
+        mut self,
+        func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>),
+    ) -> Self {
+        self.on_double_click = Some(Box::new(func));
+        self
     }
 
     pub fn with_tooltip(mut self, tooltip: TooltipOptions) -> Self {
@@ -583,6 +592,7 @@ impl<W: Widget> Widget for Selectable<W> {
                     self.state.send(true)
                 }
             })
+            .on_double_click_opt(self.on_double_click)
             .with_tooltip_opt(self.tooltip)
             .mount(scope);
     }

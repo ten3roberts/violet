@@ -36,11 +36,11 @@ where
     where
         Self: Sized,
     {
-        let mut last_sent = self.last_sent.signal_cloned().to_stream().fuse();
+        let last_sent = self.last_sent.clone();
 
         self.inner
             .stream_ref(move |item| {
-                let last_sent = last_sent.select_next_some().now_or_never().flatten();
+                let last_sent = last_sent.lock_ref();
                 if last_sent.as_ref() != Some(item) {
                     Some(func(item))
                 } else {
@@ -57,11 +57,11 @@ where
     T::Item: 'static + Send + Sync + PartialEq + Clone,
 {
     fn stream(&self) -> futures::prelude::stream::BoxStream<'static, Self::Item> {
-        let mut last_sent = self.last_sent.signal_cloned().to_stream().fuse();
+        let last_sent = self.last_sent.clone();
         self.inner
             .stream()
             .filter_map(move |v| {
-                let last_sent = last_sent.next().now_or_never().flatten().flatten();
+                let last_sent = last_sent.lock_ref();
 
                 if last_sent.as_ref() != Some(&v) {
                     ready(Some(v))
@@ -79,6 +79,12 @@ where
     T::Item: 'static + Send + Sync + PartialEq + Clone,
 {
     fn send(&self, item: Self::Item) {
+        if self.last_sent.lock_ref().as_ref() == Some(&item) {
+            tracing::info!("Skipping send");
+            // If the item is the same as the last sent, we drop it to prevent feedback.
+            return;
+        }
+
         self.last_sent.set(Some(item.clone()));
         self.inner.send(item);
     }

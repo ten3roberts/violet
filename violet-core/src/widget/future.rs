@@ -109,3 +109,43 @@ where
         );
     }
 }
+
+/// Defer a widget until the future resolves
+pub struct DeferWidget<T, F> {
+    placeholder: T,
+    future: F,
+}
+
+impl<T, F> DeferWidget<T, F>
+where
+    T: Widget,
+    F: 'static + Future,
+    F::Output: Widget,
+{
+    pub fn new(placeholder: T, future: F) -> Self {
+        Self {
+            placeholder,
+            future,
+        }
+    }
+}
+
+impl<T, F> Widget for DeferWidget<T, F>
+where
+    T: Widget,
+    F: 'static + Future,
+    F::Output: Widget,
+{
+    fn mount(self, scope: &mut crate::Scope<'_>) {
+        let label = std::any::type_name::<F::Output>();
+        let placeholder_id = scope.attach(self.placeholder);
+
+        scope.spawn_effect(
+            FutureEffect::new(self.future, move |scope: &mut Scope<'_>, v| {
+                scope.detach(placeholder_id);
+                scope.attach(v);
+            })
+            .with_label(label),
+        );
+    }
+}

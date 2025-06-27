@@ -31,6 +31,13 @@ impl<T> Tooltip<T> {
         }
     }
 
+    pub fn label(widget: T, label: impl Into<String>) -> Self {
+        Self {
+            widget,
+            options: TooltipOptions::label(label),
+        }
+    }
+
     /// Set the tooltip offset
     pub fn with_offset(mut self, offset: Vec2) -> Self {
         self.options.offset = offset;

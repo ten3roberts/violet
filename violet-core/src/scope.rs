@@ -275,6 +275,14 @@ impl<'a> Scope<'a> {
         self.spawn_effect(StreamEffect::new(stream, func))
     }
 
+    pub fn spawn_future<F: 'static + Future>(
+        &mut self,
+        stream: F,
+        func: impl 'static + FnOnce(&mut Scope<'_>, F::Output),
+    ) -> TaskHandle {
+        self.spawn_effect(FutureEffect::new(stream, func))
+    }
+
     /// Spawns an effect which is *not* scoped to the widget
     pub fn spawn_unscoped(&self, effect: impl 'static + for<'x> Effect<Frame>) {
         self.frame.spawn(effect);

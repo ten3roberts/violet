@@ -31,24 +31,24 @@ impl<T: Zero> Unit<T> {
         rel: T::ZERO,
     };
 
-    pub fn px(px: T) -> Self {
+    pub const fn px(px: T) -> Self {
         Self { px, rel: T::ZERO }
     }
 
-    pub fn rel(rel: T) -> Self {
+    pub const fn rel(rel: T) -> Self {
         Self { px: T::ZERO, rel }
     }
 }
 
 impl Unit<Vec2> {
-    pub fn px2(x: f32, y: f32) -> Self {
+    pub const fn px2(x: f32, y: f32) -> Self {
         Self {
             px: Vec2::new(x, y),
             rel: Vec2::ZERO,
         }
     }
 
-    pub fn rel2(x: f32, y: f32) -> Self {
+    pub const fn rel2(x: f32, y: f32) -> Self {
         Self {
             px: Vec2::ZERO,
             rel: Vec2::new(x, y),

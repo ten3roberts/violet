@@ -59,6 +59,7 @@ impl SizeExt for Rectangle {
 }
 
 /// Style and decorate text
+#[derive(Clone, Debug)]
 pub struct TextStyle {
     pub font_size: ValueOrRef<f32>,
     pub wrap: Wrap,
@@ -69,12 +70,13 @@ impl Default for TextStyle {
     fn default() -> Self {
         Self {
             font_size: text_small().into(),
-            wrap: Wrap::Word,
+            wrap: Wrap::None,
             color: element_primary().into(),
         }
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Text {
     text: Vec<TextSegment>,
     style: TextStyle,

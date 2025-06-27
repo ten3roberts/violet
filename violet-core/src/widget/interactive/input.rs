@@ -23,7 +23,7 @@ use crate::{
     layout::Align,
     state::{StateDuplex, StateExt, StateSink, StateStream},
     style::*,
-    text::{CursorLocation, LayoutGlyphs},
+    text::{CursorLocation, FontFamily, LayoutGlyphs, TextSegment},
     time::sleep,
     to_owned,
     unit::Unit,
@@ -32,18 +32,20 @@ use crate::{
         bold, col,
         interactive::{base::InteractiveWidget, tooltip::Tooltip},
         label, pill, row, Float, Positioned, Rectangle, SignalWidget, Stack, StreamWidget, Text,
-        WidgetExt,
+        TextStyle, WidgetExt,
     },
     Edges, Rect, Scope, Widget,
 };
 
+#[derive(Clone, Debug)]
 pub struct TextInputStyle {
     pub cursor_color: ValueOrRef<Srgba>,
     pub selection_color: ValueOrRef<Srgba>,
     pub background: Background,
-    pub font_size: f32,
     pub align: Align,
     pub size: WidgetSizeProps,
+    pub text_style: TextStyle,
+    pub font_family: FontFamily,
 }
 
 impl Default for TextInputStyle {
@@ -52,13 +54,14 @@ impl Default for TextInputStyle {
             cursor_color: surface_interactive_accent().into(),
             selection_color: surface_hover_accent().into(),
             background: Background::new(surface_interactive()),
-            font_size: 16.0,
             align: Align::Start,
             size: WidgetSizeProps::default()
                 .with_min_size(Unit::px2(32.0, 0.0))
                 .with_margin(spacing_small())
                 .with_padding(spacing_small())
                 .with_corner_radius(default_corner_radius()),
+            text_style: TextStyle::default(),
+            font_family: FontFamily::SansSerif,
         }
     }
 }
@@ -94,6 +97,16 @@ impl TextInputStyle {
                 .with_corner_radius(default_corner_radius()),
             ..Default::default()
         }
+    }
+
+    pub fn with_text_style(mut self, style: TextStyle) -> Self {
+        self.text_style = style;
+        self
+    }
+
+    pub fn with_font_family(mut self, family: FontFamily) -> Self {
+        self.font_family = family;
+        self
     }
 }
 
@@ -315,9 +328,9 @@ impl Widget for TextInput {
         Stack::new((
             TextContent {
                 rx: dirty_rx,
-                font_size: self.style.font_size,
                 text_bounds: text_bounds.clone(),
                 layout_glyphs: layout_glyphs.clone(),
+                style: self.style.clone(),
             },
             Float::new(StreamWidget(
                 visual_cursor
@@ -480,18 +493,18 @@ fn process_edit_commands(
 
 struct TextContent {
     rx: flume::Receiver<(usize, Option<String>)>,
-    font_size: f32,
     text_bounds: Mutable<Option<Mat4>>,
     layout_glyphs: Mutable<LayoutGlyphs>,
+    style: TextInputStyle,
 }
 
 impl Widget for TextContent {
     fn mount(self, scope: &mut Scope<'_>) {
         let create_row = move |row, text| {
             let layout_glyphs = self.layout_glyphs.clone();
-            Text::new(text)
+            Text::formatted([TextSegment::new(text).with_family(self.style.font_family.clone())])
                 .with_margin(Edges::ZERO)
-                .with_font_size(self.font_size)
+                .with_style(self.style.text_style.clone())
                 .monitor(
                     components::layout_glyphs(),
                     Box::new(move |glyphs| {
