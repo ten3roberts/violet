@@ -29,12 +29,10 @@ use crate::{
     unit::Unit,
     utils::throttle,
     widget::{
-        bold, col,
-        interactive::{base::InteractiveWidget, tooltip::Tooltip},
-        label, pill, row, Float, Positioned, Rectangle, SignalWidget, Stack, StreamWidget, Text,
-        TextStyle, WidgetExt,
+        col, interactive::base::InteractiveWidget, label, Float, Positioned, Rectangle,
+        SignalWidget, Stack, StreamWidget, Text, TextStyle, WidgetExt,
     },
-    Edges, Rect, Scope, Widget,
+    Edges, Rect, Scope, ScopeRef, Widget,
 };
 
 #[derive(Clone, Debug)]
@@ -84,6 +82,7 @@ pub struct TextInput {
     style: TextInputStyle,
     content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
     options: TextOptions,
+    on_focus_lost: Option<Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>>,
 }
 
 impl TextInputStyle {
@@ -116,7 +115,13 @@ impl TextInput {
             content: Arc::new(content),
             style: Default::default(),
             options: Default::default(),
+            on_focus_lost: None,
         }
+    }
+
+    pub fn with_options(mut self, options: TextOptions) -> Self {
+        self.options = options;
+        self
     }
 
     pub fn input_box(mut self) -> Self {
@@ -133,6 +138,14 @@ impl TextInput {
         let mut this = Self::new(content);
         this.style.align = Align::End;
         this
+    }
+
+    pub fn on_focus_lost(
+        mut self,
+        set: impl 'static + Send + Sync + FnMut(&crate::ScopeRef<'_>),
+    ) -> Self {
+        self.on_focus_lost = Some(Box::new(set));
+        self
     }
 }
 
@@ -152,7 +165,7 @@ impl SizeExt for TextInput {
 }
 
 impl Widget for TextInput {
-    fn mount(self, scope: &mut Scope<'_>) {
+    fn mount(mut self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
         let cursor_color = self.style.cursor_color.resolve(stylesheet);
@@ -237,11 +250,14 @@ impl Widget for TextInput {
             .set(keep_focus(), ())
             .on_event(on_focus(), {
                 to_owned![tx];
-                move |_, focus| {
+                move |scope, focus| {
                     focused.set(focus);
 
                     if !focus {
                         tx.send(Action::Editor(EditorAction::SelectionClear)).ok();
+                        if let Some(focus_lost) = &mut self.on_focus_lost {
+                            focus_lost(scope);
+                        }
                     }
 
                     None
@@ -683,7 +699,7 @@ where
                     Some(v.to_string())
                 }
             },
-            move |s| match s.parse() {
+            move |s| match s.trim().parse() {
                 Ok(v) => {
                     parse_state.set(Ok(()));
                     Some(v)
@@ -697,6 +713,7 @@ where
 
         Stack::new((
             TextInput::new(content)
+                .with_options(self.options)
                 .with_size_props(self.style.size)
                 .with_style(self.style),
             Stack::new((SignalWidget::new(parse_state_content),))

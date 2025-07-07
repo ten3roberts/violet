@@ -1,12 +1,24 @@
-use std::task::Poll;
+use std::{pin::Pin, task::Poll};
 
-use futures::{ready, Future, Stream};
+use futures::{ready, Future, FutureExt, Stream};
 
 #[macro_export]
 macro_rules! to_owned {
-    ($($ident: ident),*) => (
-        $(let $ident = $ident.to_owned();)*
-    )
+    ($ident: ident, $($rest: tt)*) => {
+        to_owned!($ident);
+        to_owned!($($rest)*);
+    };
+    ($ident: ident=$expr: expr, $($rest: tt)*) => {
+        to_owned!($ident=$expr);
+        to_owned!($($rest)*);
+    };
+    ($ident: ident=$expr: expr) => {
+        let $ident = $expr.to_owned();
+    };
+    ($ident: ident) => {
+        let $ident = $ident.to_owned();
+    };
+    () => {};
 }
 
 /// Combines two streams yielding the latest value from each stream
@@ -88,61 +100,97 @@ where
     }
 }
 
+/// Throttles a stream with another future
 #[pin_project::pin_project]
-pub struct Throttle<S, F, C> {
+pub struct Throttle<S, T, F> {
     #[pin]
     stream: S,
+    future: F,
     #[pin]
-    fut: Option<F>,
-    throttle: C,
+    pending: Option<T>,
+    skip: bool,
 }
 
-impl<S, F, C> Throttle<S, F, C> {
-    pub fn new(stream: S, throttle: C) -> Self {
+impl<S, T, F> Throttle<S, T, F> {
+    pub fn new(stream: S, future: F) -> Self {
         Self {
             stream,
-            fut: None,
-            throttle,
+            future,
+            pending: None,
+            skip: false,
+        }
+    }
+
+    pub fn skip(stream: S, future: F) -> Self {
+        Self {
+            stream,
+            future,
+            pending: None,
+            skip: true,
         }
     }
 }
 
-impl<S, F, C> Stream for Throttle<S, F, C>
+impl<S, T, F> Stream for Throttle<S, T, F>
 where
     S: Stream,
-    F: Future<Output = ()>,
-    C: FnMut() -> F,
+    F: FnMut() -> T,
+    T: Future,
 {
     type Item = S::Item;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    ) -> Poll<Option<Self::Item>> {
         let mut p = self.project();
 
-        if let Some(fut) = p.fut.as_mut().as_pin_mut() {
-            ready!(fut.poll(cx));
-            p.fut.set(None);
+        if let Some(pending) = p.pending.as_mut().as_pin_mut() {
+            ready!(pending.poll(cx));
+            p.pending.set(None);
         }
 
-        let item = ready!(p.stream.poll_next(cx));
+        if *p.skip {
+            let mut item = None;
 
-        if let Some(item) = item {
-            p.fut.set(Some((p.throttle)()));
-            Poll::Ready(Some(item))
+            loop {
+                match p.stream.as_mut().poll_next(cx) {
+                    Poll::Ready(Some(v)) => {
+                        item = Some(v);
+                        break;
+                    }
+                    Poll::Ready(None) => return Poll::Ready(None),
+                    Poll::Pending => break,
+                }
+            }
+
+            p.pending.set(Some((p.future)()));
+
+            Poll::Ready(item)
         } else {
-            Poll::Ready(None)
+            let item = ready!(p.stream.poll_next(cx));
+            p.pending.set(Some((p.future)()));
+            Poll::Ready(item)
         }
     }
 }
 
 /// Throttles a stream with the provided future
-pub fn throttle<S, F, C>(stream: S, throttle: C) -> Throttle<S, F, C>
+pub fn throttle<S, F, T>(stream: S, throttle: F) -> Throttle<S, T, F>
 where
     S: Stream,
-    F: Future<Output = ()>,
-    C: FnMut() -> F,
+    T: Future<Output = ()>,
+    F: FnMut() -> T,
+{
+    Throttle::new(stream, throttle)
+}
+
+/// Throttles a stream with the provided future
+pub fn throttle_skip<S, F, T>(stream: S, throttle: F) -> Throttle<S, T, F>
+where
+    S: Stream,
+    T: Future<Output = ()>,
+    F: FnMut() -> T,
 {
     Throttle::new(stream, throttle)
 }

@@ -44,7 +44,7 @@ impl<C, U, F, G> State for Transform<C, U, F, G> {
 impl<C, U, F, G> StateStream for Transform<C, U, F, G>
 where
     C: StateStream,
-    C::Item: 'static + Send,
+    C::Item: 'static + Send + Sized,
     U: 'static + Send + Sync,
     F: 'static + Fn(&C::Item) -> U + Sync + Send,
 {

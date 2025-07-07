@@ -280,7 +280,7 @@ impl AppInstance {
         self.executor.tick(&mut self.frame);
 
         let elapsed = self.current_time - self.start_time;
-        update_animations(&mut self.frame, elapsed);
+        update_animations(&mut self.frame, elapsed, delta_time);
 
         {
             self.frame

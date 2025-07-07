@@ -7,16 +7,12 @@ use glam::Vec2;
 use palette::Srgba;
 use winit::event::ElementState;
 
-use super::input::{TextInput, TextInputStyle};
 use crate::{
     components::{offset, padding, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{StateDuplex, StateExt, StateSink, StateStream},
-    style::{
-        default_corner_radius, element_accent, spacing_small, surface_interactive, SizeExt,
-        StyleExt,
-    },
+    style::{default_corner_radius, element_accent, spacing_small, surface_interactive, SizeExt},
     to_owned,
     unit::Unit,
     utils::zip_latest,
@@ -309,6 +305,13 @@ pub struct SliderWithLabel<V> {
 }
 
 impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<V> {
+    pub fn input(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
+    where
+        V: Copy,
+    {
+        Self::new(value, min, max).editable(true)
+    }
+
     pub fn new(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
     where
         V: Copy,

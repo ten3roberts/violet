@@ -328,6 +328,7 @@ pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
 /// Provides a set of glyphs for the UI, such as chevrons, arrows, etc.
 pub struct IconSet {
     pub chevron: String,
+    pub spinner: String,
     pub warning: String,
     pub error: String,
     pub info: String,
@@ -338,6 +339,7 @@ impl Default for IconSet {
     fn default() -> Self {
         Self {
             chevron: ">".to_string(),
+            spinner: "⟳".to_string(),
             warning: "!".to_string(),
             error: "x".to_string(),
             info: "i".to_string(),
@@ -392,6 +394,7 @@ impl StylesheetOptions {
             .set(text_large(), self.base_text_size * 1.5)
             // icons
             .set(icon_chevron(), self.icons.chevron)
+            .set(icon_spinner(), self.icons.spinner)
             .set(icon_warning(), self.icons.warning)
             .set(icon_error(), self.icons.error)
             .set(icon_info(), self.icons.info);
@@ -426,6 +429,7 @@ flax::component! {
     pub default_corner_radius: Unit<f32>,
 
     pub icon_chevron: String,
+    pub icon_spinner: String,
     pub icon_warning: String,
     pub icon_error: String,
     pub icon_info: String,

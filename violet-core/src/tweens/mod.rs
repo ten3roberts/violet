@@ -1,6 +1,6 @@
 use crate::components::{app_instance, delta_time};
 use flax::{
-    component::{self, ComponentDesc, ComponentValue},
+    component::{ComponentDesc, ComponentValue},
     system, Component, EntityRef, FetchExt,
 };
 use std::time::Duration;
@@ -69,6 +69,12 @@ where
 
         if let Ok(mut value) = entity.get_mut(self.target) {
             *value = new_value
+        } else {
+            tracing::error!(
+                "Missing target component {:?} for tween on entity {}",
+                self.target,
+                entity,
+            );
         }
 
         !self.tween.is_finished()

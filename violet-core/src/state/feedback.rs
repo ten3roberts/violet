@@ -1,17 +1,23 @@
 use std::future::ready;
 
-use futures::{FutureExt, StreamExt};
-use futures_signals::signal::{Mutable, SignalExt};
+use futures::StreamExt;
+use futures_signals::signal::Mutable;
 
 use super::{State, StateSink, StateStream, StateStreamRef};
 
 /// Prevents feedback loops by dropping items in the receiving stream that were sent to the sink.
-pub struct PreventFeedback<T: State> {
+pub struct PreventFeedback<T: State>
+where
+    <T as State>::Item: Sized,
+{
     last_sent: Mutable<Option<T::Item>>,
     inner: T,
 }
 
-impl<T: State> PreventFeedback<T> {
+impl<T: State> PreventFeedback<T>
+where
+    T::Item: Sized,
+{
     pub fn new(inner: T) -> Self {
         Self {
             inner,
@@ -20,7 +26,10 @@ impl<T: State> PreventFeedback<T> {
     }
 }
 
-impl<T: State> State for PreventFeedback<T> {
+impl<T: State> State for PreventFeedback<T>
+where
+    T::Item: Sized,
+{
     type Item = T::Item;
 }
 
@@ -80,7 +89,6 @@ where
 {
     fn send(&self, item: Self::Item) {
         if self.last_sent.lock_ref().as_ref() == Some(&item) {
-            tracing::info!("Skipping send");
             // If the item is the same as the last sent, we drop it to prevent feedback.
             return;
         }

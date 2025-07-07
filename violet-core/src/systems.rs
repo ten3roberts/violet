@@ -7,7 +7,7 @@ use atomic_refcell::AtomicRefCell;
 use flax::{
     archetype::ArchetypeStorage,
     component::ComponentValue,
-    components::{child_of, name},
+    components::child_of,
     entity_ids,
     events::{EventData, EventKindFilter, EventSubscriber},
     fetch::{FromRelation, Source},
@@ -326,7 +326,6 @@ pub fn transform_system(world: &mut World) -> BoxedSystem {
                         continue;
                     }
 
-                    let name = world.get(modified_subtree.id, name()).ok();
                     let parent = parent_query.get(modified_subtree.id).ok();
                     let (&parent_transform, &parent_mask, &parent_visible, &parent_opacity) =
                         parent.unwrap_or((

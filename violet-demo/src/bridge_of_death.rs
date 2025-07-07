@@ -21,9 +21,9 @@ pub fn app() -> impl Widget {
     let color = Mutable::new(Srgba::new(0.0, 0.61, 0.388, 1.0));
 
     // Map a `Mutable<Srgba>` into a `StateDuplex<f32>` for each field
-    let r = color.clone().map_ref(|v| &v.red, |v| &mut v.red);
-    let g = color.clone().map_ref(|v| &v.green, |v| &mut v.green);
-    let b = color.clone().map_ref(|v| &v.blue, |v| &mut v.blue);
+    let r = color.clone().project_ref(|v| &v.red, |v| &mut v.red);
+    let g = color.clone().project_ref(|v| &v.green, |v| &mut v.green);
+    let b = color.clone().project_ref(|v| &v.blue, |v| &mut v.blue);
 
     let speed = Mutable::new(None as Option<f32>);
 

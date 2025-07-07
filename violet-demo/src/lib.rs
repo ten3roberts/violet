@@ -4,21 +4,14 @@ use futures::StreamExt;
 use glam::Vec2;
 use violet::{
     core::{
-        state::{StateExt, StateStream},
-        style::{
-            element_hover, element_interactive, element_pressed, surface_hover, surface_pressed,
-            surface_primary, SizeExt, StyleExt, StylesheetOptions,
-        },
+        state::StateStream,
+        style::{surface_primary, SizeExt, StylesheetOptions},
         text::Wrap,
-        widget::{
-            self, card, col, label, panel, row, ButtonStyle, ColorPair, Radio, Selectable,
-            StreamWidget, WidgetExt,
-        },
-        Edges, Widget,
+        widget::{self, card, col, panel, row, Selectable, StreamWidget, WidgetExt},
+        Widget,
     },
     futures_signals::signal::Mutable,
     lucide,
-    palette::Srgba,
     wgpu::{renderer::MainRendererConfig, AppBuilder},
 };
 use wasm_bindgen_futures::wasm_bindgen;
@@ -77,8 +70,6 @@ enum DemoState {
 
 pub fn multi_app() -> impl Widget {
     let state = Mutable::new(DemoState::Widgets);
-
-    let transparent = Srgba::new(0.0, 0.0, 0.0, 0.0);
 
     let radio_label = |label: &str, value: DemoState| {
         Selectable::new_value(

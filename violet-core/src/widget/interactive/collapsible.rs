@@ -1,13 +1,16 @@
-use std::{cell::RefCell, f32::consts::PI, time::Duration};
+use std::{
+    f32::consts::PI,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use futures_signals::signal::Mutable;
 use glam::{vec2, BVec2};
+use itertools::Either;
 use palette::Srgba;
 use tween::Tweener;
 
 use crate::{
     components::{max_size, min_size, rect, rotation, transform_origin, translation, visible},
-    executor::TaskHandle,
     layout::Align,
     state::StateStream,
     stored::WeakHandle,
@@ -15,16 +18,15 @@ use crate::{
         icon_chevron, surface_secondary, ResolvableStyle, SizeExt, StyleExt, ValueOrRef,
         WidgetSizeProps,
     },
-    time::sleep,
     tweens::tweens,
     unit::Unit,
     utils::zip_latest,
     widget::{
         col,
         interactive::base::{ClickCallback, InteractiveWidget},
-        label, row, Button, ButtonStyle, Stack, Text,
+        label, row, ButtonStyle, Stack, Text,
     },
-    FutureEffect, Scope, ScopeRef, Widget,
+    Edges, Scope, ScopeRef, Widget,
 };
 
 pub struct CollapsibleStyle {
@@ -61,19 +63,21 @@ impl CollapsibleStyle {
 }
 
 /// Displays a horizontal header that can be clicked to collapse or expand its subtree.
-pub struct Collapsible<L, W> {
+pub struct Collapsible<L, W, F = fn() -> W> {
     label: L,
     size: WidgetSizeProps,
-    inner: W,
+    inner: Either<W, F>,
     style: CollapsibleStyle,
     can_collapse: bool,
     on_click: Option<ClickCallback>,
+    collapsed: bool,
+    indent: bool,
 }
 
 impl<W> Collapsible<Text, W> {
     pub fn label(text: impl Into<String>, inner: W) -> Self
     where
-        W: Widget,
+        W: 'static + Widget,
     {
         Self::new(label(text.into()), inner)
     }
@@ -83,21 +87,25 @@ impl<L, W> Collapsible<L, W> {
     pub fn new(label: L, inner: W) -> Self
     where
         L: Widget,
-        W: Widget,
+        W: 'static + Widget,
     {
         Self {
             size: Default::default(),
-            inner,
+            inner: Either::Left(inner),
             label,
             style: Default::default(),
             can_collapse: true,
             on_click: None,
+            collapsed: false,
+            indent: false,
         }
     }
+}
 
-    pub fn on_click<F>(mut self, on_click: F) -> Self
+impl<L, W, F> Collapsible<L, W, F> {
+    pub fn on_click<Click>(mut self, on_click: Click) -> Self
     where
-        F: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
+        Click: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
     {
         self.on_click = Some(Box::new(on_click));
         self
@@ -107,11 +115,44 @@ impl<L, W> Collapsible<L, W> {
         self.can_collapse = can_collapse;
         self
     }
+
+    pub fn collapsed(mut self, collapsed: bool) -> Self {
+        self.collapsed = collapsed;
+        self
+    }
+
+    pub fn indent(mut self, indent: bool) -> Self {
+        self.indent = indent;
+        self
+    }
 }
 
-impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
+impl<L, W, F> Collapsible<L, W, F>
+where
+    L: Widget,
+    W: 'static + Widget,
+    F: 'static + FnOnce() -> W,
+{
+    /// Defers creating the inner widget until the collapsible is expanded.
+    ///
+    /// This is useful for very nested widgets, such as file trees
+    pub fn deferred(label: L, inner: F) -> Self {
+        Self {
+            size: Default::default(),
+            inner: Either::Right(inner),
+            label,
+            style: Default::default(),
+            can_collapse: true,
+            on_click: None,
+            collapsed: false,
+            indent: false,
+        }
+    }
+}
+
+impl<L: Widget, W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for Collapsible<L, W, F> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        let collapsed = scope.store(Mutable::new(false));
+        let collapsed = scope.store(Mutable::new(self.collapsed));
 
         col((
             CollapsibleHeader {
@@ -124,6 +165,7 @@ impl<L: Widget, W: Widget> Widget for Collapsible<L, W> {
             CollapsibleContent {
                 collapsed,
                 inner: self.inner,
+                indent: self.indent,
             },
         ))
         // .with_background(Background::new(self.style.content))
@@ -155,8 +197,7 @@ impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
             (Box::new(toggle) as ClickCallback, None)
         };
 
-        let mut click_action = None as Option<TaskHandle>;
-        let mut button = Button::new(
+        InteractiveWidget::new(
             row((
                 InteractiveWidget::new(CollapsibleChevron {
                     collapse: self.collapse.clone(),
@@ -171,7 +212,7 @@ impl<L: Widget> Widget for CollapsibleHeader<'_, L> {
             ))
             .with_cross_align(Align::Center),
         )
-        .with_style(self.style.button)
+        // .with_style(self.style.button)
         .on_click(click)
         .on_double_click_opt(double_click)
         .mount(scope);
@@ -208,26 +249,41 @@ impl Widget for CollapsibleChevron<'_> {
     }
 }
 
-struct CollapsibleContent<W> {
+struct CollapsibleContent<W, F> {
     collapsed: WeakHandle<Mutable<bool>>,
-    inner: W,
+    inner: Either<W, F>,
+    indent: bool,
 }
 
-impl<W: Widget> Widget for CollapsibleContent<W> {
+impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleContent<W, F> {
     fn mount(self, scope: &mut crate::Scope<'_>) {
-        let inner_size = Mutable::new(None);
+        let inner_size = Mutable::new(0.0);
         let mut old_size = None;
 
         let stream = zip_latest(scope.read(&self.collapsed).stream(), inner_size.stream());
+        let mut inner = Some(self.inner);
+        let mounted = scope.store(AtomicBool::new(false));
         scope.spawn_stream(stream, move |scope, (collapsed, inner_size)| {
-            let Some(inner_size) = inner_size else {
+            if inner_size == 0.0 {
                 return;
-            };
-            // let old_size = if collapsed { inner_size } else { 0.0 };
+            }
+
+            if !scope.read(&mounted).load(Ordering::SeqCst) {
+                return;
+            }
 
             let new_height = if collapsed { 0.0 } else { inner_size };
 
             let old_size = old_size.replace(new_height).unwrap_or(new_height);
+            // scope.set(max_size(), Unit::px2(f32::MAX, new_height));
+            // scope.set(min_size(), Unit::px2(0.0, new_height));
+
+            // tracing::info!(
+            //     ?collapsed,
+            //     ?inner_size,
+            //     ?new_height,
+            //     "collapsible size change"
+            // );
 
             scope.add_tween(
                 max_size(),
@@ -239,29 +295,48 @@ impl<W: Widget> Widget for CollapsibleContent<W> {
             );
             scope.add_tween(
                 min_size(),
-                Tweener::back_out(
-                    Unit::px2(f32::MAX, old_size),
-                    Unit::px2(f32::MAX, new_height),
-                    0.2,
-                ),
+                Tweener::back_out(Unit::px2(0.0, old_size), Unit::px2(0.0, new_height), 0.2),
             );
         });
 
         scope
+            .set(min_size(), Unit::px2(0.0, 0.0))
             .set(max_size(), Unit::px2(f32::MAX, f32::MAX))
             .set_default(tweens());
 
-        Stack::new(|scope: &mut Scope<'_>| {
-            scope.monitor(rect(), move |v| {
-                if let Some(v) = v {
-                    inner_size.set(Some(v.size().y));
+        scope.spawn_stream(
+            scope.read(&self.collapsed).stream(),
+            move |scope, collapsed| {
+                if collapsed {
+                    return;
                 }
-            });
 
-            self.inner.mount(scope);
-        })
-        .with_clip(BVec2::new(false, true))
-        .mount(scope);
+                if let Some(inner) = inner.take() {
+                    let inner = match inner {
+                        Either::Left(inner) => inner,
+                        Either::Right(inner_fn) => inner_fn(),
+                    };
+
+                    Stack::new(|scope: &mut Scope<'_>| {
+                        let inner_size = inner_size.clone();
+                        let name = scope.entity().to_string();
+                        scope.monitor(rect(), move |v| {
+                            if let Some(v) = v {
+                                tracing::info!("Collapsible `{name}` size: {:?}", v.size());
+                                inner_size.set(v.size().y);
+                            }
+                        });
+
+                        inner.mount(scope);
+                    })
+                    .with_clip(BVec2::new(false, true))
+                    .with_padding(Edges::new(16.0 * self.indent as i32 as f32, 0.0, 0.0, 0.0))
+                    .mount(scope);
+
+                    scope.read(&mounted).store(true, Ordering::SeqCst);
+                }
+            },
+        );
     }
 }
 

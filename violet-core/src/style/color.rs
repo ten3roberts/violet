@@ -154,9 +154,9 @@ impl ColorPalette {
             surface_success: EMERALD_500,
             surface_warning: CITRUS_500,
             surface_danger: RUBY_500,
-            element_success: element_primary,
-            element_warning: element_primary,
-            element_danger: element_primary,
+            element_success: EMERALD_300,
+            element_warning: CITRUS_300,
+            element_danger: RUBY_300,
         }
     }
 }

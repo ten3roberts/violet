@@ -16,7 +16,10 @@ impl<C, U, F, G> State for FilterMap<C, U, F, G> {
     type Item = U;
 }
 
-impl<C: State, U, F: Fn(C::Item) -> Option<U>, G: Fn(U) -> Option<C::Item>> FilterMap<C, U, F, G> {
+impl<C: State, U, F: Fn(C::Item) -> Option<U>, G: Fn(U) -> Option<C::Item>> FilterMap<C, U, F, G>
+where
+    C::Item: Sized,
+{
     pub fn new(inner: C, conv_to: F, conv_from: G) -> Self {
         Self {
             inner,
@@ -33,6 +36,7 @@ where
     C::Item: 'static + Send,
     U: 'static + Send + Sync + Clone,
     F: 'static + Send + Sync + Fn(C::Item) -> Option<U>,
+    C::Item: Sized,
 {
     fn stream(&self) -> BoxStream<'static, Self::Item> {
         let project = self.conv_to.clone();
@@ -48,6 +52,7 @@ impl<C, U, F, G> StateSink for FilterMap<C, U, F, G>
 where
     C: StateSink,
     G: Fn(U) -> Option<C::Item>,
+    C::Item: Sized,
 {
     fn send(&self, value: Self::Item) {
         if let Some(v) = (self.conv_from)(value) {

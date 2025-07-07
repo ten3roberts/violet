@@ -6,7 +6,7 @@ use cosmic_text::{
 use flax::EntityRef;
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
-use palette::Srgba;
+use palette::{blend::Blend, Srgba};
 use parking_lot::Mutex;
 use violet_core::{
     components::{font_size, layout_glyphs},
@@ -226,13 +226,17 @@ impl TextBufferState {
         stylesheet: &EntityRef,
         font_system: &mut FontSystem,
         text: &[TextSegment],
+        base_color: Srgba,
     ) {
         puffin::profile_function!();
         self.buffer.set_rich_text(
             font_system,
             text.iter().map(|v| {
-                let color: Srgba<u8> = v.color.resolve(*stylesheet).into_format();
-
+                let color = v
+                    .color
+                    .map(|v| v.resolve(*stylesheet))
+                    .unwrap_or(base_color)
+                    .into_format();
                 (
                     &*v.text,
                     Attrs::new()

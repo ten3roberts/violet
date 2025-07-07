@@ -3,7 +3,7 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::color,
+    components::{color, LayoutAlignment},
     input::{interactive, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
@@ -12,7 +12,7 @@ use crate::{
     tweens::tweens,
     unit::Unit,
     widget::{interactive::base::ClickCallback, label, ContainerStyle, Rectangle, Stack, Text},
-    Edges, Scope, Widget, WidgetCollection,
+    Scope, Widget, WidgetCollection,
 };
 
 use super::base::{InteractiveWidget, TooltipOptions};
@@ -48,6 +48,7 @@ pub struct ButtonStyle {
     pub normal: ColorPair<ValueOrRef<Srgba>>,
     pub pressed: ColorPair<ValueOrRef<Srgba>>,
     pub hover: ColorPair<ValueOrRef<Srgba>>,
+    pub align: LayoutAlignment,
     pub size: WidgetSizeProps,
 }
 
@@ -126,6 +127,7 @@ impl ButtonStyle {
                 .with_padding(spacing_small())
                 .with_margin(spacing_small())
                 .with_corner_radius(default_corner_radius()),
+            ..Default::default()
         }
     }
 
@@ -142,6 +144,25 @@ impl ButtonStyle {
             ..Default::default()
         }
     }
+
+    pub fn checkbox() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_interactive(), surface_interactive()),
+            pressed: ColorPair::new(surface_interactive(), surface_pressed()),
+            hover: ColorPair::new(surface_interactive(), surface_hover()),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_small())
+                .with_margin(spacing_small())
+                .with_corner_radius(default_corner_radius())
+                .with_min_size(Unit::px2(20.0, 20.0)),
+            ..Default::default()
+        }
+    }
+
+    pub fn with_align(mut self, align: LayoutAlignment) -> Self {
+        self.align = align;
+        self
+    }
 }
 
 impl Default for ButtonStyle {
@@ -154,6 +175,7 @@ impl Default for ButtonStyle {
                 .with_padding(spacing_medium())
                 .with_margin(spacing_medium())
                 .with_corner_radius(default_corner_radius()),
+            align: LayoutAlignment::new(Align::Center, Align::Center),
         }
     }
 }
@@ -266,7 +288,7 @@ impl StyleExt for Radio {
     }
 }
 
-impl<W> StyleExt for Checkbox<W> {
+impl StyleExt for Checkbox {
     type Style = ButtonStyle;
 
     fn with_style(mut self, style: Self::Style) -> Self {
@@ -293,8 +315,8 @@ impl<W: Widget> Widget for Button<W> {
 
         let inner = Stack::new(())
             .with_background(Background::new(normal.surface))
-            .with_horizontal_alignment(Align::Center)
-            .with_vertical_alignment(Align::Center);
+            .with_horizontal_alignment(self.style.align.horizontal)
+            .with_vertical_alignment(self.style.align.vertical);
 
         scope.set_default(tweens());
 
@@ -321,38 +343,21 @@ impl<W: Widget> Widget for Button<W> {
     }
 }
 
-pub struct Checkbox<W = ()> {
+pub struct Checkbox {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     style: ButtonStyle,
-    size: WidgetSizeProps,
-    label: W,
 }
 
-impl<W: WidgetCollection> Checkbox<W> {
-    pub fn new(label: W, state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
+impl Checkbox {
+    pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
             state: Box::new(state),
-            style: Default::default(),
-            size: WidgetSizeProps::default()
-                .with_padding(spacing_medium())
-                .with_margin(spacing_medium())
-                .with_corner_radius(default_corner_radius())
-                .with_min_size(Unit::px2(28.0, 28.0)),
-            label,
+            style: ButtonStyle::checkbox(),
         }
     }
 }
 
-impl Checkbox<Text> {
-    pub fn label(
-        label: impl Into<String>,
-        state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
-    ) -> Self {
-        Self::new(Text::new(label.into()), state)
-    }
-}
-
-impl<W: Widget> Widget for Checkbox<W> {
+impl Widget for Checkbox {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
@@ -360,7 +365,8 @@ impl<W: Widget> Widget for Checkbox<W> {
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
 
-        let content = scope.attach(self.label);
+        let content = scope
+            .attach(Rectangle::new(normal.element).with_corner_radius(default_corner_radius()));
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
@@ -394,9 +400,9 @@ impl<W: Widget> Widget for Checkbox<W> {
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal.surface)),
             })
-            .with_horizontal_alignment(Align::Center)
-            .with_vertical_alignment(Align::Center)
-            .with_size_props(self.size)
+            .with_horizontal_alignment(self.style.align.horizontal)
+            .with_vertical_alignment(self.style.align.vertical)
+            .with_size_props(self.style.size)
             .mount(scope);
     }
 }
@@ -580,8 +586,8 @@ impl<W: Widget> Widget for Selectable<W> {
 
         let inner = Stack::new(())
             .with_background(Background::new(normal.surface))
-            .with_horizontal_alignment(Align::Center)
-            .with_vertical_alignment(Align::Center);
+            .with_horizontal_alignment(self.style.align.horizontal)
+            .with_vertical_alignment(self.style.align.vertical);
 
         scope.set_default(tweens());
 

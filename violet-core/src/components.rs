@@ -27,6 +27,62 @@ impl LayoutAlignment {
             vertical,
         }
     }
+
+    pub fn left_center() -> Self {
+        Self {
+            horizontal: Align::Start,
+            vertical: Align::Center,
+        }
+    }
+
+    pub fn center() -> Self {
+        Self {
+            horizontal: Align::Center,
+            vertical: Align::Center,
+        }
+    }
+
+    pub fn right_center() -> Self {
+        Self {
+            horizontal: Align::End,
+            vertical: Align::Center,
+        }
+    }
+
+    pub fn top_left() -> Self {
+        Self {
+            horizontal: Align::Start,
+            vertical: Align::Start,
+        }
+    }
+
+    pub fn top_center() -> Self {
+        Self {
+            horizontal: Align::Center,
+            vertical: Align::Start,
+        }
+    }
+
+    pub fn top_right() -> Self {
+        Self {
+            horizontal: Align::End,
+            vertical: Align::Start,
+        }
+    }
+
+    pub fn bottom_left() -> Self {
+        Self {
+            horizontal: Align::Start,
+            vertical: Align::End,
+        }
+    }
+
+    pub fn bottom_center() -> Self {
+        Self {
+            horizontal: Align::Center,
+            vertical: Align::End,
+        }
+    }
 }
 
 impl LayoutAlignment {
@@ -165,4 +221,4 @@ component! {
     pub delta_time: Duration,
 }
 
-pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration) + Send + Sync>;
+pub type OnAnimationFrame = Box<dyn FnMut(&Frame, &EntityRef, Duration, Duration) + Send + Sync>;

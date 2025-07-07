@@ -4,24 +4,19 @@ use futures::{stream::BoxStream, StreamExt};
 
 use super::{State, StateOwned, StateSink, StateStream};
 
-/// Transforms one state to another through type conversion
+/// Two way map to convert a stat of type `T` to type `U` and back.
 ///
-///
-/// This allows deriving state from another where the derived state is not present in the original.
-///
-/// However, as this does not assume the derived state is contained withing the original state is
-/// does not allow in-place mutation.
-pub struct MapValue<C, U, F, G> {
+/// Implements StateOwned, StateStream, and StateSink traits depending on the underlying state.
+pub struct MapValue<C, U: ?Sized, F, G> {
     inner: C,
     conv_to: Arc<F>,
-    conv_from: G,
+    conv_from: Arc<G>,
     _marker: PhantomData<U>,
 }
 
 impl<C, U, F, G> Clone for MapValue<C, U, F, G>
 where
     C: Clone,
-    G: Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -33,16 +28,19 @@ where
     }
 }
 
-impl<C, U, F, G> State for MapValue<C, U, F, G> {
+impl<C, U: ?Sized, F, G> State for MapValue<C, U, F, G> {
     type Item = U;
 }
 
-impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> MapValue<C, U, F, G> {
+impl<C: State, U, F: Fn(C::Item) -> U, G: Fn(U) -> C::Item> MapValue<C, U, F, G>
+where
+    C::Item: Sized,
+{
     pub fn new(inner: C, project: F, project_mut: G) -> Self {
         Self {
             inner,
             conv_to: Arc::new(project),
-            conv_from: project_mut,
+            conv_from: Arc::new(project_mut),
             _marker: PhantomData,
         }
     }
@@ -52,6 +50,7 @@ impl<C, U, F, G> StateOwned for MapValue<C, U, F, G>
 where
     C: StateOwned,
     F: Fn(C::Item) -> U,
+    C::Item: Sized,
 {
     fn read(&self) -> Self::Item {
         (self.conv_to)(self.inner.read())
@@ -64,6 +63,7 @@ where
     C::Item: 'static + Send,
     U: 'static + Send + Sync,
     F: 'static + Fn(C::Item) -> U + Sync + Send,
+    C::Item: Sized,
 {
     fn stream(&self) -> BoxStream<'static, Self::Item> {
         let project = self.conv_to.clone();
@@ -77,6 +77,7 @@ where
     C: StateSink,
     F: Fn(C::Item) -> U,
     G: Fn(U) -> C::Item,
+    C::Item: Sized,
 {
     fn send(&self, value: Self::Item) {
         self.inner.send((self.conv_from)(value))

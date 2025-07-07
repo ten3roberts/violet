@@ -1,10 +1,8 @@
-use futures::StreamExt;
 use glam::{BVec2, Vec2};
 use itertools::Itertools;
 use violet::{
     core::{
         layout::Align,
-        state::{StateExt, StateStream},
         style::{
             base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
             surface_warning, text_medium, SizeExt,
@@ -12,8 +10,8 @@ use violet::{
         unit::Unit,
         widget::{
             card, col, interactive::select_list::SelectList, label, pill, row, subtitle, title,
-            Button, Collapsible, Radio, Rectangle, ScrollArea, SignalWidget, SliderWithLabel,
-            StreamWidget, Text, TextInput,
+            Button, Collapsible, Radio, Rectangle, ScrollArea, SignalWidget, SliderWithLabel, Text,
+            TextInput,
         },
         Edges, Widget,
     },
@@ -21,12 +19,11 @@ use violet::{
     lucide::icons::*,
     palette::Srgba,
 };
-use web_sys::console::info;
 
 use crate::drag;
 
-fn dialog(name: impl Into<String>, content: impl Widget) -> impl Widget {
-    card(Collapsible::new(title(name), content))
+fn dialog(name: impl Into<String>, content: impl 'static + Widget) -> impl Widget {
+    card(Collapsible::new(title(name.into()), content))
 }
 
 pub fn main_app() -> impl Widget {
@@ -187,7 +184,7 @@ fn inputs() -> impl Widget {
                     TextInput::new(Mutable::new("This is an editable textbox.\n\nIt supports multiple lines of text, selections, copy/pasting and more".to_string())),
                 )),
             )
-            .on_click(|scope| {
+            .on_click(|_| {
                 eprintln!("Clicked collapsible header");
             }),
         ))

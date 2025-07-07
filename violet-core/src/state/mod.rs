@@ -2,9 +2,9 @@
 //!
 //! This simplifies the process of working with signals and mapping state from different types or
 //! smaller parts of a larger state.
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use std::{future::Future, marker::PhantomData, pin::Pin, rc::Rc, sync::Arc, task::Poll};
 
-use futures::{stream::BoxStream, FutureExt, Stream, StreamExt};
+use futures::{ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
 pub mod constant;
@@ -26,22 +26,22 @@ use sync_wrapper::SyncWrapper;
 pub use transform::*;
 
 pub trait State {
-    type Item;
+    type Item: ?Sized;
 }
 
 pub trait StateExt: State + Sized {
     /// Map a state from one type to another through reference projection
     ///
     /// This an be used to target a specific field of a struct or item in an array to transform.
-    fn map_ref<F: Fn(&Self::Item) -> &U, G: Fn(&mut Self::Item) -> &mut U, U>(
+    fn project_ref<F: Fn(&Self::Item) -> &U, G: Fn(&mut Self::Item) -> &mut U, U: ?Sized>(
         self,
         conv_to: F,
         conv_from: G,
-    ) -> MapRef<Self, U, F, G>
+    ) -> Project<Self, U, F, G>
     where
         Self: StateRef,
     {
-        MapRef::new(self, conv_to, conv_from)
+        Project::new(self, conv_to, conv_from)
     }
 
     /// Map a state from one type to another
@@ -49,7 +49,10 @@ pub trait StateExt: State + Sized {
         self,
         to: F,
         from: G,
-    ) -> MapValue<Self, U, F, G> {
+    ) -> MapValue<Self, U, F, G>
+    where
+        Self::Item: Sized,
+    {
         MapValue::new(self, to, from)
     }
 
@@ -72,7 +75,9 @@ pub trait StateExt: State + Sized {
         to: F,
         from: G,
     ) -> FilterMap<Self, U, F, G>
-where {
+    where
+        Self::Item: Sized,
+    {
         FilterMap::new(self, to, from)
     }
 
@@ -115,7 +120,9 @@ impl<T> StateExt for T where T: State {}
 
 /// A trait to read a reference from a generic state
 pub trait StateRef: State {
-    fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V;
+    fn read_ref<F: FnOnce(&Self::Item) -> V, V>(&self, f: F) -> V
+    where
+        Self: Sized;
 }
 
 /// Allows reading an owned value from a state
@@ -129,7 +136,9 @@ pub trait StateOwned: State {
 ///
 /// Used as a building block for sinks to target e.g; specific fields of a struct.
 pub trait StateMut: StateRef {
-    fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V;
+    fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V
+    where
+        Self: Sized;
 }
 
 /// Convert a state to a stream of state changes through reference projection.
@@ -189,6 +198,7 @@ impl<S, F, T> StateSink for MapSink<S, F, T>
 where
     S: StateSink,
     F: Fn(T) -> S::Item,
+    S::Item: Sized,
 {
     fn send(&self, value: Self::Item) {
         self.sink.send((self.func)(value))
@@ -259,35 +269,95 @@ impl<T> StateSink for Mutable<T> {
     }
 }
 
-/// Transforms one state of to another type through reference projection.
+/// Transforms one sdyn PartialReflecttate of to another type through reference projection.
 ///
 /// This is used to lower a state `T` of a struct to a state `U` of a field of that struct.
 ///
 /// Can be used both to mutate and read the state, as well as to operate as a duplex sink and
 /// stream.
-pub struct MapRef<C, U, F, G> {
+pub struct Project<
+    C: State,
+    U: ?Sized,
+    F: ?Sized = dyn Send + Sync + Fn(&<C as State>::Item) -> &U,
+    G: ?Sized = dyn Send + Sync + Fn(&mut <C as State>::Item) -> &mut U,
+> {
     inner: C,
     project: Arc<F>,
-    project_mut: G,
+    project_mut: Arc<G>,
     _marker: PhantomData<U>,
 }
 
-impl<C: State, U, F: Fn(&C::Item) -> &U, G: Fn(&mut C::Item) -> &mut U> MapRef<C, U, F, G> {
-    pub fn new(inner: C, project: F, project_mut: G) -> Self {
+impl<C, U, F, G> Clone for Project<C, U, F, G>
+where
+    C: Clone + State,
+    U: ?Sized,
+    F: ?Sized,
+    G: ?Sized,
+{
+    fn clone(&self) -> Self {
         Self {
-            inner,
-            project: Arc::new(project),
-            project_mut,
+            inner: self.inner.clone(),
+            project: self.project.clone(),
+            project_mut: self.project_mut.clone(),
             _marker: PhantomData,
         }
     }
 }
 
-impl<C, U, F, G> State for MapRef<C, U, F, G> {
+impl<C: State, U: ?Sized, F: Fn(&C::Item) -> &U, G: Fn(&mut C::Item) -> &mut U>
+    Project<C, U, F, G>
+{
+    pub fn new(inner: C, project: F, project_mut: G) -> Self {
+        Self {
+            inner,
+            project: Arc::new(project),
+            project_mut: Arc::new(project_mut),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<C: State, U: ?Sized> Project<C, U> {
+    pub fn new_dyn(
+        inner: C,
+        project: impl 'static + Send + Sync + Fn(&C::Item) -> &U,
+        project_mut: impl 'static + Send + Sync + Fn(&mut C::Item) -> &mut U,
+    ) -> Self {
+        Self {
+            inner,
+            project: Arc::new(project),
+            project_mut: Arc::new(project_mut),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<C: State, U: ?Sized, F: ?Sized, G: ?Sized> Project<C, U, F, G> {
+    /// Changes projection from `T -> U` given a `U -> V` directly to a projection of `T -> V`.
+    pub fn flat_project<V: ?Sized>(
+        self,
+        project: impl 'static + Send + Sync + Fn(&U) -> &V,
+        project_mut: impl 'static + Send + Sync + Fn(&mut U) -> &mut V,
+    ) -> Project<C, V>
+    where
+        F: 'static + Send + Sync + Fn(&C::Item) -> &U,
+        G: 'static + Send + Sync + Fn(&mut C::Item) -> &mut U,
+        U: 'static,
+    {
+        Project {
+            inner: self.inner,
+            project: Arc::new(move |v| project((self.project)(v))),
+            project_mut: Arc::new(move |v| project_mut((self.project_mut)(v))),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<C: State, U: ?Sized, F: ?Sized, G: ?Sized> State for Project<C, U, F, G> {
     type Item = U;
 }
 
-impl<C, U, F, G> StateRef for MapRef<C, U, F, G>
+impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateRef for Project<C, U, F, G>
 where
     C: StateRef,
     F: Fn(&C::Item) -> &U,
@@ -297,7 +367,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateOwned for MapRef<C, U, F, G>
+impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateOwned for Project<C, U, F, G>
 where
     C: StateRef,
     U: Clone,
@@ -308,7 +378,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateMut for MapRef<C, U, F, G>
+impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateMut for Project<C, U, F, G>
 where
     C: StateMut,
     F: Fn(&C::Item) -> &U,
@@ -319,7 +389,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateStreamRef for MapRef<C, U, F, G>
+impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateStreamRef for Project<C, U, F, G>
 where
     C: StateStreamRef,
     F: 'static + Fn(&C::Item) -> &U + Sync + Send,
@@ -333,7 +403,7 @@ where
     }
 }
 
-impl<C, U, F, G> StateStream for MapRef<C, U, F, G>
+impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateStream for Project<C, U, F, G>
 where
     C: StateStreamRef,
     U: 'static + Send + Sync + Clone,
@@ -345,7 +415,7 @@ where
 }
 
 /// Bridge update-by-reference to update-by-value
-impl<C, U, F, G> StateSink for MapRef<C, U, F, G>
+impl<C, U, F: ?Sized, G: ?Sized> StateSink for Project<C, U, F, G>
 where
     C: StateMut,
     F: Fn(&C::Item) -> &U,
@@ -426,6 +496,7 @@ macro_rules! impl_container {
         impl<T> StateOwned for $ty<T>
         where
             T: ?Sized + StateOwned,
+            Self::Item: Sized,
         {
             fn read(&self) -> Self::Item {
                 (**self).read()
@@ -465,6 +536,7 @@ macro_rules! impl_container {
         impl<T> StateSink for $ty<T>
         where
             T: ?Sized + StateSink,
+            Self::Item: Sized,
         {
             fn send(&self, value: Self::Item) {
                 (**self).send(value)
@@ -539,7 +611,7 @@ mod tests {
     async fn mapped_mutable() {
         let state = Mutable::new((1, 2));
 
-        let a = MapRef::new(state.clone(), |v| &v.0, |v| &mut v.0);
+        let a = Project::new(state.clone(), |v| &v.0, |v| &mut v.0);
 
         assert_eq!(a.read(), 1);
 
@@ -556,7 +628,7 @@ mod tests {
     async fn project_duplex() {
         let state = Mutable::new((1, 2));
 
-        let a = MapRef::new(state.clone(), |v| &v.0, |v| &mut v.0);
+        let a = Project::new(state.clone(), |v| &v.0, |v| &mut v.0);
 
         let a = Box::new(a) as Box<dyn StateDuplex<Item = i32>>;
 

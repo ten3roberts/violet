@@ -32,7 +32,7 @@ use violet::core::{
     utils::zip_latest,
     widget::{
         card, col, header, interactive::base::InteractiveWidget, label, panel, row, Button,
-        Checkbox, Collapsible, Radio, Rectangle, ScrollArea, Selectable, SignalWidget, SliderStyle,
+        Checkbox, Collapsible, Rectangle, ScrollArea, Selectable, SignalWidget, SliderStyle,
         SliderValue, SliderWithLabel, Stack, StreamWidget, Text, TextInput,
     },
     FutureEffect, Scope, ScopeRef, Widget,
@@ -80,9 +80,10 @@ impl Default for AutoPaletteSettings {
 
 pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget {
     let settings_widget = col((
-        Checkbox::label(
-            "Enabled",
-            settings.clone().map_ref(|v| &v.enabled, |v| &mut v.enabled),
+        Checkbox::new(
+            settings
+                .clone()
+                .project_ref(|v| &v.enabled, |v| &mut v.enabled),
         ),
         row((
             col((
@@ -116,7 +117,9 @@ pub fn auto_tint_settings(settings: Mutable<AutoPaletteSettings>) -> impl Widget
                 )
                 .precision(ROUNDING),
                 precise_slider(
-                    settings.clone().map_ref(|v| &v.falloff, |v| &mut v.falloff),
+                    settings
+                        .clone()
+                        .project_ref(|v| &v.falloff, |v| &mut v.falloff),
                     0.0,
                     30.0,
                 )
@@ -309,7 +312,8 @@ pub fn main_app() -> impl Widget {
                         to_owned!(palettes, current_selection);
 
                         row((palette_controls(
-                            palettes.map_ref(move |v| &v.palettes[i], move |v| &mut v.palettes[i]),
+                            palettes
+                                .project_ref(move |v| &v.palettes[i], move |v| &mut v.palettes[i]),
                             i,
                             palette,
                             current_selection,
@@ -546,13 +550,21 @@ fn rgb_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
             .memo(Default::default()),
     );
 
-    let r = precise_slider(color.clone().map_ref(|v| &v.red, |v| &mut v.red), 0, 255);
-    let g = precise_slider(
-        color.clone().map_ref(|v| &v.green, |v| &mut v.green),
+    let r = precise_slider(
+        color.clone().project_ref(|v| &v.red, |v| &mut v.red),
         0,
         255,
     );
-    let b = precise_slider(color.clone().map_ref(|v| &v.blue, |v| &mut v.blue), 0, 255);
+    let g = precise_slider(
+        color.clone().project_ref(|v| &v.green, |v| &mut v.green),
+        0,
+        255,
+    );
+    let b = precise_slider(
+        color.clone().project_ref(|v| &v.blue, |v| &mut v.blue),
+        0,
+        255,
+    );
 
     card(row((
         col((header("R"), header("G"), header("B"))),
@@ -569,7 +581,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
 
     let hue = color
         .clone()
-        .map_ref(|v| &v.hue, |v| &mut v.hue)
+        .project_ref(|v| &v.hue, |v| &mut v.hue)
         .map_value(|v| v.into_positive_degrees(), RgbHue::from_degrees)
         .memo(Default::default());
 
@@ -577,7 +589,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
     let s = precise_slider(
         color
             .clone()
-            .map_ref(|v| &v.saturation, |v| &mut v.saturation),
+            .project_ref(|v| &v.saturation, |v| &mut v.saturation),
         0.0,
         1.0,
     )
@@ -586,7 +598,7 @@ fn hsl_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValue>
     let l = precise_slider(
         color
             .clone()
-            .map_ref(|v| &v.lightness, |v| &mut v.lightness),
+            .project_ref(|v| &v.lightness, |v| &mut v.lightness),
         0.0,
         1.0,
     )
@@ -607,20 +619,20 @@ fn oklab_picker(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValu
 
     let hue = color
         .clone()
-        .map_ref(|v| &v.hue, |v| &mut v.hue)
+        .project_ref(|v| &v.hue, |v| &mut v.hue)
         .map_value(|v| v.into_positive_degrees(), OklabHue::from_degrees)
         .memo(Default::default());
 
     let h = precise_slider(hue, 0.0, 360.0).precision(1);
     let c = precise_slider(
-        color.clone().map_ref(|v| &v.chroma, |v| &mut v.chroma),
+        color.clone().project_ref(|v| &v.chroma, |v| &mut v.chroma),
         0.0,
         0.37,
     )
     .precision(3);
 
-    let l =
-        precise_slider(color.clone().map_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0).precision(ROUNDING);
+    let l = precise_slider(color.clone().project_ref(|v| &v.l, |v| &mut v.l), 0.0, 1.0)
+        .precision(ROUNDING);
 
     card(row((
         col((header("L"), header("C"), header("H"))),

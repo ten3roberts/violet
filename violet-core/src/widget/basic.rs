@@ -197,9 +197,7 @@ pub fn subtitle(text: impl Into<String>) -> Text {
 }
 
 pub fn bold(text: impl Into<String>) -> Text {
-    Text::bold(text)
-        .with_color(element_secondary())
-        .with_margin(spacing_small())
+    Text::bold(text).with_margin(spacing_small())
 }
 
 /// Allows a widget to be manually positioned and offset

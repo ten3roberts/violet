@@ -9,12 +9,18 @@ use super::{State, StateSink, StateStream, StateStreamRef};
 ///
 /// **NOTE**: Does not deduplicate for sending to sinks as it is not possible to know if the item
 /// has been set by another sink or not without readback.
-pub struct Dedup<T: State> {
+pub struct Dedup<T: State>
+where
+    T::Item: Sized,
+{
     inner: T,
     last_sent: Mutex<Option<T::Item>>,
 }
 
-impl<T: State> Dedup<T> {
+impl<T: State> Dedup<T>
+where
+    T::Item: Sized,
+{
     pub fn new(inner: T) -> Self {
         Self {
             inner,
@@ -23,7 +29,10 @@ impl<T: State> Dedup<T> {
     }
 }
 
-impl<T: State> State for Dedup<T> {
+impl<T: State> State for Dedup<T>
+where
+    T::Item: Sized,
+{
     type Item = T::Item;
 }
 

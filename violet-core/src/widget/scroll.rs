@@ -97,8 +97,8 @@ impl<W: Widget> Widget for ScrollArea<W> {
 
         scope.set(interactive(), ());
 
-        let scroll = zip_latest(size.stream(), outer_size.stream())
-            .map(|(size, outer_size)| size.cmpgt(outer_size));
+        // let scroll = zip_latest(size.stream(), outer_size.stream())
+        //     .map(|(size, outer_size)| size.cmpgt(outer_size));
 
         let stylesheet = scope.stylesheet();
 

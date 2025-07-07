@@ -441,7 +441,7 @@ impl TextRenderer {
 
                 *item.object_data = ObjectData {
                     model_matrix,
-                    color: srgba_to_vec4(*item.color),
+                    color: Vec4::ONE,
                     corner_radius: 0.0,
                     _padding: Default::default(),
                 };

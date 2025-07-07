@@ -7,10 +7,11 @@ use flax::{
     BoxedSystem, CommandBuffer, Component, ComponentMut, EntityIds, Fetch, FetchExt, OptOr, Query,
     QueryBorrow, System,
 };
+use palette::Srgba;
 use parking_lot::Mutex;
 use puffin::profile_scope;
 use violet_core::{
-    components::{font_size, layout_glyphs, size_resolver, text, text_wrap},
+    components::{color, font_size, layout_glyphs, size_resolver, text, text_wrap},
     style::get_stylesheet_from_entity,
     text::{LayoutGlyphs, TextSegment},
 };
@@ -31,6 +32,7 @@ struct TextBufferQuery {
     text: Component<Vec<TextSegment>>,
     font_size: Component<f32>,
     wrap: OptOr<Component<Wrap>, Wrap>,
+    color: Component<Srgba>,
 }
 
 impl TextBufferQuery {
@@ -43,6 +45,7 @@ impl TextBufferQuery {
             // rect: rect(),
             font_size: font_size(),
             wrap: text_wrap().opt_or(Wrap::Word),
+            color: color(),
         }
     }
 }
@@ -61,8 +64,12 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                 for item in &mut query {
                     let stylesheet = get_stylesheet_from_entity(&item.entity);
 
-                    item.state
-                        .update_text(&stylesheet, &mut text_system.font_system, item.text);
+                    item.state.update_text(
+                        &stylesheet,
+                        &mut text_system.font_system,
+                        item.text,
+                        *item.color,
+                    );
 
                     let buffer = &mut item.state.buffer;
                     buffer.set_wrap(&mut text_system.font_system, *item.wrap);

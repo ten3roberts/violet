@@ -73,7 +73,7 @@ pub struct TextSegment {
     pub family: FontFamily,
     pub style: Style,
     pub weight: Weight,
-    pub color: ValueOrRef<Srgba>,
+    pub color: Option<ValueOrRef<Srgba>>,
 }
 
 impl TextSegment {
@@ -83,7 +83,7 @@ impl TextSegment {
             family: FontFamily::SansSerif,
             style: Style::Normal,
             weight: Weight::NORMAL,
-            color: element_primary().into(),
+            color: None,
         }
     }
 
@@ -103,7 +103,7 @@ impl TextSegment {
     }
 
     pub fn with_color(mut self, color: impl Into<ValueOrRef<Srgba>>) -> Self {
-        self.color = color.into();
+        self.color = Some(color.into());
         self
     }
 }

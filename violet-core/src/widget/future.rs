@@ -1,7 +1,19 @@
+use std::f32::consts::TAU;
+
 use futures::{Future, Stream};
 use futures_signals::signal::{self, SignalExt};
+use glam::vec2;
 
-use crate::{effect::Effect, FutureEffect, Scope, StreamEffect, Widget};
+use crate::{
+    components::{on_animation_frame, rotation, transform_origin, translation},
+    effect::Effect,
+    layout::Align,
+    style::{icon_spinner, spacing_medium, text_small, SizeExt},
+    tweens::tweens,
+    unit::Unit,
+    widget::{bold, row, Text},
+    FutureEffect, Scope, StreamEffect, Widget,
+};
 
 pub struct SignalWidget<S>(pub S);
 
@@ -111,12 +123,12 @@ where
 }
 
 /// Defer a widget until the future resolves
-pub struct DeferWidget<T, F> {
+pub struct SuspenseWidget<T, F> {
     placeholder: T,
     future: F,
 }
 
-impl<T, F> DeferWidget<T, F>
+impl<T, F> SuspenseWidget<T, F>
 where
     T: Widget,
     F: 'static + Future,
@@ -130,7 +142,7 @@ where
     }
 }
 
-impl<T, F> Widget for DeferWidget<T, F>
+impl<T, F> Widget for SuspenseWidget<T, F>
 where
     T: Widget,
     F: 'static + Future,
@@ -147,5 +159,90 @@ where
             })
             .with_label(label),
         );
+    }
+}
+
+pub struct Throbber {
+    pub size: f32,
+}
+
+impl Throbber {
+    pub fn new(size: f32) -> Self {
+        Self { size }
+    }
+}
+
+impl Widget for Throbber {
+    fn mount(self, scope: &mut Scope<'_>) {
+        scope
+            .set(transform_origin(), vec2(0.5, 0.5))
+            .set_default(rotation())
+            .set_default(translation())
+            .set_default(tweens());
+
+        let mut start_rotation = 0.0;
+        let mut start_time = None;
+
+        scope.set(
+            on_animation_frame(),
+            Box::new(move |_, entity, elapsed, _| {
+                let start_time = start_time.get_or_insert_with(|| elapsed);
+
+                let time = 1.0;
+                let progress = (elapsed - *start_time).as_secs_f32() / time;
+                let rotation = &mut *entity.get_mut(rotation()).unwrap();
+                if progress > 1.0 {
+                    *start_time = elapsed;
+                    start_rotation = *rotation;
+                }
+
+                let t = progress % 1.0;
+
+                let change = TAU + 1.0;
+                *rotation = start_rotation + ease_quad(change, t);
+            }),
+        );
+        let spinner = scope
+            .stylesheet()
+            .get_clone(icon_spinner())
+            .unwrap_or_default();
+
+        Text::new(spinner)
+            .with_font_size(self.size)
+            .with_exact_size(Unit::px2(self.size, self.size))
+            .with_margin(spacing_medium())
+            .mount(scope);
+    }
+}
+
+fn ease_quad(delta: f32, mut t: f32) -> f32 {
+    t *= 2.0;
+
+    let scalar = if t < 1.0 {
+        t * t
+    } else {
+        let p = t - 1.0;
+        (p * (p - 2.0) - 1.0) * -1.0
+    };
+
+    delta * scalar / 2.0
+}
+
+pub struct LoadingSpinner {
+    text: String,
+}
+
+impl LoadingSpinner {
+    pub fn new(text: impl Into<String>) -> Self {
+        Self { text: text.into() }
+    }
+}
+
+impl Widget for LoadingSpinner {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let size = scope.stylesheet().get_copy(text_small()).unwrap();
+        row((bold(self.text), Throbber::new(size)))
+            .with_cross_align(Align::Center)
+            .mount(scope);
     }
 }

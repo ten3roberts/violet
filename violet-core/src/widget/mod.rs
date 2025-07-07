@@ -10,7 +10,7 @@ mod scroll;
 pub use basic::*;
 pub use container::*;
 use flax::{component::ComponentValue, components::name, Component};
-pub use future::{DeferWidget, FutureWidget, SignalWidget, StreamWidget};
+pub use future::*;
 use futures_signals::signal::Mutable;
 pub use image::*;
 pub use interactive::{button::*, collapsible::*, drag::*, input::*, slider::*};
