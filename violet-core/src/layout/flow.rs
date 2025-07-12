@@ -386,7 +386,12 @@ impl FlowLayout {
         // Reset to local
         let mut sum = 0.0;
 
-        let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
+        let cross_size = row
+            .preferred
+            .size()
+            .max(args.limits.min_size)
+            .max(preferred_size)
+            .dot(cross_axis);
 
         let mut can_grow = BVec2::FALSE;
         // Distribute the size to the widgets and apply their layout
@@ -565,7 +570,12 @@ impl FlowLayout {
 
         let mut sum = 0.0;
 
-        let cross_size = row.preferred.size().max(preferred_size).dot(cross_axis);
+        let cross_size = row
+            .preferred
+            .size()
+            .max(args.limits.min_size)
+            .max(preferred_size)
+            .dot(cross_axis);
         let mut hints = SizingHints::default();
 
         // Distribute the size to the widgets and apply their layout

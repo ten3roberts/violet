@@ -29,7 +29,7 @@ use crate::{
     unit::Unit,
     utils::throttle,
     widget::{
-        bold, col, interactive::base::InteractiveWidget, label, Float, Positioned, Rectangle,
+        bold, col, interactive::base::InteractiveWidget, Float, Positioned, Rectangle,
         SignalWidget, Stack, StreamWidget, Text, TextStyle, WidgetExt,
     },
     Edges, Rect, Scope, ScopeRef, Widget,
@@ -419,12 +419,13 @@ fn process_edit_commands(
                     editor.set_text(new_text.split('\n'));
                 }
                 action = rx.select_next_some() => {
-                    match action {
+                    let modified_text = match action {
                         Action::Editor(editor_action) => editor.apply_action(editor_action),
                         Action::Copy => {
                             if let Some(sel) = editor.selected_text() {
                                 clipboard.set_text(sel.join("\n")).await;
                             }
+                            false
                         }
                         Action::Paste => {
                             if let Some(text) = clipboard.get_text().await {
@@ -436,16 +437,20 @@ fn process_edit_commands(
 
                                 editor.edit(EditAction::InsertText(text));
                             }
+                            true
                         }
                         Action::Cut => {
                             if let Some(sel) = editor.selected_text() {
                                 clipboard.set_text(sel.join("\n")).await;
                                 editor.delete_selected_text();
                             }
+                            true
                         }
-                    }
+                    };
 
-                    source_content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
+                    if modified_text {
+                        source_content.send(editor.lines().iter().map(|v| v.text()).join("\n"));
+                    }
                 }
                 new_glyphs = layout_glyphs.select_next_some() => {
                     glyphs = new_glyphs;

@@ -71,7 +71,7 @@ fn texts() -> impl Widget {
             Text::extra_light("Extra Light"),
         ))
         .with_stretch(true)
-        .with_cross_align(Align::Center),
+        .with_cross_align(Align::Start),
     )
 }
 

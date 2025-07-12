@@ -322,7 +322,6 @@ impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleCont
                         let name = scope.entity().to_string();
                         scope.monitor(rect(), move |v| {
                             if let Some(v) = v {
-                                tracing::info!("Collapsible `{name}` size: {:?}", v.size());
                                 inner_size.set(v.size().y);
                             }
                         });

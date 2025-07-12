@@ -127,6 +127,7 @@ impl ButtonStyle {
                 .with_padding(spacing_small())
                 .with_margin(spacing_small())
                 .with_corner_radius(default_corner_radius()),
+            align: LayoutAlignment::left_center(),
             ..Default::default()
         }
     }

@@ -59,6 +59,7 @@ impl StackLayout {
 
         let child_limits = LayoutLimits {
             // Wrapping a widget in a stack layout does not change its minimum size, such as for "stretch" widths
+            // min_size: args.limits.min_size,
             min_size: args.limits.min_size,
             // If clip is enabled, the inner content can have any size
             max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.max_size,
@@ -130,9 +131,9 @@ impl StackLayout {
 
         let rect = aligned_bounds.inner;
 
-        let mut rect = rect.max_size(args.limits.min_size);
-
-        rect = rect.min_size(args.limits.max_size * clip + Vec2::MAX * (1.0 - clip));
+        let rect = rect
+            .max_size(args.limits.min_size)
+            .min_size(args.limits.max_size * clip + Vec2::MAX * (1.0 - clip));
 
         let margin = aligned_bounds.margin();
 

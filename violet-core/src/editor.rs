@@ -381,17 +381,33 @@ impl TextEditorCore {
         tracing::debug!(lines = ?self.text, "text lines after edit");
     }
 
-    pub fn apply_action<S: AsRef<str>>(&mut self, action: EditorAction<S>) {
+    pub fn apply_action<S: AsRef<str>>(&mut self, action: EditorAction<S>) -> bool {
         match action {
-            EditorAction::CursorMove(m) => self.move_cursor(m),
-            EditorAction::SelectionMove(m) => self.move_selection(m),
-            EditorAction::Edit(e) => self.edit(e),
-            EditorAction::SetText(v) => self.set_text(v.iter().map(|v| v.as_ref())),
-            EditorAction::SelectionClear => self.clear_selection(),
+            EditorAction::CursorMove(m) => {
+                self.move_cursor(m);
+                false
+            }
+            EditorAction::SelectionMove(m) => {
+                self.move_selection(m);
+                false
+            }
+            EditorAction::Edit(e) => {
+                self.edit(e);
+                true
+            }
+            EditorAction::SetText(v) => {
+                self.set_text(v.iter().map(|v| v.as_ref()));
+                true
+            }
+            EditorAction::SelectionClear => {
+                self.clear_selection();
+                false
+            }
             EditorAction::SelectionStart => {
                 if self.selection.is_none() {
                     self.selection = Some(self.cursor);
                 }
+                false
             }
             EditorAction::SelectAll => {
                 self.cursor = CursorLocation { row: 0, col: 0 };
@@ -403,6 +419,7 @@ impl TextEditorCore {
                         col: self.text.last().unwrap().len(),
                     });
                 }
+                false
             }
         }
     }

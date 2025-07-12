@@ -17,9 +17,7 @@ use violet_core::{
     state::{StateExt, StateStream},
     style::{spacing_medium, surface_secondary, Background},
     utils::zip_latest,
-    widget::{
-        label, Button, Checkbox, LabeledSlider, ScrollArea, Selectable, StreamWidget, WidgetExt,
-    },
+    widget::{label, Button, LabeledSlider, ScrollArea, Selectable, StreamWidget, WidgetExt},
 };
 use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 

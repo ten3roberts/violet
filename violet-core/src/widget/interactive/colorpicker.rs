@@ -7,7 +7,7 @@ use crate::{
     state::{StateDuplex, StateExt, StateStreamRef},
     style::{
         base_colors::{EMERALD_400, OCEAN_400, PLATINUM_100, PLATINUM_400, RUBY_400},
-        spacing_small, surface_tertiary, SizeExt,
+        default_corner_radius, spacing_small, surface_tertiary, SizeExt,
     },
     unit::Unit,
     widget::{card, col, row, InputBox, LabeledSlider, Rectangle, Stack, StreamWidget, TextInput},
@@ -56,12 +56,12 @@ impl Widget for RgbColorPicker {
 
         card(row((
             col((
-                Stack::new(StreamWidget::new(color.stream_ref(|&v| {
+                StreamWidget::new(color.stream_ref(|&v| {
                     Rectangle::new(v)
                         .with_padding(spacing_small())
+                        .with_corner_radius(default_corner_radius())
                         .with_exact_size(Unit::px2(80.0, 80.0))
-                })))
-                .with_background(Srgba::new(1.0, 1.0, 1.0, 1.0)),
+                })),
                 color_hex_editor(color),
             )),
             sliders,
@@ -71,17 +71,13 @@ impl Widget for RgbColorPicker {
     }
 }
 
-fn color_hex(color: impl IntoColor<Srgb>) -> String {
-    let hex: Srgb<u8> = color.into_color().into_format();
-    format!("#{:0>2x}{:0>2x}{:0>2x}", hex.red, hex.green, hex.blue)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct ColorAsHex(Srgba);
 
 impl Display for ColorAsHex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", color_hex(self.0))
+        let hex: Srgba<u8> = self.0.into_format();
+        write!(f, "#{:0>2x}{:0>2x}{:0>2x}", hex.red, hex.green, hex.blue)
     }
 }
 

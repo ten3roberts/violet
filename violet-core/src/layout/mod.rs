@@ -261,7 +261,7 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
     let mut limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
         min_size: args.limits.min_size.max(min_size),
-        max_size: args.limits.max_size.min(max_size).max(min_size),
+        max_size: args.limits.max_size.clamp(min_size, max_size),
     };
 
     // Check if cache is valid
@@ -325,16 +325,16 @@ pub(crate) fn query_size(world: &World, entity: &EntityRef, args: QueryArgs) -> 
         let child = world.entity(*child).unwrap();
         query_size(world, &child, args)
     } else {
-        let (instrisic_min_size, intrinsic_size, intrinsic_hints) = size_resolver
+        let (min_size, intrinsic_size, intrinsic_hints) = size_resolver
             .map(|v| v.query(entity, args))
             .unwrap_or((Vec2::ZERO, Vec2::ZERO, SizingHints::default()));
 
         // If intrinsic_min_size > max_size we overflow, but respect the minimum size nonetheless
-        limits.min_size = limits.min_size.max(instrisic_min_size);
+        limits.min_size = limits.min_size.max(min_size);
 
         let size = intrinsic_size.max(resolved_size);
 
-        let min_size = instrisic_min_size.max(limits.min_size);
+        // let min_size = instrisic_min_size.max(limits.min_size);
 
         Sizing {
             min: Rect::from_size(min_size),
@@ -450,7 +450,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
 
     let children = children.map(Vec::as_slice).unwrap_or(&[]);
 
-    let mut resolved_size = size.resolve(args.content_area).max(limits.min_size);
+    let mut resolved_size = size.resolve(args.content_area);
 
     let maximized = entity.get_copy(maximize()).unwrap_or_default();
 
@@ -505,9 +505,9 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
 
         let (intrinsic_size, instrinsic_can_grow) = size_resolver
             .map(|v| v.apply(entity, args))
-            .unwrap_or((Vec2::ZERO, BVec2::FALSE));
+            .unwrap_or((resolved_size, BVec2::FALSE));
 
-        let size = intrinsic_size.max(resolved_size);
+        let size = intrinsic_size;
 
         let rect = Rect::from_size(size);
 
