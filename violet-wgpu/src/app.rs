@@ -4,6 +4,7 @@ use cosmic_text::fontdb::Source;
 use flax::{components::name, Entity, EntityBuilder, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
+use tracing::info;
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
@@ -301,6 +302,7 @@ impl AppInstance {
     }
 
     pub fn set_scale_factor(&mut self, scale_factor: f64) {
+        info!(scale_factor, "Configure scale factor");
         self.scale_factor = scale_factor;
     }
 
@@ -491,10 +493,10 @@ impl ApplicationHandler for WindowEventHandler {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 puffin::profile_scope!("CursorMoved");
-                instance.input_state.on_cursor_move(
-                    &mut instance.frame,
-                    vec2(position.x as f32, position.y as f32),
-                );
+                let position = position.to_logical::<f32>(instance.scale_factor);
+                instance
+                    .input_state
+                    .on_cursor_move(&mut instance.frame, vec2(position.x, position.y));
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 puffin::profile_scope!("MouseWheel");

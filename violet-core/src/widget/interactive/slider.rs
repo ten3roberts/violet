@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
-use flax::{component, Component, Entity, EntityRef};
+use flax::{component, Entity, EntityRef};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
@@ -8,33 +8,51 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{offset, padding, rect},
+    components::{anchor, min_size, offset, padding, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{StateDuplex, StateExt, StateSink, StateStream},
-    style::{default_corner_radius, element_accent, spacing_small, surface_interactive, SizeExt},
+    style::{
+        default_corner_radius, element_accent, spacing_small, surface_interactive, ResolvableStyle,
+        SizeExt, ValueOrRef,
+    },
     to_owned,
     unit::Unit,
     utils::zip_latest,
-    widget::{row, Float, InputBox, Positioned, Rectangle, Stack, StreamWidget, Text},
-    Scope, StreamEffect, Widget,
+    widget::{row, Float, InputBox, Rectangle, Stack, StreamWidget, Text},
+    Edges, Scope, StreamEffect, Widget,
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderStyle {
-    pub track_color: Component<Srgba>,
-    pub handle_color: Component<Srgba>,
+    pub track_color: ValueOrRef<Srgba>,
+    pub fill_color: ValueOrRef<Srgba>,
+    pub handle_color: ValueOrRef<Srgba>,
     pub track_size: Unit<Vec2>,
     pub handle_size: Unit<Vec2>,
+    pub handle_corner_radius: Unit<f32>,
+    pub fill: bool,
+}
+
+impl SliderStyle {
+    fn with_fill_color(mut self, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        let color = color.into();
+        self.fill_color = color;
+        self.handle_color = color;
+        self
+    }
 }
 
 impl Default for SliderStyle {
     fn default() -> Self {
         Self {
-            track_color: surface_interactive(),
-            handle_color: element_accent(),
+            track_color: surface_interactive().into(),
+            handle_color: element_accent().into(),
+            fill_color: element_accent().into(),
             track_size: Unit::px2(256.0, 4.0),
-            handle_size: Unit::px2(4.0, 16.0),
+            handle_size: Unit::px2(12.0, 12.0),
+            handle_corner_radius: Unit::rel(1.0),
+            fill: true,
         }
     }
 }
@@ -69,6 +87,11 @@ impl<V> Slider<V> {
         self
     }
 
+    pub fn with_fill_color(mut self, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        self.style = self.style.with_fill_color(color);
+        self
+    }
+
     /// Set the transform
     pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
         self.transform = Some(Box::new(transform));
@@ -85,12 +108,9 @@ impl<V: SliderValue> Widget for Slider<V> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
-        let track_color = stylesheet
-            .get_copy(self.style.track_color)
-            .unwrap_or_default();
-        let handle_color = stylesheet
-            .get_copy(self.style.handle_color)
-            .unwrap_or_default();
+        let track_color = self.style.track_color.resolve(stylesheet);
+        let fill_color = self.style.fill_color.resolve(stylesheet);
+        let handle_color = self.style.handle_color.resolve(stylesheet);
 
         let handle_size = self.style.handle_size;
         let track_size = self.style.track_size;
@@ -128,6 +148,7 @@ impl<V: SliderValue> Widget for Slider<V> {
 
             (progress - min) * size / (max - min) + padding.left
         }
+
         fn update_scrubbed<V: SliderValue>(
             entity: &EntityRef,
             drag_distance: f32,
@@ -143,14 +164,29 @@ impl<V: SliderValue> Widget for Slider<V> {
             V::from_progress((start_value + value).clamp(min, max))
         }
 
+        if self.style.fill {
+            let fill = SliderFill {
+                value: self.value.stream(),
+                min,
+                max,
+                rect_id: track,
+                height: self.style.track_size.px.y,
+                color: fill_color,
+            };
+            scope.attach(Float::new(fill));
+        }
+
         let handle = SliderHandle {
             value: self.value.stream(),
             min,
             max,
             rect_id: track,
+            corner_radius: self.style.handle_corner_radius,
             handle_color,
             handle_size,
         };
+
+        scope.attach(Float::new(handle));
 
         let value = Arc::new(self.value.map_value(
             |v| v,
@@ -202,10 +238,25 @@ impl<V: SliderValue> Widget for Slider<V> {
                 }
             });
 
-        Stack::new(Float::new(handle))
-            .with_min_size(handle_size)
+        let handle_size = self.style.handle_size.px;
+
+        Stack::new(())
+            .with_min_size(Unit::px(handle_size))
             .with_vertical_alignment(Align::Center)
-            .with_padding(spacing_small())
+            .with_padding(
+                Edges::new(
+                    handle_size.x / 2.0,
+                    handle_size.x / 2.0,
+                    handle_size.y / 2.0,
+                    handle_size.y / 2.0,
+                )
+                .max(
+                    scope
+                        .stylesheet()
+                        .get_copy(spacing_small())
+                        .unwrap_or_default(),
+                ),
+            )
             .with_margin(spacing_small())
             .mount(scope)
     }
@@ -218,6 +269,7 @@ struct SliderHandle<V> {
     min: f32,
     max: f32,
     rect_id: Entity,
+    corner_radius: Unit<f32>,
 }
 
 impl<V: SliderValue> Widget for SliderHandle<V> {
@@ -241,14 +293,58 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
             }
         }));
 
-        Positioned::new(
-            Rectangle::new(self.handle_color)
-                .with_min_size(self.handle_size)
-                .with_corner_radius(default_corner_radius()),
-        )
-        .with_offset(Unit::px2(0.0, 0.0))
-        .with_anchor(Unit::rel2(0.5, 0.5))
-        .mount(scope)
+        scope
+            .set_default(offset())
+            .set(anchor(), Unit::rel2(0.5, 0.5));
+
+        Rectangle::new(self.handle_color)
+            .with_min_size(self.handle_size)
+            .with_corner_radius(self.corner_radius)
+            .mount(scope)
+    }
+}
+
+struct SliderFill<V> {
+    value: BoxStream<'static, V>,
+    height: f32,
+    color: Srgba,
+    min: f32,
+    max: f32,
+    rect_id: Entity,
+}
+
+impl<V: SliderValue> Widget for SliderFill<V> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let rect_size = Mutable::new(None);
+
+        let update = zip_latest(self.value, rect_size.stream());
+
+        scope.frame_mut().monitor(self.rect_id, rect(), move |v| {
+            rect_size.set(v.map(|v| v.size()));
+        });
+
+        scope.spawn_effect(StreamEffect::new(update, {
+            move |scope: &mut Scope<'_>, (value, outer_size): (V, Option<Vec2>)| {
+                if let Some(outer_size) = outer_size {
+                    let pos = (value.to_progress().clamp(self.min, self.max) - self.min)
+                        * outer_size.x
+                        / (self.max - self.min);
+
+                    let entity = scope.entity();
+                    entity.update_dedup(min_size(), Unit::px2(pos, self.height));
+                    // scope.entity().update_dedup(offset, Unit::px2(pos, 0.0));
+                }
+            }
+        }));
+
+        scope
+            .set_default(offset())
+            .set(anchor(), Unit::rel2(0.0, 0.5));
+
+        Rectangle::new(self.color)
+            .with_min_size(Unit::px2(10.0, self.height))
+            .with_corner_radius(default_corner_radius())
+            .mount(scope)
     }
 }
 
@@ -295,7 +391,7 @@ num_impl!(isize);
 num_impl!(usize);
 
 /// A slider with label displaying the value
-pub struct SliderWithLabel<V> {
+pub struct LabeledSlider<V> {
     slider: Slider<V>,
     editable: bool,
     rounding: Option<f32>,
@@ -304,7 +400,7 @@ pub struct SliderWithLabel<V> {
     value: Arc<dyn Send + Sync + StateDuplex<Item = V>>,
 }
 
-impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<V> {
+impl<V: SliderValue + FromStr + Display + Default + PartialOrd> LabeledSlider<V> {
     pub fn input(value: impl 'static + Send + Sync + StateDuplex<Item = V>, min: V, max: V) -> Self
     where
         V: Copy,
@@ -352,13 +448,18 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> SliderWithLabel<
         self
     }
 
+    pub fn with_fill_color(mut self, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        self.slider = self.slider.with_fill_color(color);
+        self
+    }
+
     pub fn editable(mut self, editable: bool) -> Self {
         self.editable = editable;
         self
     }
 }
 
-impl SliderWithLabel<f32> {
+impl LabeledSlider<f32> {
     pub fn precision(mut self, round: u32) -> Self {
         self.rounding = Some(10i32.pow(round) as f32);
         let x = move |v: f32| (v * 10i32.pow(round) as f32).round() / 10i32.pow(round) as f32;
@@ -369,7 +470,7 @@ impl SliderWithLabel<f32> {
     }
 }
 
-impl<V> Widget for SliderWithLabel<V>
+impl<V> Widget for LabeledSlider<V>
 where
     V: SliderValue + FromStr + Display + Default + PartialOrd + Copy,
     V::Err: 'static + std::fmt::Display,

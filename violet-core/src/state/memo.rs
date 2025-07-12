@@ -1,7 +1,7 @@
 use futures::{stream::BoxStream, FutureExt, StreamExt};
 use parking_lot::Mutex;
 
-use super::{State, StateMut, StateRef, StateSink, StateStream, StateStreamRef};
+use super::{State, StateRef, StateSink, StateStream, StateStreamRef, StateWrite};
 
 struct Inner<T> {
     value: T,
@@ -54,7 +54,7 @@ impl<C: StateStream, T> StateRef for Memo<C, T> {
     }
 }
 
-impl<C: StateSink<Item = T> + StateStream<Item = T>, T: Clone> StateMut for Memo<C, T> {
+impl<C: StateSink<Item = T> + StateStream<Item = T>, T: Clone> StateWrite for Memo<C, T> {
     fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V {
         let inner = &mut *self.value.lock();
 

@@ -6,7 +6,7 @@ use super::{Float, Movable, Rectangle, Stack};
 use crate::{
     components::{min_size, offset, rect, transform},
     input::{interactive, on_scroll},
-    state::{StateMut, StateStream},
+    state::{StateStream, StateWrite},
     style::{
         default_corner_radius, scrollbar_size, surface_interactive_accent, Background,
         ResolvableStyle, SizeExt, WidgetSizeProps,

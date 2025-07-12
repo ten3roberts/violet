@@ -24,6 +24,9 @@ pub struct FocusedEntity {
     sticky: bool,
 }
 
+/// Manages the apps input state, input event propagaton, and focus handling.
+///
+// TODO: stacked focus
 pub struct InputState {
     root: Entity,
     focused: Option<FocusedEntity>,

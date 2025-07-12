@@ -287,7 +287,7 @@ impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleCont
 
             scope.add_tween(
                 max_size(),
-                Tweener::back_out(
+                Tweener::cubic_in_out(
                     Unit::px2(f32::MAX, old_size),
                     Unit::px2(f32::MAX, new_height),
                     0.2,
@@ -295,7 +295,7 @@ impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleCont
             );
             scope.add_tween(
                 min_size(),
-                Tweener::back_out(Unit::px2(0.0, old_size), Unit::px2(0.0, new_height), 0.2),
+                Tweener::cubic_in_out(Unit::px2(0.0, old_size), Unit::px2(0.0, new_height), 0.2),
             );
         });
 

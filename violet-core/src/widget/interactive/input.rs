@@ -29,7 +29,7 @@ use crate::{
     unit::Unit,
     utils::throttle,
     widget::{
-        col, interactive::base::InteractiveWidget, label, Float, Positioned, Rectangle,
+        bold, col, interactive::base::InteractiveWidget, label, Float, Positioned, Rectangle,
         SignalWidget, Stack, StreamWidget, Text, TextStyle, WidgetExt,
     },
     Edges, Rect, Scope, ScopeRef, Widget,
@@ -686,8 +686,12 @@ where
         let parse_state_content = parse_state.signal_ref(move |v| {
             let warn_icon = &warn_icon;
             v.as_ref().err().map(move |err| {
-                InteractiveWidget::new(label(warn_icon).with_color(surface_warning()))
-                    .with_tooltip_text(err)
+                InteractiveWidget::new(
+                    bold(warn_icon)
+                        .with_padding(spacing_small())
+                        .with_color(surface_warning()),
+                )
+                .with_tooltip_text(err)
             })
         });
 
@@ -717,6 +721,7 @@ where
                 .with_size_props(self.style.size)
                 .with_style(self.style),
             Stack::new((SignalWidget::new(parse_state_content),))
+                .with_padding(spacing_small())
                 .with_item_align(LayoutAlignment::new(Align::End, Align::Center)),
         ))
         .mount(scope);

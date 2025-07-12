@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use futures::StreamExt;
 
-use super::{State, StateMut, StateOwned, StateSink, StateStream};
+use super::{State, StateOwned, StateSink, StateStream, StateWrite};
 
 pub struct Transform<C, U, F, G> {
     inner: C,
@@ -56,7 +56,7 @@ where
 
 impl<C, U, F, G> StateSink for Transform<C, U, F, G>
 where
-    C: StateMut,
+    C: StateWrite,
     C::Item: 'static + Send,
     U: 'static + Send + Sync,
     G: 'static + Fn(&mut C::Item, U) + Sync + Send,
@@ -68,7 +68,7 @@ where
 
 impl<C, U, F, G> StateOwned for Transform<C, U, F, G>
 where
-    C: StateMut,
+    C: StateWrite,
     C::Item: 'static + Send,
     U: 'static + Send + Sync,
     F: 'static + Fn(&C::Item) -> U + Sync + Send,

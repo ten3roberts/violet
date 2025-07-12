@@ -147,14 +147,15 @@ impl ButtonStyle {
 
     pub fn checkbox() -> Self {
         ButtonStyle {
-            normal: ColorPair::new(surface_interactive(), surface_interactive()),
-            pressed: ColorPair::new(surface_interactive(), surface_pressed()),
+            normal: ColorPair::new(surface_interactive(), Srgba::new(0.0, 0.0, 0.0, 0.0)),
+            pressed: ColorPair::new(surface_pressed(), element_primary()),
             hover: ColorPair::new(surface_interactive(), surface_hover()),
             size: WidgetSizeProps::default()
-                .with_padding(spacing_small())
+                // .with_padding(spacing_small())
                 .with_margin(spacing_small())
                 .with_corner_radius(default_corner_radius())
-                .with_min_size(Unit::px2(20.0, 20.0)),
+                .with_min_size(Unit::px2(20.0, 20.0))
+                .with_max_size(Unit::px2(20.0, 20.0)),
             ..Default::default()
         }
     }
@@ -345,6 +346,7 @@ impl<W: Widget> Widget for Button<W> {
 
 pub struct Checkbox {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
+    tooltip: Option<TooltipOptions>,
     style: ButtonStyle,
 }
 
@@ -353,7 +355,19 @@ impl Checkbox {
         Self {
             state: Box::new(state),
             style: ButtonStyle::checkbox(),
+            tooltip: None,
         }
+    }
+
+    pub fn with_tooltip_text(mut self, tooltip: impl Into<String>) -> Self {
+        let tooltip = tooltip.into();
+        self.tooltip = Some(TooltipOptions::new(move || label(&tooltip)));
+        self
+    }
+
+    pub fn with_tooltip(mut self, tooltip: TooltipOptions) -> Self {
+        self.tooltip = Some(tooltip);
+        self
     }
 }
 
@@ -364,9 +378,9 @@ impl Widget for Checkbox {
         let pressed = self.style.pressed.resolve(stylesheet);
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
+        let check_icon = stylesheet.get_clone(icon_check()).unwrap_or_default();
 
-        let content = scope
-            .attach(Rectangle::new(normal.element).with_corner_radius(default_corner_radius()));
+        let content = scope.attach(label(check_icon).with_color(normal.element));
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
@@ -378,31 +392,29 @@ impl Widget for Checkbox {
                     .unwrap()
                     .update_dedup(color(), new_color.element);
 
-                scope.set(color(), new_color.surface);
+                scope.update_dedup(color(), new_color.surface);
             }
         });
 
         let mut last_state = WatchState::new(self.state.stream());
 
-        scope
-            .set(interactive(), ())
-            .on_event(on_mouse_input(), move |_, input| {
-                if input.state == ElementState::Pressed {
-                    if let Some(state) = last_state.get() {
-                        self.state.send(!state)
-                    }
-                }
-
-                None
-            });
-
-        Stack::new(())
+        let inner = Stack::new(())
+            .with_alignment(LayoutAlignment::center())
             .with_style(ContainerStyle {
                 background: Some(Background::new(normal.surface)),
             })
             .with_horizontal_alignment(self.style.align.horizontal)
             .with_vertical_alignment(self.style.align.vertical)
-            .with_size_props(self.style.size)
+            .with_size_props(self.style.size);
+
+        InteractiveWidget::new(inner)
+            .on_pointer_press(move |_, state| {
+                if state.is_pressed() {
+                    if let Some(state) = last_state.get() {
+                        self.state.send(!state)
+                    }
+                }
+            })
             .mount(scope);
     }
 }

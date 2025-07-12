@@ -1,7 +1,6 @@
 use std::future::ready;
 
 use futures::StreamExt;
-use parking_lot::Mutex;
 
 use super::{State, StateSink, StateStream, StateStreamRef};
 
@@ -14,7 +13,6 @@ where
     T::Item: Sized,
 {
     inner: T,
-    last_sent: Mutex<Option<T::Item>>,
 }
 
 impl<T: State> Dedup<T>
@@ -22,10 +20,7 @@ where
     T::Item: Sized,
 {
     pub fn new(inner: T) -> Self {
-        Self {
-            inner,
-            last_sent: Mutex::new(None),
-        }
+        Self { inner }
     }
 }
 
@@ -90,12 +85,6 @@ where
     T::Item: 'static + Send + Sync + PartialEq + Clone,
 {
     fn send(&self, item: Self::Item) {
-        if self.last_sent.lock().as_ref() == Some(&item) {
-            // If the item is the same as the last sent, do not send it again.
-            return;
-        }
-
-        *self.last_sent.lock() = Some(item.clone());
         self.inner.send(item);
     }
 }

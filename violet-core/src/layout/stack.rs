@@ -55,10 +55,12 @@ impl StackLayout {
         };
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
-        let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
+        // let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
 
         let child_limits = LayoutLimits {
+            // Wrapping a widget in a stack layout does not change its minimum size, such as for "stretch" widths
             min_size: args.limits.min_size,
+            // If clip is enabled, the inner content can have any size
             max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.max_size,
         };
 

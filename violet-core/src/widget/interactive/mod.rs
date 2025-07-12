@@ -1,6 +1,7 @@
 pub mod base;
 pub mod button;
 pub mod collapsible;
+pub mod colorpicker;
 pub mod drag;
 pub mod input;
 pub mod overlay;

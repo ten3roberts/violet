@@ -9,9 +9,10 @@ use violet::{
         },
         unit::Unit,
         widget::{
-            card, col, interactive::select_list::SelectList, label, pill, row, subtitle, title,
-            Button, Collapsible, Radio, Rectangle, ScrollArea, SignalWidget, SliderWithLabel, Text,
-            TextInput,
+            bold, card, col,
+            interactive::{colorpicker::RgbColorPicker, select_list::SelectList},
+            label, pill, row, subtitle, title, Button, Checkbox, Collapsible, LabeledSlider, Radio,
+            Rectangle, ScrollArea, SignalWidget, Text, TextInput,
         },
         Edges, Widget,
     },
@@ -162,12 +163,11 @@ fn icons() -> impl Widget {
 fn inputs() -> impl Widget {
     let selection = Mutable::new(0);
 
-    let value = Mutable::new(0.5);
     dialog(
         "Input",
         col((
-            SliderWithLabel::new(Mutable::new(50), 0, 100),
-            SliderWithLabel::new(Mutable::new(50), 0, 100).editable(true),
+            LabeledSlider::new(Mutable::new(50), 0, 100),
+            LabeledSlider::new(Mutable::new(50), 0, 100).editable(true),
             TextInput::new(Mutable::new("Text Input".to_string())),
             row((
                 row((0..10)
@@ -175,12 +175,15 @@ fn inputs() -> impl Widget {
                     .collect_vec()),
                 SignalWidget::new(selection.signal().map(|v| label(format!("Selected: {v}")))),
             )),
+            row((
+                bold("Checkbox: "),
+                Checkbox::new(Mutable::new(false))
+                    .with_tooltip_text("This is a checkbox")
+            )),
             Collapsible::label(
                 "Options",
                 col((
-                    SliderWithLabel::new(value.clone(), 0.0, 10.0)
-                        .editable(true)
-                        .precision(2),
+                    RgbColorPicker::new(Mutable::new(FOREST_400)),
                     TextInput::new(Mutable::new("This is an editable textbox.\n\nIt supports multiple lines of text, selections, copy/pasting and more".to_string())),
                 )),
             )

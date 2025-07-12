@@ -397,7 +397,8 @@ impl StylesheetOptions {
             .set(icon_spinner(), self.icons.spinner)
             .set(icon_warning(), self.icons.warning)
             .set(icon_error(), self.icons.error)
-            .set(icon_info(), self.icons.info);
+            .set(icon_info(), self.icons.info)
+            .set(icon_check(), self.icons.check);
 
         builder
     }

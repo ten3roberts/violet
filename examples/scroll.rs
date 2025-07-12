@@ -17,7 +17,9 @@ use violet_core::{
     state::{StateExt, StateStream},
     style::{spacing_medium, surface_secondary, Background},
     utils::zip_latest,
-    widget::{label, Button, Checkbox, ScrollArea, SliderWithLabel, StreamWidget, WidgetExt},
+    widget::{
+        label, Button, Checkbox, LabeledSlider, ScrollArea, Selectable, StreamWidget, WidgetExt,
+    },
 };
 use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 
@@ -48,7 +50,7 @@ fn app() -> impl Widget {
     let color_space = Mutable::new(ColorSpace::Oklcha);
     let segments = Mutable::new(128);
     col((
-        Checkbox::label(
+        Selectable::label(
             "Oklch",
             color_space.clone().map_value(
                 |v| v == ColorSpace::Oklcha,
@@ -61,7 +63,7 @@ fn app() -> impl Widget {
                 },
             ),
         ),
-        SliderWithLabel::new(segments.clone(), 8, 360),
+        LabeledSlider::new(segments.clone(), 8, 360),
         ScrollArea::new(
             BVec2::TRUE,
             StreamWidget(zip_latest(color_space.stream(), segments.stream()).map(

@@ -19,8 +19,8 @@ use violet::core::{
     io::clipboard,
     layout::Align,
     state::{
-        StateDuplex, StateExt, StateMut, StateOwned, StateRef, StateSink, StateStream,
-        StateStreamRef,
+        StateDuplex, StateExt, StateOwned, StateRef, StateSink, StateStream, StateStreamRef,
+        StateWrite,
     },
     style::{
         default_corner_radius, spacing_small, surface_disabled, surface_interactive,
@@ -32,8 +32,8 @@ use violet::core::{
     utils::zip_latest,
     widget::{
         card, col, header, interactive::base::InteractiveWidget, label, panel, row, Button,
-        Checkbox, Collapsible, Rectangle, ScrollArea, Selectable, SignalWidget, SliderStyle,
-        SliderValue, SliderWithLabel, Stack, StreamWidget, Text, TextInput,
+        Checkbox, Collapsible, LabeledSlider, Rectangle, ScrollArea, Selectable, SignalWidget,
+        SliderStyle, SliderValue, Stack, StreamWidget, Text, TextInput,
     },
     FutureEffect, Scope, ScopeRef, Widget,
 };
@@ -169,7 +169,7 @@ pub struct Palette {
 impl Palette {}
 
 fn palette_controls(
-    palettes: impl 'static + Send + Sync + StateMut<Item = Palette>,
+    palettes: impl 'static + Send + Sync + StateWrite<Item = Palette>,
     palette_index: usize,
     palette: &Palette,
     selection: impl 'static + Send + Sync + StateDuplex<Item = (usize, usize)> + StateOwned,
@@ -529,11 +529,11 @@ pub fn precise_slider<T>(
     value: impl 'static + Send + Sync + StateDuplex<Item = T>,
     min: T,
     max: T,
-) -> SliderWithLabel<T>
+) -> LabeledSlider<T>
 where
     T: Default + FromStr + ToString + SliderValue,
 {
-    SliderWithLabel::new(value, min, max)
+    LabeledSlider::new(value, min, max)
         .with_style(SliderStyle {
             track_size: Unit::px2(480.0, 4.0),
             ..Default::default()

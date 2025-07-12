@@ -7,7 +7,7 @@ use violet::{
         text::TextSegment,
         unit::Unit,
         widget::{
-            card, col, label, pill, row, Rectangle, SliderWithLabel, StreamWidget, Text, TextInput,
+            card, col, label, pill, row, LabeledSlider, Rectangle, StreamWidget, Text, TextInput,
         },
         Widget,
     },
@@ -32,9 +32,9 @@ pub fn app() -> impl Widget {
         card(row((label("What is your quest?"), TextInput::new(quest)))),
         card(col((
             label("What is your favorite colour?"),
-            SliderWithLabel::new(r, 0.0, 1.0).precision(2),
-            SliderWithLabel::new(g, 0.0, 1.0).precision(2),
-            SliderWithLabel::new(b, 0.0, 1.0).precision(2),
+            LabeledSlider::new(r, 0.0, 1.0).precision(2),
+            LabeledSlider::new(g, 0.0, 1.0).precision(2),
+            LabeledSlider::new(b, 0.0, 1.0).precision(2),
             StreamWidget(color.stream().map(|v| {
                 Rectangle::new(v)
                     .with_maximize(Vec2::X)

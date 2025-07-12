@@ -2,7 +2,7 @@
 //!
 //! This simplifies the process of working with signals and mapping state from different types or
 //! smaller parts of a larger state.
-use std::{future::Future, marker::PhantomData, pin::Pin, rc::Rc, sync::Arc, task::Poll};
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 use futures::{ready, stream::BoxStream, FutureExt, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
@@ -14,6 +14,7 @@ mod filter;
 pub mod lower_opt;
 mod map;
 mod memo;
+mod project;
 mod transform;
 
 pub use dedup::*;
@@ -22,6 +23,7 @@ pub use filter::*;
 use lower_opt::LowerOption;
 pub use map::*;
 pub use memo::*;
+pub use project::*;
 use sync_wrapper::SyncWrapper;
 pub use transform::*;
 
@@ -64,7 +66,7 @@ pub trait StateExt: State + Sized {
         set: G,
     ) -> Transform<Self, U, F, G>
     where
-        Self: StateMut,
+        Self: StateWrite,
     {
         Transform::new(self, get, set)
     }
@@ -135,7 +137,7 @@ pub trait StateOwned: State {
 /// As opposed to [`StateSink`], this allows in place mutation or partial mutation of the state.
 ///
 /// Used as a building block for sinks to target e.g; specific fields of a struct.
-pub trait StateMut: StateRef {
+pub trait StateWrite: StateRef {
     fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V
     where
         Self: Sized;
@@ -236,7 +238,7 @@ impl<T: Clone> StateOwned for Mutable<T> {
     }
 }
 
-impl<T> StateMut for Mutable<T> {
+impl<T> StateWrite for Mutable<T> {
     fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V {
         f(&mut self.lock_mut())
     }
@@ -266,163 +268,6 @@ where
 impl<T> StateSink for Mutable<T> {
     fn send(&self, value: Self::Item) {
         self.set(value);
-    }
-}
-
-/// Transforms one sdyn PartialReflecttate of to another type through reference projection.
-///
-/// This is used to lower a state `T` of a struct to a state `U` of a field of that struct.
-///
-/// Can be used both to mutate and read the state, as well as to operate as a duplex sink and
-/// stream.
-pub struct Project<
-    C: State,
-    U: ?Sized,
-    F: ?Sized = dyn Send + Sync + Fn(&<C as State>::Item) -> &U,
-    G: ?Sized = dyn Send + Sync + Fn(&mut <C as State>::Item) -> &mut U,
-> {
-    inner: C,
-    project: Arc<F>,
-    project_mut: Arc<G>,
-    _marker: PhantomData<U>,
-}
-
-impl<C, U, F, G> Clone for Project<C, U, F, G>
-where
-    C: Clone + State,
-    U: ?Sized,
-    F: ?Sized,
-    G: ?Sized,
-{
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            project: self.project.clone(),
-            project_mut: self.project_mut.clone(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<C: State, U: ?Sized, F: Fn(&C::Item) -> &U, G: Fn(&mut C::Item) -> &mut U>
-    Project<C, U, F, G>
-{
-    pub fn new(inner: C, project: F, project_mut: G) -> Self {
-        Self {
-            inner,
-            project: Arc::new(project),
-            project_mut: Arc::new(project_mut),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<C: State, U: ?Sized> Project<C, U> {
-    pub fn new_dyn(
-        inner: C,
-        project: impl 'static + Send + Sync + Fn(&C::Item) -> &U,
-        project_mut: impl 'static + Send + Sync + Fn(&mut C::Item) -> &mut U,
-    ) -> Self {
-        Self {
-            inner,
-            project: Arc::new(project),
-            project_mut: Arc::new(project_mut),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<C: State, U: ?Sized, F: ?Sized, G: ?Sized> Project<C, U, F, G> {
-    /// Changes projection from `T -> U` given a `U -> V` directly to a projection of `T -> V`.
-    pub fn flat_project<V: ?Sized>(
-        self,
-        project: impl 'static + Send + Sync + Fn(&U) -> &V,
-        project_mut: impl 'static + Send + Sync + Fn(&mut U) -> &mut V,
-    ) -> Project<C, V>
-    where
-        F: 'static + Send + Sync + Fn(&C::Item) -> &U,
-        G: 'static + Send + Sync + Fn(&mut C::Item) -> &mut U,
-        U: 'static,
-    {
-        Project {
-            inner: self.inner,
-            project: Arc::new(move |v| project((self.project)(v))),
-            project_mut: Arc::new(move |v| project_mut((self.project_mut)(v))),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<C: State, U: ?Sized, F: ?Sized, G: ?Sized> State for Project<C, U, F, G> {
-    type Item = U;
-}
-
-impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateRef for Project<C, U, F, G>
-where
-    C: StateRef,
-    F: Fn(&C::Item) -> &U,
-{
-    fn read_ref<H: FnOnce(&Self::Item) -> V, V>(&self, f: H) -> V {
-        self.inner.read_ref(|v| f((self.project)(v)))
-    }
-}
-
-impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateOwned for Project<C, U, F, G>
-where
-    C: StateRef,
-    U: Clone,
-    F: Fn(&C::Item) -> &U,
-{
-    fn read(&self) -> Self::Item {
-        self.read_ref(|v| v.clone())
-    }
-}
-
-impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateMut for Project<C, U, F, G>
-where
-    C: StateMut,
-    F: Fn(&C::Item) -> &U,
-    G: Fn(&mut C::Item) -> &mut U,
-{
-    fn write_mut<H: FnOnce(&mut Self::Item) -> V, V>(&self, f: H) -> V {
-        self.inner.write_mut(|v| f((self.project_mut)(v)))
-    }
-}
-
-impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateStreamRef for Project<C, U, F, G>
-where
-    C: StateStreamRef,
-    F: 'static + Fn(&C::Item) -> &U + Sync + Send,
-{
-    fn stream_ref<I: 'static + Send + Sync + FnMut(&Self::Item) -> V, V: 'static + Send>(
-        &self,
-        mut func: I,
-    ) -> impl Stream<Item = V> + 'static + Send {
-        let project = self.project.clone();
-        self.inner.stream_ref(move |v| func(project(v)))
-    }
-}
-
-impl<C, U: ?Sized, F: ?Sized, G: ?Sized> StateStream for Project<C, U, F, G>
-where
-    C: StateStreamRef,
-    U: 'static + Send + Sync + Clone,
-    F: 'static + Fn(&C::Item) -> &U + Sync + Send,
-{
-    fn stream(&self) -> BoxStream<'static, Self::Item> {
-        self.stream_ref(|v| v.clone()).boxed()
-    }
-}
-
-/// Bridge update-by-reference to update-by-value
-impl<C, U, F: ?Sized, G: ?Sized> StateSink for Project<C, U, F, G>
-where
-    C: StateMut,
-    F: Fn(&C::Item) -> &U,
-    G: Fn(&mut C::Item) -> &mut U,
-{
-    fn send(&self, value: Self::Item) {
-        self.write_mut(|v| *v = value);
     }
 }
 
@@ -503,9 +348,9 @@ macro_rules! impl_container {
             }
         }
 
-        impl<T> StateMut for $ty<T>
+        impl<T> StateWrite for $ty<T>
         where
-            T: StateMut,
+            T: StateWrite,
         {
             fn write_mut<F: FnOnce(&mut Self::Item) -> V, V>(&self, f: F) -> V {
                 (**self).write_mut(f)
