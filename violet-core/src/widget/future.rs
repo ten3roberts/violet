@@ -198,7 +198,7 @@ impl Widget for Throbber {
 
                 let t = progress % 1.0;
 
-                let change = TAU + 1.0;
+                let change = TAU + 2.0;
                 *rotation = start_rotation + ease_quad(change, t);
             }),
         );

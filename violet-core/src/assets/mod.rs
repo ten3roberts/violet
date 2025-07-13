@@ -171,7 +171,6 @@ impl AssetKey<()> for Path {
     type Error = Infallible;
 
     fn load(&self, assets: &AssetCache) -> Result<Asset<()>, Infallible> {
-        eprintln!("Loading {:?}", self);
         Ok(assets.insert(()))
     }
 }

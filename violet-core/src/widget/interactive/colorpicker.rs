@@ -1,17 +1,18 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
-use futures::StreamExt;
-use palette::{IntoColor, Srgb, Srgba, WithAlpha};
+use palette::Srgba;
 
 use crate::{
+    components::color,
     state::{StateDuplex, StateExt, StateStreamRef},
     style::{
-        base_colors::{EMERALD_400, OCEAN_400, PLATINUM_100, PLATINUM_400, RUBY_400},
+        base_colors::{EMERALD_400, OCEAN_400, PLATINUM_100, RUBY_400},
         default_corner_radius, spacing_small, surface_tertiary, SizeExt,
     },
+    to_owned,
     unit::Unit,
-    widget::{card, col, row, InputBox, LabeledSlider, Rectangle, Stack, StreamWidget, TextInput},
-    Widget,
+    widget::{card, col, row, InputBox, LabeledSlider, Rectangle, StreamWidget},
+    Scope, Widget,
 };
 
 pub struct RgbColorPicker {
@@ -26,42 +27,59 @@ impl RgbColorPicker {
             enable_alpha: true,
         }
     }
+
+    pub fn enable_alpha(mut self, enable: bool) -> Self {
+        self.enable_alpha = enable;
+        self
+    }
 }
 
 impl Widget for RgbColorPicker {
-    fn mount(self, scope: &mut crate::Scope<'_>) {
-        let color = Arc::new(self.color.memo(Default::default()));
+    fn mount(self, scope: &mut Scope<'_>) {
+        let color = Arc::new(self.color.memo(Srgba::new(1.0, 1.0, 1.0, 1.0)));
 
         let red = color.clone().project_ref(|v| &v.red, |v| &mut v.red);
         let green = color.clone().project_ref(|v| &v.green, |v| &mut v.green);
         let blue = color.clone().project_ref(|v| &v.blue, |v| &mut v.blue);
         let alpha = color.clone().project_ref(|v| &v.alpha, |v| &mut v.alpha);
 
+        const PRECISION: u32 = 3;
+
         let sliders = col((
             LabeledSlider::input(red, 0.0, 1.0)
-                .precision(2)
+                .precision(PRECISION)
                 .with_fill_color(RUBY_400),
             LabeledSlider::input(green, 0.0, 1.0)
-                .precision(2)
+                .precision(PRECISION)
                 .with_fill_color(EMERALD_400),
             LabeledSlider::input(blue, 0.0, 1.0)
-                .precision(2)
+                .precision(PRECISION)
                 .with_fill_color(OCEAN_400),
             self.enable_alpha.then(|| {
                 LabeledSlider::input(alpha, 0.0, 1.0)
-                    .precision(2)
+                    .precision(PRECISION)
                     .with_fill_color(PLATINUM_100)
             }),
         ));
 
         card(row((
             col((
-                StreamWidget::new(color.stream_ref(|&v| {
-                    Rectangle::new(v)
-                        .with_padding(spacing_small())
-                        .with_corner_radius(default_corner_radius())
-                        .with_exact_size(Unit::px2(80.0, 80.0))
-                })),
+                {
+                    to_owned!(color);
+                    move |scope: &mut Scope| {
+                        scope.spawn_stream(color.stream_ref(|v| *v), |scope, new_color| {
+                            scope
+                                .update_dedup(crate::components::color(), new_color)
+                                .unwrap();
+                        });
+
+                        Rectangle::new(color.get())
+                            .with_padding(spacing_small())
+                            .with_corner_radius(default_corner_radius())
+                            .with_exact_size(Unit::px2(80.0, 80.0))
+                            .mount(scope);
+                    }
+                },
                 color_hex_editor(color),
             )),
             sliders,

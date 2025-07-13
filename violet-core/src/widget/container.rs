@@ -350,6 +350,10 @@ pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
         .with_corner_radius(default_corner_radius())
 }
 
+pub fn raised_card<W: WidgetCollection>(widget: W) -> Stack<W> {
+    card(widget).with_background(surface_tertiary())
+}
+
 pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget).with_background(Background::new(surface_secondary()))
 }

@@ -54,7 +54,7 @@ impl Default for TextInputStyle {
             background: Background::new(surface_interactive()),
             align: Align::Start,
             size: WidgetSizeProps::default()
-                .with_min_size(Unit::px2(32.0, 0.0))
+                .with_min_size(Unit::px2(16.0, 16.0))
                 .with_margin(spacing_small())
                 .with_padding(spacing_small())
                 .with_corner_radius(default_corner_radius()),

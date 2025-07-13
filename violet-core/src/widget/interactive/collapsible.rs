@@ -317,9 +317,8 @@ impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleCont
                         Either::Right(inner_fn) => inner_fn(),
                     };
 
-                    Stack::new(|scope: &mut Scope<'_>| {
+                    Stack::new(col(|scope: &mut Scope<'_>| {
                         let inner_size = inner_size.clone();
-                        let name = scope.entity().to_string();
                         scope.monitor(rect(), move |v| {
                             if let Some(v) = v {
                                 inner_size.set(v.size().y);
@@ -327,7 +326,7 @@ impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleCont
                         });
 
                         inner.mount(scope);
-                    })
+                    }))
                     .with_clip(BVec2::new(false, true))
                     .with_padding(Edges::new(16.0 * self.indent as i32 as f32, 0.0, 0.0, 0.0))
                     .mount(scope);

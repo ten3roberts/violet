@@ -141,7 +141,7 @@ impl ColorPalette {
             element_hover_success: element_secondary,
             element_hover_warning: element_secondary,
             //
-            surface_disabled: PLATINUM_900,
+            surface_disabled: ZINC_800,
             surface_disabled_danger: RUBY_800,
             surface_disabled_success: EMERALD_800,
             surface_disabled_warning: CITRUS_800,

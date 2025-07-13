@@ -1,10 +1,8 @@
 use flax::EntityRef;
 use palette::Srgba;
-use winit::event::ElementState;
 
 use crate::{
     components::{color, LayoutAlignment},
-    input::{interactive, on_mouse_input},
     layout::Align,
     scope::ScopeRef,
     state::{StateDuplex, StateExt, StateStream, WatchState},
@@ -87,6 +85,15 @@ impl ButtonStyle {
             normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
             pressed: ColorPair::new(surface_pressed_success(), element_pressed_success()),
             hover: ColorPair::new(surface_hover_success(), element_hover_success()),
+            ..Default::default()
+        }
+    }
+
+    pub fn disabled() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_disabled(), element_secondary()),
+            pressed: ColorPair::new(surface_disabled(), element_secondary()),
+            hover: ColorPair::new(surface_disabled(), element_secondary()),
             ..Default::default()
         }
     }
@@ -244,6 +251,11 @@ impl<W> Button<W> {
         self
     }
 
+    pub fn disabled(mut self) -> Self {
+        self.style = ButtonStyle::disabled();
+        self
+    }
+
     pub fn danger(mut self) -> Self {
         self.style = ButtonStyle::danger();
         self
@@ -391,9 +403,10 @@ impl Widget for Checkbox {
                     .world()
                     .entity(content)
                     .unwrap()
-                    .update_dedup(color(), new_color.element);
+                    .update_dedup(color(), new_color.element)
+                    .unwrap();
 
-                scope.update_dedup(color(), new_color.surface);
+                scope.update_dedup(color(), new_color.surface).unwrap();
             }
         });
 

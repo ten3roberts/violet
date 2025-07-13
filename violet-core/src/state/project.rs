@@ -19,7 +19,7 @@ type DynProjectFunc<C, U> = Box<dyn Send + Sync + Fn(&<C as State>::Item) -> &U>
 ///
 /// # Notable Implementations
 ///
-/// - [`StateMut`]: Allows directly writing into the substate.
+/// - [`StateWrite`]: Allows directly writing into the substate.
 /// - [`StateStreamRef`]: Allows receiving references to the substate.
 /// - [`StateStream`] (if U: Clone): Allows receiving clones of the projected substate.
 /// - [`StateSink`]: Allow sending a type U which will end up writing into the projection.
