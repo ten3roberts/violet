@@ -217,10 +217,12 @@ where
 /// to filtered states. Instead, you can subscribe to changes and use [`WatchState`] to hold on to
 /// the latest known state.
 pub trait StateDuplex: StateStream + StateSink {}
+pub trait StateProjected: StateStreamRef + StateWrite {}
 
 pub type DynStateDuplex<T> = Box<dyn Send + Sync + StateDuplex<Item = T>>;
 
 impl<T> StateDuplex for T where T: StateStream + StateSink {}
+impl<T> StateProjected for T where T: StateStreamRef + StateWrite {}
 
 impl<T> State for Mutable<T> {
     type Item = T;

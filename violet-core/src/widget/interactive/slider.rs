@@ -365,6 +365,16 @@ impl SliderValue for f32 {
     }
 }
 
+impl SliderValue for f64 {
+    fn from_progress(v: f32) -> Self {
+        v as f64
+    }
+
+    fn to_progress(&self) -> f32 {
+        *self as f32
+    }
+}
+
 macro_rules! num_impl {
     ($ty: ty) => {
         impl SliderValue for $ty {
