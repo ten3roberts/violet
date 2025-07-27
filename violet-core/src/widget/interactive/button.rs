@@ -3,13 +3,17 @@ use palette::Srgba;
 
 use crate::{
     components::{color, LayoutAlignment},
+    input::MouseInput,
     layout::Align,
     scope::ScopeRef,
     state::{StateDuplex, StateExt, StateStream, WatchState},
     style::*,
     tweens::tweens,
     unit::Unit,
-    widget::{interactive::base::ClickCallback, label, ContainerStyle, Rectangle, Stack, Text},
+    widget::{
+        interactive::base::{ClickCallback, MouseInputCallback},
+        label, ContainerStyle, Rectangle, Stack, Text,
+    },
     Scope, Widget, WidgetCollection,
 };
 
@@ -517,6 +521,7 @@ pub struct Selectable<W> {
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     tooltip: Option<TooltipOptions>,
     on_double_click: Option<ClickCallback>,
+    on_mouse_input: Option<MouseInputCallback>,
     style: ButtonStyle,
     label: W,
 }
@@ -529,7 +534,16 @@ impl<W: WidgetCollection> Selectable<W> {
             style: ButtonStyle::default(),
             label,
             tooltip: None,
+            on_mouse_input: None,
         }
+    }
+
+    pub fn on_mouse_input(
+        mut self,
+        func: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput>,
+    ) -> Self {
+        self.on_mouse_input = Some(Box::new(func));
+        self
     }
 
     pub fn selectable_entry(
@@ -542,6 +556,7 @@ impl<W: WidgetCollection> Selectable<W> {
             style: ButtonStyle::selectable_entry(),
             label,
             tooltip: None,
+            on_mouse_input: None,
         }
     }
 
@@ -587,7 +602,7 @@ impl<T> SizeExt for Selectable<T> {
 }
 
 impl<W: Widget> Widget for Selectable<W> {
-    fn mount(self, scope: &mut Scope<'_>) {
+    fn mount(mut self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
         let pressed = self.style.pressed.resolve(stylesheet);
@@ -619,10 +634,19 @@ impl<W: Widget> Widget for Selectable<W> {
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
-            .on_pointer_press(move |_, state| {
-                if state.is_pressed() {
-                    self.state.send(true)
+            .on_mouse_input(move |scope, input| {
+                if let Some(mouse_input) = &mut self.on_mouse_input {
+                    if (mouse_input)(scope, input).is_none() {
+                        return None;
+                    }
                 }
+
+                if input.state.is_pressed() {
+                    self.state.send(true);
+                    return None;
+                }
+
+                Some(input)
             })
             .on_double_click_opt(self.on_double_click)
             .with_tooltip_opt(self.tooltip)

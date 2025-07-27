@@ -5,7 +5,7 @@ use winit::event::ElementState;
 
 use crate::{
     executor::TaskHandle,
-    input::{interactive, on_cursor_hover, on_mouse_input, HoverState},
+    input::{interactive, on_cursor_hover, on_mouse_input, HoverState, MouseInput},
     style::{SizeExt, WidgetSizeProps},
     time::sleep,
     widget::{label, pill},
@@ -19,6 +19,8 @@ use super::{
 
 pub type ClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
 pub type PointerPressCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, ElementState)>;
+pub type MouseInputCallback =
+    Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput>>;
 pub type CreateTooltip = Box<dyn Send + Sync + Fn() -> Box<dyn Send + Widget>>;
 
 pub struct TooltipOptions {
@@ -63,6 +65,8 @@ pub struct InteractiveWidget<W> {
     on_click: Option<ClickCallback>,
     double_click: Option<ClickCallback>,
     on_press: Option<PointerPressCallback>,
+    on_right_click: Option<ClickCallback>,
+    on_mouse_input: Option<MouseInputCallback>,
     size: WidgetSizeProps,
     tooltip: Option<TooltipOptions>,
     inner: W,
@@ -73,6 +77,8 @@ impl<W: Widget> InteractiveWidget<W> {
         Self {
             on_click: None,
             on_press: None,
+            on_right_click: None,
+            on_mouse_input: None,
             tooltip: None,
             size: Default::default(),
             inner,
@@ -108,11 +114,39 @@ impl<W: Widget> InteractiveWidget<W> {
         self
     }
 
+    pub fn on_mouse_input<F>(mut self, on_mouse_input: F) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput> + Send + Sync + 'static,
+    {
+        self.on_mouse_input = Some(Box::new(on_mouse_input));
+        self
+    }
+
+    pub fn on_mouse_input_opt<F>(mut self, on_mouse_input: Option<F>) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput> + Send + Sync + 'static,
+    {
+        if let Some(on_mouse_input) = on_mouse_input {
+            self.on_mouse_input = Some(Box::new(on_mouse_input));
+        } else {
+            self.on_mouse_input = None;
+        }
+        self
+    }
+
     pub fn on_pointer_press<F>(mut self, on_press: F) -> Self
     where
         F: FnMut(&ScopeRef<'_>, ElementState) + Send + Sync + 'static,
     {
         self.on_press = Some(Box::new(on_press));
+        self
+    }
+
+    pub fn on_right_click<F>(mut self, on_click: F) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>) + Send + Sync + 'static,
+    {
+        self.on_right_click = Some(Box::new(on_click));
         self
     }
 
@@ -220,15 +254,31 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
         scope
             .set_default(interactive())
             .on_event(on_mouse_input(), move |scope, input| {
-                if let Some(on_press) = &mut self.on_press {
-                    (on_press)(scope, input.state)
+                if let Some(on_mouse_input) = &mut self.on_mouse_input {
+                    if (on_mouse_input)(scope, input).is_none() {
+                        return None;
+                    }
                 }
 
-                if input.state == ElementState::Pressed {
-                    is_pressed = true;
-                } else if is_pressed {
-                    is_pressed = false;
-                    click_handler(scope)
+                match input.button {
+                    winit::event::MouseButton::Left => {
+                        if let Some(on_press) = &mut self.on_press {
+                            (on_press)(scope, input.state)
+                        }
+
+                        if input.state == ElementState::Pressed {
+                            is_pressed = true;
+                        } else if is_pressed {
+                            is_pressed = false;
+                            click_handler(scope)
+                        }
+                    }
+                    winit::event::MouseButton::Right if input.state == ElementState::Pressed => {
+                        if let Some(v) = &mut self.on_right_click {
+                            (v)(scope)
+                        }
+                    }
+                    _ => {}
                 }
 
                 None

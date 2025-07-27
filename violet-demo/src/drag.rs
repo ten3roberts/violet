@@ -38,7 +38,7 @@ fn draggable_tile(
                 },
                 move |_, drop_target| {
                     if let Some(target_index) =
-                        drop_target.and_then(|v| v.get_copy(tile_index()).ok())
+                        drop_target.and_then(|v| v.0.get_copy(tile_index()).ok())
                     {
                         items.lock_mut().swap(index, target_index);
                     }

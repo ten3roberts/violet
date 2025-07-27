@@ -10,14 +10,16 @@ use crate::{
     hierarchy::find_widget_intersect,
     input::{interactive, on_cursor_move, on_mouse_input},
     unit::Unit,
+    widget::Stack,
     ScopeRef, Widget,
 };
 
 use super::overlay::{overlay_state, Overlay, OverlayHandle};
 
-type OnDropFn = Box<dyn Fn(&ScopeRef<'_>, Option<EntityRef>)>;
+type OnDropFn = Box<dyn Fn(&ScopeRef<'_>, Option<(EntityRef, Vec2)>)>;
 
 component! {
+    // Indicates this widget is a valid drop target
     pub drop_target: (),
 }
 
@@ -33,7 +35,7 @@ impl<T, P> Draggable<T, P> {
     pub fn new(
         widget: T,
         preview: impl 'static + Fn() -> P,
-        on_drop: impl 'static + Fn(&ScopeRef<'_>, Option<EntityRef>),
+        on_drop: impl 'static + Fn(&ScopeRef<'_>, Option<(EntityRef, Vec2)>),
     ) -> Self {
         Self {
             widget,
@@ -94,6 +96,8 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
                 if input.state == ElementState::Pressed {
                     drag.drag_start = Some(input.cursor.absolute_pos);
                     drag.drag_offset = input.cursor.local_pos;
+
+                    Some(input)
                 } else {
                     drag.drag_start = None;
                     let dragging = drag.dragging;
@@ -115,15 +119,15 @@ impl<T: Widget, P: 'static + Send + Widget> Widget for Draggable<T, P> {
                             |v| v.has(drop_target()),
                         );
 
-                        scope.read(on_drop)(scope, drop_target.map(|v| v.0))
+                        scope.read(on_drop)(scope, drop_target)
                     }
-                }
 
-                None
+                    Some(input)
+                }
             })
             .set(interactive(), ());
 
-        self.widget.mount(scope);
+        Stack::new(self.widget).mount(scope);
     }
 }
 

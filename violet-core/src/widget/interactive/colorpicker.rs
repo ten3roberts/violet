@@ -3,7 +3,6 @@ use std::{fmt::Display, str::FromStr, sync::Arc};
 use palette::Srgba;
 
 use crate::{
-    components::color,
     state::{StateDuplex, StateExt, StateStreamRef},
     style::{
         base_colors::{EMERALD_400, OCEAN_400, PLATINUM_100, RUBY_400},
@@ -11,7 +10,7 @@ use crate::{
     },
     to_owned,
     unit::Unit,
-    widget::{card, col, row, InputBox, LabeledSlider, Rectangle, StreamWidget},
+    widget::{card, col, row, InputBox, LabeledSlider, Rectangle},
     Scope, Widget,
 };
 
@@ -38,6 +37,7 @@ impl Widget for RgbColorPicker {
     fn mount(self, scope: &mut Scope<'_>) {
         let color = Arc::new(self.color.memo(Srgba::new(1.0, 1.0, 1.0, 1.0)));
 
+        color.sync_initial();
         let red = color.clone().project_ref(|v| &v.red, |v| &mut v.red);
         let green = color.clone().project_ref(|v| &v.green, |v| &mut v.green);
         let blue = color.clone().project_ref(|v| &v.blue, |v| &mut v.blue);

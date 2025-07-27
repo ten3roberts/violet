@@ -38,23 +38,20 @@ where
     I: IntoIterator<Item = T>,
 {
     fn mount(self, scope: &mut Scope<'_>) {
-        ScrollArea::vertical(
-            col(self
-                .items
-                .into_iter()
-                .enumerate()
-                .map(|(i, item)| {
-                    Selectable::new_value(
-                        item,
-                        self.selection.clone().filter_map(|v| v, |v| Some(Some(v))),
-                        i,
-                    )
-                    .with_style(ButtonStyle::selectable_entry())
-                })
-                .collect_vec())
-            .with_stretch(true),
-        )
-        .with_size_props(self.size)
+        col(self
+            .items
+            .into_iter()
+            .enumerate()
+            .map(|(i, item)| {
+                Selectable::new_value(
+                    item,
+                    self.selection.clone().filter_map(|v| v, |v| Some(Some(v))),
+                    i,
+                )
+                .with_style(ButtonStyle::selectable_entry())
+            })
+            .collect_vec())
+        .with_stretch(true)
         .mount(scope);
     }
 }

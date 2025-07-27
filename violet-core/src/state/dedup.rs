@@ -15,6 +15,17 @@ where
     inner: T,
 }
 
+impl<T: Clone + State> Clone for Dedup<T>
+where
+    T::Item: Sized,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 impl<T: State> Dedup<T>
 where
     T::Item: Sized,
