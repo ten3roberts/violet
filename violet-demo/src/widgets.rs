@@ -10,7 +10,9 @@ use violet::{
         unit::Unit,
         widget::{
             bold, card, col,
-            interactive::{colorpicker::RgbColorPicker, select_list::SelectList},
+            interactive::{
+                colorpicker::RgbColorPicker, dropdown::Dropdown, select_list::SelectList,
+            },
             label, pill, row, subtitle, title, Button, Checkbox, Collapsible, LabeledSlider, Radio,
             Rectangle, ScrollArea, SignalWidget, Text, TextInput,
         },
@@ -31,7 +33,7 @@ pub fn main_app() -> impl Widget {
     ScrollArea::new(
         BVec2::TRUE,
         col((
-            row((texts(), buttons(), inputs(), list(), colors())),
+            row((texts(), buttons(), inputs(), dropdown(), list(), colors())),
             row((icons(), drag_and_drop())),
         ))
         .with_contain_margins(true)
@@ -55,6 +57,34 @@ fn buttons() -> impl Widget {
     )
 }
 
+fn dropdown() -> impl Widget {
+    let mut selection = Mutable::new(None);
+    dialog(
+        "Dropdown",
+        Dropdown::new(
+            selection,
+            [
+                row((bold(LUCIDE_BOX).with_color(OCEAN_400), label("Box"))),
+                row((
+                    bold(LUCIDE_DROPLETS).with_color(AMETHYST_400),
+                    label("Liquid"),
+                )),
+                row((bold(LUCIDE_HAMMER).with_color(AMBER_400), label("Tools"))),
+                row((bold(LUCIDE_BACKPACK).with_color(RUBY_400), label("Items"))),
+                row((
+                    bold(LUCIDE_HEADPHONES).with_color(EMERALD_400),
+                    label("Music"),
+                )),
+                row((
+                    bold(LUCIDE_BRIEFCASE_BUSINESS).with_color(CITRUS_400),
+                    label("Business"),
+                )),
+                row((bold(LUCIDE_WRENCH).with_color(OCEAN_400), label("Settings"))),
+                row((bold(LUCIDE_LEAF).with_color(FOREST_400), label("Nature"))),
+            ],
+        ),
+    )
+}
 fn texts() -> impl Widget {
     dialog(
         "Text",

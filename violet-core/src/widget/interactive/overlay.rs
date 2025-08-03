@@ -201,7 +201,7 @@ impl Widget for OverlayStack {
                     *float_entity = entity;
                 }
                 OverlayCommand::Close(float_id) => {
-                    let Some(&float_entity) = self.overlays.get(float_id) else {
+                    let Some(float_entity) = self.overlays.remove(float_id) else {
                         return;
                     };
 

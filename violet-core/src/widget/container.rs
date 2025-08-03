@@ -139,7 +139,7 @@ where
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct List<W> {
     items: W,
     layout: FlowLayout,

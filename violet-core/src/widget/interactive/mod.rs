@@ -3,6 +3,7 @@ pub mod button;
 pub mod collapsible;
 pub mod colorpicker;
 pub mod drag;
+pub mod dropdown;
 pub mod input;
 pub mod overlay;
 pub mod select_list;
