@@ -21,7 +21,7 @@ pub type ClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
 pub type PointerPressCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, ElementState)>;
 pub type MouseInputCallback =
     Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput>>;
-pub type CreateTooltip = Box<dyn Send + Sync + Fn() -> Box<dyn Send + Widget>>;
+pub type CreateTooltip = Box<dyn Send + Sync + Fn(&ScopeRef<'_>) -> Box<dyn Send + Widget>>;
 
 pub struct TooltipOptions {
     pub delay: Duration,
@@ -31,18 +31,18 @@ pub struct TooltipOptions {
 
 impl TooltipOptions {
     pub fn new<W: 'static + Send + Widget>(
-        tooltip: impl Fn() -> W + Send + Sync + 'static,
+        tooltip: impl Fn(&ScopeRef<'_>) -> W + Send + Sync + 'static,
     ) -> Self {
         Self {
             delay: Duration::from_millis(400),
-            create_tooltip: Box::new(move || Box::new(tooltip())),
+            create_tooltip: Box::new(move |scope| Box::new(tooltip(scope))),
             offset: Vec2::new(10.0, 16.0),
         }
     }
 
     pub fn label(tooltip: impl Into<String>) -> Self {
         let tooltip = tooltip.into();
-        Self::new(move || label(&tooltip))
+        Self::new(move |_| label(&tooltip))
     }
 
     pub fn with_offset(mut self, offset: Vec2) -> Self {
@@ -114,7 +114,7 @@ impl<W: Widget> InteractiveWidget<W> {
         self
     }
 
-    pub fn on_mouse_input<F>(mut self, on_mouse_input: F) -> Self
+    pub fn on_generic_mouse_input<F>(mut self, on_mouse_input: F) -> Self
     where
         F: FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput> + Send + Sync + 'static,
     {
@@ -152,7 +152,7 @@ impl<W: Widget> InteractiveWidget<W> {
 
     pub fn with_tooltip_text(mut self, tooltip: impl Into<String>) -> Self {
         let tooltip = tooltip.into();
-        self.tooltip = Some(TooltipOptions::new(move || label(&tooltip)));
+        self.tooltip = Some(TooltipOptions::new(move |_| label(&tooltip)));
         self
     }
 
@@ -206,7 +206,7 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
                             let overlays = scope.get_context_cloned(overlay_state());
                             let overlay = TooltipOverlay::new(
                                 info.position + tooltip_info.offset,
-                                pill((tooltip_info.create_tooltip)()),
+                                pill((tooltip_info.create_tooltip)(&ScopeRef::from_scope(scope))),
                             );
 
                             let handle = overlays.open(overlay);
@@ -228,9 +228,12 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
 
         let mut click_handler = move |scope: &ScopeRef| {
             let now = web_time::Instant::now();
+
+            // Perform double click detection
             if last_click.is_some_and(|v| now.duration_since(v) < double_click_timeout) {
-                // second click, abort the previous action
+                // abort normal click
                 click_action.take().map(|v| v.abort());
+                tracing::info!("double click");
                 if let Some(double_click) = &mut self.double_click {
                     double_click(scope);
                 }

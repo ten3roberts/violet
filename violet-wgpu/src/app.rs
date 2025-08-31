@@ -193,7 +193,7 @@ impl AppInstance {
 
         let stylesheet = stylesheet.spawn(frame.world_mut());
 
-        let system = transform_system(&mut frame.world);
+        let transform_system = transform_system(&mut frame.world);
 
         let clipboard = frame.store_mut().insert(Arc::new(Clipboard::new()));
         frame.set_atom(io::clipboard(), clipboard);
@@ -218,7 +218,7 @@ impl AppInstance {
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(layout_system(root, resize_canvas))
             .with_system(compute_transform_system())
-            .with_system(system);
+            .with_system(transform_system);
 
         let input_state = InputState::new(root, Vec2::ZERO, request_focus_rx);
 
@@ -332,6 +332,14 @@ impl AppInstance {
 
     pub fn layout_changes_rx(&self) -> &flume::Receiver<(Entity, LayoutUpdateEvent)> {
         &self.layout_changes_rx
+    }
+
+    pub fn window_size(&self) -> PhysicalSize<u32> {
+        self.window_size
+    }
+
+    pub fn scale_factor(&self) -> f64 {
+        self.scale_factor
     }
 }
 

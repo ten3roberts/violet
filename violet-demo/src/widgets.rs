@@ -16,7 +16,7 @@ use violet::{
             label, pill, row, subtitle, title, Button, Checkbox, Collapsible, LabeledSlider, Radio,
             Rectangle, ScrollArea, SignalWidget, Text, TextInput,
         },
-        Edges, Widget,
+        Edges, StateExt, Widget,
     },
     futures_signals::signal::{Mutable, SignalExt},
     lucide::icons::*,
@@ -58,11 +58,11 @@ fn buttons() -> impl Widget {
 }
 
 fn dropdown() -> impl Widget {
-    let mut selection = Mutable::new(None);
+    let selection = Mutable::new(None);
     dialog(
         "Dropdown",
         Dropdown::new(
-            selection,
+            selection.lower_option(),
             [
                 row((bold(LUCIDE_BOX).with_color(OCEAN_400), label("Box"))),
                 row((

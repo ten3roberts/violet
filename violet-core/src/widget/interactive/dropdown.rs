@@ -3,15 +3,14 @@ use std::sync::Arc;
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2, Vec3, Vec3Swizzles};
-use tracing::info;
 
 use crate::{
     components::{offset, opacity, rect, screen_transform},
     layout::Align,
     state::StateDuplex,
     style::{
-        default_corner_radius, icon_chevron, icon_ellipsis, spacing_medium, surface_interactive,
-        SizeExt, StyleExt,
+        default_corner_radius, icon_ellipsis, spacing_medium, surface_interactive, SizeExt,
+        StyleExt,
     },
     to_owned,
     unit::Unit,
@@ -23,27 +22,21 @@ use crate::{
     Rect, Scope, Widget,
 };
 
-pub struct Dropdown<I> {
+pub struct Dropdown<T, I> {
     items: I,
-    selection: Arc<dyn Send + Sync + StateDuplex<Item = Option<usize>>>,
+    selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
 }
 
-impl<I> Dropdown<I>
+impl<T, I> Dropdown<T, I>
 where
-    I: IntoIterator,
-    I::Item: 'static + Send + Sync + Clone + Widget,
+    I: IntoIterator<Item = T>,
+    T: 'static + Send + Sync + Clone + Widget,
+    Self: Widget,
 {
     /// Create a new dropdown widget.
     ///
     /// `selection` is a state duplex that will be updated with the selected item index.
-    pub fn new(
-        selection: impl 'static + Send + Sync + StateDuplex<Item = Option<usize>>,
-        items: I,
-    ) -> Self
-    where
-        I: IntoIterator,
-        I::Item: 'static + Send + Sync + Clone + Widget,
-    {
+    pub fn new(selection: impl 'static + Send + Sync + StateDuplex<Item = T>, items: I) -> Self {
         Self {
             items,
             selection: Arc::new(selection),
@@ -51,23 +44,20 @@ where
     }
 }
 
-impl<I> Widget for Dropdown<I>
+impl<T, I> Widget for Dropdown<T, I>
 where
-    I: IntoIterator,
-    I::Item: 'static + Send + Sync + Clone + Widget,
+    I: IntoIterator<Item = T>,
+    T: 'static + Send + Sync + Clone + Widget,
 {
     fn mount(self, scope: &mut Scope<'_>) {
         let overlays = scope.get_context_cloned(overlay_state());
 
         let items = Arc::new(self.items.into_iter().collect::<Vec<_>>());
         let current_item = self.selection.stream().map({
-            to_owned!(items);
             move |v| {
-                v.map(|i| {
-                    Stack::new(items.get(i).cloned())
-                        .with_margin(spacing_medium())
-                        .with_padding(spacing_medium())
-                })
+                Stack::new(v)
+                    .with_margin(spacing_medium())
+                    .with_padding(spacing_medium())
             }
         });
 
@@ -125,7 +115,7 @@ struct DropdownListOverlay<T> {
     position: Vec2,
     width: f32,
     items: Arc<Vec<T>>,
-    selection: Arc<dyn Send + Sync + StateDuplex<Item = Option<usize>>>,
+    selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
 }
 
 impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<T> {
@@ -134,16 +124,17 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
         let token = scope.store(token);
         scope
             .set(offset(), Unit::px(self.position))
-            .set(opacity(), 0.9);
+            .set(opacity(), 1.0);
 
         card(
             ScrollArea::vertical(
                 col(IterWidgetCollection::new(
                     self.items.iter().enumerate().map(|(i, item)| {
+                        to_owned!(items = self.items);
                         Button::new(item.clone())
                             .with_style(ButtonStyle::selectable_entry())
                             .on_click(move |scope| {
-                                scope.read(selection).send(Some(i));
+                                scope.read(selection).send(items[i].clone());
                                 scope.read(token).close();
                             })
                     }),

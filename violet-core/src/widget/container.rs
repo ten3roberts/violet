@@ -188,6 +188,12 @@ impl<W: WidgetCollection> List<W> {
         self.style.background = Some(background.into());
         self
     }
+
+    /// Shorthand for `with_cross_align(Align::Center)`
+    pub fn center(mut self) -> Self {
+        self.layout.cross_align = Align::Center;
+        self
+    }
 }
 
 impl<W: WidgetCollection> StyleExt for List<W> {
@@ -355,7 +361,9 @@ pub fn raised_card<W: WidgetCollection>(widget: W) -> Stack<W> {
 }
 
 pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
-    Stack::new(widget).with_background(Background::new(surface_secondary()))
+    Stack::new(widget)
+        .with_padding(spacing_medium())
+        .with_background(Background::new(surface_secondary()))
 }
 
 pub fn maximized<W: WidgetCollection>(widget: W) -> Stack<W> {

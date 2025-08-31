@@ -6,8 +6,8 @@ use crate::{
     components::{self, color, draw_shape, text, text_wrap},
     shape,
     style::{
-        element_primary, element_secondary, spacing_small, text_large, text_medium, text_small,
-        ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSizeProps,
+        element_primary, element_secondary, spacing_medium, spacing_small, text_large, text_medium,
+        text_small, ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSizeProps,
     },
     text::{TextSegment, Wrap},
     unit::Unit,
@@ -186,14 +186,14 @@ pub fn header(text: impl Into<String>) -> Stack<Text> {
 pub fn title(text: impl Into<String>) -> Text {
     Text::bold(text)
         .with_font_size(text_large())
-        .with_margin(spacing_small())
+        .with_margin(spacing_medium())
 }
 
 pub fn subtitle(text: impl Into<String>) -> Text {
     Text::medium(text)
         .with_color(element_secondary())
         .with_font_size(text_medium())
-        .with_margin(spacing_small())
+        .with_margin(spacing_medium())
 }
 
 pub fn bold(text: impl Into<String>) -> Text {

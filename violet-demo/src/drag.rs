@@ -44,7 +44,7 @@ fn draggable_tile(
                     }
                 },
             ),
-            move || label(&name),
+            move |_| label(&name),
         )
         .mount(scope);
     }

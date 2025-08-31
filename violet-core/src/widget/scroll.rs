@@ -97,30 +97,10 @@ impl<W: Widget> Widget for ScrollArea<W> {
 
         scope.set(interactive(), ());
 
-        // let scroll = zip_latest(size.stream(), outer_size.stream())
-        //     .map(|(size, outer_size)| size.cmpgt(outer_size));
-
         let stylesheet = scope.stylesheet();
 
         let scrollbar_size = stylesheet.get_copy(scrollbar_size()).unwrap_or_default();
-        // let scrollbar_padding = stylesheet.get_copy(spacing_small()).unwrap_or_default();
         let scrollbar_padding = Edges::even(8.0);
-
-        // scope.spawn_stream(scroll, move |scope, needs_scroll| {
-        //     scope
-        //         .update_dedup(
-        //             padding(),
-        //             Edges::new(
-        //                 0.0,
-        //                 needs_scroll.y as u32 as f32
-        //                     * (scrollbar_size + scrollbar_padding.left + scrollbar_padding.right),
-        //                 0.0,
-        //                 needs_scroll.x as u32 as f32
-        //                     * (scrollbar_size + scrollbar_padding.bottom + scrollbar_padding.top),
-        //             ),
-        //         )
-        //         .unwrap();
-        // });
 
         let padded_scroll_area = {
             to_owned![scroll_pos, size, outer_size];
@@ -141,6 +121,7 @@ impl<W: Widget> Widget for ScrollArea<W> {
                     size,
                 })
                 .with_clip(self.directions)
+                .with_grow(BVec2::FALSE)
                 .mount(scope)
             }
         };
@@ -170,14 +151,14 @@ impl<W: Widget> Widget for ScrollArea<W> {
             },
         ))
         .with_padding(
-            padding,
-            // padding
-            //     + Edges {
-            //         left: 0.0,
-            //         right: scrollbar_size, //+ scrollbar_padding.left + scrollbar_padding.right * 0.0,
-            //         top: 0.0,
-            //         bottom: scrollbar_size, // + scrollbar_padding.bottom + scrollbar_padding.top * 0.0,
-            //     },
+            // padding,
+            padding
+                + Edges {
+                    left: 0.0,
+                    right: scrollbar_size, //+ scrollbar_padding.left + scrollbar_padding.right * 0.0,
+                    top: 0.0,
+                    bottom: scrollbar_size, // + scrollbar_padding.bottom + scrollbar_padding.top * 0.0,
+                },
         )
         .with_background_opt(self.background)
         .mount(scope)

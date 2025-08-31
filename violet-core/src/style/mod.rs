@@ -389,8 +389,7 @@ impl StylesheetOptions {
             .set(spacing_medium(), Edges::even(self.base_spacing * 2.0))
             .set(spacing_large(), Edges::even(self.base_spacing * 4.0))
             .set(scrollbar_size(), self.base_spacing * 2.0)
-            .set(default_corner_radius(), Unit::px(8.0))
-            // .set(default_corner_radius(), Unit::rel(1.0))
+            .set(default_corner_radius(), Unit::px(4.0))
             // text size
             .set(text_small(), self.base_text_size)
             .set(text_medium(), self.base_text_size * 1.25)

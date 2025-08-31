@@ -68,6 +68,7 @@ impl ButtonStyle {
         }
     }
 
+    /// A button that is invisible until selected but still interactive
     pub fn hidden() -> Self {
         ButtonStyle {
             normal: ColorPair::new(
@@ -84,6 +85,19 @@ impl ButtonStyle {
         }
     }
 
+    /// Similar to hidden but shows as raised when clicked
+    pub fn muted() -> Self {
+        ButtonStyle {
+            normal: ColorPair::new(surface_secondary(), element_primary()),
+            pressed: ColorPair::new(surface_tertiary(), element_primary()),
+            hover: ColorPair::new(surface_hover(), element_hover()),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_small())
+                .with_margin(spacing_small())
+                .with_corner_radius(default_corner_radius()),
+            ..Default::default()
+        }
+    }
     pub fn success() -> Self {
         ButtonStyle {
             normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
@@ -241,7 +255,7 @@ impl<W> Button<W> {
 
     pub fn with_tooltip_text(mut self, tooltip: impl Into<String>) -> Self {
         let tooltip = tooltip.into();
-        self.tooltip = Some(TooltipOptions::new(move || label(&tooltip)));
+        self.tooltip = Some(TooltipOptions::new(move |_| label(&tooltip)));
         self
     }
 
@@ -329,7 +343,13 @@ impl<W: Widget> Widget for Button<W> {
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
 
-        let _content = scope.attach(self.label);
+        let label = scope.attach(self.label);
+
+        scope
+            .world()
+            .entity(label)
+            .unwrap()
+            .update_dedup(color(), normal.element);
 
         let inner = Stack::new(())
             .with_background(Background::new(normal.surface))
@@ -346,11 +366,11 @@ impl<W: Widget> Widget for Button<W> {
                 // let current_color = scope.get(color());
                 let new_color = if state.is_pressed() { pressed } else { normal };
 
-                // scope
-                //     .world()
-                //     .entity(content)
-                //     .unwrap()
-                //     .update_dedup(components::color(), color.element);
+                scope
+                    .world()
+                    .entity(label)
+                    .unwrap()
+                    .update_dedup(color(), new_color.element);
 
                 // TODO: support tween for Srgba
                 // scope.add_tween(color(), Tweener::linear(current_color, color.surface, 0.2));
@@ -378,7 +398,7 @@ impl Checkbox {
 
     pub fn with_tooltip_text(mut self, tooltip: impl Into<String>) -> Self {
         let tooltip = tooltip.into();
-        self.tooltip = Some(TooltipOptions::new(move || label(&tooltip)));
+        self.tooltip = Some(TooltipOptions::new(move |_| label(&tooltip)));
         self
     }
 
@@ -563,12 +583,12 @@ impl<W: WidgetCollection> Selectable<W> {
     pub fn new_value<T: 'static + Send + Sync + Clone + PartialEq>(
         label: W,
         state: impl 'static + Send + Sync + StateDuplex<Item = T>,
-        index: T,
+        value: T,
     ) -> Self {
-        let index2 = index.clone();
+        let index2 = value.clone();
         Self::new(
             label,
-            state.map_value(move |v| v == index2, move |_| index.clone()),
+            state.map_value(move |v| v == index2, move |_| value.clone()),
         )
     }
 
@@ -615,11 +635,11 @@ impl<W: Widget> Widget for Selectable<W> {
             move |scope, state| {
                 let new_color = if state { pressed } else { normal };
 
-                scope
-                    .world()
-                    .entity(content)
-                    .unwrap()
-                    .update_dedup(color(), new_color.element);
+                // scope
+                //     .world()
+                //     .entity(content)
+                //     .unwrap()
+                //     .update_dedup(color(), new_color.element);
 
                 scope.set(color(), new_color.surface);
             }
@@ -634,19 +654,17 @@ impl<W: Widget> Widget for Selectable<W> {
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
-            .on_mouse_input(move |scope, input| {
+            .on_generic_mouse_input(move |scope, input| {
                 if let Some(mouse_input) = &mut self.on_mouse_input {
                     if (mouse_input)(scope, input).is_none() {
                         return None;
                     }
                 }
 
-                if input.state.is_pressed() {
-                    self.state.send(true);
-                    return None;
-                }
-
                 Some(input)
+            })
+            .on_click(move |_| {
+                self.state.send(true);
             })
             .on_double_click_opt(self.on_double_click)
             .with_tooltip_opt(self.tooltip)

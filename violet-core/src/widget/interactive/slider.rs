@@ -453,6 +453,9 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> LabeledSlider<V>
         self
     }
 
+    /// Enable scrub mode
+    ///
+    /// Scrub mode allows dragging the slider handle anywhere on the screen to change the value
     pub fn with_scrub_mode(mut self, scrub_mode: bool) -> Self {
         self.slider.scrub_mode = scrub_mode;
         self

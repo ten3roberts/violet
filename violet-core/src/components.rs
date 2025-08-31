@@ -83,6 +83,13 @@ impl LayoutAlignment {
             vertical: Align::End,
         }
     }
+
+    pub fn bottom_right() -> Self {
+        Self {
+            horizontal: Align::End,
+            vertical: Align::End,
+        }
+    }
 }
 
 impl LayoutAlignment {

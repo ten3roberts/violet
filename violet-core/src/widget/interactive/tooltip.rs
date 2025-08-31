@@ -6,7 +6,7 @@ use crate::{
     components::{offset, opacity},
     unit::Unit,
     widget::Stack,
-    Scope, Widget,
+    Scope, ScopeRef, Widget,
 };
 
 use super::{
@@ -21,13 +21,13 @@ pub struct Tooltip<T> {
 }
 
 impl<T> Tooltip<T> {
-    pub fn new<P>(widget: T, preview: impl 'static + Send + Sync + Fn() -> P) -> Self
+    pub fn new<P>(widget: T, tooltip: impl 'static + Send + Sync + Fn(&ScopeRef<'_>) -> P) -> Self
     where
         P: 'static + Send + Widget,
     {
         Self {
             widget,
-            options: TooltipOptions::new(preview),
+            options: TooltipOptions::new(tooltip),
         }
     }
 
@@ -53,7 +53,7 @@ impl<T> Tooltip<T> {
 
 impl<T: Widget> Widget for Tooltip<T> {
     fn mount(self, scope: &mut Scope<'_>) {
-        InteractiveWidget::new(Stack::new(self.widget))
+        InteractiveWidget::new(self.widget)
             .with_tooltip(self.options)
             .mount(scope);
     }
