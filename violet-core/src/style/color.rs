@@ -90,15 +90,26 @@ colorpalette! {
     surface_disabled_warning: Srgba,
 }
 
+pub enum ColorTemperature {
+    Neutral,
+    Warm,
+    Cool,
+}
+
 impl ColorPalette {
     pub fn new() -> Self {
         let element_primary = PLATINUM_50;
         let element_secondary = PLATINUM_100;
         let element_tertiary = PLATINUM_100;
 
-        let surface_primary = STONE_950;
-        let surface_secondary = STONE_900;
-        let surface_tertiary = STONE_800;
+        let temperature = ColorTemperature::Neutral;
+        let colors = match temperature {
+            ColorTemperature::Neutral => [STONE_950, STONE_900, STONE_800],
+            ColorTemperature::Warm => [PLATINUM_950, PLATINUM_900, PLATINUM_800],
+            ColorTemperature::Cool => [ZINC_950, ZINC_900, ZINC_800],
+        };
+
+        let [surface_primary, surface_secondary, surface_tertiary] = colors;
 
         Self {
             surface_accent: EMERALD_800,
