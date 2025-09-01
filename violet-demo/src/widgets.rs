@@ -64,7 +64,7 @@ fn dropdown() -> impl Widget {
         Dropdown::new(
             selection.lower_option(),
             [
-                row((bold(LUCIDE_BOX).with_color(OCEAN_400), label("Box"))),
+                row((bold(LUCIDE_BOX).with_color(SAPPHIRE_500), label("Box"))),
                 row((
                     bold(LUCIDE_DROPLETS).with_color(AMETHYST_400),
                     label("Liquid"),
@@ -76,10 +76,13 @@ fn dropdown() -> impl Widget {
                     label("Music"),
                 )),
                 row((
-                    bold(LUCIDE_BRIEFCASE_BUSINESS).with_color(CITRUS_400),
+                    bold(LUCIDE_BRIEFCASE_BUSINESS).with_color(AMBER_500),
                     label("Business"),
                 )),
-                row((bold(LUCIDE_WRENCH).with_color(OCEAN_400), label("Settings"))),
+                row((
+                    bold(LUCIDE_WRENCH).with_color(SAPPHIRE_500),
+                    label("Settings"),
+                )),
                 row((bold(LUCIDE_LEAF).with_color(FOREST_400), label("Nature"))),
             ],
         ),
@@ -117,13 +120,15 @@ fn colors() -> impl Widget {
         "Colors",
         col((
             row((color(RUBY_400), color(RUBY_500), color(RUBY_600))),
-            row((color(CHERRY_400), color(CHERRY_500), color(CHERRY_600))),
             row((color(AMBER_400), color(AMBER_500), color(AMBER_600))),
-            row((color(CITRUS_400), color(CITRUS_500), color(CITRUS_600))),
             row((color(FOREST_400), color(FOREST_500), color(FOREST_600))),
             row((color(EMERALD_400), color(EMERALD_500), color(EMERALD_600))),
             row((color(TEAL_400), color(TEAL_500), color(TEAL_600))),
-            row((color(OCEAN_400), color(OCEAN_500), color(OCEAN_600))),
+            row((
+                color(SAPPHIRE_400),
+                color(SAPPHIRE_500),
+                color(SAPPHIRE_600),
+            )),
             row((
                 color(AMETHYST_400),
                 color(AMETHYST_500),
@@ -180,7 +185,7 @@ fn icons() -> impl Widget {
             icon_button(
                 row((
                     TextInput::new(Mutable::new("Text".to_string())).with_padding(Edges::ZERO),
-                    icon_large(LUCIDE_PENCIL).with_color(OCEAN_400),
+                    icon_large(LUCIDE_PENCIL).with_color(SAPPHIRE_500),
                 ))
                 .with_cross_align(Align::Center),
             )

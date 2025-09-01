@@ -5,7 +5,7 @@ use palette::Srgba;
 use crate::{
     state::{StateDuplex, StateExt, StateStreamRef},
     style::{
-        base_colors::{EMERALD_400, OCEAN_400, PLATINUM_100, RUBY_400},
+        base_colors::{EMERALD_500, PLATINUM_100, RUBY_500, SAPPHIRE_500},
         default_corner_radius, spacing_small, surface_tertiary, SizeExt,
     },
     to_owned,
@@ -48,13 +48,13 @@ impl Widget for RgbColorPicker {
         let sliders = col((
             LabeledSlider::input(red, 0.0, 1.0)
                 .precision(PRECISION)
-                .with_fill_color(RUBY_400),
+                .with_fill_color(RUBY_500),
             LabeledSlider::input(green, 0.0, 1.0)
                 .precision(PRECISION)
-                .with_fill_color(EMERALD_400),
+                .with_fill_color(EMERALD_500),
             LabeledSlider::input(blue, 0.0, 1.0)
                 .precision(PRECISION)
-                .with_fill_color(OCEAN_400),
+                .with_fill_color(SAPPHIRE_500),
             self.enable_alpha.then(|| {
                 LabeledSlider::input(alpha, 0.0, 1.0)
                     .precision(PRECISION)

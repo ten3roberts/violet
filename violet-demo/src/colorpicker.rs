@@ -1,6 +1,5 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
-    future::ready,
     path::PathBuf,
     str::FromStr,
     sync::Arc,
@@ -19,7 +18,6 @@ use violet::{
     core::{
         components::{self},
         io::clipboard,
-        layout::Align,
         state::{StateDuplex, StateExt, StateOwned, StateStream, StateStreamRef},
         style::{default_corner_radius, spacing_small, surface_primary, SizeExt, StyleExt},
         time::sleep,
@@ -28,8 +26,8 @@ use violet::{
         utils::zip_latest,
         widget::{
             card, col, header, interactive::tooltip::Tooltip, label, panel, raised_card, row,
-            Button, ButtonStyle, Collapsible, Float, LabeledSlider, Rectangle, ScrollArea,
-            Selectable, SliderStyle, SliderValue, StreamWidget, Text, TextInput,
+            Button, ButtonStyle, Collapsible, LabeledSlider, Rectangle, ScrollArea, Selectable,
+            SliderStyle, SliderValue, StreamWidget, Text, TextInput,
         },
         Edges, FutureEffect, Scope, ScopeRef, Widget,
     },
@@ -90,12 +88,9 @@ impl Default for ShadeSettings {
 pub fn shade_settings(settings: Mutable<ShadeSettings>) -> impl Widget {
     let settings_widget = row((
         col((
+            Tooltip::label(header("Dark"), "Control how dark the darkest shade can be."),
             Tooltip::label(
-                header("Min Lightness"),
-                "Control how dark the darkest shade can be.",
-            ),
-            Tooltip::label(
-                header("Max Lightness"),
+                header("Bright"),
                 "Control how light the lightest shade can be.",
             ),
             Tooltip::label(
@@ -150,17 +145,91 @@ pub struct Palette {
     #[serde(default)]
     name: Mutable<String>,
     base_color: Mutable<ColorValue>,
-    shade_settings: Mutable<ShadeSettings>,
 }
 
 impl Palette {
-    pub fn all_shades(&self) -> impl Iterator<Item = Oklch> + '_ {
-        let shade_settings = self.shade_settings.lock_ref();
-        let base_color = self.base_color.get_cloned().as_oklab();
+    pub fn all_shades<'a>(
+        &'a self,
+        shade_settings: &'a ShadeSettings,
+    ) -> impl Iterator<Item = Oklch> + 'a {
+        let base_color = self.base_color.get().as_oklab();
 
         (0..SHADE_COUNT).map(move |i| {
             shade_settings.tint_from_base(base_color, i as f32 / (SHADE_COUNT - 1) as f32)
         })
+    }
+
+    pub fn widget(
+        &self,
+        palette_index: usize,
+        palettes: Mutable<PaletteCollection>,
+        shade_settings: Mutable<ShadeSettings>,
+        selection: impl 'static + Send + Sync + StateDuplex<Item = usize> + StateOwned,
+    ) -> impl 'static + Widget {
+        let selection = Arc::new(selection);
+
+        let shades = (0..SHADE_COUNT)
+            .map(|i| {
+                let tint = i as f32 / (SHADE_COUNT - 1) as f32;
+
+                let color = zip_latest(self.base_color.stream(), shade_settings.stream()).map({
+                    move |(base_color, shade_settings)| {
+                        let base_color = base_color.as_oklab();
+                        let color = shade_settings.tint_from_base(base_color, tint);
+                        let color: Srgba = color.into_color();
+                        color
+                    }
+                });
+
+                color_swatch(color, 60.0)
+            })
+            .collect_vec();
+
+        let color_info = self.base_color.stream().map(|color| {
+            let oklch = color.as_oklab();
+            let rgb = color.as_rgb();
+            let hex = label(color_hex(rgb));
+            let lch = label(format!(
+                "L {:.3} C {:.3} H {:.2}",
+                oklch.l,
+                oklch.chroma,
+                oklch.hue.into_positive_degrees()
+            ));
+
+            row((raised_card(hex), raised_card(lch)))
+        });
+
+        let widget = card(
+            Selectable::new_value(
+                row((
+                    col((
+                        color_swatch(
+                            self.base_color
+                                .stream()
+                                .map(|color| color.as_rgb().with_alpha(1.0)),
+                            80.0,
+                        ),
+                        TextInput::new(self.name.clone()),
+                    ))
+                    .center(),
+                    col((row(shades), StreamWidget::new(color_info))),
+                    Button::label(LUCIDE_TRASH)
+                        .with_tooltip_text("Remove Palette")
+                        .on_click(move |_| {
+                            palettes.lock_mut().palettes.remove(palette_index);
+                        }),
+                )),
+                selection,
+                palette_index,
+            )
+            .with_padding(spacing_medium())
+            .with_margin(spacing_medium())
+            .with_style(ButtonStyle::muted()),
+        )
+        // Selectable has the padding. This makes the selectable appear as the entire card
+        .with_padding(Edges::ZERO);
+
+        widget
     }
 }
 
@@ -181,8 +250,18 @@ fn color_swatch(color: impl 'static + Stream<Item = Srgba>, size: f32) -> impl W
                 .with_corner_radius(default_corner_radius())
                 .with_exact_size(Unit::px2(size, size)),
             move |scope| {
-                label(color_hex(scope.read(latest_color).without_alpha()))
-                    .with_margin(spacing_medium())
+                let color = *scope.read(latest_color);
+                let hex = color_hex(color.without_alpha());
+
+                let oklch: Oklch = color.into_color();
+
+                let lch = label(format!(
+                    "L {:.3} C {:.3} H {:.2}",
+                    oklch.l,
+                    oklch.chroma,
+                    oklch.hue.into_positive_degrees()
+                ));
+                col((label(hex), lch)).with_margin(spacing_medium())
             },
         )
         .mount(scope);
@@ -191,65 +270,6 @@ fn color_swatch(color: impl 'static + Stream<Item = Srgba>, size: f32) -> impl W
 
 fn icon_header(icon: impl Into<String>, text: impl Into<String>) -> impl Widget {
     row((label(icon), label(text))).center()
-}
-
-fn palette_controls(
-    palettes: Mutable<PaletteCollection>,
-    palette_index: usize,
-    palette: &Palette,
-    selection: impl 'static + Send + Sync + StateDuplex<Item = usize> + StateOwned,
-) -> impl Widget {
-    let selection = Arc::new(selection);
-
-    let shades = (0..SHADE_COUNT)
-        .map(|i| {
-            let tint = i as f32 / (SHADE_COUNT - 1) as f32;
-
-            let color = zip_latest(palette.base_color.stream(), palette.shade_settings.stream())
-                .map({
-                    move |(base_color, shade_settings)| {
-                        let base_color = base_color.as_oklab();
-                        let color = shade_settings.tint_from_base(base_color, tint);
-                        let color: Srgba = color.into_color();
-                        color
-                    }
-                });
-
-            color_swatch(color, 60.0)
-        })
-        .collect_vec();
-
-    let widget = card(
-        Selectable::new_value(
-            row((
-                col((
-                    color_swatch(
-                        palette
-                            .base_color
-                            .stream()
-                            .map(|color| color.as_rgb().with_alpha(1.0)),
-                        80.0,
-                    ),
-                    TextInput::new(palette.name.clone()),
-                ))
-                .center(),
-                row(shades),
-                Button::label(LUCIDE_TRASH)
-                    .with_tooltip_text("Remove Palette")
-                    .on_click(move |_| {
-                        palettes.lock_mut().palettes.remove(palette_index);
-                    }),
-            )),
-            selection,
-            palette_index,
-        )
-        .with_padding(spacing_medium())
-        .with_margin(spacing_medium())
-        .with_style(ButtonStyle::muted()),
-    )
-    .with_padding(Edges::ZERO);
-
-    widget
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -262,9 +282,7 @@ pub fn main_app() -> impl Widget {
     let palettes = {
         let shade_settings = Mutable::new(ShadeSettings::default());
         Mutable::new(PaletteCollection {
-            palettes: (0..3)
-                .map(|i| create_palette(shade_settings.clone(), i))
-                .collect(),
+            palettes: (0..3).map(|i| create_rainbow_palette(i)).collect(),
             shade_settings: shade_settings.clone(),
         })
     };
@@ -283,11 +301,11 @@ pub fn main_app() -> impl Widget {
                     .map(|(i, palette)| {
                         to_owned!(palettes, current_selection);
 
-                        palette_controls(palettes, i, palette, current_selection)
+                        palette.widget(i, palettes, v.shade_settings.clone(), current_selection)
                     })
                     .collect_vec();
 
-                ScrollArea::vertical(col(values)).with_max_size(Unit::px2(f32::MAX, 400.0))
+                ScrollArea::vertical(col(values)).with_max_size(Unit::px2(f32::MAX, 600.0))
             }
         })
         .boxed();
@@ -309,18 +327,28 @@ pub fn main_app() -> impl Widget {
         });
 
     let add_palette = Button::label(LUCIDE_PLUS)
-        .with_tooltip_text("New Color")
+        .with_tooltip_text("New Palette")
         .on_click({
             to_owned!(palettes, current_selection);
             move |_| {
                 let mut palettes = palettes.lock_mut();
 
-                let shade_settings = palettes.shade_settings.clone();
                 let index = palettes.palettes.len();
 
-                palettes
+                let new_palette = palettes
                     .palettes
-                    .push(create_palette(shade_settings, index));
+                    .last()
+                    .map(|v| {
+                        let base_color = v.base_color.get();
+
+                        Palette {
+                            name: Mutable::new(format!("Color {}", index + 1)),
+                            base_color: Mutable::new(base_color),
+                        }
+                    })
+                    .unwrap_or_else(|| create_rainbow_palette(index));
+
+                palettes.palettes.push(new_palette);
 
                 current_selection.set(index);
             }
@@ -330,16 +358,14 @@ pub fn main_app() -> impl Widget {
         current_selection.stream(),
         palettes.signal_ref(|_| {}).to_stream(),
     )
-    .filter_map({
+    .map({
         to_owned!(palettes);
         move |(palette_index, ())| {
-            ready(
-                palettes
-                    .lock_ref()
-                    .palettes
-                    .get(palette_index)
-                    .map(|v| v.base_color.clone()),
-            )
+            palettes
+                .lock_ref()
+                .palettes
+                .get(palette_index)
+                .map(|v| v.base_color.clone())
         }
     });
 
@@ -352,7 +378,7 @@ pub fn main_app() -> impl Widget {
     panel(
         col((
             export_controls(palettes),
-            StreamWidget::new(active_color.map(|v| color_editor(v))),
+            StreamWidget::new(active_color.map(|v| v.map(|color| color_editor(color)))),
             StreamWidget::new(widget),
             card(Collapsible::new(
                 icon_header(LUCIDE_PALETTE, "Palettes"),
@@ -366,13 +392,12 @@ pub fn main_app() -> impl Widget {
     .with_maximize(Vec2::ONE)
 }
 
-fn create_palette(shade_settings: Mutable<ShadeSettings>, index: usize) -> Palette {
+fn create_rainbow_palette(index: usize) -> Palette {
     let base_color = Oklch::new(0.5, 0.27, index as f32 * 60.0).into_color();
 
     Palette {
         base_color: Mutable::new(ColorValue::OkLab(base_color)),
         name: Mutable::new(format!("Color {}", index + 1)),
-        shade_settings,
     }
 }
 
@@ -381,7 +406,7 @@ fn color_editor(color: impl 'static + Send + Sync + StateDuplex<Item = ColorValu
 
     card(row((
         card(col((
-            color_swatch(color.stream().map(|v| v.as_rgb().with_alpha(1.0)), 100.0),
+            color_swatch(color.stream().map(|v| v.as_rgb().with_alpha(1.0)), 200.0),
             color_hex_editor(color.clone()),
         ))),
         col((
@@ -836,7 +861,7 @@ pub fn export_hex_list(palettes: &PaletteCollection) -> String {
             };
 
             let base_color = v.base_color.get().as_oklab();
-            let shade_settings = v.shade_settings.get();
+            let shade_settings = palettes.shade_settings.get();
             (0..SHADE_COUNT).map(move |i| {
                 let tint_name = TINTS[i];
 
@@ -877,7 +902,7 @@ impl TailwindExport {
                     };
 
                     let shades = palette
-                        .all_shades()
+                        .all_shades(&*palettes.shade_settings.lock_ref())
                         .map(move |color| color_hex(color))
                         .collect_vec();
 
@@ -915,7 +940,7 @@ impl DesignTokenExport {
                     };
 
                     let shades = palette
-                        .all_shades()
+                        .all_shades(&*palettes.shade_settings.lock_ref())
                         .enumerate()
                         .map(move |(i, color)| (TINTS[i].to_string(), color_hex(color)))
                         .collect();

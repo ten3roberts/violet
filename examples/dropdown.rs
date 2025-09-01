@@ -24,28 +24,65 @@ use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 
 fn app() -> impl Widget {
     let selection = Mutable::new(None);
+
+    #[derive(Clone)]
+    struct Item {
+        icon: &'static str,
+        color: Srgba,
+        label: &'static str,
+    }
+
+    impl Widget for Item {
+        fn mount(self, scope: &mut violet_core::Scope<'_>) {
+            row((label(self.icon).with_color(self.color), label(self.label))).mount(scope);
+        }
+    }
+
     card(Dropdown::new(
         selection,
         [
-            row((bold(LUCIDE_BOX).with_color(OCEAN_400), label("Box"))),
-            row((
-                bold(LUCIDE_DROPLETS).with_color(AMETHYST_400),
-                label("Liquid"),
-            )),
-            row((bold(LUCIDE_HAMMER).with_color(AMBER_400), label("Tools"))),
-            row((bold(LUCIDE_BACKPACK).with_color(RUBY_400), label("Items"))),
-            row((
-                bold(LUCIDE_HEADPHONES).with_color(EMERALD_400),
-                label("Music"),
-            )),
-            row((
-                bold(LUCIDE_BRIEFCASE_BUSINESS).with_color(CITRUS_400),
-                label("Business"),
-            )),
-            row((bold(LUCIDE_WRENCH).with_color(OCEAN_400), label("Settings"))),
-            row((bold(LUCIDE_LEAF).with_color(FOREST_400), label("Nature"))),
+            Item {
+                icon: LUCIDE_BOX,
+                color: OCEAN_400,
+                label: "Box",
+            },
+            Item {
+                icon: LUCIDE_DROPLETS,
+                color: AMETHYST_400,
+                label: "Liquid",
+            },
+            Item {
+                icon: LUCIDE_HAMMER,
+                color: AMBER_400,
+                label: "Tools",
+            },
+            Item {
+                icon: LUCIDE_BACKPACK,
+                color: RUBY_400,
+                label: "Items",
+            },
+            Item {
+                icon: LUCIDE_HEADPHONES,
+                color: EMERALD_400,
+                label: "Music",
+            },
+            Item {
+                icon: LUCIDE_BRIEFCASE_BUSINESS,
+                color: CITRUS_400,
+                label: "Business",
+            },
+            Item {
+                icon: LUCIDE_WRENCH,
+                color: OCEAN_400,
+                label: "Settings",
+            },
+            Item {
+                icon: LUCIDE_LEAF,
+                color: FOREST_400,
+                label: "Nature",
+            },
         ],
-    ))
+    ));
 }
 
 pub fn main() -> anyhow::Result<()> {

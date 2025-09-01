@@ -1,58 +1,110 @@
 {
   "palettes": [
     {
-      "name": "Color 1",
+      "name": "Stone",
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.27,
+          "chroma": 0.0,
           "hue": 0.0
         }
-      },
-      "shade_settings": {
-        "enabled": false,
-        "min_lum": 0.12,
-        "max_lum": 0.97,
-        "falloff": 10.0
       }
     },
     {
-      "name": "Color 2",
+      "name": "Platinum",
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.27,
-          "hue": 60.0
+          "chroma": 0.01,
+          "hue": 106.3
         }
-      },
-      "shade_settings": {
-        "enabled": false,
-        "min_lum": 0.12,
-        "max_lum": 0.97,
-        "falloff": 10.0
       }
     },
     {
-      "name": "Color 3",
+      "name": "Zinc",
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.27,
-          "hue": 120.0
+          "chroma": 0.01,
+          "hue": 270.0
         }
-      },
-      "shade_settings": {
-        "enabled": false,
-        "min_lum": 0.12,
-        "max_lum": 0.97,
-        "falloff": 10.0
+      }
+    },
+    {
+      "name": "Ruby",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.15,
+          "hue": 21.69913
+        }
+      }
+    },
+    {
+      "name": "Amber",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.15,
+          "hue": 88.515526
+        }
+      }
+    },
+    {
+      "name": "Forest",
+      "base_color": {
+        "Rgb": {
+          "red": 0.3019608,
+          "green": 0.5411765,
+          "blue": 0.1254902
+        }
+      }
+    },
+    {
+      "name": "Emerald",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.15,
+          "hue": 170.7
+        }
+      }
+    },
+    {
+      "name": "Teal",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.15,
+          "hue": 199.8
+        }
+      }
+    },
+    {
+      "name": "Sapphire",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.15,
+          "hue": 259.0
+        }
+      }
+    },
+    {
+      "name": "Amethyst",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.15,
+          "hue": 300.0
+        }
       }
     }
   ],
   "shade_settings": {
     "enabled": false,
-    "min_lum": 0.12,
-    "max_lum": 0.97,
+    "min_lum": 0.15,
+    "max_lum": 0.9,
     "falloff": 10.0
   }
 }
