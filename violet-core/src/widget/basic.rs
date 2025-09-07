@@ -59,7 +59,7 @@ impl SizeExt for Rectangle {
 }
 
 /// Style and decorate text
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextStyle {
     pub font_size: ValueOrRef<f32>,
     pub wrap: Wrap,
@@ -198,6 +198,39 @@ pub fn subtitle(text: impl Into<String>) -> Text {
 
 pub fn bold(text: impl Into<String>) -> Text {
     Text::bold(text).with_margin(spacing_small())
+}
+
+/// Shorthand widget for displaying anything that implements [`Display`](std::fmt::Display) as text
+#[derive(Clone, PartialEq)]
+pub struct DisplayWidget<T: std::fmt::Display> {
+    value: T,
+    style: TextStyle,
+}
+
+impl<T: std::fmt::Display> DisplayWidget<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            value,
+            style: TextStyle::default(),
+        }
+    }
+
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub fn with_style(mut self, style: TextStyle) -> Self {
+        self.style = style;
+        self
+    }
+}
+
+impl<T: std::fmt::Display> Widget for DisplayWidget<T> {
+    fn mount(self, scope: &mut Scope<'_>) {
+        label(self.value.to_string())
+            .with_style(self.style)
+            .mount(scope);
+    }
 }
 
 /// Allows a widget to be manually positioned and offset

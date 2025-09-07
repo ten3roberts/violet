@@ -116,7 +116,7 @@ impl<L, W, F> Collapsible<L, W, F> {
         self
     }
 
-    pub fn collapsed(mut self, collapsed: bool) -> Self {
+    pub fn start_collapsed(mut self, collapsed: bool) -> Self {
         self.collapsed = collapsed;
         self
     }

@@ -4,10 +4,11 @@ use flax::{
     system, Component, EntityRef, FetchExt,
 };
 use std::time::Duration;
+pub use tween;
 use tween::{Tween, TweenValue, Tweener};
 
 pub struct Tweens {
-    active_tweens: Vec<Box<dyn ComponentTweenDyn>>,
+    active_tweens: Vec<Box<dyn DynamicTween>>,
 }
 
 impl Tweens {
@@ -17,13 +18,8 @@ impl Tweens {
         }
     }
 
-    pub fn add_tween<T, A>(&mut self, target: Component<T>, tween: Tweener<T, f32, A>)
-    where
-        T: ComponentValue + TweenValue,
-        A: 'static + Send + Sync + Tween<T>,
-    {
-        self.active_tweens
-            .push(Box::new(ComponentTween::new(target, tween)));
+    pub fn add_tween(&mut self, tween: Box<dyn DynamicTween>) {
+        self.active_tweens.push(tween);
     }
 
     pub fn stop_tweens<T: ComponentValue>(&mut self, target: Component<T>) {
@@ -54,12 +50,13 @@ impl<T, A> ComponentTween<T, A> {
     }
 }
 
-pub trait ComponentTweenDyn: Send + Sync {
+pub trait DynamicTween: Send + Sync {
     fn update(&mut self, entity: EntityRef, delta: Duration) -> bool;
     fn target(&self) -> ComponentDesc;
+    fn duration(&self) -> Duration;
 }
 
-impl<T, A> ComponentTweenDyn for ComponentTween<T, A>
+impl<T, A> DynamicTween for ComponentTween<T, A>
 where
     T: ComponentValue + TweenValue,
     A: Send + Sync + Tween<T>,
@@ -82,6 +79,10 @@ where
 
     fn target(&self) -> ComponentDesc {
         self.target.desc()
+    }
+
+    fn duration(&self) -> Duration {
+        Duration::from_secs_f32(self.tween.duration)
     }
 }
 

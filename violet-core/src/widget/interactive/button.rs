@@ -320,12 +320,18 @@ impl StyleExt for Radio {
     }
 }
 
-impl StyleExt for Checkbox {
+impl<W> StyleExt for Checkbox<W> {
     type Style = ButtonStyle;
 
     fn with_style(mut self, style: Self::Style) -> Self {
         self.style = style;
         self
+    }
+}
+
+impl<W> SizeExt for Checkbox<W> {
+    fn size_mut(&mut self) -> &mut WidgetSizeProps {
+        &mut self.style.size
     }
 }
 
@@ -381,15 +387,41 @@ impl<W: Widget> Widget for Button<W> {
     }
 }
 
-pub struct Checkbox {
+pub struct CheckboxTick {}
+
+impl Widget for CheckboxTick {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let stylesheet = scope.stylesheet();
+        let check_icon = stylesheet.get_clone(icon_check()).unwrap_or_default();
+        label(check_icon).mount(scope);
+    }
+}
+
+pub struct Checkbox<W = CheckboxTick> {
+    label: W,
     state: Box<dyn Send + Sync + StateDuplex<Item = bool>>,
     tooltip: Option<TooltipOptions>,
     style: ButtonStyle,
 }
 
-impl Checkbox {
+impl Checkbox<CheckboxTick> {
     pub fn new(state: impl 'static + Send + Sync + StateDuplex<Item = bool>) -> Self {
         Self {
+            label: CheckboxTick {},
+            state: Box::new(state),
+            style: ButtonStyle::checkbox(),
+            tooltip: None,
+        }
+    }
+}
+
+impl<W> Checkbox<W> {
+    pub fn with_label(
+        label: W,
+        state: impl 'static + Send + Sync + StateDuplex<Item = bool>,
+    ) -> Self {
+        Self {
+            label,
             state: Box::new(state),
             style: ButtonStyle::checkbox(),
             tooltip: None,
@@ -408,16 +440,19 @@ impl Checkbox {
     }
 }
 
-impl Widget for Checkbox {
+impl<W: Widget> Widget for Checkbox<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let stylesheet = scope.stylesheet();
 
         let pressed = self.style.pressed.resolve(stylesheet);
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
-        let check_icon = stylesheet.get_clone(icon_check()).unwrap_or_default();
 
-        let content = scope.attach(label(check_icon).with_color(normal.element));
+        let content = scope.attach(self.label);
+        scope
+            .world()
+            .update_dedup(content, color(), normal.element)
+            .unwrap();
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
@@ -635,11 +670,11 @@ impl<W: Widget> Widget for Selectable<W> {
             move |scope, state| {
                 let new_color = if state { pressed } else { normal };
 
-                // scope
-                //     .world()
-                //     .entity(content)
-                //     .unwrap()
-                //     .update_dedup(color(), new_color.element);
+                scope
+                    .world()
+                    .entity(content)
+                    .unwrap()
+                    .update_dedup(color(), new_color.element);
 
                 scope.set(color(), new_color.surface);
             }

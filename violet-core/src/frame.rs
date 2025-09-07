@@ -52,7 +52,7 @@ impl Frame {
     }
 
     pub fn new_root<W: Widget>(&mut self, widget: W) -> Entity {
-        let mut scope = Scope::new(self, tynm::type_name::<W>());
+        let mut scope = Scope::create(self, tynm::type_name::<W>());
         widget.mount(&mut scope);
         scope.id()
     }

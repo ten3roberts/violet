@@ -12,7 +12,7 @@ use flax::{
     events::{EventData, EventKindFilter, EventSubscriber},
     fetch::{FromRelation, Source},
     system, BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, Entity, EntityBuilder,
-    EntityIds, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
+    EntityIds, EntityRef, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 
@@ -220,16 +220,16 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
 }
 
 /// Computes transform from rotation, translation, and transform origin
-#[system(args(transforms=(rotation(), translation()).modified()))]
+#[system(args(transforms=(rotation(), translation()).modified(), transform_origin=transform_origin().opt_or_default()))]
 pub fn compute_transform_system(
     transform: &mut Mat4,
     transforms: (&f32, &Vec2),
-    transform_origin: Vec2,
+    transform_origin: &Vec2,
     rect: Rect,
 ) {
+    let (rotation, translation) = transforms;
     let size = rect.size();
 
-    let (rotation, translation) = transforms;
     let origin = transform_origin * size;
     *transform = Mat4::from_translation(translation.extend(0.0))
         * Mat4::from_translation(origin.extend(0.0))

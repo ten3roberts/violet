@@ -216,8 +216,8 @@ impl AppInstance {
             .with_system(update_text_buffers(text_system.clone()))
             .with_system(tweens::update_tweens_system())
             .with_system(invalidate_cached_layout_system(&mut frame.world))
-            .with_system(layout_system(root, resize_canvas))
             .with_system(compute_transform_system())
+            .with_system(layout_system(root, resize_canvas))
             .with_system(transform_system);
 
         let input_state = InputState::new(root, Vec2::ZERO, request_focus_rx);

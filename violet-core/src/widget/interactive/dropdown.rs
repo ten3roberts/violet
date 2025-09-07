@@ -3,21 +3,26 @@ use std::sync::Arc;
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, Vec2, Vec3, Vec3Swizzles};
+use palette::{Srgba, WithAlpha};
 
 use crate::{
     components::{offset, opacity, rect, screen_transform},
     layout::Align,
     state::StateDuplex,
     style::{
-        default_corner_radius, icon_ellipsis, spacing_medium, surface_interactive, SizeExt,
-        StyleExt,
+        base_colors::EMERALD_500, default_corner_radius, icon_ellipsis, spacing_medium,
+        surface_interactive, SizeExt, StyleExt,
     },
     to_owned,
     unit::Unit,
     widget::{
-        card, col,
-        interactive::overlay::{overlay_state, CloseOnDropHandle, Overlay},
-        row, Button, ButtonStyle, IterWidgetCollection, ScrollArea, Stack, StreamWidget,
+        bold, card, col,
+        interactive::{
+            overlay::{overlay_state, CloseOnDropHandle, Overlay},
+            InteractiveWidget,
+        },
+        label, maximized, row, Button, ButtonStyle, IterWidgetCollection, ScrollArea, Stack,
+        StreamWidget,
     },
     Rect, Scope, Widget,
 };
@@ -53,13 +58,7 @@ where
         let overlays = scope.get_context_cloned(overlay_state());
 
         let items = Arc::new(self.items.into_iter().collect::<Vec<_>>());
-        let current_item = self.selection.stream().map({
-            move |v| {
-                Stack::new(v)
-                    .with_margin(spacing_medium())
-                    .with_padding(spacing_medium())
-            }
-        });
+        let current_item = self.selection.stream();
 
         let current_dropdown = Mutable::new(None);
 
@@ -89,9 +88,8 @@ where
             }
         });
 
-        row((
-            StreamWidget::new(current_item),
-            Button::label(pick_icon).on_click(move |_| {
+        Button::new(row((StreamWidget::new(current_item), label(pick_icon))).center())
+            .on_click(move |_| {
                 let rect = positioned_rect.get().translate(screen_pos.get());
                 let pos = vec2(rect.min.x, rect.max.y + 4.0);
                 let token = overlays.open(DropdownListOverlay {
@@ -102,12 +100,8 @@ where
                 });
 
                 current_dropdown.set(Some(CloseOnDropHandle::new(token)));
-            }),
-        ))
-        .with_corner_radius(default_corner_radius())
-        .with_background(surface_interactive())
-        .with_cross_align(Align::Center)
-        .mount(scope)
+            })
+            .mount(scope)
     }
 }
 
@@ -122,29 +116,39 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
     fn create(self, scope: &mut Scope<'_>, token: super::overlay::OverlayHandle) {
         let selection = scope.store(self.selection);
         let token = scope.store(token);
-        scope
-            .set(offset(), Unit::px(self.position))
-            .set(opacity(), 1.0);
 
-        card(
-            ScrollArea::vertical(
-                col(IterWidgetCollection::new(
-                    self.items.iter().enumerate().map(|(i, item)| {
-                        to_owned!(items = self.items);
-                        Button::new(item.clone())
-                            .with_style(ButtonStyle::selectable_entry())
-                            .on_click(move |scope| {
-                                scope.read(selection).send(items[i].clone());
-                                scope.read(token).close();
-                            })
-                    }),
-                ))
-                .with_stretch(true),
+        let menu = |scope: &mut Scope| {
+            scope
+                .set(offset(), Unit::px(self.position))
+                .set(opacity(), 0.9);
+
+            card(
+                ScrollArea::vertical(
+                    col(IterWidgetCollection::new(
+                        self.items.iter().enumerate().map(|(i, item)| {
+                            to_owned!(items = self.items);
+                            Button::new(item.clone())
+                                .with_style(ButtonStyle::selectable_entry())
+                                .on_click(move |scope| {
+                                    scope.read(selection).send(items[i].clone());
+                                    scope.read(token).close();
+                                })
+                        }),
+                    ))
+                    .with_stretch(true),
+                )
+                .with_max_size(Unit::px2(self.width, 100.0)),
             )
-            .with_max_size(Unit::px2(self.width, 200.0)),
-        )
-        .with_background(surface_interactive())
-        .with_min_size(Unit::px2(self.width, 0.0))
-        .mount(scope);
+            .with_background(surface_interactive())
+            .with_min_size(Unit::px2(self.width, 0.0))
+            .mount(scope);
+        };
+
+        InteractiveWidget::new(maximized(menu))
+            .on_generic_mouse_input(move |scope, input| {
+                scope.read(token).close();
+                Some(input)
+            })
+            .mount(scope);
     }
 }

@@ -112,7 +112,7 @@ impl ColorPalette {
         let [surface_primary, surface_secondary, surface_tertiary] = colors;
 
         Self {
-            surface_accent: EMERALD_800,
+            surface_accent: EMERALD_600,
             element_accent: EMERALD_400,
             surface_primary,
             surface_secondary,

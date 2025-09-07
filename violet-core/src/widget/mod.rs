@@ -1,4 +1,5 @@
 use crate::Scope;
+mod animate;
 mod basic;
 mod container;
 mod future;
@@ -7,6 +8,7 @@ pub mod image;
 pub mod interactive;
 mod scroll;
 
+pub use animate::*;
 pub use basic::*;
 pub use container::*;
 use flax::{component::ComponentValue, components::name, Component};

@@ -11,7 +11,7 @@ use crate::{
     stored::UntypedHandle,
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
-    Edges, Frame, Rect,
+    Edges, Frame, Rect, Scope,
 };
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -219,6 +219,9 @@ component! {
     pub on_animation_frame: OnAnimationFrame,
 
     pub handles: Vec<UntypedHandle>,
+
+    /// Intercept detach events for the entity
+    pub handle_detach: Option<Box<dyn FnOnce(&mut Scope<'_>) + Send + Sync>>,
 }
 
 component! {

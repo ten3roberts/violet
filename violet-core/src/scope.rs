@@ -19,14 +19,15 @@ use tween::{Tween, TweenValue, Tweener};
 use crate::{
     assets::AssetCache,
     atom::Atom,
-    components::{children, context_store, handles},
+    components::{children, context_store, handle_detach, handles},
     effect::Effect,
     executor::TaskHandle,
     input::InputEventHandler,
     stored::{UntypedHandle, WeakHandle},
     style::get_stylesheet_from_entity,
     systems::widget_template,
-    tweens, Frame, FutureEffect, StreamEffect, Widget,
+    tweens::{self, ComponentTween},
+    Frame, FutureEffect, StreamEffect, Widget,
 };
 
 /// The scope to modify and mount a widget
@@ -45,7 +46,7 @@ impl std::fmt::Debug for Scope<'_> {
 }
 
 impl<'a> Scope<'a> {
-    pub(crate) fn new(frame: &'a mut Frame, name: String) -> Self {
+    pub(crate) fn create(frame: &'a mut Frame, name: String) -> Self {
         let mut entity = EntityBuilder::new();
         widget_template(&mut entity, name);
         let id = entity.spawn(frame.world_mut());
@@ -53,6 +54,14 @@ impl<'a> Scope<'a> {
         Self {
             frame,
             id,
+            data: EntityBuilder::new(),
+        }
+    }
+
+    pub fn new(entity: EntityRef<'a>, frame: &'a mut Frame) -> Self {
+        Self {
+            frame,
+            id: entity.id(),
             data: EntityBuilder::new(),
         }
     }
@@ -70,9 +79,7 @@ impl<'a> Scope<'a> {
     }
 
     pub fn flush(&mut self) {
-        self.data
-            .append_to(self.frame.world_mut(), self.id)
-            .expect("Entity despawned while scope is alive");
+        let _ = self.data.append_to(self.frame.world_mut(), self.id);
     }
 
     /// Sets the component value
@@ -153,7 +160,15 @@ impl<'a> Scope<'a> {
         self.entity_mut()
             .entry(tweens::tweens())
             .or_default()
-            .add_tween(component, tween);
+            .add_tween(Box::new(ComponentTween::new(component, tween)));
+    }
+
+    pub fn add_dyn_tween(&mut self, tween: Box<dyn tweens::DynamicTween>) {
+        self.flush();
+        self.entity_mut()
+            .entry(tweens::tweens())
+            .or_default()
+            .add_tween(tween);
     }
 
     pub fn stop_tweens<T: ComponentValue + TweenValue>(&mut self, component: Component<T>) {
@@ -235,12 +250,22 @@ impl<'a> Scope<'a> {
             self.id
         );
 
-        self.entity_mut()
-            .get_mut(children())
-            .unwrap()
-            .retain(|&x| x != id);
+        let entity = self.frame.world.entity(id).unwrap();
+        let handle_detach = entity
+            .get_mut(handle_detach())
+            .ok()
+            .and_then(|mut v| v.take());
 
-        self.frame.world.despawn_recursive(id, child_of).unwrap();
+        if let Some(handle_detach) = handle_detach {
+            handle_detach(&mut Scope::try_from_id(&mut self.frame, id).unwrap());
+        } else {
+            self.entity_mut()
+                .get_mut(children())
+                .unwrap()
+                .retain(|&x| x != id);
+
+            self.frame.world.despawn_recursive(id, child_of).unwrap();
+        }
     }
 
     pub fn detach_all(&mut self) {
@@ -248,6 +273,14 @@ impl<'a> Scope<'a> {
         for child in children.iter() {
             self.detach(*child);
         }
+    }
+
+    pub fn parent(&mut self) -> Option<Scope<'_>> {
+        let Some((parent, _)) = self.entity().relations(child_of).next() else {
+            return None;
+        };
+
+        Some(Scope::try_from_id(self.frame, parent).unwrap())
     }
 
     pub fn children(&self) -> AtomicRef<'_, Vec<Entity>> {
@@ -501,6 +534,15 @@ impl<'a> ScopeRef<'a> {
         self.frame.get_atom(atom)
     }
 
+    pub fn parent(&self) -> Option<ScopeRef<'a>> {
+        let Some((parent, _)) = self.entity.relations(child_of).next() else {
+            return None;
+        };
+
+        let parent = self.frame.world().entity(parent).unwrap();
+        Some(ScopeRef::new(self.frame, parent))
+    }
+
     pub fn root(&self) -> Entity {
         let mut cur = *self.entity();
         loop {
@@ -538,7 +580,7 @@ impl<'a> ScopeRef<'a> {
     ) -> Result<(), MissingComponent> {
         self.entity()
             .get_mut(tweens::tweens())?
-            .add_tween(component, tween);
+            .add_tween(Box::new(ComponentTween::new(component, tween)));
 
         Ok(())
     }
