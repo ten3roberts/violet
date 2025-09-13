@@ -534,6 +534,10 @@ impl<'a> ScopeRef<'a> {
         self.frame.get_atom(atom)
     }
 
+    pub fn get_atom_cloned<T: ComponentValue + Clone>(&self, atom: Atom<T>) -> Option<T> {
+        self.get_atom(atom).map(|v| v.clone())
+    }
+
     pub fn parent(&self) -> Option<ScopeRef<'a>> {
         let Some((parent, _)) = self.entity.relations(child_of).next() else {
             return None;

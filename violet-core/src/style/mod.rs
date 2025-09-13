@@ -334,6 +334,7 @@ pub struct IconSet {
     pub info: String,
     pub check: String,
     pub ellipsis: String,
+    pub search: String,
 }
 
 impl Default for IconSet {
@@ -346,6 +347,7 @@ impl Default for IconSet {
             info: "i".to_string(),
             check: "✓".to_string(),
             ellipsis: "⋯".to_string(),
+            search: ">".to_string(),
         }
     }
 }
@@ -401,7 +403,8 @@ impl StylesheetOptions {
             .set(icon_error(), self.icons.error)
             .set(icon_info(), self.icons.info)
             .set(icon_check(), self.icons.check)
-            .set(icon_ellipsis(), self.icons.ellipsis);
+            .set(icon_ellipsis(), self.icons.ellipsis)
+            .set(icon_search(), self.icons.search);
 
         builder
     }
@@ -439,6 +442,7 @@ flax::component! {
     pub icon_info: String,
     pub icon_check: String,
     pub icon_ellipsis: String,
+    pub icon_search: String,
 
     pub text_small: f32,
     pub text_medium: f32,

@@ -1,34 +1,32 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use futures::StreamExt;
-use futures_signals::signal::Mutable;
+use futures_signals::signal::{Mutable, SignalExt};
 use glam::{vec2, Vec2, Vec3, Vec3Swizzles};
-use palette::{Srgba, WithAlpha};
 
 use crate::{
     components::{offset, opacity, rect, screen_transform},
-    layout::Align,
     state::StateDuplex,
-    style::{
-        base_colors::EMERALD_500, default_corner_radius, icon_ellipsis, spacing_medium,
-        surface_interactive, SizeExt, StyleExt,
-    },
+    style::{icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
+    time::sleep,
     to_owned,
     unit::Unit,
+    utils::throttle_skip,
     widget::{
-        bold, card, col,
+        card, col,
         interactive::{
             overlay::{overlay_state, CloseOnDropHandle, Overlay},
             InteractiveWidget,
         },
-        label, maximized, row, Button, ButtonStyle, IterWidgetCollection, ScrollArea, Stack,
-        StreamWidget,
+        label, maximized, row, Button, ButtonStyle, IterWidgetCollection, ScrollArea, StreamWidget,
+        TextInput,
     },
     Rect, Scope, Widget,
 };
 
 pub struct Dropdown<T, I> {
     items: I,
+    searcheable: Option<Arc<dyn Fn(&T, &str) -> bool + Send + Sync>>,
     selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
 }
 
@@ -45,7 +43,16 @@ where
         Self {
             items,
             selection: Arc::new(selection),
+            searcheable: None,
         }
+    }
+
+    pub fn searcheable(
+        mut self,
+        search_fn: impl 'static + Fn(&T, &str) -> bool + Send + Sync,
+    ) -> Self {
+        self.searcheable = Some(Arc::new(search_fn));
+        self
     }
 }
 
@@ -67,6 +74,10 @@ where
             .get_clone(icon_ellipsis())
             .unwrap_or_else(|_| "⋯".to_string());
 
+        let search_icon = scope
+            .stylesheet()
+            .get_clone(icon_search())
+            .unwrap_or_else(|_| ">".to_string());
         let screen_pos = Mutable::new(Vec2::ZERO);
 
         scope.monitor(screen_transform(), {
@@ -97,6 +108,8 @@ where
                     items: items.clone(),
                     width: rect.size().x,
                     selection: self.selection.clone(),
+                    filter_fn: self.searcheable.clone(),
+                    search_icon: search_icon.clone(),
                 });
 
                 current_dropdown.set(Some(CloseOnDropHandle::new(token)));
@@ -109,7 +122,9 @@ struct DropdownListOverlay<T> {
     position: Vec2,
     width: f32,
     items: Arc<Vec<T>>,
+    filter_fn: Option<Arc<dyn Fn(&T, &str) -> bool + Send + Sync>>,
     selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
+    search_icon: String,
 }
 
 impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<T> {
@@ -122,26 +137,64 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
                 .set(offset(), Unit::px(self.position))
                 .set(opacity(), 0.9);
 
-            card(
-                ScrollArea::vertical(
-                    col(IterWidgetCollection::new(
-                        self.items.iter().enumerate().map(|(i, item)| {
-                            to_owned!(items = self.items);
-                            Button::new(item.clone())
-                                .with_style(ButtonStyle::selectable_entry())
-                                .on_click(move |scope| {
-                                    scope.read(selection).send(items[i].clone());
-                                    scope.read(token).close();
+            if let Some(filter_fn) = self.filter_fn {
+                let filter_term = Mutable::new(String::new());
+
+                let items = throttle_skip(
+                    filter_term
+                        .signal_ref(move |filter| {
+                            self.items
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, item)| filter_fn(item, filter))
+                                .map(|(i, item)| {
+                                    to_owned!(items = self.items);
+                                    Button::new(item.clone())
+                                        .with_style(ButtonStyle::selectable_entry())
+                                        .on_click(move |scope| {
+                                            scope.read(selection).send(items[i].clone());
+                                            scope.read(token).close();
+                                        })
                                 })
-                        }),
+                                .collect::<Vec<_>>()
+                        })
+                        .to_stream(),
+                    || sleep(Duration::from_millis(500)),
+                );
+                let items = items.map(|items| col(items).with_stretch(true));
+                card(
+                    col((
+                        row((
+                            label(self.search_icon),
+                            TextInput::new(filter_term).with_maximize(Vec2::X),
+                        )),
+                        ScrollArea::vertical(StreamWidget::new(items))
+                            .with_max_size(Unit::px2(self.width, 100.0)),
                     ))
                     .with_stretch(true),
                 )
-                .with_max_size(Unit::px2(self.width, 100.0)),
-            )
-            .with_background(surface_interactive())
-            .with_min_size(Unit::px2(self.width, 0.0))
-            .mount(scope);
+                .with_background(surface_interactive())
+                .with_min_size(Unit::px2(self.width, 0.0))
+                .mount(scope);
+            } else {
+                let items = col(IterWidgetCollection::new(
+                    self.items.iter().enumerate().map(|(i, item)| {
+                        to_owned!(items = self.items);
+                        Button::new(item.clone())
+                            .with_style(ButtonStyle::selectable_entry())
+                            .on_click(move |scope| {
+                                scope.read(selection).send(items[i].clone());
+                                scope.read(token).close();
+                            })
+                    }),
+                ))
+                .with_stretch(true);
+
+                card(ScrollArea::vertical(items).with_max_size(Unit::px2(self.width, 100.0)))
+                    .with_background(surface_interactive())
+                    .with_min_size(Unit::px2(self.width, 0.0))
+                    .mount(scope);
+            }
         };
 
         InteractiveWidget::new(maximized(menu))

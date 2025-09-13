@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use futures_signals::signal::Mutable;
+use palette::Srgba;
 use tracing_subscriber::{
     prelude::__tracing_subscriber_SubscriberExt, registry, util::SubscriberInitExt, EnvFilter,
 };
@@ -14,7 +15,7 @@ use violet_core::{
         bold, card, col, interactive::dropdown::Dropdown, label, row, Button, Collapsible,
         Rectangle, SuspenseWidget, Throbber,
     },
-    Widget,
+    StateExt, Widget,
 };
 use violet_lucide::icons::{
     LUCIDE_BACKPACK, LUCIDE_BOX, LUCIDE_BRIEFCASE_BUSINESS, LUCIDE_DROPLETS, LUCIDE_HAMMER,
@@ -39,11 +40,11 @@ fn app() -> impl Widget {
     }
 
     card(Dropdown::new(
-        selection,
+        selection.lower_option(),
         [
             Item {
                 icon: LUCIDE_BOX,
-                color: OCEAN_400,
+                color: SAPPHIRE_400,
                 label: "Box",
             },
             Item {
@@ -68,12 +69,12 @@ fn app() -> impl Widget {
             },
             Item {
                 icon: LUCIDE_BRIEFCASE_BUSINESS,
-                color: CITRUS_400,
+                color: AMBER_400,
                 label: "Business",
             },
             Item {
                 icon: LUCIDE_WRENCH,
-                color: OCEAN_400,
+                color: SAPPHIRE_400,
                 label: "Settings",
             },
             Item {
@@ -82,7 +83,7 @@ fn app() -> impl Widget {
                 label: "Nature",
             },
         ],
-    ));
+    ))
 }
 
 pub fn main() -> anyhow::Result<()> {

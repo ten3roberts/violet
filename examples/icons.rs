@@ -13,10 +13,10 @@ use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 fn app() -> impl Widget {
     col(card(row((
         label(LUCIDE_CIRCLE_CHEVRON_RIGHT).with_color(EMERALD_400),
-        label(LUCIDE_FOLDER).with_color(OCEAN_400),
+        label(LUCIDE_FOLDER).with_color(SAPPHIRE_400),
         label(LUCIDE_ALIGN_CENTER).with_color(AMETHYST_400),
-        label(LUCIDE_TERMINAL).with_color(OCEAN_600),
-        label(LUCIDE_MOVE).with_color(OCEAN_400),
+        label(LUCIDE_TERMINAL).with_color(SAPPHIRE_600),
+        label(LUCIDE_MOVE).with_color(SAPPHIRE_400),
         label(LUCIDE_ROTATE_CW).with_color(EMERALD_400),
         label(LUCIDE_EXPAND).with_color(RUBY_400),
     ))))

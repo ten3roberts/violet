@@ -33,7 +33,7 @@ use violet::{
     },
     lucide::icons::{
         LUCIDE_ARROW_DOWN_NARROW_WIDE, LUCIDE_COPY, LUCIDE_DOWNLOAD, LUCIDE_FOLDER_OPEN,
-        LUCIDE_PALETTE, LUCIDE_SAVE, LUCIDE_SUN_MEDIUM, LUCIDE_TRASH,
+        LUCIDE_PALETTE, LUCIDE_SAVE, LUCIDE_SUN_MEDIUM, LUCIDE_TRASH, LUCIDE_TRASH_2,
     },
     palette::Srgba,
 };
@@ -213,7 +213,7 @@ impl Palette {
                     ))
                     .center(),
                     col((row(shades), StreamWidget::new(color_info))),
-                    Button::label(LUCIDE_TRASH)
+                    Button::label(LUCIDE_TRASH_2)
                         .with_tooltip_text("Remove Palette")
                         .on_click(move |_| {
                             palettes.lock_mut().palettes.remove(palette_index);

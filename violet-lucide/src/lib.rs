@@ -21,8 +21,8 @@ use icons::LUCIDE_CHEVRON_RIGHT;
 use violet_core::{style::IconSet, text::Source};
 
 use crate::icons::{
-    LUCIDE_CHECK, LUCIDE_CHEVRON_DOWN, LUCIDE_CIRCLE_ALERT, LUCIDE_CIRCLE_X, LUCIDE_ELLIPSIS,
-    LUCIDE_LIGHTBULB, LUCIDE_TRIANGLE_ALERT,
+    LUCIDE_CHECK, LUCIDE_CHEVRON_DOWN, LUCIDE_CIRCLE_X, LUCIDE_LIGHTBULB, LUCIDE_SEARCH,
+    LUCIDE_TRIANGLE_ALERT,
 };
 
 /// All icon glyphs.
@@ -43,5 +43,6 @@ pub fn icon_set() -> IconSet {
         check: LUCIDE_CHECK.into(),
         ellipsis: LUCIDE_CHEVRON_DOWN.into(),
         spinner: ".".into(),
+        search: LUCIDE_SEARCH.into(),
     }
 }

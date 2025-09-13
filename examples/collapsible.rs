@@ -30,7 +30,7 @@ fn app() -> impl Widget {
                 },
             )
         })
-        .collapsed(true),
+        .start_collapsed(true),
     )
 }
 
