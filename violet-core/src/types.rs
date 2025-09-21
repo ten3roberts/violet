@@ -105,6 +105,42 @@ impl Edges {
         (back_margin, front_margin)
     }
 
+    pub fn right(amount: f32) -> Self {
+        Self {
+            left: 0.0,
+            right: amount,
+            top: 0.0,
+            bottom: 0.0,
+        }
+    }
+
+    pub fn left(amount: f32) -> Self {
+        Self {
+            left: amount,
+            right: 0.0,
+            top: 0.0,
+            bottom: 0.0,
+        }
+    }
+
+    pub fn top(amount: f32) -> Self {
+        Self {
+            left: 0.0,
+            right: 0.0,
+            top: amount,
+            bottom: 0.0,
+        }
+    }
+
+    pub fn bottom(amount: f32) -> Self {
+        Self {
+            left: 0.0,
+            right: 0.0,
+            top: 0.0,
+            bottom: amount,
+        }
+    }
+
     pub fn topleft(&self) -> Vec2 {
         vec2(self.left, self.top)
     }

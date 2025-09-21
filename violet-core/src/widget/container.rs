@@ -348,6 +348,7 @@ pub fn centered_horizontal<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget).with_horizontal_alignment(Align::Center)
 }
 
+/// Inset content area with margin
 pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_background(Background::new(surface_secondary()))
@@ -360,6 +361,7 @@ pub fn raised_card<W: WidgetCollection>(widget: W) -> Stack<W> {
     card(widget).with_background(surface_tertiary())
 }
 
+/// Inset content area
 pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_padding(spacing_medium())
