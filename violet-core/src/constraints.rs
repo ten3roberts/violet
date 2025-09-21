@@ -8,7 +8,7 @@ pub struct FixedAreaConstraint {
 }
 
 impl SizeResolver for FixedAreaConstraint {
-    fn query(&mut self, _: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
+    fn query_size(&mut self, _: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
         let size = (args.limits.max_size / self.unit_size)
             .floor()
             .max(Vec2::ONE);
@@ -29,7 +29,7 @@ impl SizeResolver for FixedAreaConstraint {
         )
     }
 
-    fn apply(&mut self, _: &flax::EntityRef, args: LayoutArgs) -> (Vec2, BVec2) {
+    fn apply_layout(&mut self, _: &flax::EntityRef, args: LayoutArgs) -> (Vec2, BVec2) {
         let width = (args.limits.max_size.x / self.unit_size).floor().max(1.0);
 
         let height = (self.area / width).ceil();

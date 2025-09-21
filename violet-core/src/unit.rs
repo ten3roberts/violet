@@ -80,8 +80,9 @@ impl<T> Unit<T>
 where
     T: Add<Output = T> + Mul<Output = T> + Copy,
 {
-    pub fn resolve(&self, parent: T) -> T {
-        self.px + self.rel * parent
+    /// Resolve the unit to an absolute value based on the reference value
+    pub fn resolve(&self, reference: T) -> T {
+        self.px + self.rel * reference
     }
 }
 

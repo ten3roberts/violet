@@ -60,7 +60,11 @@ pub struct TextSizeResolver {
 }
 
 impl SizeResolver for TextSizeResolver {
-    fn query(&mut self, entity: &flax::EntityRef, args: QueryArgs) -> (Vec2, Vec2, SizingHints) {
+    fn query_size(
+        &mut self,
+        entity: &flax::EntityRef,
+        args: QueryArgs,
+    ) -> (Vec2, Vec2, SizingHints) {
         puffin::profile_scope!("TextSizeResolver::query");
         let _span = tracing::debug_span!("TextSizeResolver::query", ?args.direction).entered();
 
@@ -118,7 +122,7 @@ impl SizeResolver for TextSizeResolver {
         )
     }
 
-    fn apply(&mut self, entity: &flax::EntityRef, args: LayoutArgs) -> (Vec2, BVec2) {
+    fn apply_layout(&mut self, entity: &flax::EntityRef, args: LayoutArgs) -> (Vec2, BVec2) {
         puffin::profile_scope!("TextSizeResolver::apply");
         let _span = tracing::debug_span!("TextSizeResolver::apply", ?args).entered();
 

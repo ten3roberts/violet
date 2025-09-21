@@ -19,14 +19,16 @@ use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 use crate::{
     components::{
         self, children, clip_mask, computed_opacity, computed_visible, layout_args, layout_bounds,
-        local_position, opacity, rect, rotation, screen_clip_mask, screen_transform, text,
-        transform, transform_origin, translation, visible,
+        local_position, margin, max_size, min_size, opacity, padding, rect, rotation,
+        screen_clip_mask, screen_transform, size, text, transform, transform_origin, translation,
+        visible,
     },
     layout::{
         apply_layout,
         cache::{invalidate_widget, layout_cache, LayoutCache, LayoutUpdateEvent},
-        query_size, Direction, LayoutArgs, LayoutLimits, QueryArgs,
+        query_layout_size, Direction, LayoutArgs, LayoutLimits, QueryArgs,
     },
+    unit::Unit,
     Rect,
 };
 
@@ -57,6 +59,11 @@ pub fn widget_template(entity: &mut EntityBuilder, name: String) {
         .set(clip_mask(), Rect::new(Vec2::MIN, Vec2::MAX))
         .set_default(layout_args())
         .set_default(screen_clip_mask())
+        .set(min_size(), Unit::px2(0.0, 0.0))
+        .set(max_size(), Unit::px2(f32::MAX, f32::MAX))
+        .set_default(padding())
+        .set_default(margin())
+        .set(size(), Unit::px2(0.0, 0.0))
         .set_default(rect());
 }
 
@@ -180,7 +187,7 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
                 let entity = world.entity(child).unwrap();
 
                 if update_canvas_size {
-                    let sizing = query_size(
+                    let sizing = query_layout_size(
                         world,
                         &entity,
                         QueryArgs {

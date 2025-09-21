@@ -2,10 +2,12 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
-use super::{apply_layout, resolve_pos, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
+use super::{
+    apply_layout, resolve_pos, ApplyLayoutArgs, LayoutBlock, LayoutLimits, QueryArgs, Sizing,
+};
 use crate::{
     components::{self, item_align, LayoutAlignment},
-    layout::{query_size, LayoutArgs, SizingHints},
+    layout::{query_layout_size, LayoutArgs, SizingHints},
     Edges, Rect,
 };
 
@@ -45,7 +47,12 @@ impl Default for StackLayout {
 }
 
 impl StackLayout {
-    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, args: ApplyLayoutArgs) -> Block {
+    pub(crate) fn apply(
+        &self,
+        world: &World,
+        entity: &EntityRef,
+        args: ApplyLayoutArgs,
+    ) -> LayoutBlock {
         puffin::profile_function!();
         let _span = tracing::debug_span!("StackLayout::apply", %self.clip, %entity).entered();
 
@@ -89,11 +96,11 @@ impl StackLayout {
         // The size used for alignment calculation
         let total_size = bounds
             .size()
-            .max(args.preferred_size)
+            .max(args.desired_size)
             .max(args.limits.min_size);
 
         let mut aligned_bounds =
-            StackableBounds::from_rect(Rect::from_size_pos(args.preferred_size, args.offset));
+            StackableBounds::from_rect(Rect::from_size_pos(args.desired_size, args.offset));
 
         let mut can_grow = BVec2::FALSE;
 
@@ -137,7 +144,7 @@ impl StackLayout {
 
         let margin = aligned_bounds.margin();
 
-        Block::new(rect, margin, can_grow)
+        LayoutBlock::new(rect, margin, can_grow)
     }
 
     pub(crate) fn query_size(
@@ -167,7 +174,7 @@ impl StackLayout {
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let sizing = query_size(
+            let sizing = query_layout_size(
                 world,
                 &entity,
                 QueryArgs {
@@ -184,7 +191,7 @@ impl StackLayout {
             min_bounds = min_bounds.merge(&StackableBounds::new(sizing.min, sizing.margin));
 
             preferred_bounds =
-                preferred_bounds.merge(&StackableBounds::new(sizing.preferred, sizing.margin));
+                preferred_bounds.merge(&StackableBounds::new(sizing.desired, sizing.margin));
         }
 
         let min_rect = min_bounds.inner;
@@ -202,7 +209,7 @@ impl StackLayout {
 
         Sizing {
             min: min.min_size((1.0 - grow) * min.size()),
-            preferred: preferred.clamp_size(min.size(), scissor_size),
+            desired: preferred.clamp_size(min.size(), scissor_size),
             margin: min_margin.max(preferred_margin),
             hints,
             maximize,

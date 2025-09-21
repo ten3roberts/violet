@@ -1,7 +1,7 @@
 use flax::{component, components::child_of, Entity, FetchExt, RelationExt, World};
 use glam::{BVec2, Vec2};
 
-use super::{flow::Row, Block, Direction, LayoutLimits, Sizing, SizingHints};
+use super::{flow::Row, Direction, LayoutBlock, LayoutLimits, Sizing, SizingHints};
 
 #[derive(Debug)]
 pub struct CachedValue<T> {
@@ -33,7 +33,7 @@ pub enum LayoutUpdateEvent {
 pub struct LayoutCache {
     pub(crate) query: [Vec<CachedValue<Sizing>>; 2],
     pub(crate) query_row: Option<CachedValue<Row>>,
-    pub(crate) layout: Option<CachedValue<Block>>,
+    pub(crate) layout: Option<CachedValue<LayoutBlock>>,
     on_invalidated: Option<Box<dyn Fn(LayoutUpdateEvent) + Send + Sync>>,
     pub(crate) hints: SizingHints,
 }
@@ -59,7 +59,7 @@ impl LayoutCache {
         self.layout = None;
     }
 
-    pub(crate) fn insert_query(&mut self, direction: Direction, value: CachedValue<Sizing>) {
+    pub(crate) fn insert_query_result(&mut self, direction: Direction, value: CachedValue<Sizing>) {
         if !ENABLE {
             return;
         }
@@ -88,7 +88,7 @@ impl LayoutCache {
         }
     }
 
-    pub(crate) fn insert_layout(&mut self, value: CachedValue<Block>) {
+    pub(crate) fn insert_layout(&mut self, value: CachedValue<LayoutBlock>) {
         if !ENABLE {
             return;
         }
@@ -99,7 +99,7 @@ impl LayoutCache {
         }
     }
 
-    pub fn layout(&self) -> Option<&CachedValue<Block>> {
+    pub fn layout(&self) -> Option<&CachedValue<LayoutBlock>> {
         self.layout.as_ref()
     }
 
@@ -135,7 +135,7 @@ pub(crate) fn validate_cached_query(
     let value = &cache.value;
 
     let min_size = value.min.size();
-    let preferred_size = value.preferred.size();
+    let preferred_size = value.desired.size();
 
     // tracing::debug!( ?preferred_size, %cache.limits.max_size, %limits.max_size, "validate_cached_query");
 
@@ -161,7 +161,7 @@ pub(crate) fn validate_cached_query(
 }
 
 pub(crate) fn validate_cached_layout(
-    cache: &CachedValue<Block>,
+    cache: &CachedValue<LayoutBlock>,
     limits: LayoutLimits,
     content_area: Vec2,
     // Calculated from the query stage

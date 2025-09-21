@@ -1,10 +1,10 @@
 use flax::{Entity, EntityRef, World};
 use glam::{BVec2, Vec2};
 
-use super::{apply_layout, ApplyLayoutArgs, Block, LayoutLimits, QueryArgs, Sizing};
+use super::{apply_layout, ApplyLayoutArgs, LayoutBlock, LayoutLimits, QueryArgs, Sizing};
 use crate::{
     components,
-    layout::{query_size, Direction, LayoutArgs, SizingHints},
+    layout::{query_layout_size, Direction, LayoutArgs, SizingHints},
     Edges, Rect,
 };
 
@@ -17,7 +17,7 @@ use crate::{
 pub struct FloatLayout {}
 
 impl FloatLayout {
-    pub(crate) fn apply(&self, world: &World, _: &EntityRef, args: ApplyLayoutArgs) -> Block {
+    pub(crate) fn apply(&self, world: &World, _: &EntityRef, args: ApplyLayoutArgs) -> LayoutBlock {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
 
@@ -42,7 +42,7 @@ impl FloatLayout {
             entity.update_dedup(components::local_position(), Vec2::ZERO);
         });
 
-        Block::new(Rect::ZERO, Edges::ZERO, BVec2::FALSE)
+        LayoutBlock::new(Rect::ZERO, Edges::ZERO, BVec2::FALSE)
     }
 
     pub(crate) fn query_size(
@@ -59,7 +59,7 @@ impl FloatLayout {
         for &child in children.iter() {
             let entity = world.entity(child).expect("invalid child");
 
-            let sizing = query_size(
+            let sizing = query_layout_size(
                 world,
                 &entity,
                 QueryArgs {
@@ -77,7 +77,7 @@ impl FloatLayout {
 
         Sizing {
             min: Rect::ZERO,
-            preferred: Rect::ZERO,
+            desired: Rect::ZERO,
             margin: Edges::ZERO,
             hints,
             maximize: Vec2::ZERO,

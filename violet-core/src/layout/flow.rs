@@ -5,14 +5,14 @@ use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
 use super::{
-    apply_layout, cache::LayoutCache, resolve_pos, ApplyLayoutArgs, Block, Direction, LayoutArgs,
-    LayoutLimits, QueryArgs, Sizing,
+    apply_layout, cache::LayoutCache, resolve_pos, ApplyLayoutArgs, Direction, LayoutArgs,
+    LayoutBlock, LayoutLimits, QueryArgs, Sizing,
 };
 use crate::{
     components,
     layout::{
         cache::{validate_cached_row, CachedValue},
-        query_size, SizingHints,
+        query_layout_size, SizingHints,
     },
     Edges, Rect,
 };
@@ -51,7 +51,7 @@ impl QueryCursor {
         }
     }
 
-    fn put(&mut self, block: &Block) -> (Vec2, f32) {
+    fn put(&mut self, block: &LayoutBlock) -> (Vec2, f32) {
         if block.rect.size() == Vec2::ZERO {
             let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
 
@@ -172,7 +172,7 @@ impl AlignCursor {
         }
     }
 
-    fn put(&mut self, block: &Block) -> Vec2 {
+    fn put(&mut self, block: &LayoutBlock) -> Vec2 {
         if block.rect.size() == Vec2::ZERO {
             let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
 
@@ -317,7 +317,12 @@ impl FlowLayout {
     /// Position and size the children of the given entity using all the provided available space
     ///
     /// Returns the inner rect
-    pub(crate) fn apply(&self, world: &World, entity: &EntityRef, args: ApplyLayoutArgs) -> Block {
+    pub(crate) fn apply(
+        &self,
+        world: &World,
+        entity: &EntityRef,
+        args: ApplyLayoutArgs,
+    ) -> LayoutBlock {
         puffin::profile_function!();
         let _span = tracing::debug_span!("Flow::apply", ?args.limits, flow=?self).entered();
 
@@ -342,7 +347,7 @@ impl FlowLayout {
                 content_area: args.content_area,
                 limits: args.limits,
             },
-            args.preferred_size,
+            args.desired_size,
             args.offset,
         )
     }
@@ -355,7 +360,7 @@ impl FlowLayout {
         args: LayoutArgs,
         preferred_size: Vec2,
         offset: Vec2,
-    ) -> Block {
+    ) -> LayoutBlock {
         puffin::profile_function!();
 
         let (axis, cross_axis) = self.direction.as_main_and_cross(self.reverse);
@@ -403,7 +408,7 @@ impl FlowLayout {
                 let _span = tracing::debug_span!("block", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
-                let block_preferred_size = sizing.preferred.size().dot(axis);
+                let block_preferred_size = sizing.desired.size().dot(axis);
 
                 if block_min_size > block_preferred_size {
                     tracing::error!(
@@ -525,7 +530,7 @@ impl FlowLayout {
 
         tracing::debug!(%rect, %entity, %margin, %args.limits);
 
-        Block::new(rect, margin, can_grow)
+        LayoutBlock::new(rect, margin, can_grow)
     }
 
     fn distribute_query(
@@ -587,7 +592,7 @@ impl FlowLayout {
                 let _span = tracing::debug_span!("block", %entity).entered();
                 // The size required to go from min to preferred size
                 let block_min_size = sizing.min.size().dot(axis);
-                let block_preferred_size = sizing.preferred.size().dot(axis);
+                let block_preferred_size = sizing.desired.size().dot(axis);
 
                 if block_min_size > block_preferred_size {
                     tracing::error!(
@@ -658,7 +663,7 @@ impl FlowLayout {
 
                 // NOTE: optimize for the minimum size in the query direction, not the
                 // direction of the flow
-                let sizing = query_size(world, &entity, QueryArgs {
+                let sizing = query_layout_size(world, &entity, QueryArgs {
                     limits: child_limits,
                     content_area: args.content_area,
                     // Use the query direction, not the flow direction
@@ -668,10 +673,10 @@ impl FlowLayout {
 
                 hints = hints.combine(sizing.hints);
 
-                tracing::debug!(min=%sizing.min.size(), preferred=%sizing.preferred.size(), ?child_limits, "query");
+                tracing::debug!(min=%sizing.min.size(), preferred=%sizing.desired.size(), ?child_limits, "query");
 
-                min_cursor.put(&Block::new(sizing.min, sizing.margin, sizing.hints.can_grow));
-                cursor.put(&Block::new(sizing.preferred, sizing.margin, sizing.hints.can_grow));
+                min_cursor.put(&LayoutBlock::new(sizing.min, sizing.margin, sizing.hints.can_grow));
+                cursor.put(&LayoutBlock::new(sizing.desired, sizing.margin, sizing.hints.can_grow));
 
                 sizing
             }).collect_vec();
@@ -692,8 +697,8 @@ impl FlowLayout {
         );
 
         for block in blocks {
-            cursor.put(&Block::new(
-                block.preferred,
+            cursor.put(&LayoutBlock::new(
+                block.desired,
                 block.margin,
                 block.hints.can_grow,
             ));
@@ -706,7 +711,7 @@ impl FlowLayout {
 
         Sizing {
             min: min_rect.max_size(args.limits.min_size),
-            preferred: rect.max_size(args.limits.min_size),
+            desired: rect.max_size(args.limits.min_size),
             margin,
             hints,
             maximize: row.maximize_sum,
@@ -751,7 +756,7 @@ impl FlowLayout {
                 let entity = world.entity(child).expect("Invalid child");
 
                 let child_margin = if self.contain_margins {
-                    query_size(
+                    query_layout_size(
                         world,
                         &entity,
                         QueryArgs {
@@ -768,7 +773,7 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
-                let sizing = query_size(
+                let sizing = query_layout_size(
                     world,
                     &entity,
                     QueryArgs {
@@ -784,20 +789,20 @@ impl FlowLayout {
                 maximize += sizing.maximize;
                 hints = hints.combine(sizing.hints);
 
-                min_cursor.put(&Block::new(
+                min_cursor.put(&LayoutBlock::new(
                     sizing.min,
                     sizing.margin,
                     sizing.hints.can_grow,
                 ));
 
-                preferred_cursor.put(&Block::new(
-                    sizing.preferred,
+                preferred_cursor.put(&LayoutBlock::new(
+                    sizing.desired,
                     sizing.margin,
                     sizing.hints.can_grow,
                 ));
 
                 // NOTE: cross size is guaranteed to be fulfilled by the parent
-                max_cross_size = max_cross_size.max(sizing.preferred.size().dot(cross_axis));
+                max_cross_size = max_cross_size.max(sizing.desired.size().dot(cross_axis));
 
                 (entity.id(), sizing)
             })
@@ -875,7 +880,7 @@ impl FlowLayout {
 
         if row.hints.coupled_size {
             let sizing = self.distribute_query(world, &row, args, preferred_size);
-            tracing::debug!(?self.direction, %sizing.min, %sizing.preferred, %sizing.margin, "query");
+            tracing::debug!(?self.direction, %sizing.min, %sizing.desired, %sizing.margin, "query");
             sizing
         } else {
             let (axis, cross) = self.direction.as_main_and_cross(self.reverse);
@@ -914,8 +919,8 @@ impl FlowLayout {
             );
 
             for (_, block) in row.blocks.iter() {
-                cursor.put(&Block::new(
-                    block.preferred,
+                cursor.put(&LayoutBlock::new(
+                    block.desired,
                     block.margin,
                     block.hints.can_grow,
                 ));
@@ -928,7 +933,7 @@ impl FlowLayout {
 
             Sizing {
                 min,
-                preferred: Rect::from_size(preferred),
+                desired: Rect::from_size(preferred),
                 margin,
                 hints: SizingHints {
                     can_grow: can_grow | row.hints.can_grow,
