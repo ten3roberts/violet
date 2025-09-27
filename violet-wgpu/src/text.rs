@@ -6,7 +6,7 @@ use cosmic_text::{
 use flax::EntityRef;
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
-use palette::{blend::Blend, Srgba};
+use palette::Srgba;
 use parking_lot::Mutex;
 use violet_core::{
     components::{font_size, layout_glyphs},

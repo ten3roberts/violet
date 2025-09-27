@@ -1,24 +1,19 @@
 use futures::StreamExt;
 use futures_signals::signal::Mutable;
 use glam::{vec2, BVec2, Mat4, Vec2, Vec2Swizzles};
-use palette::WithAlpha;
 
 use super::{Float, Movable, Rectangle, Stack};
 use crate::{
     components::{item_align, max_size, min_size, offset, rect, transform, LayoutAlignment},
     input::{interactive, on_scroll},
-    layout::Align,
     state::{StateStream, StateWrite},
     style::{
-        base_colors::{RUBY_100, RUBY_400},
-        default_corner_radius, scrollbar_size, spacing_small, surface_accent, surface_disabled,
-        surface_interactive, surface_interactive_accent, Background, ResolvableStyle, SizeExt,
+        default_corner_radius, scrollbar_size, surface_interactive_accent, Background, ResolvableStyle, SizeExt,
         WidgetSizeProps,
     },
     to_owned,
     unit::Unit,
-    utils::zip_latest,
-    Edges, Scope, Widget,
+    utils::zip_latest, Scope, Widget,
 };
 
 /// Wraps a widget in a scroll area.

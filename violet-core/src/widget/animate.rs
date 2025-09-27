@@ -1,9 +1,8 @@
-use tween::Tweener;
 
 use crate::{
     components::handle_detach,
     time::sleep,
-    tweens::{ComponentTween, DynamicTween},
+    tweens::DynamicTween,
     Scope, Widget,
 };
 

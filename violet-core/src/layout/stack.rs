@@ -56,7 +56,7 @@ impl StackLayout {
         puffin::profile_function!();
         let _span = tracing::debug_span!("StackLayout::apply", %self.clip, %entity).entered();
 
-        let mut bounds = Rect {
+        let mut child_bounds = Rect {
             min: Vec2::MAX,
             max: Vec2::MIN,
         };
@@ -87,14 +87,14 @@ impl StackLayout {
                     },
                 );
 
-                bounds = bounds.merge(block.rect.translate(args.offset));
+                child_bounds = child_bounds.merge(block.rect.translate(args.offset));
 
                 (entity, block)
             })
             .collect_vec();
 
         // The size used for alignment calculation
-        let total_size = bounds
+        let total_size = child_bounds
             .size()
             .max(args.desired_size)
             .max(args.limits.min_size);
@@ -107,6 +107,7 @@ impl StackLayout {
         let offset = args.offset;
         let start_position = resolve_pos(entity, args.content_area, total_size);
 
+        // Position the entities, with the correct alignment and offset
         for (child, block) in blocks {
             let block_size = block.rect.size();
 
@@ -184,7 +185,7 @@ impl StackLayout {
                 },
             );
 
-            maximize += sizing.maximize;
+            maximize = (maximize + sizing.maximize).min(Vec2::ONE);
 
             hints = hints.combine(sizing.hints);
 

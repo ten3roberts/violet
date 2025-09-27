@@ -5,7 +5,7 @@ use itertools::Itertools;
 use crate::{
     state::{StateDuplex, StateExt},
     style::{SizeExt, StyleExt, WidgetSizeProps},
-    widget::{col, ButtonStyle, ScrollArea, Selectable},
+    widget::{col, ButtonStyle, Selectable},
     Scope, Widget,
 };
 

@@ -4,7 +4,7 @@
 //! smaller parts of a larger state.
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-use futures::{ready, stream::BoxStream, FutureExt, Stream, StreamExt};
+use futures::{stream::BoxStream, FutureExt, Stream, StreamExt};
 use futures_signals::signal::{Mutable, SignalExt};
 
 pub mod constant;

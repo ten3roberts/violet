@@ -181,6 +181,8 @@ component! {
     /// A margin is in essence a minimum allowed distance to another items bounds
     pub margin: Edges => [ Debuggable ],
 
+    /// Tells the widget to use up all free space. Does not encroach on other widgets or reduce
+    /// space available.
     pub maximize: Vec2 => [ Debuggable ],
 
     pub text: Vec<TextSegment> => [ ],

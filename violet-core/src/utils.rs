@@ -1,6 +1,6 @@
 use std::{pin::Pin, task::Poll};
 
-use futures::{ready, Future, FutureExt, Stream};
+use futures::{ready, Future, Stream};
 
 #[macro_export]
 macro_rules! to_owned {

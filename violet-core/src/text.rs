@@ -9,7 +9,7 @@ use glam::{vec2, Vec2};
 use palette::Srgba;
 
 use crate::{
-    style::{element_primary, ValueOrRef},
+    style::ValueOrRef,
     Rect,
 };
 

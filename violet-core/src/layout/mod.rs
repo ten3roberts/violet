@@ -272,7 +272,7 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
 
     let query = LayoutQueryOptions::new();
     let mut query = entity.query(&query);
-    let query = query
+    let mut query = query
         .get()
         .expect("Missing items on widget for layout query");
 
@@ -352,7 +352,9 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
     else if let [child] = children {
         let child = world.entity(*child).unwrap();
         query_layout_size(world, &child, args)
-    } else if let Some(size_resolver) = query.size_resolver {
+    }
+    // Customizable size resolution, such as querying text size
+    else if let Some(size_resolver) = &mut query.size_resolver {
         // Handle leaf nodes with dynamic size resolution
         let (min_size, intrinsic_size, intrinsic_hints) = size_resolver.query_size(entity, args);
 
@@ -368,7 +370,9 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
             hints: intrinsic_hints.combine(hints),
             maximize: entity.get_copy(maximize()).unwrap_or_default(),
         }
-    } else {
+    }
+    // Default property based sizing
+    else {
         Sizing {
             min: Rect::from_size(min_size_px),
             desired: Rect::from_size(clamped_size_px),
@@ -378,11 +382,32 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
         }
     };
 
-    // Enforce additional contraints over the final size, such as aspect ratio
+    // Enforce additional constraints over the final size, such as aspect ratio
+    constrain_sizing(
+        &mut sizing,
+        entity,
+        args.content_area,
+        &mut query,
+        args,
+        limits,
+    );
+
+    sizing
+}
+
+// Function to apply constraints and translate sizing
+fn constrain_sizing(
+    sizing: &mut Sizing,
+    entity: &EntityRef,
+    content_area: Vec2,
+    query: &mut LayoutQueryOptionsItem<'_>,
+    args: QueryArgs,
+    limits: LayoutLimits,
+) {
     let constraints = Constraints::from_entity(entity);
 
     if constraints.aspect_ratio.is_some() {
-        hints.coupled_size = true;
+        sizing.hints.coupled_size = true;
     }
 
     sizing.min = sizing.min.with_size(constraints.apply(sizing.min.size()));
@@ -390,8 +415,8 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
         .desired
         .with_size(constraints.apply(sizing.desired.size()));
 
-    let min_offset = resolve_pos(entity, args.content_area, sizing.min.size());
-    let offset = resolve_pos(entity, args.content_area, sizing.desired.size());
+    let min_offset = resolve_pos(entity, content_area, sizing.min.size());
+    let offset = resolve_pos(entity, content_area, sizing.desired.size());
 
     sizing.min = sizing.min.translate(min_offset);
     sizing.desired = sizing.desired.translate(offset);
@@ -402,10 +427,8 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
 
     query.layout_cache.insert_query_result(
         args.direction,
-        CachedValue::new(limits, args.content_area, sizing),
+        CachedValue::new(limits, args.content_area, *sizing),
     );
-
-    sizing
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -462,13 +485,6 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         }
     }
 
-    // tracing::info!(%entity, ?cache.layout, "layout cache miss");
-
-    // limits.min_size = limits.min_size.min(limits.max_size);
-
-    // assert!(limits.min_size.x <= limits.max_size.x);
-    // assert!(limits.min_size.y <= limits.max_size.y);
-
     let children = query.children.map(Vec::as_slice).unwrap_or(&[]);
 
     let mut resolved_size = query.desired_size.resolve(args.content_area);
@@ -476,13 +492,13 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let maximized = entity.get_copy(maximize()).unwrap_or_default();
 
     // Use all the size we can
-    if maximized.x > 0.0 {
-        resolved_size.x = limits.max_size.x;
-    }
-
-    if maximized.y > 0.0 {
-        resolved_size.y = limits.max_size.y;
-    }
+    // if maximized.x > 0.0 {
+    //     resolved_size.x = limits.max_size.x;
+    // }
+    //
+    // if maximized.y > 0.0 {
+    //     resolved_size.y = limits.max_size.y;
+    // }
 
     let can_maximize = maximized.cmpgt(Vec2::ZERO);
 

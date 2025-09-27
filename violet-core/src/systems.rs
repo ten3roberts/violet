@@ -12,7 +12,7 @@ use flax::{
     events::{EventData, EventKindFilter, EventSubscriber},
     fetch::{FromRelation, Source},
     system, BoxedSystem, CommandBuffer, Component, ComponentMut, Dfs, Entity, EntityBuilder,
-    EntityIds, EntityRef, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
+    EntityIds, Fetch, FetchExt, FetchItem, Query, QueryBorrow, System, World,
 };
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles};
 

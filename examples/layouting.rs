@@ -1,4 +1,3 @@
-use futures_signals::signal::Mutable;
 use glam::Vec2;
 use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
@@ -6,7 +5,7 @@ use tracing_tree::HierarchicalLayer;
 use violet_core::{
     style::{base_colors::*, surface_primary, surface_secondary, SizeExt, StylesheetOptions},
     unit::Unit,
-    widget::{bold, card, col, label, pill, raised_card, row, Rectangle, Slider},
+    widget::{bold, card, col, label, pill, raised_card, row, Button, Rectangle},
     Edges, Widget,
 };
 use violet_lucide::icons::*;
@@ -72,9 +71,9 @@ fn window(
                 bold(title),
                 Rectangle::new(Srgba::new(0.0, 0.0, 0.0, 0.0)).with_maximize(Vec2::X),
                 pill(row((
-                    label(LUCIDE_MAXIMIZE).with_color(EMERALD_400),
-                    label(LUCIDE_MINUS).with_color(AMBER_400),
-                    label(LUCIDE_X).with_color(RUBY_400),
+                    Button::label(LUCIDE_MAXIMIZE).success(),
+                    Button::label(LUCIDE_MINUS).warning(),
+                    Button::label(LUCIDE_X).danger(),
                 ))),
             ))
             .center(),

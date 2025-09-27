@@ -5,7 +5,6 @@ use glam::Vec2;
 use crate::{
     components::{offset, opacity},
     unit::Unit,
-    widget::Stack,
     Scope, ScopeRef, Widget,
 };
 
