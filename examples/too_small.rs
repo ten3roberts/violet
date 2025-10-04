@@ -39,7 +39,7 @@ pub fn main() -> anyhow::Result<()> {
 
 fn main_ui() -> impl Widget {
     col((
-        row(pill(label("XYZ XYZ XYZ").with_wrap_word()).with_background(RUBY_400)),
+        row(pill(label("XYZ")).with_background(RUBY_400)),
         row(Rectangle::new(RUBY_400)
             .with_size(Unit::px2(40.0, 25.0))
             .with_min_size(Unit::px2(10.0, 25.0))

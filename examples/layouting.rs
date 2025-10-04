@@ -37,11 +37,7 @@ pub fn main() -> anyhow::Result<()> {
 fn main_ui() -> impl Widget {
     row((
         col((
-            window(
-                LUCIDE_BRUSH,
-                "Center Panel",
-                card(()).with_maximize(Vec2::ONE),
-            ),
+            card(()).with_maximize(Vec2::ONE),
             window(LUCIDE_LIST_TREE, "Bottom Panel", card(())),
         )),
         // window(
@@ -73,7 +69,7 @@ fn window(
             row((
                 label(icon).with_margin(Edges::right(8.0)),
                 bold(title),
-                Rectangle::new(Srgba::new(0.0, 0.0, 0.0, 0.0)).with_maximize(Vec2::X),
+                // Rectangle::new(Srgba::new(0.0, 0.0, 0.0, 0.0)).with_maximize(Vec2::X),
                 pill(row((
                     Button::label(LUCIDE_MAXIMIZE).success(),
                     Button::label(LUCIDE_MINUS).warning(),

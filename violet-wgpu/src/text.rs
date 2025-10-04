@@ -99,7 +99,7 @@ impl SizeResolver for TextSizeResolver {
             state,
             text_system,
             font_size,
-            args.limits.max_size.max(vec2(1.0, line_height)),
+            args.limits.max_size.max(vec2(10.0, line_height)),
         );
         // + vec2(5.0, 5.0);
 
@@ -116,7 +116,7 @@ impl SizeResolver for TextSizeResolver {
             desired,
             SizingHints {
                 can_grow,
-                relative_size: BVec2::TRUE,
+                relative_size: BVec2::FALSE,
                 coupled_size: wrapped_lines != preferred_lines,
             },
         )
