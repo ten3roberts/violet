@@ -95,7 +95,7 @@ impl SizeResolver for TextSizeResolver {
             vec2(1.0, args.limits.max_size.y.max(line_height)),
         );
 
-        let (preferred, can_grow, preferred_lines) = Self::resolve_text_size(
+        let (desired, can_grow, preferred_lines) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
@@ -111,9 +111,9 @@ impl SizeResolver for TextSizeResolver {
             if args.direction.is_horizontal() {
                 most_wrapped
             } else {
-                preferred
+                desired
             },
-            preferred,
+            desired,
             SizingHints {
                 can_grow,
                 relative_size: BVec2::TRUE,
@@ -166,7 +166,7 @@ impl TextSizeResolver {
         state: &mut TextBufferState,
         text_system: &mut TextSystem,
         font_size: f32,
-        size: Vec2,
+        layout_size_limit: Vec2,
     ) -> (Vec2, BVec2, usize) {
         // let _span = tracing::debug_span!("resolve_text_size", font_size, ?text, ?limits).entered();
 
@@ -174,7 +174,7 @@ impl TextSizeResolver {
 
         let metrics = Metrics::new(font_size, font_size);
         buffer.set_metrics(metrics);
-        buffer.set_size(Some(size.x), Some(size.y));
+        buffer.set_size(Some(layout_size_limit.x), Some(layout_size_limit.y));
 
         buffer.shape_until_scroll(true);
 

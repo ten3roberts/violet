@@ -339,13 +339,30 @@ impl FlowLayout {
             },
         );
 
+        let _guard = tracing::info_span!(
+            "query_row",
+            ?self.direction,
+            min=?row.min.size(),
+            preferred=?row.preferred.size(),
+        )
+        .entered();
+
+        // In the apply stage, we must respect the parent's max_size, but also ensure we never shrink below the minimum required by children.
+        // This allows fixed-width panels and windows to restrict layout, but lets children "prop up" the parent if their minimum is larger.
+        let new_limits = LayoutLimits {
+            min_size: args.limits.min_size,
+            max_size: args.limits.max_size.max(row.min.size()),
+        };
+
+        tracing::info!(?new_limits, ?args.limits, "apply");
+
         self.distribute_children(
             world,
             entity,
             &row,
             LayoutArgs {
                 content_area: args.content_area,
-                limits: args.limits,
+                limits: new_limits,
             },
             args.desired_size,
             args.offset,
@@ -374,7 +391,7 @@ impl FlowLayout {
         // How much space there is left to distribute to the children
         let distribute_size = (preferred_inner_size - minimum_inner_size).max(0.0);
 
-        // Clipped maximum that we remap to
+        // Clamp distributable size to parent's max_size
         let target_inner_size = distribute_size
             .min(args.limits.max_size.dot(axis) - minimum_inner_size)
             .max(0.0);
@@ -410,6 +427,7 @@ impl FlowLayout {
                 let block_min_size = sizing.min.size().dot(axis);
                 let block_preferred_size = sizing.desired.size().dot(axis);
 
+                tracing::info!(block_preferred_size, block_min_size, "layout");
                 if block_min_size > block_preferred_size {
                     tracing::error!(
                         ?block_min_size,
@@ -466,6 +484,7 @@ impl FlowLayout {
                     }
                 };
 
+                tracing::info!( %child_limits.max_size, "layout child");
                 let block = apply_layout(
                     world,
                     &entity,
@@ -750,15 +769,17 @@ impl FlowLayout {
 
         let mut maximize = Vec2::ZERO;
 
+        // In queries, always pass the actual available max_size to children so they can adapt if possible (e.g., text can wrap).
+        // However, do not forcibly clamp the query result; children can report their true minimum/preferred size, even if it exceeds max_size.
         let blocks = children
             .iter()
             .map(|&child| {
-                let entity = world.entity(child).expect("Invalid child");
+                let child_entity = world.entity(child).expect("Invalid child");
 
                 let child_margin = if self.contain_margins {
                     query_layout_size(
                         world,
-                        &entity,
+                        &child_entity,
                         QueryArgs {
                             limits: LayoutLimits {
                                 min_size: Vec2::ZERO,
@@ -773,38 +794,38 @@ impl FlowLayout {
                     Edges::ZERO
                 };
 
-                let sizing = query_layout_size(
+                let child_sizing = query_layout_size(
                     world,
-                    &entity,
+                    &child_entity,
                     QueryArgs {
                         limits: LayoutLimits {
                             min_size: Vec2::ZERO,
-                            max_size: args.limits.max_size - child_margin.size(),
+                            max_size: args.limits.max_size,
                         },
                         content_area: args.content_area,
                         direction: self.direction,
                     },
                 );
 
-                maximize += sizing.maximize;
-                hints = hints.combine(sizing.hints);
+                maximize += child_sizing.maximize;
+                hints = hints.combine(child_sizing.hints);
 
                 min_cursor.put(&LayoutBlock::new(
-                    sizing.min,
-                    sizing.margin,
-                    sizing.hints.can_grow,
+                    child_sizing.min,
+                    child_sizing.margin,
+                    child_sizing.hints.can_grow,
                 ));
 
                 preferred_cursor.put(&LayoutBlock::new(
-                    sizing.desired,
-                    sizing.margin,
-                    sizing.hints.can_grow,
+                    child_sizing.desired,
+                    child_sizing.margin,
+                    child_sizing.hints.can_grow,
                 ));
 
                 // NOTE: cross size is guaranteed to be fulfilled by the parent
-                max_cross_size = max_cross_size.max(sizing.desired.size().dot(cross_axis));
+                max_cross_size = max_cross_size.max(child_sizing.desired.size().dot(cross_axis));
 
-                (entity.id(), sizing)
+                (child_entity.id(), child_sizing)
             })
             .collect_vec();
 

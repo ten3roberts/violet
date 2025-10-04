@@ -11,7 +11,7 @@ pub struct CachedValue<T> {
 }
 
 const ENABLE: bool = true;
-pub const LAYOUT_TOLERANCE: f32 = 0.01;
+pub const LAYOUT_TOLERANCE: f32 = 0.1;
 
 impl<T> CachedValue<T> {
     pub(crate) fn new(limits: LayoutLimits, content_area: Vec2, value: T) -> Self {

@@ -492,13 +492,13 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let maximized = entity.get_copy(maximize()).unwrap_or_default();
 
     // Use all the size we can
-    // if maximized.x > 0.0 {
-    //     resolved_size.x = limits.max_size.x;
-    // }
-    //
-    // if maximized.y > 0.0 {
-    //     resolved_size.y = limits.max_size.y;
-    // }
+    if maximized.x > 0.0 {
+        resolved_size.x = limits.max_size.x;
+    }
+
+    if maximized.y > 0.0 {
+        resolved_size.y = limits.max_size.y;
+    }
 
     let can_maximize = maximized.cmpgt(Vec2::ZERO);
 
@@ -579,6 +579,8 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     query
         .layout_cache
         .insert_layout(CachedValue::new(limits, args.content_area, block));
+
+    tracing::info!(%entity, size=%block.rect.size(), %args.limits, "applied layout");
 
     block
 }

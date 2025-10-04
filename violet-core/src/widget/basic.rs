@@ -139,6 +139,26 @@ impl Text {
         self.style.wrap = wrap;
         self
     }
+
+    pub fn with_wrap_word(mut self) -> Self {
+        self.style.wrap = Wrap::Word;
+        self
+    }
+
+    pub fn with_wrap_glyph(mut self) -> Self {
+        self.style.wrap = Wrap::Glyph;
+        self
+    }
+
+    pub fn with_wrap_none(mut self) -> Self {
+        self.style.wrap = Wrap::None;
+        self
+    }
+
+    pub fn with_wrap_word_or_glyph(mut self) -> Self {
+        self.style.wrap = Wrap::WordOrGlyph;
+        self
+    }
 }
 
 impl StyleExt for Text {
