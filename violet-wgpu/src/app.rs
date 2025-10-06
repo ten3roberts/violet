@@ -4,7 +4,7 @@ use cosmic_text::fontdb::Source;
 use flax::{components::name, Entity, EntityBuilder, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
-use tracing::info;
+use tracing::{debug, info};
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,
@@ -625,7 +625,7 @@ fn setup_puffin() -> Option<puffin_http::Server> {
         }
     };
 
-    tracing::info!("Puffin running at {server_addr}");
+    tracing::debug!("Puffin running at {server_addr}");
     puffin::set_scopes_on(true);
     Some(server)
 }

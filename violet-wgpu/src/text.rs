@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use cosmic_text::{
-    fontdb::Source, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
+    fontdb::Source, Align, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
 };
 use flax::EntityRef;
 use glam::{vec2, BVec2, Vec2};
@@ -178,7 +178,19 @@ impl TextSizeResolver {
 
         buffer.shape_until_scroll(true);
 
-        measure(&state.buffer)
+        let (size, overflow, total_lines) = measure(&state.buffer);
+
+        // Warn if overflow would have occurred with the original height
+        let max_lines = (layout_size_limit.y / state.buffer.metrics().line_height).floor() as usize;
+        if total_lines > max_lines {
+            tracing::warn!(
+                total_lines,
+                max_lines,
+                "Text buffer overflow: some lines would be skipped. Allowing overflow."
+            );
+        }
+
+        (size, overflow, total_lines)
     }
 }
 
@@ -255,8 +267,9 @@ impl TextBufferState {
                         )),
                 )
             }),
-            Attrs::new(),
+            &Attrs::new(),
             Shaping::Advanced,
+            None,
         );
     }
 
@@ -272,7 +285,7 @@ impl TextBufferState {
                 let mut current_offset = 0;
 
                 let mut glyph_index = 0;
-                let Some(layout) = line.layout_opt().as_ref() else {
+                let Some(layout) = line.layout_opt() else {
                     return Vec::new();
                 };
 

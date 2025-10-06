@@ -309,7 +309,7 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
     };
 
     // if hints != Default::default() {
-    // tracing::info!(%entity, ?resolved_size, ?external_max_size, "can grow");
+    // tracing::debug!(%entity, ?resolved_size, ?external_max_size, "can grow");
     // }
 
     // Clamp max size here since we ensure it is > min_size
@@ -546,8 +546,10 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
         // Handle leaf nodes with dynamic size resolution
         let (intrinsic_size, instrinsic_can_grow) = size_resolver.apply_layout(entity, args);
 
+        let intrinsic_size = intrinsic_size.max(clamped_size_px);
+
         LayoutBlock {
-            rect: Rect::from_size(intrinsic_size.clamp(limits.min_size, limits.max_size)),
+            rect: Rect::from_size(intrinsic_size),
             margin: *query.margin,
             can_grow: instrinsic_can_grow | can_grow,
         }
@@ -579,8 +581,6 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     query
         .layout_cache
         .insert_layout(CachedValue::new(limits, args.content_area, block));
-
-    tracing::info!(%entity, size=%block.rect.size(), %args.limits, "applied layout");
 
     block
 }

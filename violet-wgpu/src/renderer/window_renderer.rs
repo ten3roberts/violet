@@ -67,7 +67,7 @@ impl WindowRenderer {
 
     pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<()> {
         if !self.surface.has_size() {
-            tracing::info!("No surface size, skipping draw");
+            tracing::debug!("No surface size, skipping draw");
             return Ok(());
         }
         let target = match self.surface.get_current_texture() {

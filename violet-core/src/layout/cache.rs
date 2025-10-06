@@ -144,7 +144,7 @@ pub(crate) fn validate_cached_query(
     if hints.can_grow.x && cache.limits.max_size.x < limits.max_size.x
         || (hints.can_grow.x && cache.limits.max_size.y < limits.max_size.y)
     {
-        // tracing::info!(%hints.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated by can_grow");
+        // tracing::debug!(%hints.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated by can_grow");
     }
 
     min_size.x >= limits.min_size.x - LAYOUT_TOLERANCE

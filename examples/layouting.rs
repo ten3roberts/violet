@@ -3,7 +3,10 @@ use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    style::{base_colors::*, surface_primary, surface_secondary, SizeExt, StylesheetOptions},
+    style::{
+        base_colors::*, element_secondary, surface_primary, surface_secondary, SizeExt,
+        StylesheetOptions,
+    },
     unit::Unit,
     widget::{bold, card, col, label, pill, raised_card, row, Button, Rectangle},
     Edges, Widget,
@@ -69,11 +72,11 @@ fn window(
             row((
                 label(icon).with_margin(Edges::right(8.0)),
                 bold(title),
-                // Rectangle::new(Srgba::new(0.0, 0.0, 0.0, 0.0)).with_maximize(Vec2::X),
+                Rectangle::new(Srgba::new(0.0, 0.0, 0.0, 0.0)).with_maximize(Vec2::X),
                 pill(row((
-                    Button::label(LUCIDE_MAXIMIZE).success(),
-                    Button::label(LUCIDE_MINUS).warning(),
-                    Button::label(LUCIDE_X).danger(),
+                    btn(LUCIDE_MAXIMIZE).success(),
+                    btn(LUCIDE_MINUS).warning(),
+                    btn(LUCIDE_X).danger(),
                 ))),
             ))
             .center(),
@@ -81,4 +84,13 @@ fn window(
         )), // .with_stretch(true),
     )
     .with_background(surface_secondary())
+}
+
+fn btn(_label: impl Into<String>) -> Button<impl Widget> {
+    Button::new(
+        label(_label),
+        // Rectangle::new(element_secondary())
+        //     .with_min_size(Unit::px2(10.0, 10.0))
+        //     .with_size(Unit::px2(10.0, 10.0)),
+    )
 }

@@ -339,7 +339,7 @@ impl FlowLayout {
             },
         );
 
-        let _guard = tracing::info_span!(
+        let _guard = tracing::debug_span!(
             "query_row",
             ?self.direction,
             min=?row.min.size(),
@@ -354,7 +354,7 @@ impl FlowLayout {
             max_size: args.limits.max_size.max(row.min.size()),
         };
 
-        tracing::info!(?new_limits, ?args.limits, "apply");
+        tracing::debug!(?new_limits, ?args.limits, "apply");
 
         self.distribute_children(
             world,
@@ -427,7 +427,7 @@ impl FlowLayout {
                 let block_min_size = sizing.min.size().dot(axis);
                 let block_preferred_size = sizing.desired.size().dot(axis);
 
-                tracing::info!(block_preferred_size, block_min_size, "layout");
+                tracing::debug!(block_preferred_size, block_min_size, "layout");
                 if block_min_size > block_preferred_size {
                     tracing::error!(
                         ?block_min_size,
@@ -484,7 +484,7 @@ impl FlowLayout {
                     }
                 };
 
-                tracing::info!( %child_limits.max_size, "layout child");
+                tracing::debug!( %child_limits.max_size, "layout child");
                 let block = apply_layout(
                     world,
                     &entity,

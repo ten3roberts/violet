@@ -270,7 +270,7 @@ impl<W: Widget> Widget for Movable<W> {
                 move |scope, input| {
                     if input.state == ElementState::Pressed {
                         let cursor_pos = input.cursor.local_pos;
-                        tracing::info!(?cursor_pos, "grab");
+                        tracing::debug!(?cursor_pos, "grab");
                         *start_offset.lock_mut() = cursor_pos;
                     } else {
                         (self.on_drop)(scope, input.cursor.absolute_pos);
