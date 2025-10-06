@@ -1,3 +1,5 @@
+use core::f32;
+
 use glam::Vec2;
 use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
@@ -43,20 +45,23 @@ fn main_ui() -> impl Widget {
             card(()).with_maximize(Vec2::ONE),
             window(LUCIDE_LIST_TREE, "Bottom Panel", card(())),
         )),
-        // window(
-        //     LUCIDE_SATELLITE,
-        //     "Right Panel",
-        //     col(
-        //         // Slider::new(Mutable::new(50), 0, 100),
-        //         // Slider::new(Mutable::new(20), 0, 100),
-        //         // col((
-        //         //         row((Stack::new(label("Value")).with_maximize(Vec2::X), TextInput::new(Mutable::new("Editable".to_string())).input_box())),
-        //         //         )),
-        //         raised_card(label("lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.").with_wrap(cosmic_text::Wrap::WordOrGlyph))
-        //     ),
-        // )
-        // .with_max_size(Unit::px2(400.0, f32::MAX))
-        // .with_maximize(Vec2::Y),
+        card(())
+            .with_max_size(Unit::px2(40.0, f32::MAX))
+            .with_min_size(Unit::px2(40.0, 0.0))
+            .with_maximize(Vec2::Y), // window(
+                                     //     LUCIDE_SATELLITE,
+                                     //     "Right Panel",
+                                     //     col(
+                                     //         // Slider::new(Mutable::new(50), 0, 100),
+                                     //         // Slider::new(Mutable::new(20), 0, 100),
+                                     //         // col((
+                                     //         //         row((Stack::new(label("Value")).with_maximize(Vec2::X), TextInput::new(Mutable::new("Editable".to_string())).input_box())),
+                                     //         //         )),
+                                     //         raised_card(label("lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.").with_wrap(cosmic_text::Wrap::WordOrGlyph))
+                                     //     ),
+                                     // )
+                                     // .with_max_size(Unit::px2(400.0, f32::MAX))
+                                     // .with_maximize(Vec2::Y),
     ))
     .with_background(surface_primary())
     .with_contain_margins(true)
