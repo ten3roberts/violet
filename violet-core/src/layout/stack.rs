@@ -107,6 +107,7 @@ impl StackLayout {
         let offset = args.offset;
         let start_position = resolve_pos(entity, args.content_area, total_size);
 
+        let mut maximize = Vec2::ZERO;
         // Position the entities, with the correct alignment and offset
         for (child, block) in blocks {
             let block_size = block.rect.size();
@@ -125,6 +126,7 @@ impl StackLayout {
                 block.margin,
             ));
 
+            maximize = (maximize + block.maximize).min(Vec2::ONE);
             can_grow |= block.can_grow;
 
             child.update_dedup(components::rect(), block.rect).unwrap();
@@ -137,15 +139,16 @@ impl StackLayout {
                 .unwrap();
         }
 
-        let rect = aligned_bounds.inner;
+        let child_rect = aligned_bounds.inner;
 
-        let rect = rect
+        let rect = child_rect
             .max_size(args.limits.min_size)
             .min_size(args.limits.max_size * clip + Vec2::MAX * (1.0 - clip));
 
+        // tracing::info!(child_rect=?child_rect.size(), rect=?rect.size(), ?args.limits.max_size);
         let margin = aligned_bounds.margin();
 
-        LayoutBlock::new(rect, margin, can_grow)
+        LayoutBlock::new(rect, margin, can_grow, maximize)
     }
 
     pub(crate) fn query_size(
@@ -203,14 +206,16 @@ impl StackLayout {
 
         // ensure size is not smaller than min
         let min = min_rect.max_size(args.limits.min_size);
-        let preferred = preferred_rect.max_size(preferred_size);
+        let desired = preferred_rect.max_size(preferred_size);
 
         // if clip, clamp to limited max size, otherwise, clip to max
-        let scissor_size = args.limits.max_size * grow + Vec2::MAX * (1.0 - grow);
+        let scissor_size = args.limits.max_size * clip + Vec2::MAX * (1.0 - clip);
+
+        let min = min.min_size((grow) * min.size());
 
         Sizing {
-            min: min.min_size((1.0 - grow) * min.size()),
-            desired: preferred.clamp_size(min.size(), scissor_size),
+            min: min,
+            desired: desired.clamp_size(min.size(), scissor_size),
             margin: min_margin.max(preferred_margin),
             hints,
             maximize,

@@ -66,9 +66,9 @@ pub struct AppBuilder {
 impl AppBuilder {
     pub fn new() -> Self {
         let fonts = vec![
-            Source::Binary(Arc::new(INTER_FONT.to_vec())),
-            Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
-            Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
+            // Source::Binary(Arc::new(INTER_FONT.to_vec())),
+            // Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
+            // Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
         ];
 
         Self {
@@ -82,7 +82,7 @@ impl AppBuilder {
 
     /// Add a font to the text system
     pub fn with_font(mut self, font: Source) -> Self {
-        self.fonts.push(font);
+        self.fonts.insert(0, font);
         self
     }
 
@@ -114,7 +114,7 @@ impl AppBuilder {
             root,
             self.allow_resize,
             Arc::new(Mutex::new(TextSystem::new_with_fonts(
-                self.fonts.into_iter().rev(),
+                self.fonts.into_iter(),
             ))),
             self.stylesheet
                 .unwrap_or_else(|| StylesheetOptions::new().build()),

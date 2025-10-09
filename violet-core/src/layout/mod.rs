@@ -188,14 +188,16 @@ pub struct LayoutBlock {
     pub(crate) margin: Edges,
     /// See: [`SizingHints::can_grow`]
     pub can_grow: BVec2,
+    pub maximize: Vec2,
 }
 
 impl LayoutBlock {
-    pub(crate) fn new(rect: Rect, margin: Edges, can_grow: BVec2) -> Self {
+    pub(crate) fn new(rect: Rect, margin: Edges, can_grow: BVec2, maximize: Vec2) -> Self {
         Self {
             rect,
             margin,
             can_grow,
+            maximize,
         }
     }
 }
@@ -421,7 +423,10 @@ fn constrain_sizing(
     sizing.min = sizing.min.translate(min_offset);
     sizing.desired = sizing.desired.translate(offset);
 
-    if IGNORE_ZERO_SIZE_MARGINS && sizing.desired.size() == Vec2::ZERO {
+    if IGNORE_ZERO_SIZE_MARGINS
+        && sizing.desired.size() == Vec2::ZERO
+        && sizing.maximize == Vec2::ZERO
+    {
         sizing.margin = Edges::ZERO
     }
 
@@ -534,6 +539,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
             rect: block.rect.pad(*query.padding),
             margin: (block.margin - *query.padding).max(*query.margin),
             can_grow: block.can_grow | can_grow,
+            maximize: (block.maximize + maximized).min(Vec2::ONE),
         }
     } else if let [child] = children {
         let child = world.entity(*child).unwrap();
@@ -552,6 +558,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
             rect: Rect::from_size(intrinsic_size),
             margin: *query.margin,
             can_grow: instrinsic_can_grow | can_grow,
+            maximize: maximized,
         }
     } else {
         assert_eq!(children, [], "Widget with children must have a layout");
@@ -560,6 +567,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
             rect: Rect::from_size(clamped_size_px),
             margin: *query.margin,
             can_grow: can_grow,
+            maximize: maximized,
         }
     };
 
@@ -569,7 +577,7 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let offset = resolve_pos(entity, args.content_area, block.rect.size());
     block.rect = block.rect.translate(offset);
 
-    if IGNORE_ZERO_SIZE_MARGINS && block.rect.size() == Vec2::ZERO {
+    if IGNORE_ZERO_SIZE_MARGINS && block.rect.size() == Vec2::ZERO && block.maximize == Vec2::ZERO {
         block.margin = Edges::ZERO
     }
 

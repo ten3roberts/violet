@@ -21,6 +21,7 @@ impl FloatLayout {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
 
+        let mut maximize = Vec2::ZERO;
         args.children.iter().for_each(|&child| {
             let entity = world.entity(child).expect("invalid child");
 
@@ -38,11 +39,12 @@ impl FloatLayout {
                 },
             );
 
+            maximize = (maximize + block.maximize).min(Vec2::ONE);
             entity.update_dedup(components::rect(), block.rect);
             entity.update_dedup(components::local_position(), Vec2::ZERO);
         });
 
-        LayoutBlock::new(Rect::ZERO, Edges::ZERO, BVec2::FALSE)
+        LayoutBlock::new(Rect::ZERO, Edges::ZERO, BVec2::FALSE, maximize)
     }
 
     pub(crate) fn query_size(

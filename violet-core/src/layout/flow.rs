@@ -52,11 +52,13 @@ impl QueryCursor {
     }
 
     fn put(&mut self, block: &LayoutBlock) -> (Vec2, f32) {
-        if block.rect.size() == Vec2::ZERO {
-            let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
-
-            return (placement_pos, 0.0);
-        }
+        // Only skip margin if zero-size and not maximizing in axis
+        let maximizing_in_axis = block.maximize.dot(self.axis) > 0.0;
+        // if block.rect.size() == Vec2::ZERO && !maximizing_in_axis {
+        //     let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+        //
+        //     return (placement_pos, 0.0);
+        // }
 
         let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
@@ -173,11 +175,13 @@ impl AlignCursor {
     }
 
     fn put(&mut self, block: &LayoutBlock) -> Vec2 {
-        if block.rect.size() == Vec2::ZERO {
-            let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
-
-            return placement_pos;
-        }
+        // Only skip margin if zero-size and not maximizing in axis
+        // let maximizing_in_axis = block.maximize.dot(self.axis) > 0.0;
+        // if block.rect.size() == Vec2::ZERO && !maximizing_in_axis {
+        //     let placement_pos = self.main_cursor * self.axis + self.cross_cursor * self.cross_axis;
+        //
+        //     return placement_pos;
+        // }
 
         let (back_margin, front_margin) = block.margin.in_axis(self.axis);
 
@@ -397,6 +401,7 @@ impl FlowLayout {
             .max(0.0);
 
         let remaining_size = (args.limits.max_size.dot(axis) - preferred_inner_size).max(0.0);
+        tracing::info!(preferred_inner_size, target_inner_size, remaining_size);
 
         let contain_margins = self.contain_margins as i32 as f32;
 
@@ -414,6 +419,8 @@ impl FlowLayout {
             .max(args.limits.min_size)
             .max(preferred_size)
             .dot(cross_axis);
+
+        let mut maximized = Vec2::ZERO;
 
         let mut can_grow = BVec2::FALSE;
         // Distribute the size to the widgets and apply their layout
@@ -494,6 +501,7 @@ impl FlowLayout {
                     },
                 );
 
+                maximized = (maximized + sizing.maximize).min(Vec2::ONE);
                 can_grow |= block.can_grow;
                 tracing::debug!(?block, "updated subtree");
 
@@ -549,7 +557,7 @@ impl FlowLayout {
 
         tracing::debug!(%rect, %entity, %margin, %args.limits);
 
-        LayoutBlock::new(rect, margin, can_grow)
+        LayoutBlock::new(rect, margin, can_grow, maximized)
     }
 
     fn distribute_query(
@@ -602,6 +610,7 @@ impl FlowLayout {
             .dot(cross_axis);
         let mut hints = SizingHints::default();
 
+        let mut maximized = Vec2::ZERO;
         // Distribute the size to the widgets and apply their layout
         let blocks = row
             .blocks
@@ -689,13 +698,14 @@ impl FlowLayout {
                     direction: args.direction,
                 });
 
+            maximized = (maximized + sizing.maximize).min(Vec2::ONE);
 
                 hints = hints.combine(sizing.hints);
 
                 tracing::debug!(min=%sizing.min.size(), preferred=%sizing.desired.size(), ?child_limits, "query");
 
-                min_cursor.put(&LayoutBlock::new(sizing.min, sizing.margin, sizing.hints.can_grow));
-                cursor.put(&LayoutBlock::new(sizing.desired, sizing.margin, sizing.hints.can_grow));
+                min_cursor.put(&LayoutBlock::new(sizing.min, sizing.margin, sizing.hints.can_grow, maximized));
+                cursor.put(&LayoutBlock::new(sizing.desired, sizing.margin, sizing.hints.can_grow, maximized));
 
                 sizing
             }).collect_vec();
@@ -720,6 +730,7 @@ impl FlowLayout {
                 block.desired,
                 block.margin,
                 block.hints.can_grow,
+                block.maximize,
             ));
         }
 
@@ -814,12 +825,14 @@ impl FlowLayout {
                     child_sizing.min,
                     child_sizing.margin,
                     child_sizing.hints.can_grow,
+                    child_sizing.maximize,
                 ));
 
                 preferred_cursor.put(&LayoutBlock::new(
                     child_sizing.desired,
                     child_sizing.margin,
                     child_sizing.hints.can_grow,
+                    child_sizing.maximize,
                 ));
 
                 // NOTE: cross size is guaranteed to be fulfilled by the parent
@@ -944,6 +957,7 @@ impl FlowLayout {
                     block.desired,
                     block.margin,
                     block.hints.can_grow,
+                    block.maximize,
                 ));
             }
 
