@@ -10,7 +10,7 @@ pub struct CachedValue<T> {
     pub value: T,
 }
 
-const ENABLE: bool = false;
+const ENABLE: bool = true;
 pub const LAYOUT_TOLERANCE: f32 = 0.1;
 
 impl<T> CachedValue<T> {

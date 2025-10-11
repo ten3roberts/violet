@@ -401,7 +401,7 @@ impl FlowLayout {
             .max(0.0);
 
         let remaining_size = (args.limits.max_size.dot(axis) - preferred_inner_size).max(0.0);
-        tracing::info!(preferred_inner_size, target_inner_size, remaining_size);
+        // tracing::info!(preferred_inner_size, target_inner_size, remaining_size);
 
         let contain_margins = self.contain_margins as i32 as f32;
 

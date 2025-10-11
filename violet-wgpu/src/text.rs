@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use cosmic_text::{
-    fontdb::Source, Align, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
+    fontdb::{Database, Source},
+    Align, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
 };
 use flax::EntityRef;
 use glam::{vec2, BVec2, Vec2};
@@ -40,7 +41,12 @@ impl TextSystem {
     }
 
     pub fn new_with_fonts(sources: impl IntoIterator<Item = Source>) -> Self {
-        let font_system = FontSystem::new_with_fonts(sources);
+        let mut font_db = Database::new();
+        for source in sources {
+            font_db.load_font_source(source);
+        }
+
+        let font_system = FontSystem::new_with_locale_and_db(String::from("en-US"), font_db);
 
         Self {
             font_system,
