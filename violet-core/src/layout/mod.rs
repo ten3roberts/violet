@@ -81,6 +81,17 @@ pub(crate) struct ApplyLayoutArgs<'a> {
     offset: Vec2,
 }
 
+pub(crate) struct ContainerLayoutArgs<'a> {
+    cache: &'a mut LayoutCache,
+    children: &'a [Entity],
+    content_area: Vec2,
+    limits: LayoutLimits,
+    desired_size: Vec2,
+    /// The widget's immediate max size (not the max size enforced by layout)
+    immediate_max_size: Vec2,
+    offset: Vec2,
+}
+
 #[derive(Debug, Clone)]
 pub enum Layout {
     Stack(StackLayout),
@@ -93,7 +104,7 @@ impl Layout {
         &self,
         world: &World,
         entity: &EntityRef,
-        ctx: ApplyLayoutArgs,
+        ctx: ContainerLayoutArgs,
     ) -> LayoutBlock {
         match self {
             Layout::Stack(v) => v.apply(world, entity, ctx),
@@ -107,7 +118,7 @@ impl Layout {
         world: &World,
         cache: &mut LayoutCache,
         children: &[Entity],
-        args: QueryArgs,
+        args: ContainerQueryArgs,
         preferred_size: Vec2,
     ) -> Sizing {
         match self {
@@ -123,6 +134,21 @@ impl Layout {
 pub struct QueryArgs {
     /// Enforce limits on the layout
     pub limits: LayoutLimits,
+
+    /// The size of the potentially available space for the subtree
+    pub content_area: Vec2,
+    /// The direction in which the layout is being queried
+    pub direction: Direction,
+}
+
+/// Arguments for querying the possible layout and size of a widget
+#[derive(Debug, Clone, Copy)]
+pub struct ContainerQueryArgs {
+    /// Enforce limits on the layout
+    pub limits: LayoutLimits,
+
+    /// The widget's immediate max size (not the max size enforced by layout)
+    immediate_max_size: Vec2,
 
     /// The size of the potentially available space for the subtree
     pub content_area: Vec2,
@@ -162,22 +188,26 @@ impl Display for Sizing {
 /// Allows for the parent to control the size of the children, such as stretching
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayoutLimits {
-    pub min_size: Vec2,
-    pub max_size: Vec2,
+    pub layout_min_size: Vec2,
+    pub layout_max_size: Vec2,
 }
 
 impl Default for LayoutLimits {
     fn default() -> Self {
         Self {
-            min_size: Vec2::ZERO,
-            max_size: Vec2::MAX,
+            layout_min_size: Vec2::ZERO,
+            layout_max_size: Vec2::MAX,
         }
     }
 }
 
 impl Display for LayoutLimits {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "min: {}, max: {}", self.min_size, self.max_size)
+        write!(
+            f,
+            "min: {}, max: {}",
+            self.layout_min_size, self.layout_max_size
+        )
     }
 }
 
@@ -281,12 +311,15 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
     let fixed_boundary_size = query.min_size.is_relative() | query.max_size.is_relative();
 
     let min_size_px = query.min_size.resolve(args.content_area);
-    let max_size_px = query.max_size.resolve(args.content_area);
+    let immediate_max_size_px = query.max_size.resolve(args.content_area);
 
     let mut limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
-        min_size: args.limits.min_size.max(min_size_px),
-        max_size: args.limits.max_size.clamp(min_size_px, max_size_px),
+        layout_min_size: args.limits.layout_min_size.max(min_size_px),
+        layout_max_size: args
+            .limits
+            .layout_max_size
+            .clamp(min_size_px, immediate_max_size_px),
     };
 
     // Check if cache is valid
@@ -304,8 +337,8 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
     let mut hints = SizingHints {
         relative_size: fixed_boundary_size | query.desired_size.is_relative(),
         can_grow: BVec2::new(
-            desired_size_px.x > args.limits.max_size.x,
-            desired_size_px.y > args.limits.max_size.y,
+            desired_size_px.x > args.limits.layout_max_size.x,
+            desired_size_px.y > args.limits.layout_max_size.y,
         ) | maximized.cmpgt(Vec2::ZERO),
         coupled_size: false,
     };
@@ -315,25 +348,26 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
     // }
 
     // Clamp max size here since we ensure it is > min_size
-    let clamped_size_px = desired_size_px.clamp(limits.min_size, limits.max_size);
+    let clamped_size_px = desired_size_px.clamp(limits.layout_min_size, limits.layout_max_size);
 
     // Flow
     let mut sizing = if let Some(layout) = query.layout {
         // Account for padding eating into the max size
-        let padded_min_size = (limits.min_size - query.padding.size()).max(Vec2::ZERO);
-        let padded_max_size = (limits.max_size - query.padding.size()).max(Vec2::ZERO);
+        let padded_min_size = (limits.layout_min_size - query.padding.size()).max(Vec2::ZERO);
+        let padded_max_size = (limits.layout_max_size - query.padding.size()).max(Vec2::ZERO);
 
         let sizing = layout.query_size(
             world,
             query.layout_cache,
             children,
-            QueryArgs {
+            ContainerQueryArgs {
                 limits: LayoutLimits {
-                    min_size: padded_min_size,
-                    max_size: padded_max_size,
+                    layout_min_size: padded_min_size,
+                    layout_max_size: padded_max_size,
                 },
                 content_area: args.content_area - query.padding.size(),
                 direction: args.direction,
+                immediate_max_size: immediate_max_size_px,
             },
             // Content area
             clamped_size_px - query.padding.size(),
@@ -347,7 +381,8 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
             min: sizing.min.pad(*query.padding),
             desired: sizing.desired.pad(*query.padding),
             hints: sizing.hints.combine(hints),
-            maximize: sizing.maximize + entity.get_copy(maximize()).unwrap_or_default(),
+            maximize: (sizing.maximize + entity.get_copy(maximize()).unwrap_or_default())
+                .min(Vec2::ONE),
         }
     }
     // Allow single children to pass through directly, without need for layout
@@ -361,7 +396,7 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
         let (min_size, intrinsic_size, intrinsic_hints) = size_resolver.query_size(entity, args);
 
         // If intrinsic_min_size > max_size we overflow, but respect the minimum size nonetheless
-        limits.min_size = limits.min_size.max(min_size);
+        limits.layout_min_size = limits.layout_min_size.max(min_size);
 
         let intrinsic_size = intrinsic_size.max(clamped_size_px);
 
@@ -467,12 +502,15 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
     let query = query.get().expect("Missing items on widget for layout");
 
     let min_size_px = query.min_size.resolve(args.content_area);
-    let max_size_px = query.max_size.resolve(args.content_area);
+    let immediate_max_size_px = query.max_size.resolve(args.content_area);
 
     let limits = LayoutLimits {
         // Minimum size is *always* respected, even if that entails overflowing
-        min_size: args.limits.min_size.max(min_size_px),
-        max_size: args.limits.max_size.clamp(min_size_px, max_size_px),
+        layout_min_size: args.limits.layout_min_size.max(min_size_px),
+        layout_max_size: args
+            .limits
+            .layout_max_size
+            .clamp(min_size_px, immediate_max_size_px),
     };
 
     // Check if cache is still valid
@@ -498,40 +536,41 @@ pub(crate) fn apply_layout(world: &World, entity: &EntityRef, args: LayoutArgs) 
 
     // Use all the size we can
     if maximized.x > 0.0 {
-        resolved_size.x = limits.max_size.x;
+        resolved_size.x = limits.layout_max_size.x;
     }
 
     if maximized.y > 0.0 {
-        resolved_size.y = limits.max_size.y;
+        resolved_size.y = limits.layout_max_size.y;
     }
 
     let can_maximize = maximized.cmpgt(Vec2::ZERO);
 
     let can_grow = BVec2::new(
-        resolved_size.x > args.limits.max_size.x,
-        resolved_size.y > args.limits.max_size.y,
+        resolved_size.x > args.limits.layout_max_size.x,
+        resolved_size.y > args.limits.layout_max_size.y,
     ) | can_maximize;
 
-    let clamped_size_px = resolved_size.clamp(limits.min_size, limits.max_size);
+    let clamped_size_px = resolved_size.clamp(limits.layout_min_size, limits.layout_max_size);
 
     let mut block = if let Some(layout) = query.layout {
-        let padded_min_size = (limits.min_size - query.padding.size()).max(Vec2::ZERO);
-        let padded_max_size = (limits.max_size - query.padding.size()).max(Vec2::ZERO);
+        let padded_min_size = (limits.layout_min_size - query.padding.size()).max(Vec2::ZERO);
+        let padded_max_size = (limits.layout_max_size - query.padding.size()).max(Vec2::ZERO);
 
         let block = layout.apply(
             world,
             entity,
-            ApplyLayoutArgs {
+            ContainerLayoutArgs {
                 cache: query.layout_cache,
                 children,
                 content_area: args.content_area,
                 limits: LayoutLimits {
-                    min_size: padded_min_size,
-                    max_size: padded_max_size,
+                    layout_min_size: padded_min_size,
+                    layout_max_size: padded_max_size,
                 },
                 desired_size: clamped_size_px - query.padding.size(),
                 // start of inner content
                 offset: vec2(query.padding.left, query.padding.top),
+                immediate_max_size: immediate_max_size_px,
             },
         );
 
@@ -644,4 +683,17 @@ fn resolve_pos(entity: &EntityRef, parent_size: Vec2, self_size: Vec2) -> Vec2 {
     let offset = offset.resolve(parent_size);
 
     offset - anchor.resolve(self_size)
+}
+
+/// If a child with *maximize* is within a widget with explicit max size it can not expand outside
+/// the widget, and thus *maximize* only applies within that subtree, and should not affect
+/// layouting outside of it.
+///
+/// Returns the new maximize value
+fn clamp_maximize(child_maximize: Vec2, max_size: Vec2) -> Vec2 {
+    return child_maximize
+        * vec2(
+            (max_size.x == f32::MAX) as u32 as f32,
+            (max_size.y == f32::MAX) as u32 as f32,
+        );
 }

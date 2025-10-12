@@ -104,8 +104,9 @@ impl<W> Stack<W> {
         self
     }
 
-    pub fn with_grow(mut self, grow: impl Into<BVec2>) -> Self {
-        self.layout.grow = grow.into();
+    // Preserved minimum size in the given axis, even if clipping is enabled
+    pub fn with_preserve_size(mut self, preserve_size: impl Into<BVec2>) -> Self {
+        self.layout.preserve_size = preserve_size.into();
         self
     }
 }

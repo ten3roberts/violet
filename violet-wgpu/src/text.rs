@@ -98,14 +98,14 @@ impl SizeResolver for TextSizeResolver {
             state,
             text_system,
             font_size,
-            vec2(1.0, args.limits.max_size.y.max(line_height)),
+            vec2(1.0, args.limits.layout_max_size.y.max(line_height)),
         );
 
         let (desired, can_grow, preferred_lines) = Self::resolve_text_size(
             state,
             text_system,
             font_size,
-            args.limits.max_size.max(vec2(10.0, line_height)),
+            args.limits.layout_max_size.max(vec2(10.0, line_height)),
         );
         // + vec2(5.0, 5.0);
 
@@ -146,10 +146,10 @@ impl SizeResolver for TextSizeResolver {
             font_size,
             // Add a little leeway, because an exact fit from the query may miss the last
             // word/glyph
-            args.limits.max_size.max(vec2(0.0, line_height)) + vec2(5.0, 5.0),
+            args.limits.layout_max_size.max(vec2(0.0, line_height)) + vec2(5.0, 5.0),
         );
 
-        if size.x > args.limits.max_size.x || size.y > args.limits.max_size.y {
+        if size.x > args.limits.layout_max_size.x || size.y > args.limits.layout_max_size.y {
             // tracing::error!(%entity, text=?state.text(), %size, %limits.max_size, "Text overflowed");
         }
 

@@ -4,7 +4,10 @@ use glam::{BVec2, Vec2};
 use super::{apply_layout, ApplyLayoutArgs, LayoutBlock, LayoutLimits, QueryArgs, Sizing};
 use crate::{
     components,
-    layout::{query_layout_size, Direction, LayoutArgs, SizingHints},
+    layout::{
+        query_layout_size, ContainerLayoutArgs, ContainerQueryArgs, Direction, LayoutArgs,
+        SizingHints,
+    },
     Edges, Rect,
 };
 
@@ -17,7 +20,12 @@ use crate::{
 pub struct FloatLayout {}
 
 impl FloatLayout {
-    pub(crate) fn apply(&self, world: &World, _: &EntityRef, args: ApplyLayoutArgs) -> LayoutBlock {
+    pub(crate) fn apply(
+        &self,
+        world: &World,
+        _: &EntityRef,
+        args: ContainerLayoutArgs,
+    ) -> LayoutBlock {
         puffin::profile_function!();
         let _span = tracing::debug_span!("FloatLayout::apply").entered();
 
@@ -26,8 +34,8 @@ impl FloatLayout {
             let entity = world.entity(child).expect("invalid child");
 
             let limits = LayoutLimits {
-                min_size: Vec2::ZERO,
-                max_size: Vec2::MAX,
+                layout_min_size: Vec2::ZERO,
+                layout_max_size: Vec2::MAX,
             };
 
             let block = apply_layout(
@@ -51,7 +59,7 @@ impl FloatLayout {
         &self,
         world: &World,
         children: &[Entity],
-        args: QueryArgs,
+        args: ContainerQueryArgs,
         _: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
@@ -66,8 +74,8 @@ impl FloatLayout {
                 &entity,
                 QueryArgs {
                     limits: LayoutLimits {
-                        min_size: Vec2::ZERO,
-                        max_size: Vec2::MAX,
+                        layout_min_size: Vec2::ZERO,
+                        layout_max_size: Vec2::MAX,
                     },
                     content_area: args.content_area,
                     direction: Direction::Horizontal,
