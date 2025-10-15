@@ -7,7 +7,7 @@ use glam::{vec2, Vec2, Vec3, Vec3Swizzles};
 use crate::{
     components::{offset, opacity, rect, screen_transform},
     state::StateDuplex,
-    style::{icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
+    style::{dropdown_size, icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
     time::sleep,
     to_owned,
     unit::Unit,
@@ -78,6 +78,7 @@ where
             .stylesheet()
             .get_clone(icon_search())
             .unwrap_or_else(|_| ">".to_string());
+
         let screen_pos = Mutable::new(Vec2::ZERO);
 
         scope.monitor(screen_transform(), {
@@ -114,6 +115,12 @@ where
 
                 current_dropdown.set(Some(CloseOnDropHandle::new(token)));
             })
+            .with_min_size(
+                scope
+                    .stylesheet()
+                    .get_copy(dropdown_size())
+                    .unwrap_or_default(),
+            )
             .mount(scope)
     }
 }

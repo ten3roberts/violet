@@ -43,6 +43,6 @@ pub fn icon_set() -> IconSet {
         check: LUCIDE_CHECK.into(),
         ellipsis: LUCIDE_CHEVRON_DOWN.into(),
         spinner: ".".into(),
-        search: LUCIDE_SEARCH.into(),
+        search: LUCIDE_CHEVRON_RIGHT.into(),
     }
 }
