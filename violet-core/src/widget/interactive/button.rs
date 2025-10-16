@@ -200,7 +200,7 @@ impl Default for ButtonStyle {
             hover: ColorPair::new(surface_hover(), element_hover()),
             size: WidgetSizeProps::default()
                 .with_padding(spacing_medium())
-                .with_margin(spacing_medium())
+                .with_margin(default_separation())
                 .with_corner_radius(default_corner_radius()),
             align: LayoutAlignment::new(Align::Center, Align::Center),
         }

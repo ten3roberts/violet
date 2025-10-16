@@ -83,6 +83,7 @@ pub struct TextInput {
     content: Arc<dyn Send + Sync + StateDuplex<Item = String>>,
     options: TextOptions,
     on_focus_lost: Option<Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>>,
+    request_focus: bool,
 }
 
 impl TextInputStyle {
@@ -116,6 +117,7 @@ impl TextInput {
             style: Default::default(),
             options: Default::default(),
             on_focus_lost: None,
+            request_focus: false,
         }
     }
 
@@ -145,6 +147,11 @@ impl TextInput {
         set: impl 'static + Send + Sync + FnMut(&crate::ScopeRef<'_>),
     ) -> Self {
         self.on_focus_lost = Some(Box::new(set));
+        self
+    }
+
+    pub fn request_focus(mut self) -> Self {
+        self.request_focus = true;
         self
     }
 }
@@ -226,6 +233,12 @@ impl Widget for TextInput {
             visual_cursor.clone(),
             self.options,
         ));
+
+        if self.request_focus {
+            if let Some(sender) = scope.get_atom(crate::input::request_focus_sender()) {
+                sender.send(scope.entity().id()).ok();
+            }
+        }
 
         let dragging = Mutable::new(None);
 
