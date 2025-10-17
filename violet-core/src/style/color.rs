@@ -35,6 +35,7 @@ colorpalette! {
     element_primary: Srgba,
     element_secondary: Srgba,
     element_tertiary: Srgba,
+
     element_success: Srgba,
     element_warning: Srgba,
     element_danger: Srgba,
@@ -90,6 +91,85 @@ colorpalette! {
     surface_disabled_warning: Srgba,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ColorSchemeConfig {
+    surface: Neutrals,
+    element: Neutrals,
+    accent_color: Srgba,
+    light: bool,
+}
+
+impl Default for ColorSchemeConfig {
+    fn default() -> Self {
+        Self {
+            // TODO: from_temperature and store shades instead
+            surface: Neutrals::dark(ColorTemperature::Cool),
+            element: Neutrals::light(ColorTemperature::Warm),
+            // TODO: primary,secondary,tertiary class
+            accent_color: EMERALD_500,
+            light: false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Neutrals {
+    primary: Srgba,
+    secondary: Srgba,
+    tertiary: Srgba,
+}
+
+impl Neutrals {
+    pub fn light(temperature: ColorTemperature) -> Self {
+        match temperature {
+            ColorTemperature::Neutral => Self {
+                primary: STONE_50,
+                secondary: STONE_100,
+                tertiary: STONE_200,
+            },
+            ColorTemperature::Warm => Self {
+                primary: PLATINUM_50,
+                secondary: PLATINUM_100,
+                tertiary: PLATINUM_200,
+            },
+            ColorTemperature::Cool => Self {
+                primary: ZINC_50,
+                secondary: ZINC_100,
+                tertiary: ZINC_200,
+            },
+        }
+    }
+
+    fn dark(temperature: ColorTemperature) -> Self {
+        match temperature {
+            ColorTemperature::Neutral => Self {
+                primary: STONE_950,
+                secondary: STONE_900,
+                tertiary: STONE_800,
+            },
+            ColorTemperature::Warm => Self {
+                primary: PLATINUM_950,
+                secondary: PLATINUM_900,
+                tertiary: PLATINUM_800,
+            },
+            ColorTemperature::Cool => Self {
+                primary: ZINC_950,
+                secondary: ZINC_900,
+                tertiary: ZINC_800,
+            },
+        }
+    }
+
+    pub fn new(temperature: ColorTemperature, light: bool) -> Self {
+        if light {
+            Self::light(temperature)
+        } else {
+            Self::dark(temperature)
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum ColorTemperature {
     Neutral,
     Warm,
@@ -97,53 +177,43 @@ pub enum ColorTemperature {
 }
 
 impl ColorPalette {
-    pub fn new() -> Self {
-        let element_primary = PLATINUM_50;
-        let element_secondary = PLATINUM_100;
-        let element_tertiary = PLATINUM_100;
-
-        let temperature = ColorTemperature::Neutral;
-        let colors = match temperature {
-            ColorTemperature::Neutral => [STONE_950, STONE_900, STONE_800],
-            ColorTemperature::Warm => [PLATINUM_950, PLATINUM_900, PLATINUM_800],
-            ColorTemperature::Cool => [ZINC_950, ZINC_900, ZINC_800],
-        };
-
-        let [surface_primary, surface_secondary, surface_tertiary] = colors;
+    pub fn new(config: ColorSchemeConfig) -> Self {
+        let surface = config.surface;
+        let element = config.element;
 
         Self {
-            surface_accent: EMERALD_600,
-            element_accent: EMERALD_400,
-            surface_primary,
-            surface_secondary,
-            surface_tertiary,
-            element_primary,
-            element_secondary,
-            element_tertiary,
+            surface_accent: EMERALD_800,
+            element_accent: config.accent_color,
+            surface_primary: surface.primary,
+            surface_secondary: surface.secondary,
+            surface_tertiary: surface.tertiary,
+            element_primary: element.primary,
+            element_secondary: element.secondary,
+            element_tertiary: element.tertiary,
             //
             surface_interactive: ZINC_700,
-            surface_interactive_accent: EMERALD_500,
+            surface_interactive_accent: config.accent_color,
             surface_interactive_danger: RUBY_500,
             surface_interactive_success: EMERALD_500,
             surface_interactive_warning: AMBER_500,
             //
-            element_interactive: element_primary,
-            element_interactive_accent: element_secondary,
-            element_interactive_danger: element_secondary,
-            element_interactive_success: element_secondary,
-            element_interactive_warning: element_secondary,
+            element_interactive: element.primary,
+            element_interactive_accent: element.secondary,
+            element_interactive_danger: element.secondary,
+            element_interactive_success: element.secondary,
+            element_interactive_warning: element.secondary,
             //
-            surface_pressed: EMERALD_500,
+            surface_pressed: config.accent_color,
             surface_pressed_accent: EMERALD_700,
             surface_pressed_danger: RUBY_700,
             surface_pressed_success: EMERALD_700,
             surface_pressed_warning: AMBER_700,
             //
-            element_pressed: element_secondary,
-            element_pressed_accent: element_secondary,
-            element_pressed_danger: element_secondary,
-            element_pressed_success: element_secondary,
-            element_pressed_warning: element_secondary,
+            element_pressed: element.secondary,
+            element_pressed_accent: element.secondary,
+            element_pressed_danger: element.secondary,
+            element_pressed_success: element.secondary,
+            element_pressed_warning: element.secondary,
             //
             surface_hover: ZINC_600,
             surface_hover_accent: EMERALD_300,
@@ -151,11 +221,11 @@ impl ColorPalette {
             surface_hover_success: EMERALD_600,
             surface_hover_warning: AMBER_700,
             //
-            element_hover: element_primary,
-            element_hover_accent: element_secondary,
-            element_hover_danger: element_secondary,
-            element_hover_success: element_secondary,
-            element_hover_warning: element_secondary,
+            element_hover: element.primary,
+            element_hover_accent: element.secondary,
+            element_hover_danger: element.secondary,
+            element_hover_success: element.secondary,
+            element_hover_warning: element.secondary,
             //
             surface_disabled: ZINC_800,
             surface_disabled_danger: RUBY_800,
@@ -174,11 +244,5 @@ impl ColorPalette {
             element_warning: AMBER_300,
             element_danger: RUBY_300,
         }
-    }
-}
-
-impl Default for ColorPalette {
-    fn default() -> Self {
-        Self::new()
     }
 }

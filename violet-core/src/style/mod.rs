@@ -355,6 +355,7 @@ impl Default for IconSet {
 /// Easily setup the default stylesheet
 pub struct StylesheetOptions {
     pub icons: IconSet,
+    pub colors: ColorSchemeConfig,
     pub base_spacing: f32,
     pub base_text_size: f32,
 }
@@ -366,6 +367,11 @@ impl StylesheetOptions {
 
     pub fn with_icons(mut self, icons: IconSet) -> Self {
         self.icons = icons;
+        self
+    }
+
+    pub fn with_colors(mut self, colors: ColorSchemeConfig) -> Self {
+        self.colors = colors;
         self
     }
 
@@ -383,7 +389,7 @@ impl StylesheetOptions {
     pub fn build(self) -> EntityBuilder {
         let mut builder = Entity::builder();
 
-        ColorPalette::new().install(&mut builder);
+        ColorPalette::new(self.colors).install(&mut builder);
 
         builder
             // spacing
@@ -414,6 +420,7 @@ impl Default for StylesheetOptions {
     fn default() -> Self {
         Self {
             icons: Default::default(),
+            colors: ColorSchemeConfig::default(),
             base_spacing: 4.0,
             base_text_size: 16.0,
         }
