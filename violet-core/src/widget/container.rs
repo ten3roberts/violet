@@ -8,8 +8,8 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        default_corner_radius, spacing_medium, spacing_small, surface_secondary, surface_tertiary,
-        Background, SizeExt, StyleExt, WidgetSizeProps,
+        default_corner_radius, default_separation, spacing_medium, spacing_small,
+        surface_secondary, surface_tertiary, Background, SizeExt, StyleExt, WidgetSizeProps,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -104,8 +104,9 @@ impl<W> Stack<W> {
         self
     }
 
-    pub fn with_grow(mut self, grow: impl Into<BVec2>) -> Self {
-        self.layout.grow = grow.into();
+    // Preserved minimum size in the given axis, even if clipping is enabled
+    pub fn with_preserve_size(mut self, preserve_size: impl Into<BVec2>) -> Self {
+        self.layout.preserve_size = preserve_size.into();
         self
     }
 }
@@ -270,7 +271,7 @@ impl<W: Widget> Widget for Movable<W> {
                 move |scope, input| {
                     if input.state == ElementState::Pressed {
                         let cursor_pos = input.cursor.local_pos;
-                        tracing::info!(?cursor_pos, "grab");
+                        tracing::debug!(?cursor_pos, "grab");
                         *start_offset.lock_mut() = cursor_pos;
                     } else {
                         (self.on_drop)(scope, input.cursor.absolute_pos);
@@ -352,8 +353,8 @@ pub fn centered_horizontal<W: WidgetCollection>(widget: W) -> Stack<W> {
 pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_background(Background::new(surface_secondary()))
-        .with_padding(spacing_medium())
-        .with_margin(spacing_medium())
+        .with_padding(default_separation())
+        .with_margin(default_separation())
         .with_corner_radius(default_corner_radius())
 }
 
@@ -364,7 +365,7 @@ pub fn raised_card<W: WidgetCollection>(widget: W) -> Stack<W> {
 /// Inset content area
 pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        .with_padding(spacing_medium())
+        .with_padding(default_separation())
         .with_background(Background::new(surface_secondary()))
 }
 

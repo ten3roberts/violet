@@ -201,8 +201,8 @@ fn inputs() -> impl Widget {
     dialog(
         "Input",
         col((
-            LabeledSlider::new(Mutable::new(50), 0, 100),
             LabeledSlider::new(Mutable::new(50), 0, 100).editable(true),
+            LabeledSlider::new(Mutable::new(10.0), 0.1, 100.0).editable(true).logarithmic().precision(2),
             TextInput::new(Mutable::new("Text Input".to_string())),
             row((
                 row((0..10)
