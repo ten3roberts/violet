@@ -396,7 +396,20 @@ impl StylesheetOptions {
             .set(spacing_small(), Edges::even(self.base_spacing))
             .set(spacing_medium(), Edges::even(self.base_spacing * 2.0))
             .set(spacing_large(), Edges::even(self.base_spacing * 4.0))
+            .set(default_separation(), Edges::even(self.base_spacing))
             .set(scrollbar_size(), self.base_spacing * 2.0)
+            .set(
+                slider_track_size(),
+                Unit::px2(self.base_spacing * 64.0, self.base_spacing),
+            )
+            .set(
+                slider_thumb_size(),
+                Unit::px2(self.base_spacing * 3.0, self.base_spacing * 3.0),
+            )
+            .set(
+                dropdown_size(),
+                Unit::px2(self.base_spacing * 32.0, self.base_spacing * 8.0),
+            )
             .set(default_corner_radius(), Unit::px(4.0))
             // text size
             .set(text_small(), self.base_text_size)
@@ -441,6 +454,11 @@ flax::component! {
     pub spacing_large: Edges,
 
     pub default_corner_radius: Unit<f32>,
+    pub default_separation: Edges,
+
+    pub slider_track_size: Unit<Vec2>,
+    pub slider_thumb_size: Unit<Vec2>,
+    pub dropdown_size: Unit<Vec2>,
 
     pub icon_chevron: String,
     pub icon_spinner: String,
@@ -454,4 +472,6 @@ flax::component! {
     pub text_small: f32,
     pub text_medium: f32,
     pub text_large: f32,
+
+
 }

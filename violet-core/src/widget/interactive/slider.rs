@@ -57,6 +57,13 @@ impl Default for SliderStyle {
     }
 }
 
+/// Determines how the slider maps values to positions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScaleMode {
+    Linear,
+    Logarithmic,
+}
+
 pub struct Slider<V> {
     style: SliderStyle,
     value: Arc<dyn Send + Sync + StateDuplex<Item = V>>,
@@ -64,6 +71,7 @@ pub struct Slider<V> {
     max: V,
     transform: Option<Box<dyn Send + Sync + Fn(V) -> V>>,
     scrub_mode: bool,
+    scale_mode: ScaleMode,
 }
 
 impl<V> Slider<V> {
@@ -78,6 +86,7 @@ impl<V> Slider<V> {
             style: Default::default(),
             transform: None,
             scrub_mode: false,
+            scale_mode: ScaleMode::Linear,
         }
     }
 
@@ -102,6 +111,12 @@ impl<V> Slider<V> {
         self.scrub_mode = scrub_mode;
         self
     }
+
+    /// Enable logarithmic scaling for this slider
+    pub fn logarithmic(mut self) -> Self {
+        self.scale_mode = ScaleMode::Logarithmic;
+        self
+    }
 }
 
 impl<V: SliderValue> Widget for Slider<V> {
@@ -121,69 +136,110 @@ impl<V: SliderValue> Widget for Slider<V> {
                 .with_corner_radius(default_corner_radius()),
         );
 
-        let min = self.min.to_progress();
-        let max = self.max.to_progress();
+        #[derive(Clone, Copy)]
+        struct ScaleParams {
+            min: f32,
+            max: f32,
+            mode: ScaleMode,
+        }
 
+        let raw_min = self.min.to_progress();
+        let min = match self.scale_mode {
+            ScaleMode::Logarithmic => {
+                if raw_min < 1e-3 {
+                    tracing::warn!("Logarithmic slider min clamped from {} to 1e-3", raw_min);
+                    1e-3
+                } else {
+                    raw_min
+                }
+            }
+            ScaleMode::Linear => raw_min,
+        };
+        let max = self.max.to_progress();
+        let mode = self.scale_mode;
+        let scale_params = ScaleParams { min, max, mode };
         fn get_progress_value<V: SliderValue>(
             entity: &EntityRef,
             track_pos: f32,
-            min: f32,
-            max: f32,
+            params: ScaleParams,
         ) -> V {
             let rect = entity.get_copy(rect()).unwrap();
             let padding = entity.get_copy(padding()).unwrap_or_default();
+            let norm =
+                ((track_pos - padding.left) / (rect.size().x - padding.size().x)).clamp(0.0, 1.0);
 
-            let value = ((track_pos - padding.left) / (rect.size().x - padding.size().x))
-                .clamp(0.0, 1.0)
-                * (max - min)
-                + min;
-
+            let value = match params.mode {
+                ScaleMode::Linear => norm * (params.max - params.min) + params.min,
+                ScaleMode::Logarithmic => {
+                    let ln_min = params.min.ln();
+                    let ln_max = params.max.ln();
+                    let ln_value = norm * (ln_max - ln_min) + ln_min;
+                    ln_value.exp()
+                }
+            };
             V::from_progress(value)
         }
 
-        fn get_slider_position(entity: &EntityRef, progress: f32, min: f32, max: f32) -> f32 {
+        fn get_slider_position(entity: &EntityRef, current_value: f32, params: ScaleParams) -> f32 {
             let rect = entity.get_copy(rect()).unwrap();
             let padding = entity.get_copy(padding()).unwrap_or_default();
             let size = rect.size().x - padding.size().x;
-
-            (progress - min) * size / (max - min) + padding.left
+            let norm = match params.mode {
+                ScaleMode::Linear => (current_value - params.min) / (params.max - params.min),
+                ScaleMode::Logarithmic => {
+                    let ln_min = params.min.ln();
+                    let ln_max = params.max.ln();
+                    let ln_value = current_value.max(params.min).ln();
+                    let norm = (ln_value - ln_min) / (ln_max - ln_min);
+                    norm
+                }
+            };
+            let pos = norm.clamp(0.0, 1.0) * size + padding.left;
+            pos
         }
 
         fn update_scrubbed<V: SliderValue>(
             entity: &EntityRef,
-            drag_distance: f32,
-            start_value: f32,
-            min: f32,
-            max: f32,
+            current_pos: f32,
+            params: ScaleParams,
         ) -> V {
             let rect = entity.get_copy(rect()).unwrap();
             let padding = entity.get_copy(padding()).unwrap_or_default();
-
-            let value = (drag_distance / (rect.size().x - padding.size().x)) * (max - min) + min;
-
-            V::from_progress((start_value + value).clamp(min, max))
+            let norm = ((current_pos - padding.left) / (rect.size().x - padding.size().x)).clamp(0.0, 1.0);
+            let value = match params.mode {
+                ScaleMode::Linear => norm * (params.max - params.min) + params.min,
+                ScaleMode::Logarithmic => {
+                    let ln_min = params.min.ln();
+                    let ln_max = params.max.ln();
+                    let ln_value = norm * (ln_max - ln_min) + ln_min;
+                    ln_value.exp()
+                }
+            };
+            V::from_progress(value)
         }
 
         if self.style.fill {
             let fill = SliderFill {
                 value: self.value.stream(),
-                min,
-                max,
+                min: min, // use clamped min
+                max: max,
                 rect_id: track,
                 height: self.style.track_size.px.y,
                 color: fill_color,
+                scale_mode: self.scale_mode,
             };
             scope.attach(Float::new(fill));
         }
 
         let handle = SliderHandle {
             value: self.value.stream(),
-            min,
-            max,
+            min: min, // use clamped min
+            max: max,
             rect_id: track,
             corner_radius: self.style.handle_corner_radius,
             handle_color,
             handle_size,
+            scale_mode: self.scale_mode,
         };
 
         scope.attach(Float::new(handle));
@@ -203,12 +259,12 @@ impl<V: SliderValue> Widget for Slider<V> {
             .set(interactive(), ())
             .on_event(on_mouse_input(), {
                 to_owned![value, drag_start];
+                let params = scale_params;
                 move |scope, input| {
                     if input.state == ElementState::Pressed {
-                        let progress =
-                            get_progress_value(scope, input.cursor.local_pos.x, min, max);
+                        let progress = get_progress_value(scope, input.cursor.local_pos.x, params);
                         if let Ok(current_value) = scope.get(current_value()) {
-                            let pos = get_slider_position(scope, *current_value, min, max);
+                            let pos = get_slider_position(scope, *current_value, params);
 
                             if (pos - input.cursor.local_pos.x).abs() < 16.0 {
                                 drag_start.set(Some((input.cursor.local_pos.x, *current_value)));
@@ -224,12 +280,13 @@ impl<V: SliderValue> Widget for Slider<V> {
             })
             .on_event(on_cursor_move(), {
                 to_owned![value];
+                let params = scale_params;
                 move |scope, input| {
                     let drag_start = &mut *drag_start.lock_mut();
-                    let progress = if let Some((start, start_value)) = drag_start {
-                        update_scrubbed(scope, input.local_pos.x - *start, *start_value, min, max)
+                    let progress = if let Some((_start, _start_value)) = drag_start {
+                        update_scrubbed(scope, input.local_pos.x, params)
                     } else {
-                        get_progress_value(scope, input.local_pos.x, min, max)
+                        get_progress_value(scope, input.local_pos.x, params)
                     };
 
                     value.send(progress);
@@ -270,6 +327,7 @@ struct SliderHandle<V> {
     max: f32,
     rect_id: Entity,
     corner_radius: Unit<f32>,
+    scale_mode: ScaleMode,
 }
 
 impl<V: SliderValue> Widget for SliderHandle<V> {
@@ -282,12 +340,23 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
             rect_size.set(v.map(|v| v.size()));
         });
 
+        let scale_mode = self.scale_mode;
         scope.spawn_effect(StreamEffect::new(update, {
             move |scope: &mut Scope<'_>, (value, size): (V, Option<Vec2>)| {
                 if let Some(size) = size {
-                    let pos = (value.to_progress().clamp(self.min, self.max) - self.min) * size.x
-                        / (self.max - self.min);
-
+                    let value_f32 = value.to_progress().clamp(self.min, self.max);
+                    let pos = match scale_mode {
+                        ScaleMode::Linear => {
+                            (value_f32 - self.min) * size.x / (self.max - self.min)
+                        }
+                        ScaleMode::Logarithmic => {
+                            let ln_min = self.min.ln();
+                            let ln_max = self.max.ln();
+                            let ln_value = value_f32.max(self.min).ln();
+                            let norm = (ln_value - ln_min) / (ln_max - ln_min);
+                            norm.clamp(0.0, 1.0) * size.x
+                        }
+                    };
                     scope.entity().update_dedup(offset(), Unit::px2(pos, 0.0));
                 }
             }
@@ -311,6 +380,7 @@ struct SliderFill<V> {
     min: f32,
     max: f32,
     rect_id: Entity,
+    scale_mode: ScaleMode,
 }
 
 impl<V: SliderValue> Widget for SliderFill<V> {
@@ -323,16 +393,25 @@ impl<V: SliderValue> Widget for SliderFill<V> {
             rect_size.set(v.map(|v| v.size()));
         });
 
+        let scale_mode = self.scale_mode;
         scope.spawn_effect(StreamEffect::new(update, {
             move |scope: &mut Scope<'_>, (value, outer_size): (V, Option<Vec2>)| {
                 if let Some(outer_size) = outer_size {
-                    let pos = (value.to_progress().clamp(self.min, self.max) - self.min)
-                        * outer_size.x
-                        / (self.max - self.min);
-
+                    let value_f32 = value.to_progress().clamp(self.min, self.max);
+                    let pos = match scale_mode {
+                        ScaleMode::Linear => {
+                            (value_f32 - self.min) * outer_size.x / (self.max - self.min)
+                        }
+                        ScaleMode::Logarithmic => {
+                            let ln_min = self.min.ln();
+                            let ln_max = self.max.ln();
+                            let ln_value = value_f32.max(self.min).ln();
+                            let norm = (ln_value - ln_min) / (ln_max - ln_min);
+                            norm.clamp(0.0, 1.0) * outer_size.x
+                        }
+                    };
                     let entity = scope.entity();
                     entity.update_dedup(min_size(), Unit::px2(pos, self.height));
-                    // scope.entity().update_dedup(offset, Unit::px2(pos, 0.0));
                 }
             }
         }));
@@ -436,6 +515,7 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> LabeledSlider<V>
                 max,
                 transform: None,
                 scrub_mode: false,
+                scale_mode: ScaleMode::Linear,
             },
             editable: false,
             rounding: None,
@@ -458,6 +538,18 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> LabeledSlider<V>
     /// Scrub mode allows dragging the slider handle anywhere on the screen to change the value
     pub fn with_scrub_mode(mut self, scrub_mode: bool) -> Self {
         self.slider.scrub_mode = scrub_mode;
+        self
+    }
+
+    /// Set the scale mode (linear or logarithmic) for the inner slider
+    pub fn with_scale_mode(mut self, mode: ScaleMode) -> Self {
+        self.slider.scale_mode = mode;
+        self
+    }
+
+    /// Enable logarithmic scaling for this slider
+    pub fn logarithmic(mut self) -> Self {
+        self.slider.scale_mode = ScaleMode::Logarithmic;
         self
     }
 

@@ -3,11 +3,12 @@ use std::{sync::Arc, time::Duration};
 use futures::StreamExt;
 use futures_signals::signal::{Mutable, SignalExt};
 use glam::{vec2, Vec2, Vec3, Vec3Swizzles};
+use nucleo::{Config, Matcher, Utf32Str};
 
 use crate::{
     components::{offset, opacity, rect, screen_transform},
     state::StateDuplex,
-    style::{icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
+    style::{dropdown_size, icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
     time::sleep,
     to_owned,
     unit::Unit,
@@ -26,7 +27,7 @@ use crate::{
 
 pub struct Dropdown<T, I> {
     items: I,
-    searcheable: Option<Arc<dyn Fn(&T, &str) -> bool + Send + Sync>>,
+    searchable: Option<Arc<dyn Fn(&T) -> String + Send + Sync>>,
     selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
 }
 
@@ -43,15 +44,15 @@ where
         Self {
             items,
             selection: Arc::new(selection),
-            searcheable: None,
+            searchable: None,
         }
     }
 
-    pub fn searcheable(
+    pub fn searchable(
         mut self,
-        search_fn: impl 'static + Fn(&T, &str) -> bool + Send + Sync,
+        search_fn: impl 'static + Fn(&T) -> String + Send + Sync,
     ) -> Self {
-        self.searcheable = Some(Arc::new(search_fn));
+        self.searchable = Some(Arc::new(search_fn));
         self
     }
 }
@@ -78,6 +79,7 @@ where
             .stylesheet()
             .get_clone(icon_search())
             .unwrap_or_else(|_| ">".to_string());
+
         let screen_pos = Mutable::new(Vec2::ZERO);
 
         scope.monitor(screen_transform(), {
@@ -108,12 +110,18 @@ where
                     items: items.clone(),
                     width: rect.size().x,
                     selection: self.selection.clone(),
-                    filter_fn: self.searcheable.clone(),
+                    search_fn: self.searchable.clone(),
                     search_icon: search_icon.clone(),
                 });
 
                 current_dropdown.set(Some(CloseOnDropHandle::new(token)));
             })
+            .with_min_size(
+                scope
+                    .stylesheet()
+                    .get_copy(dropdown_size())
+                    .unwrap_or_default(),
+            )
             .mount(scope)
     }
 }
@@ -122,7 +130,7 @@ struct DropdownListOverlay<T> {
     position: Vec2,
     width: f32,
     items: Arc<Vec<T>>,
-    filter_fn: Option<Arc<dyn Fn(&T, &str) -> bool + Send + Sync>>,
+    search_fn: Option<Arc<dyn Fn(&T) -> String + Send + Sync>>,
     selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
     search_icon: String,
 }
@@ -137,16 +145,25 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
                 .set(offset(), Unit::px(self.position))
                 .set(opacity(), 0.9);
 
-            if let Some(filter_fn) = self.filter_fn {
+            if let Some(search_fn) = self.search_fn {
                 let filter_term = Mutable::new(String::new());
 
                 let items = throttle_skip(
                     filter_term
                         .signal_ref(move |filter| {
+                            let mut matcher = Matcher::new(Config::DEFAULT);
+                            let mut haystack_buf = Vec::new();
+                            let mut needle_buf = Vec::new();
+                            let needle = Utf32Str::new(filter, &mut needle_buf);
                             self.items
                                 .iter()
                                 .enumerate()
-                                .filter(|(_, item)| filter_fn(item, filter))
+                                .filter(|(_, item)| {
+                                    haystack_buf.clear();
+                                    let text = search_fn(item);
+                                    let haystack = Utf32Str::new(&text, &mut haystack_buf);
+                                    matcher.fuzzy_match(haystack, needle).is_some()
+                                })
                                 .map(|(i, item)| {
                                     to_owned!(items = self.items);
                                     Button::new(item.clone())
@@ -166,7 +183,7 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
                     col((
                         row((
                             label(self.search_icon),
-                            TextInput::new(filter_term).with_maximize(Vec2::X),
+                            TextInput::new(filter_term).with_maximize(Vec2::X).request_focus(),
                         )),
                         ScrollArea::vertical(StreamWidget::new(items))
                             .with_max_size(Unit::px2(self.width, 100.0)),

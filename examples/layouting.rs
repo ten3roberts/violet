@@ -1,14 +1,17 @@
+use core::f32;
+
 use glam::Vec2;
-use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    style::{base_colors::*, surface_primary, surface_secondary, SizeExt, StylesheetOptions},
+    style::{
+        base_colors::*, spacing_medium, surface_primary, surface_secondary, SizeExt,
+        StylesheetOptions,
+    },
     unit::Unit,
-    widget::{bold, card, col, label, pill, raised_card, row, Button, Rectangle},
-    Edges, Widget,
+    widget::{col, row, Rectangle, Stack},
+    Widget, WidgetCollection,
 };
-use violet_lucide::icons::*;
 use violet_wgpu::renderer::MainRendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
@@ -31,54 +34,36 @@ pub fn main() -> anyhow::Result<()> {
                 .build(),
         )
         .with_renderer_config(MainRendererConfig { debug_mode: false })
-        .run(main_ui())
+        .run(layout_using_flow())
 }
 
-fn main_ui() -> impl Widget {
+fn layout_using_flow() -> impl Widget {
+    fn container(content: impl WidgetCollection) -> Stack<impl WidgetCollection> {
+        Stack::new(content).with_background(surface_secondary())
+        // .with_margin(spacing_small())
+    }
     row((
         col((
-            card(()).with_maximize(Vec2::ONE),
-            window(LUCIDE_LIST_TREE, "Bottom Panel", card(())),
+            container(())
+                .with_margin(spacing_medium())
+                .with_background(STONE_700)
+                .with_maximize(Vec2::ONE)
+                // .with_min_size(Unit::px2(0.0, 200.0))
+                .with_size(Unit::px2(600.0, 400.0)),
+            Stack::new(Rectangle::new(SAPPHIRE_500).with_min_size(Unit::px2(260.0, 40.0))),
+            container(())
+                .with_margin(spacing_medium())
+                .with_background(RUBY_800)
+                .with_maximize(Vec2::ONE),
+            // .with_size(Unit::px2(1.0, 1.0)),
         )),
-        // window(
-        //     LUCIDE_SATELLITE,
-        //     "Right Panel",
-        //     col(
-        //         // Slider::new(Mutable::new(50), 0, 100),
-        //         // Slider::new(Mutable::new(20), 0, 100),
-        //         // col((
-        //         //         row((Stack::new(label("Value")).with_maximize(Vec2::X), TextInput::new(Mutable::new("Editable".to_string())).input_box())),
-        //         //         )),
-        //         raised_card(label("lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.").with_wrap(cosmic_text::Wrap::WordOrGlyph))
-        //     ),
-        // )
-        // .with_max_size(Unit::px2(400.0, f32::MAX))
-        // .with_maximize(Vec2::Y),
+        container(())
+            .with_margin(spacing_medium())
+            .with_background(STONE_900)
+            .with_max_size(Unit::px2(40.0, f32::MAX))
+            .with_min_size(Unit::px2(40.0, 0.0))
+            .with_maximize(Vec2::Y),
     ))
     .with_background(surface_primary())
     .with_contain_margins(true)
-}
-
-fn window(
-    icon: impl Into<String>,
-    title: impl Into<String>,
-    content: impl Widget,
-) -> impl Widget + SizeExt {
-    card(
-        col((
-            row((
-                label(icon).with_margin(Edges::right(8.0)),
-                bold(title),
-                // Rectangle::new(Srgba::new(0.0, 0.0, 0.0, 0.0)).with_maximize(Vec2::X),
-                pill(row((
-                    Button::label(LUCIDE_MAXIMIZE).success(),
-                    Button::label(LUCIDE_MINUS).warning(),
-                    Button::label(LUCIDE_X).danger(),
-                ))),
-            ))
-            .center(),
-            content,
-        )), // .with_stretch(true),
-    )
-    .with_background(surface_secondary())
 }

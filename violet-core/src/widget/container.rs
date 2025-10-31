@@ -8,8 +8,8 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        default_corner_radius, spacing_medium, spacing_small, surface_secondary, surface_tertiary,
-        Background, SizeExt, StyleExt, WidgetSizeProps,
+        default_corner_radius, default_separation, spacing_small, surface_secondary,
+        surface_tertiary, Background, SizeExt, StyleExt, WidgetSizeProps,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -104,8 +104,9 @@ impl<W> Stack<W> {
         self
     }
 
-    pub fn with_grow(mut self, grow: impl Into<BVec2>) -> Self {
-        self.layout.grow = grow.into();
+    // Preserved minimum size in the given axis, even if clipping is enabled
+    pub fn with_preserve_size(mut self, preserve_size: impl Into<BVec2>) -> Self {
+        self.layout.preserve_size = preserve_size.into();
         self
     }
 }
@@ -221,8 +222,8 @@ impl<W: WidgetCollection> Widget for List<W> {
     }
 }
 
-type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2>;
-type OnDrop = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2)>;
+type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, Vec2) -> Vec2>;
+type OnDrop = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, Vec2)>;
 
 /// Allows a widget to be dragged around using the mouse.
 ///
@@ -246,13 +247,16 @@ impl<W> Movable<W> {
 
     pub fn on_move(
         mut self,
-        on_move: impl 'static + Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2,
+        on_move: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, Vec2) -> Vec2,
     ) -> Self {
         self.on_move = Box::new(on_move);
         self
     }
 
-    pub fn on_drop(mut self, on_drop: impl 'static + Send + Sync + FnMut(&ScopeRef, Vec2)) -> Self {
+    pub fn on_drop(
+        mut self,
+        on_drop: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, Vec2),
+    ) -> Self {
         self.on_drop = Box::new(on_drop);
         self
     }
@@ -270,7 +274,7 @@ impl<W: Widget> Widget for Movable<W> {
                 move |scope, input| {
                     if input.state == ElementState::Pressed {
                         let cursor_pos = input.cursor.local_pos;
-                        tracing::info!(?cursor_pos, "grab");
+                        tracing::debug!(?cursor_pos, "grab");
                         *start_offset.lock_mut() = cursor_pos;
                     } else {
                         (self.on_drop)(scope, input.cursor.absolute_pos);
@@ -352,8 +356,8 @@ pub fn centered_horizontal<W: WidgetCollection>(widget: W) -> Stack<W> {
 pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
         .with_background(Background::new(surface_secondary()))
-        .with_padding(spacing_medium())
-        .with_margin(spacing_medium())
+        .with_padding(default_separation())
+        .with_margin(default_separation())
         .with_corner_radius(default_corner_radius())
 }
 
@@ -364,7 +368,7 @@ pub fn raised_card<W: WidgetCollection>(widget: W) -> Stack<W> {
 /// Inset content area
 pub fn panel<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        .with_padding(spacing_medium())
+        .with_padding(default_separation())
         .with_background(Background::new(surface_secondary()))
 }
 

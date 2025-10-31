@@ -10,7 +10,7 @@ pub struct CachedValue<T> {
     pub value: T,
 }
 
-const ENABLE: bool = false;
+const ENABLE: bool = true;
 pub const LAYOUT_TOLERANCE: f32 = 0.1;
 
 impl<T> CachedValue<T> {
@@ -141,21 +141,21 @@ pub(crate) fn validate_cached_query(
 
     let hints = &value.hints;
     #[allow(clippy::nonminimal_bool)]
-    if hints.can_grow.x && cache.limits.max_size.x < limits.max_size.x
-        || (hints.can_grow.x && cache.limits.max_size.y < limits.max_size.y)
+    if hints.can_grow.x && cache.limits.layout_max_size.x < limits.layout_max_size.x
+        || (hints.can_grow.x && cache.limits.layout_max_size.y < limits.layout_max_size.y)
     {
-        // tracing::info!(%hints.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated by can_grow");
+        // tracing::debug!(%hints.can_grow, ?cache.limits.max_size, %limits.max_size, "invalidated by can_grow");
     }
 
-    min_size.x >= limits.min_size.x - LAYOUT_TOLERANCE
-        && min_size.y >= limits.min_size.y - LAYOUT_TOLERANCE
+    min_size.x >= limits.layout_min_size.x - LAYOUT_TOLERANCE
+        && min_size.y >= limits.layout_min_size.y - LAYOUT_TOLERANCE
         // Min may be larger than preferred for the orthogonal optimization direction
-        && min_size.x <= limits.max_size.x + LAYOUT_TOLERANCE
-        && min_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && preferred_size.x <= limits.max_size.x + LAYOUT_TOLERANCE
-        && preferred_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && (!hints.can_grow.x || cache.limits.max_size.x >= limits.max_size.x - LAYOUT_TOLERANCE)
-        && (!hints.can_grow.y || cache.limits.max_size.y >= limits.max_size.y - LAYOUT_TOLERANCE)
+        && min_size.x <= limits.layout_max_size.x + LAYOUT_TOLERANCE
+        && min_size.y <= limits.layout_max_size.y + LAYOUT_TOLERANCE
+        && preferred_size.x <= limits.layout_max_size.x + LAYOUT_TOLERANCE
+        && preferred_size.y <= limits.layout_max_size.y + LAYOUT_TOLERANCE
+        && (!hints.can_grow.x || cache.limits.layout_max_size.x >= limits.layout_max_size.x - LAYOUT_TOLERANCE)
+        && (!hints.can_grow.y || cache.limits.layout_max_size.y >= limits.layout_max_size.y - LAYOUT_TOLERANCE)
         && (!hints.relative_size.x || (cache.content_area.x - content_area.x).abs() < LAYOUT_TOLERANCE)
         && (!hints.relative_size.y || (cache.content_area.y - content_area.y).abs() < LAYOUT_TOLERANCE)
 }
@@ -169,15 +169,15 @@ pub(crate) fn validate_cached_layout(
 ) -> bool {
     let value = &cache.value;
 
-    let size = value.rect.size().min(cache.limits.max_size);
+    let size = value.rect.size().min(cache.limits.layout_max_size);
 
-    size.x >= limits.min_size.x - LAYOUT_TOLERANCE
-        && size.y >= limits.min_size.y - LAYOUT_TOLERANCE
+    size.x >= limits.layout_min_size.x - LAYOUT_TOLERANCE
+        && size.y >= limits.layout_min_size.y - LAYOUT_TOLERANCE
         // Min may be larger than preferred for the orthogonal optimization direction
-        && size.x <= limits.max_size.x + LAYOUT_TOLERANCE
-        && size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && (!value.can_grow.x || cache.limits.max_size.x >= limits.max_size.x - LAYOUT_TOLERANCE)
-        && (!value.can_grow.y || cache.limits.max_size.y >= limits.max_size.y - LAYOUT_TOLERANCE)
+        && size.x <= limits.layout_max_size.x + LAYOUT_TOLERANCE
+        && size.y <= limits.layout_max_size.y + LAYOUT_TOLERANCE
+        && (!value.can_grow.x || cache.limits.layout_max_size.x >= limits.layout_max_size.x - LAYOUT_TOLERANCE)
+        && (!value.can_grow.y || cache.limits.layout_max_size.y >= limits.layout_max_size.y - LAYOUT_TOLERANCE)
         && (!relative_size.x || (cache.content_area.x - content_area.x).abs() < LAYOUT_TOLERANCE)
         && (!relative_size.y || (cache.content_area.y - content_area.y).abs() < LAYOUT_TOLERANCE)
 }
@@ -195,15 +195,15 @@ pub(crate) fn validate_cached_row(
 
     // tracing::debug!( ?preferred_size, %cache.limits.max_size, %limits.max_size, "validate_cached_row");
 
-    min_size.x >= limits.min_size.x - LAYOUT_TOLERANCE
-        && min_size.y >= limits.min_size.y - LAYOUT_TOLERANCE
+    min_size.x >= limits.layout_min_size.x - LAYOUT_TOLERANCE
+        && min_size.y >= limits.layout_min_size.y - LAYOUT_TOLERANCE
         // Min may be larger than preferred for the orthogonal optimization direction
-        && min_size.x <= limits.max_size.x + LAYOUT_TOLERANCE
-        && min_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && preferred_size.x <= limits.max_size.x + LAYOUT_TOLERANCE
-        && preferred_size.y <= limits.max_size.y + LAYOUT_TOLERANCE
-        && (!hints.can_grow.x || cache.limits.max_size.x >= limits.max_size.x - LAYOUT_TOLERANCE)
-        && (!hints.can_grow.y || cache.limits.max_size.y >= limits.max_size.y - LAYOUT_TOLERANCE)
+        && min_size.x <= limits.layout_max_size.x + LAYOUT_TOLERANCE
+        && min_size.y <= limits.layout_max_size.y + LAYOUT_TOLERANCE
+        && preferred_size.x <= limits.layout_max_size.x + LAYOUT_TOLERANCE
+        && preferred_size.y <= limits.layout_max_size.y + LAYOUT_TOLERANCE
+        && (!hints.can_grow.x || cache.limits.layout_max_size.x >= limits.layout_max_size.x - LAYOUT_TOLERANCE)
+        && (!hints.can_grow.y || cache.limits.layout_max_size.y >= limits.layout_max_size.y - LAYOUT_TOLERANCE)
         && (!hints.relative_size.x || (cache.content_area.x - content_area.x).abs() < LAYOUT_TOLERANCE)
         && (!hints.relative_size.y || (cache.content_area.y - content_area.y).abs() < LAYOUT_TOLERANCE)
 }

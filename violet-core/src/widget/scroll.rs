@@ -8,12 +8,13 @@ use crate::{
     input::{interactive, on_scroll},
     state::{StateStream, StateWrite},
     style::{
-        default_corner_radius, scrollbar_size, surface_interactive_accent, Background, ResolvableStyle, SizeExt,
+        default_corner_radius, scrollbar_size, surface_interactive_accent, Background, SizeExt,
         WidgetSizeProps,
     },
     to_owned,
     unit::Unit,
-    utils::zip_latest, Scope, Widget,
+    utils::zip_latest,
+    Scope, Widget,
 };
 
 /// Wraps a widget in a scroll area.
@@ -119,13 +120,10 @@ impl<W: Widget> Widget for ScrollArea<W> {
                     content_size,
                 })
                 .with_clip(self.directions)
-                .with_grow(BVec2::TRUE)
+                .with_preserve_size(BVec2::TRUE)
                 .mount(scope)
             }
         };
-
-        let stylesheet = scope.stylesheet();
-        let padding = self.size.padding.unwrap_or_default().resolve(stylesheet);
 
         self.size.mount(scope);
 

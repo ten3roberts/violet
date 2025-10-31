@@ -82,7 +82,7 @@ impl AppBuilder {
 
     /// Add a font to the text system
     pub fn with_font(mut self, font: Source) -> Self {
-        self.fonts.push(font);
+        self.fonts.insert(0, font);
         self
     }
 
@@ -113,9 +113,7 @@ impl AppBuilder {
         AppInstance::new(
             root,
             self.allow_resize,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(
-                self.fonts.into_iter().rev(),
-            ))),
+            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
             self.stylesheet
                 .unwrap_or_else(|| StylesheetOptions::new().build()),
         )
@@ -625,7 +623,7 @@ fn setup_puffin() -> Option<puffin_http::Server> {
         }
     };
 
-    tracing::info!("Puffin running at {server_addr}");
+    tracing::debug!("Puffin running at {server_addr}");
     puffin::set_scopes_on(true);
     Some(server)
 }

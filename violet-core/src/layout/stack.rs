@@ -2,12 +2,13 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
-use super::{
-    apply_layout, resolve_pos, ApplyLayoutArgs, LayoutBlock, LayoutLimits, QueryArgs, Sizing,
-};
+use super::{apply_layout, resolve_pos, LayoutBlock, LayoutLimits, QueryArgs, Sizing};
 use crate::{
     components::{self, item_align, LayoutAlignment},
-    layout::{query_layout_size, LayoutArgs, SizingHints},
+    layout::{
+        clamp_maximize, query_layout_size, ContainerLayoutArgs, ContainerQueryArgs, LayoutArgs,
+        SizingHints,
+    },
     Edges, Rect,
 };
 
@@ -33,7 +34,7 @@ use crate::{
 pub struct StackLayout {
     pub alignment: LayoutAlignment,
     pub clip: BVec2,
-    pub grow: BVec2,
+    pub preserve_size: BVec2,
 }
 
 impl Default for StackLayout {
@@ -41,7 +42,7 @@ impl Default for StackLayout {
         Self {
             alignment: Default::default(),
             clip: Default::default(),
-            grow: BVec2::TRUE,
+            preserve_size: BVec2::FALSE,
         }
     }
 }
@@ -51,7 +52,7 @@ impl StackLayout {
         &self,
         world: &World,
         entity: &EntityRef,
-        args: ApplyLayoutArgs,
+        args: ContainerLayoutArgs,
     ) -> LayoutBlock {
         puffin::profile_function!();
         let _span = tracing::debug_span!("StackLayout::apply", %self.clip, %entity).entered();
@@ -62,14 +63,13 @@ impl StackLayout {
         };
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
-        // let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
 
         let child_limits = LayoutLimits {
             // Wrapping a widget in a stack layout does not change its minimum size, such as for "stretch" widths
             // min_size: args.limits.min_size,
-            min_size: args.limits.min_size,
+            layout_min_size: args.limits.layout_min_size,
             // If clip is enabled, the inner content can have any size
-            max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.max_size,
+            layout_max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.layout_max_size,
         };
 
         let blocks = args
@@ -97,7 +97,7 @@ impl StackLayout {
         let total_size = child_bounds
             .size()
             .max(args.desired_size)
-            .max(args.limits.min_size);
+            .max(args.limits.layout_min_size);
 
         let mut aligned_bounds =
             StackableBounds::from_rect(Rect::from_size_pos(args.desired_size, args.offset));
@@ -107,6 +107,7 @@ impl StackLayout {
         let offset = args.offset;
         let start_position = resolve_pos(entity, args.content_area, total_size);
 
+        let mut maximize = Vec2::ZERO;
         // Position the entities, with the correct alignment and offset
         for (child, block) in blocks {
             let block_size = block.rect.size();
@@ -117,14 +118,17 @@ impl StackLayout {
                     .unwrap_or(self.alignment)
                     .align(total_size, block_size);
 
-            let clip_mask = Rect::from_size(clip * args.limits.max_size + Vec2::MAX * (1.0 - clip))
-                .translate(clip * offset);
+            let clip_mask =
+                Rect::from_size(clip * args.limits.layout_max_size + Vec2::MAX * (1.0 - clip))
+                    .translate(clip * offset);
 
             aligned_bounds = aligned_bounds.merge(&StackableBounds::new(
                 block.rect.translate(local_offset),
                 block.margin,
             ));
 
+            maximize =
+                (maximize + clamp_maximize(block.maximize, args.immediate_max_size)).min(Vec2::ONE);
             can_grow |= block.can_grow;
 
             child.update_dedup(components::rect(), block.rect).unwrap();
@@ -137,26 +141,27 @@ impl StackLayout {
                 .unwrap();
         }
 
-        let rect = aligned_bounds.inner;
+        let child_rect = aligned_bounds.inner;
 
-        let rect = rect
-            .max_size(args.limits.min_size)
-            .min_size(args.limits.max_size * clip + Vec2::MAX * (1.0 - clip));
+        let rect = child_rect
+            .max_size(args.limits.layout_min_size)
+            .min_size(args.limits.layout_max_size * clip + Vec2::MAX * (1.0 - clip));
 
+        // tracing::info!(child_rect=?child_rect.size(), rect=?rect.size(), ?args.limits.max_size);
         let margin = aligned_bounds.margin();
 
-        LayoutBlock::new(rect, margin, can_grow)
+        LayoutBlock::new(rect, margin, can_grow, maximize)
     }
 
     pub(crate) fn query_size(
         &self,
         world: &World,
         children: &[Entity],
-        args: QueryArgs,
+        args: ContainerQueryArgs,
         preferred_size: Vec2,
     ) -> Sizing {
         puffin::profile_function!();
-        let min_rect = Rect::from_size(args.limits.min_size);
+        let min_rect = Rect::from_size(args.limits.layout_min_size);
 
         let mut min_bounds = StackableBounds::from_rect(min_rect);
         let mut preferred_bounds = StackableBounds::from_rect(min_rect);
@@ -165,11 +170,14 @@ impl StackLayout {
         let mut maximize = Vec2::ZERO;
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
-        let grow = vec2(self.grow.x as u32 as f32, self.grow.y as u32 as f32);
 
+        let preserve_size = vec2(
+            (self.preserve_size.x || !self.clip.x) as u32 as f32,
+            (self.preserve_size.y || !self.clip.y) as u32 as f32,
+        );
         let child_limits = LayoutLimits {
-            min_size: args.limits.min_size,
-            max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.max_size,
+            layout_min_size: args.limits.layout_min_size,
+            layout_max_size: clip * Vec2::MAX + (1.0 - clip) * args.limits.layout_max_size,
         };
 
         for &child in children.iter() {
@@ -185,7 +193,8 @@ impl StackLayout {
                 },
             );
 
-            maximize = (maximize + sizing.maximize).min(Vec2::ONE);
+            maximize = (maximize + clamp_maximize(sizing.maximize, args.immediate_max_size))
+                .min(Vec2::ONE);
 
             hints = hints.combine(sizing.hints);
 
@@ -202,15 +211,17 @@ impl StackLayout {
         let preferred_margin = preferred_bounds.margin();
 
         // ensure size is not smaller than min
-        let min = min_rect.max_size(args.limits.min_size);
-        let preferred = preferred_rect.max_size(preferred_size);
+        let min = min_rect.max_size(args.limits.layout_min_size);
+        let desired = preferred_rect.max_size(preferred_size);
 
         // if clip, clamp to limited max size, otherwise, clip to max
-        let scissor_size = args.limits.max_size * grow + Vec2::MAX * (1.0 - grow);
+        let scissor_size = args.limits.layout_max_size * clip + Vec2::MAX * (1.0 - clip);
+
+        let min = min.min_size((preserve_size) * min.size());
 
         Sizing {
-            min: min.min_size((1.0 - grow) * min.size()),
-            desired: preferred.clamp_size(min.size(), scissor_size),
+            min: min,
+            desired: desired.clamp_size(min.size(), scissor_size),
             margin: min_margin.max(preferred_margin),
             hints,
             maximize,

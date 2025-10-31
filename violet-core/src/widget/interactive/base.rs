@@ -233,7 +233,7 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
             if last_click.is_some_and(|v| now.duration_since(v) < double_click_timeout) {
                 // abort normal click
                 click_action.take().map(|v| v.abort());
-                tracing::info!("double click");
+                tracing::debug!("double click");
                 if let Some(double_click) = &mut self.double_click {
                     double_click(scope);
                 }

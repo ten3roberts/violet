@@ -278,7 +278,7 @@ impl<W: 'static + Widget, F: 'static + FnOnce() -> W> Widget for CollapsibleCont
             // scope.set(max_size(), Unit::px2(f32::MAX, new_height));
             // scope.set(min_size(), Unit::px2(0.0, new_height));
 
-            // tracing::info!(
+            // tracing::debug!(
             //     ?collapsed,
             //     ?inner_size,
             //     ?new_height,

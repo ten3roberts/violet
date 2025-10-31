@@ -193,8 +193,8 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
                         QueryArgs {
                             content_area: canvas_rect.size(),
                             limits: LayoutLimits {
-                                min_size: Vec2::ZERO,
-                                max_size: Vec2::MAX,
+                                layout_min_size: Vec2::ZERO,
+                                layout_max_size: Vec2::MAX,
                             },
                             direction: Direction::Horizontal,
                         },
@@ -209,8 +209,8 @@ pub fn layout_system(root: Entity, update_canvas_size: bool) -> BoxedSystem {
                     LayoutArgs {
                         content_area: canvas_rect.size(),
                         limits: LayoutLimits {
-                            min_size: Vec2::ZERO,
-                            max_size: canvas_rect.size(),
+                            layout_min_size: Vec2::ZERO,
+                            layout_max_size: canvas_rect.size(),
                         },
                     },
                 );
