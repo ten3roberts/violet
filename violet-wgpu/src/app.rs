@@ -4,7 +4,7 @@ use cosmic_text::fontdb::Source;
 use flax::{components::name, Entity, EntityBuilder, Schedule, World};
 use glam::{vec2, Vec2};
 use parking_lot::Mutex;
-use tracing::{debug, info};
+use tracing::info;
 use violet_core::{
     animation::update_animations,
     assets::AssetCache,

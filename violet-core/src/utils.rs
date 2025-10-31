@@ -153,15 +153,12 @@ where
         if *p.skip {
             let mut item = None;
 
-            loop {
-                match p.stream.as_mut().poll_next(cx) {
-                    Poll::Ready(Some(v)) => {
-                        item = Some(v);
-                        break;
-                    }
-                    Poll::Ready(None) => return Poll::Ready(None),
-                    Poll::Pending => break,
+            match p.stream.as_mut().poll_next(cx) {
+                Poll::Ready(Some(v)) => {
+                    item = Some(v);
                 }
+                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Pending => {}
             }
 
             p.pending.set(Some((p.future)()));

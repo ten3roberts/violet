@@ -2,9 +2,7 @@ use flax::{Entity, EntityRef, World};
 use glam::{vec2, BVec2, Vec2};
 use itertools::Itertools;
 
-use super::{
-    apply_layout, resolve_pos, ApplyLayoutArgs, LayoutBlock, LayoutLimits, QueryArgs, Sizing,
-};
+use super::{apply_layout, resolve_pos, LayoutBlock, LayoutLimits, QueryArgs, Sizing};
 use crate::{
     components::{self, item_align, LayoutAlignment},
     layout::{
@@ -172,10 +170,6 @@ impl StackLayout {
         let mut maximize = Vec2::ZERO;
 
         let clip = vec2(self.clip.x as u32 as f32, self.clip.y as u32 as f32);
-        let preserve_size = vec2(
-            (self.preserve_size.x || !self.clip.x) as u32 as f32,
-            (self.preserve_size.y || !self.clip.y) as u32 as f32,
-        );
 
         let preserve_size = vec2(
             (self.preserve_size.x || !self.clip.x) as u32 as f32,

@@ -1,17 +1,11 @@
-use glam::Vec2;
-use palette::Srgba;
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    style::{
-        base_colors::*, default_corner_radius, surface_primary, surface_secondary, SizeExt,
-        StylesheetOptions,
-    },
+    style::{base_colors::*, surface_primary, SizeExt, StylesheetOptions},
     unit::Unit,
-    widget::{bold, card, col, label, pill, raised_card, row, Button, Rectangle},
+    widget::{col, label, pill, row, Rectangle},
     Edges, Widget,
 };
-use violet_lucide::icons::*;
 use violet_wgpu::renderer::MainRendererConfig;
 
 pub fn main() -> anyhow::Result<()> {
