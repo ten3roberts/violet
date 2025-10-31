@@ -791,23 +791,23 @@ impl FlowLayout {
             .map(|&child| {
                 let child_entity = world.entity(child).expect("Invalid child");
 
-                let child_margin = if self.contain_margins {
-                    query_layout_size(
-                        world,
-                        &child_entity,
-                        QueryArgs {
-                            limits: LayoutLimits {
-                                layout_min_size: Vec2::ZERO,
-                                layout_max_size: args.limits.layout_max_size,
-                            },
-                            content_area: args.content_area,
-                            direction: self.direction,
-                        },
-                    )
-                    .margin
-                } else {
-                    Edges::ZERO
-                };
+                // let child_margin = if self.contain_margins {
+                //     query_layout_size(
+                //         world,
+                //         &child_entity,
+                //         QueryArgs {
+                //             limits: LayoutLimits {
+                //                 layout_min_size: Vec2::ZERO,
+                //                 layout_max_size: args.limits.layout_max_size,
+                //             },
+                //             content_area: args.content_area,
+                //             direction: self.direction,
+                //         },
+                //     )
+                //     .margin
+                // } else {
+                //     Edges::ZERO
+                // };
 
                 let child_sizing = query_layout_size(
                     world,

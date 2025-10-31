@@ -8,8 +8,8 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        default_corner_radius, default_separation, spacing_medium, spacing_small,
-        surface_secondary, surface_tertiary, Background, SizeExt, StyleExt, WidgetSizeProps,
+        default_corner_radius, default_separation, spacing_small, surface_secondary,
+        surface_tertiary, Background, SizeExt, StyleExt, WidgetSizeProps,
     },
     unit::Unit,
     Scope, Widget, WidgetCollection,
@@ -222,8 +222,8 @@ impl<W: WidgetCollection> Widget for List<W> {
     }
 }
 
-type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2>;
-type OnDrop = Box<dyn Send + Sync + FnMut(&ScopeRef, Vec2)>;
+type OnMove = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, Vec2) -> Vec2>;
+type OnDrop = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, Vec2)>;
 
 /// Allows a widget to be dragged around using the mouse.
 ///
@@ -247,13 +247,16 @@ impl<W> Movable<W> {
 
     pub fn on_move(
         mut self,
-        on_move: impl 'static + Send + Sync + FnMut(&ScopeRef, Vec2) -> Vec2,
+        on_move: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, Vec2) -> Vec2,
     ) -> Self {
         self.on_move = Box::new(on_move);
         self
     }
 
-    pub fn on_drop(mut self, on_drop: impl 'static + Send + Sync + FnMut(&ScopeRef, Vec2)) -> Self {
+    pub fn on_drop(
+        mut self,
+        on_drop: impl 'static + Send + Sync + FnMut(&ScopeRef<'_>, Vec2),
+    ) -> Self {
         self.on_drop = Box::new(on_drop);
         self
     }

@@ -334,7 +334,7 @@ pub(crate) fn query_layout_size(world: &World, entity: &EntityRef, args: QueryAr
     let desired_size_px = query.desired_size.resolve(args.content_area);
 
     let maximized = entity.get_copy(maximize()).unwrap_or_default();
-    let mut hints = SizingHints {
+    let hints = SizingHints {
         relative_size: fixed_boundary_size | query.desired_size.is_relative(),
         can_grow: BVec2::new(
             desired_size_px.x > args.limits.layout_max_size.x,

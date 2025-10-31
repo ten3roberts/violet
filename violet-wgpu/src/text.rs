@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use cosmic_text::{
     fontdb::{Database, Source},
-    Align, Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
+    Attrs, Buffer, FontSystem, LayoutGlyph, Metrics, Shaping, SwashCache,
 };
 use flax::EntityRef;
 use glam::{vec2, BVec2, Vec2};
