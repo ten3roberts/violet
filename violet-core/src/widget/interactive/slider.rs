@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
-use flax::{component, Entity, EntityRef};
+use flax::{component, Entity};
 use futures::{stream::BoxStream, StreamExt};
 use futures_signals::signal::Mutable;
 use glam::Vec2;
@@ -8,7 +8,7 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, min_size, offset, padding, rect},
+    components::{anchor, min_size, offset, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{StateDuplex, StateExt, StateSink, StateStream},
@@ -20,7 +20,7 @@ use crate::{
     unit::Unit,
     utils::zip_latest,
     widget::{row, Float, InputBox, Rectangle, Stack, StreamWidget, Text},
-    Edges, Scope, StreamEffect, Widget,
+    Edges, Scope, ScopeRef, StreamEffect, Widget,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -159,14 +159,20 @@ impl<V: SliderValue> Widget for Slider<V> {
         let mode = self.scale_mode;
         let scale_params = ScaleParams { min, max, mode };
         fn get_progress_value<V: SliderValue>(
-            entity: &EntityRef,
+            scope: &ScopeRef<'_>,
+            track_id: Entity,
             track_pos: f32,
             params: ScaleParams,
         ) -> V {
-            let rect = entity.get_copy(rect()).unwrap();
-            let padding = entity.get_copy(padding()).unwrap_or_default();
-            let norm =
-                ((track_pos - padding.left) / (rect.size().x - padding.size().x)).clamp(0.0, 1.0);
+            // Get the track entity's rect which represents the actual clickable/draggable area
+            let track_entity = scope.frame().world().entity(track_id).unwrap();
+            let track_rect = track_entity.get_copy(rect()).unwrap();
+
+            // track_pos is relative to the parent Stack's origin
+            // track_rect.min.x is the track's offset within the Stack
+            // We need to normalize the position relative to the track's actual bounds
+            let local_x = track_pos - track_rect.min.x;
+            let norm = (local_x / track_rect.size().x).clamp(0.0, 1.0);
 
             let value = match params.mode {
                 ScaleMode::Linear => norm * (params.max - params.min) + params.min,
@@ -180,10 +186,17 @@ impl<V: SliderValue> Widget for Slider<V> {
             V::from_progress(value)
         }
 
-        fn get_slider_position(entity: &EntityRef, current_value: f32, params: ScaleParams) -> f32 {
-            let rect = entity.get_copy(rect()).unwrap();
-            let padding = entity.get_copy(padding()).unwrap_or_default();
-            let size = rect.size().x - padding.size().x;
+        fn get_slider_position(
+            scope: &ScopeRef<'_>,
+            track_id: Entity,
+            current_value: f32,
+            params: ScaleParams,
+        ) -> f32 {
+            // Get the track entity's rect
+            let track_entity = scope.frame().world().entity(track_id).unwrap();
+            let track_rect = track_entity.get_copy(rect()).unwrap();
+
+            let size = track_rect.size().x;
             let norm = match params.mode {
                 ScaleMode::Linear => (current_value - params.min) / (params.max - params.min),
                 ScaleMode::Logarithmic => {
@@ -194,19 +207,23 @@ impl<V: SliderValue> Widget for Slider<V> {
                     norm
                 }
             };
-            let pos = norm.clamp(0.0, 1.0) * size + padding.left;
+            // Return position relative to the parent Stack's origin
+            let pos = norm.clamp(0.0, 1.0) * size + track_rect.min.x;
             pos
         }
 
         fn update_scrubbed<V: SliderValue>(
-            entity: &EntityRef,
+            scope: &ScopeRef<'_>,
+            track_id: Entity,
             drag_distance: f32,
             start_value: f32,
             params: ScaleParams,
         ) -> V {
-            let rect = entity.get_copy(rect()).unwrap();
-            let padding = entity.get_copy(padding()).unwrap_or_default();
-            let norm = drag_distance / (rect.size().x - padding.size().x);
+            // Get the track entity's rect
+            let track_entity = scope.frame().world().entity(track_id).unwrap();
+            let track_rect = track_entity.get_copy(rect()).unwrap();
+
+            let norm = drag_distance / track_rect.size().x;
             let value = match params.mode {
                 ScaleMode::Linear => norm * (params.max - params.min) + params.min,
                 ScaleMode::Logarithmic => {
@@ -262,9 +279,10 @@ impl<V: SliderValue> Widget for Slider<V> {
                 let params = scale_params;
                 move |scope, input| {
                     if input.state == ElementState::Pressed {
-                        let progress = get_progress_value(scope, input.cursor.local_pos.x, params);
+                        let progress =
+                            get_progress_value(scope, track, input.cursor.local_pos.x, params);
                         if let Ok(current_value) = scope.get(current_value()) {
-                            let pos = get_slider_position(scope, *current_value, params);
+                            let pos = get_slider_position(scope, track, *current_value, params);
 
                             if (pos - input.cursor.local_pos.x).abs() < 16.0 {
                                 drag_start.set(Some((input.cursor.local_pos.x, *current_value)));
@@ -279,14 +297,20 @@ impl<V: SliderValue> Widget for Slider<V> {
                 }
             })
             .on_event(on_cursor_move(), {
-                to_owned![value];
+                to_owned![value, track];
                 let params = scale_params;
                 move |scope, input| {
                     let drag_start = &mut *drag_start.lock_mut();
                     let progress = if let Some((start, start_value)) = drag_start {
-                        update_scrubbed(scope, input.local_pos.x - *start, *start_value, params)
+                        update_scrubbed(
+                            scope,
+                            track,
+                            input.local_pos.x - *start,
+                            *start_value,
+                            params,
+                        )
                     } else {
-                        get_progress_value(scope, input.local_pos.x, params)
+                        get_progress_value(scope, track, input.local_pos.x, params)
                     };
 
                     value.send(progress);

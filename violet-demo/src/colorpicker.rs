@@ -48,21 +48,134 @@ use violet::{
 
 const TINTS: [usize; 11] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 
+fn default_neutral_curve() -> f32 {
+    1.8
+}
+
+fn default_neutral_chroma_threshold() -> f32 {
+    0.05
+}
+
+/// Preset configurations for shade settings.
+///
+/// These presets provide quick ways to apply different shade generation
+/// behaviors optimized for different design systems.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ShadeSettingsPreset {
+    /// Current defaults (neutral_curve=1.8, threshold=0.05)
+    Default,
+    /// Smooth gray palette (neutral_curve=2.0, min_lum=0.15)
+    Everforest,
+    /// Material Design neutrals (neutral_curve=1.6, min_lum=0.08)
+    Material,
+    /// Original linear behavior (neutral_curve=1.0, threshold=0.0)
+    Linear,
+}
+
+impl ShadeSettingsPreset {
+    /// Apply this preset's settings to the given ShadeSettings.
+    pub fn apply_to(self, settings: &mut ShadeSettings) {
+        match self {
+            ShadeSettingsPreset::Default => {
+                settings.neutral_curve = 1.8;
+                settings.neutral_chroma_threshold = 0.05;
+                settings.min_lum = 0.12;
+                settings.max_lum = 0.97;
+            }
+            ShadeSettingsPreset::Everforest => {
+                // Everforest-style: smooth grays, darkest ~#1e2326 (L≈0.15)
+                settings.neutral_curve = 2.0;
+                settings.neutral_chroma_threshold = 0.08;
+                settings.min_lum = 0.15; // Darkest shade ~#1e2326
+                settings.max_lum = 0.97;
+            }
+            ShadeSettingsPreset::Material => {
+                // Material Design-style hierarchy
+                settings.neutral_curve = 1.6;
+                settings.neutral_chroma_threshold = 0.06;
+                settings.min_lum = 0.08; // Good for surface/surface-variant
+                settings.max_lum = 0.98;
+            }
+            ShadeSettingsPreset::Linear => {
+                // Original linear behavior
+                settings.neutral_curve = 1.0;
+                settings.neutral_chroma_threshold = 0.0;
+                settings.min_lum = 0.12;
+                settings.max_lum = 0.97;
+            }
+        }
+    }
+}
+
+impl Default for ShadeSettingsPreset {
+    fn default() -> Self {
+        ShadeSettingsPreset::Default
+    }
+}
+
+impl Widget for ShadeSettingsPreset {
+    fn mount(self, scope: &mut Scope<'_>) {
+        let text = match self {
+            ShadeSettingsPreset::Default => "Default",
+            ShadeSettingsPreset::Everforest => "Everforest",
+            ShadeSettingsPreset::Material => "Material",
+            ShadeSettingsPreset::Linear => "Linear",
+        };
+        label(text).mount(scope);
+    }
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ShadeSettings {
-    enabled: bool,
-    min_lum: f32,
-    max_lum: f32,
-    falloff: f32,
+    pub enabled: bool,
+    pub min_lum: f32,
+    pub max_lum: f32,
+    pub falloff: f32,
+    #[serde(default = "default_neutral_curve")]
+    pub neutral_curve: f32, // Controls luminance curve shape
+    #[serde(default = "default_neutral_chroma_threshold")]
+    pub neutral_chroma_threshold: f32, // Threshold for detecting neutral colors
 }
 
 impl ShadeSettings {
+    /// Detect which preset (if any) matches the current settings.
+    ///
+    /// Returns `Default` for custom settings that don't match any preset.
+    pub fn detect_preset(&self) -> ShadeSettingsPreset {
+        match (
+            self.neutral_curve,
+            self.neutral_chroma_threshold,
+            self.min_lum,
+            self.max_lum,
+        ) {
+            (1.8, 0.05, 0.12, 0.97) => ShadeSettingsPreset::Default,
+            (2.0, 0.08, 0.15, 0.97) => ShadeSettingsPreset::Everforest,
+            (1.6, 0.06, 0.08, 0.98) => ShadeSettingsPreset::Material,
+            (1.0, 0.0, 0.12, 0.97) => ShadeSettingsPreset::Linear,
+            _ => ShadeSettingsPreset::Default, // Custom
+        }
+    }
+
     pub fn tint(&self, base_chroma: f32, color: Oklch, tint: f32) -> Oklch {
-        let chroma = base_chroma * (1.0 / (1.0 + self.falloff * (tint - 0.5).powi(2)));
+        // Check if this is a neutral color
+        let is_neutral = base_chroma < self.neutral_chroma_threshold;
+
+        // For neutrals, clamp chroma to base value (prevent hue artifacts)
+        // For non-neutrals, use normal chroma falloff
+        let chroma = if is_neutral {
+            base_chroma // Keep chroma constant for neutrals
+        } else {
+            base_chroma * (1.0 / (1.0 + self.falloff * (tint - 0.5).powi(2)))
+        };
+
+        // For neutrals, always use the perceptual curve (neutral_curve)
+        // For non-neutrals, use linear (curve=1.0)
+        let effective_curve = if is_neutral { self.neutral_curve } else { 1.0 };
 
         Oklch {
             chroma,
-            l: (self.max_lum - self.min_lum) * (1.0 - tint) + self.min_lum,
+            l: self.min_lum
+                + (self.max_lum - self.min_lum) * (1.0 - tint.powf(effective_curve)),
             ..color
         }
     }
@@ -81,11 +194,41 @@ impl Default for ShadeSettings {
             min_lum: 0.12,
             max_lum: 0.97,
             falloff: 10.0,
+            neutral_curve: 1.8,  // Default value for perceptually uniform spacing
+            neutral_chroma_threshold: 0.05,  // Colors with chroma < 0.05 treated as neutrals
         }
     }
 }
 
 pub fn shade_settings(settings: Mutable<ShadeSettings>) -> impl Widget {
+    // Preset buttons to quickly apply common configurations
+    let preset_buttons = row((
+        Button::label("Default").on_click({
+            to_owned!(settings);
+            move |_| {
+                ShadeSettingsPreset::Default.apply_to(&mut *settings.lock_mut());
+            }
+        }),
+        Button::label("Everforest").on_click({
+            to_owned!(settings);
+            move |_| {
+                ShadeSettingsPreset::Everforest.apply_to(&mut *settings.lock_mut());
+            }
+        }),
+        Button::label("Material").on_click({
+            to_owned!(settings);
+            move |_| {
+                ShadeSettingsPreset::Material.apply_to(&mut *settings.lock_mut());
+            }
+        }),
+        Button::label("Linear").on_click({
+            to_owned!(settings);
+            move |_| {
+                ShadeSettingsPreset::Linear.apply_to(&mut *settings.lock_mut());
+            }
+        }),
+    ));
+
     let settings_widget = row((
         col((
             Tooltip::label(header("Dark"), "Control how dark the darkest shade can be."),
@@ -96,6 +239,14 @@ pub fn shade_settings(settings: Mutable<ShadeSettings>) -> impl Widget {
             Tooltip::label(
                 header("Chroma Falloff"),
                 "Control how much chroma falls off towards lighter and darker shades.",
+            ),
+            Tooltip::label(
+                header("Curve"),
+                "Controls luminance curve: >1.0 compresses darks (softer), <1.0 compresses lights, 1.0 is linear.",
+            ),
+            Tooltip::label(
+                header("Neutral Threshold"),
+                "Colors with chroma below this are treated as neutrals (constant chroma, perceptual curve).",
             ),
         )),
         col((
@@ -131,12 +282,28 @@ pub fn shade_settings(settings: Mutable<ShadeSettings>) -> impl Widget {
                 30.0,
             )
             .precision(1),
+            precise_slider(
+                settings
+                    .clone()
+                    .project_ref(|v| &v.neutral_curve, |v| &mut v.neutral_curve),
+                0.5,
+                3.0,
+            )
+            .precision(1),
+            precise_slider(
+                settings
+                    .clone()
+                    .project_ref(|v| &v.neutral_chroma_threshold, |v| &mut v.neutral_chroma_threshold),
+                0.0,
+                0.2,
+            )
+            .precision(2),
         )),
     ));
 
     card(Collapsible::new(
         icon_header(LUCIDE_SUN_MEDIUM, "Configure Shades"),
-        settings_widget,
+        col((preset_buttons, settings_widget)),
     ))
 }
 
@@ -659,11 +826,23 @@ pub fn export_controls(palettes: Mutable<PaletteCollection>) -> impl Widget {
         dialog.pick_file().await
     }
 
+    async fn select_savefile(default_file: Option<String>) -> Option<FileHandle> {
+        let dialog = AsyncFileDialog::new().set_directory(local_dir());
+
+        let dialog = if let Some(file) = default_file {
+            dialog.set_file_name(&file)
+        } else {
+            dialog
+        };
+
+        dialog.save_file().await
+    }
+
     async fn get_savefile(savefile: Mutable<Option<PathBuf>>) -> Option<FileHandle> {
         if let Some(file) = savefile.get_cloned() {
             return Some(file.into());
         } else {
-            let file = select_file(Some("colors.json".to_string())).await?;
+            let file = select_savefile(Some("colors.json".to_string())).await?;
             savefile.set(Some(file.path().to_path_buf()));
 
             Some(file)
