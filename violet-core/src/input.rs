@@ -30,7 +30,6 @@ pub struct FocusedEntity {
 pub struct InputState {
     root: Entity,
     focused: Option<FocusedEntity>,
-    last_sticky: Option<Entity>,
     pos: Vec2,
     modifiers: ModifiersState,
     external_focus_rx: Receiver<Entity>,
@@ -46,7 +45,6 @@ impl InputState {
             modifiers: Default::default(),
             root,
             external_focus_rx,
-            last_sticky: None,
             hovered_item: None,
         }
     }
@@ -150,7 +148,9 @@ impl InputState {
     pub fn on_cursor_move(&mut self, frame: &mut Frame, pos: Vec2) -> bool {
         self.pos = pos;
 
-        let target = self.get_focused_or_intersecting(frame, pos);
+        let target = self
+            .find_intersect(frame, pos, |v| v.has(interactive()))
+            .map(|v| v.0);
 
         let new_hover = self.hovered_item != target.map(|v| v.id());
         if new_hover {
@@ -283,17 +283,6 @@ impl InputState {
         self.focused.as_ref().and_then(|v| world.entity(v.id).ok())
     }
 
-    pub fn get_focused_or_intersecting<'a>(
-        &self,
-        frame: &'a Frame,
-        pos: Vec2,
-    ) -> Option<EntityRef<'a>> {
-        self.get_focused(&frame.world).or_else(|| {
-            self.find_intersect(frame, pos, |v| v.has(interactive()))
-                .map(|v| v.0)
-        })
-    }
-
     fn set_focused(&mut self, frame: &Frame, focused: Option<Entity>) {
         let cur = self.get_focused(&frame.world);
 
@@ -318,17 +307,8 @@ impl InputState {
 
             let sticky = entity.has(keep_focus());
             self.focused = Some(FocusedEntity { id: new, sticky });
-            if sticky {
-                self.last_sticky = Some(new);
-            }
         } else {
-            self.focused = self
-                .last_sticky
-                .and_then(|v| frame.world.entity(v).ok())
-                .map(|v| FocusedEntity {
-                    id: v.id(),
-                    sticky: true,
-                });
+            self.focused = None;
         }
     }
 }

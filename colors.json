@@ -15,7 +15,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.01,
+          "chroma": 0.005,
           "hue": 106.3
         }
       }
@@ -25,7 +25,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.01,
+          "chroma": 0.005,
           "hue": 270.0
         }
       }
@@ -35,7 +35,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.15,
+          "chroma": 0.12,
           "hue": 21.69913
         }
       }
@@ -45,7 +45,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.15,
+          "chroma": 0.12,
           "hue": 88.515526
         }
       }
@@ -53,10 +53,10 @@
     {
       "name": "Forest",
       "base_color": {
-        "Rgb": {
-          "red": 0.3019608,
-          "green": 0.5411765,
-          "blue": 0.1254902
+        "OkLab": {
+          "l": 0.5707032,
+          "chroma": 0.12,
+          "hue": 140.5
         }
       }
     },
@@ -65,8 +65,8 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.15,
-          "hue": 170.7
+          "chroma": 0.12,
+          "hue": 163.0
         }
       }
     },
@@ -75,7 +75,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.15,
+          "chroma": 0.12,
           "hue": 199.8
         }
       }
@@ -85,7 +85,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.15,
+          "chroma": 0.12,
           "hue": 259.0
         }
       }
@@ -95,7 +95,7 @@
       "base_color": {
         "OkLab": {
           "l": 0.5,
-          "chroma": 0.15,
+          "chroma": 0.12,
           "hue": 300.0
         }
       }
@@ -103,8 +103,10 @@
   ],
   "shade_settings": {
     "enabled": false,
-    "min_lum": 0.2,
+    "min_lum": 0.17,
     "max_lum": 0.85,
-    "falloff": 10.0
+    "falloff": 10.0,
+    "neutral_curve": 0.7,
+    "neutral_chroma_threshold": 0.05
   }
 }

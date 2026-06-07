@@ -19,6 +19,7 @@ use wasm_bindgen_futures::wasm_bindgen;
 pub mod bridge_of_death;
 pub mod colorpicker;
 pub mod drag;
+pub mod shade_tests;
 pub mod widgets;
 
 #[cfg(target_arch = "wasm32")]
