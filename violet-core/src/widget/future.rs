@@ -7,6 +7,7 @@ use glam::vec2;
 use crate::{
     components::{on_animation_frame, rotation, transform_origin, translation},
     effect::Effect,
+    icon::IconSet,
     layout::Align,
     style::{icon_spinner, spacing_medium, text_small, SizeExt},
     tweens::tweens,
@@ -205,9 +206,9 @@ impl Widget for Throbber {
         let spinner = scope
             .stylesheet()
             .get_clone(icon_spinner())
-            .unwrap_or_default();
+            .unwrap_or_else(|_| IconSet::default().spinner);
 
-        Text::new(spinner)
+        Text::formatted([spinner.segment()])
             .with_font_size(self.size)
             .with_exact_size(Unit::px2(self.size, self.size))
             .with_margin(spacing_medium())

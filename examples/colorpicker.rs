@@ -1,6 +1,5 @@
 use tracing_subscriber::{layer::SubscriberExt, registry, util::SubscriberInitExt, EnvFilter};
 use tracing_tree::HierarchicalLayer;
-use violet_core::style::StylesheetOptions;
 
 pub fn main() -> anyhow::Result<()> {
     registry()
@@ -14,11 +13,6 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     violet_wgpu::AppBuilder::new()
-        .with_font(violet_lucide::font_source())
-        .with_stylesheet(
-            StylesheetOptions::new()
-                .with_icons(violet_lucide::icon_set())
-                .build(),
-        )
+        .with_icon_pack(violet_lucide::pack())
         .run(violet_demo::colorpicker::main_app())
 }

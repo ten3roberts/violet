@@ -1,5 +1,5 @@
 [workspace]
-members = ["violet-wgpu", "violet-core", "violet-demo", "violet-lucide"]
+members = ["violet-wgpu", "violet-core", "violet-demo", "violet-lucide", "violet-phosphor"]
 
 [workspace.package]
 version = "0.0.1"
@@ -101,6 +101,7 @@ ropey = "1.6"
 violet-wgpu = { path = "violet-wgpu" }
 violet-core = { path = "violet-core" }
 violet-lucide = { path = "violet-lucide", optional = true }
+violet-phosphor = { path = "violet-phosphor", optional = true }
 glam.workspace = true
 palette.workspace = true
 futures-signals.workspace = true
@@ -110,6 +111,7 @@ web-time.workspace = true
 
 [features]
 lucide = ["violet-lucide"]
+phosphor = ["violet-phosphor"]
 
 [dev-dependencies]
 cosmic-text.workspace = true
@@ -127,6 +129,8 @@ serde_json = "1.0"
 tracing-tree.workspace = true
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 violet-demo = { path = "violet-demo" }
+violet-lucide = { path = "violet-lucide" }
+violet-phosphor = { path = "violet-phosphor" }
 
 
 [profile.dev.package.image]

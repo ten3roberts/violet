@@ -13,7 +13,7 @@ use crate::{
     Rect,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 // Inspired by: https://github.com/pop-os/cosmic-text
 pub enum FontFamily {
     Named(Cow<'static, str>),

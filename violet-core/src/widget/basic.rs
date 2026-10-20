@@ -4,6 +4,7 @@ use palette::Srgba;
 
 use crate::{
     components::{self, color, draw_shape, text, text_wrap},
+    icon::Icon,
     shape,
     style::{
         element_primary, element_secondary, spacing_medium, spacing_small, text_large, text_medium,
@@ -196,6 +197,13 @@ impl Widget for Text {
 /// A text with a margin
 pub fn label(text: impl Into<String>) -> Text {
     Text::new(text).with_margin(spacing_small())
+}
+
+/// An icon drawn with its own font family, with a margin
+///
+/// Accepts an [`Icon`] or any icon pack's enum, e.g. `icon(LucideIcon::Folder)`.
+pub fn icon(icon: impl Into<Icon>) -> Text {
+    Text::formatted([icon.into().segment()]).with_margin(spacing_small())
 }
 
 pub fn header(text: impl Into<String>) -> Stack<Text> {

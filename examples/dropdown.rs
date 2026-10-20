@@ -1,4 +1,3 @@
-
 use futures_signals::signal::Mutable;
 use palette::Srgba;
 use tracing_subscriber::{
@@ -6,16 +5,11 @@ use tracing_subscriber::{
 };
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
-    style::{base_colors::*, StylesheetOptions},
-    widget::{
-        card, interactive::dropdown::Dropdown, label, row,
-    },
+    style::base_colors::*,
+    widget::{card, icon, interactive::dropdown::Dropdown, label, row},
     StateExt, Widget,
 };
-use violet_lucide::icons::{
-    LUCIDE_BACKPACK, LUCIDE_BOX, LUCIDE_BRIEFCASE_BUSINESS, LUCIDE_DROPLETS, LUCIDE_HAMMER,
-    LUCIDE_HEADPHONES, LUCIDE_LEAF, LUCIDE_WRENCH,
-};
+use violet_lucide::LucideIcon;
 use violet_wgpu::{renderer::MainRendererConfig, AppBuilder};
 
 fn app() -> impl Widget {
@@ -23,14 +17,14 @@ fn app() -> impl Widget {
 
     #[derive(Clone)]
     struct Item {
-        icon: &'static str,
+        icon: LucideIcon,
         color: Srgba,
         label: &'static str,
     }
 
     impl Widget for Item {
         fn mount(self, scope: &mut violet_core::Scope<'_>) {
-            row((label(self.icon).with_color(self.color), label(self.label))).mount(scope);
+            row((icon(self.icon).with_color(self.color), label(self.label))).mount(scope);
         }
     }
 
@@ -38,42 +32,42 @@ fn app() -> impl Widget {
         selection.lower_option(),
         [
             Item {
-                icon: LUCIDE_BOX,
+                icon: LucideIcon::Box,
                 color: SAPPHIRE_400,
                 label: "Box",
             },
             Item {
-                icon: LUCIDE_DROPLETS,
+                icon: LucideIcon::Droplets,
                 color: AMETHYST_400,
                 label: "Liquid",
             },
             Item {
-                icon: LUCIDE_HAMMER,
+                icon: LucideIcon::Hammer,
                 color: AMBER_400,
                 label: "Tools",
             },
             Item {
-                icon: LUCIDE_BACKPACK,
+                icon: LucideIcon::Backpack,
                 color: RUBY_400,
                 label: "Items",
             },
             Item {
-                icon: LUCIDE_HEADPHONES,
+                icon: LucideIcon::Headphones,
                 color: EMERALD_400,
                 label: "Music",
             },
             Item {
-                icon: LUCIDE_BRIEFCASE_BUSINESS,
+                icon: LucideIcon::BriefcaseBusiness,
                 color: AMBER_400,
                 label: "Business",
             },
             Item {
-                icon: LUCIDE_WRENCH,
+                icon: LucideIcon::Wrench,
                 color: SAPPHIRE_400,
                 label: "Settings",
             },
             Item {
-                icon: LUCIDE_LEAF,
+                icon: LucideIcon::Leaf,
                 color: FOREST_400,
                 label: "Nature",
             },
@@ -93,12 +87,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     AppBuilder::new()
-        .with_font(violet_lucide::font_source())
-        .with_stylesheet(
-            StylesheetOptions::new()
-                .with_icons(violet_lucide::icon_set())
-                .build(),
-        )
+        .with_icon_pack(violet_lucide::pack())
         .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(app())
 }

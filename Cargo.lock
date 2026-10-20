@@ -3485,6 +3485,7 @@ dependencies = [
  "violet-core",
  "violet-demo",
  "violet-lucide",
+ "violet-phosphor",
  "violet-wgpu",
  "web-time",
 ]
@@ -3571,6 +3572,14 @@ dependencies = [
  "itertools 0.14.0",
  "palette",
  "parking_lot",
+ "tracing",
+ "violet-core",
+]
+
+[[package]]
+name = "violet-phosphor"
+version = "0.0.1"
+dependencies = [
  "tracing",
  "violet-core",
 ]

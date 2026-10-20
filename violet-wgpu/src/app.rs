@@ -10,6 +10,7 @@ use violet_core::{
     assets::AssetCache,
     components::{self, app_instance, rect},
     executor::Executor,
+    icon::{IconPack, IconSet},
     input::{request_focus_sender, InputState},
     io::{self, Clipboard},
     layout::cache::LayoutUpdateEvent,
@@ -59,8 +60,9 @@ pub struct AppBuilder {
     renderer_config: MainRendererConfig,
     allow_resize: bool,
     title: String,
-    fonts: Vec<Source>,
+    pub(crate) fonts: Vec<Source>,
     stylesheet: Option<EntityBuilder>,
+    icons: Option<IconSet>,
 }
 
 impl AppBuilder {
@@ -77,12 +79,25 @@ impl AppBuilder {
             allow_resize: false,
             fonts,
             stylesheet: None,
+            icons: None,
         }
     }
 
     /// Add a font to the text system
     pub fn with_font(mut self, font: Source) -> Self {
         self.fonts.insert(0, font);
+        self
+    }
+
+    /// Load an icon pack's font and use its icons for the built-in widgets
+    ///
+    /// The icons override those of the stylesheet, regardless of call order.
+    ///
+    /// The font is loaded after all text fonts: when no text font matches a weight exactly, the
+    /// text system falls back through fonts in load order, and icon fonts may cover Latin letters.
+    pub fn with_icon_pack(mut self, pack: IconPack) -> Self {
+        self.fonts.push(pack.font);
+        self.icons = Some(pack.icons);
         self
     }
 
@@ -110,12 +125,19 @@ impl AppBuilder {
 
     /// Build the application without running it
     pub fn build(self, root: impl Widget) -> AppInstance {
+        let mut stylesheet = self
+            .stylesheet
+            .unwrap_or_else(|| StylesheetOptions::new().build());
+
+        if let Some(icons) = self.icons {
+            icons.install(&mut stylesheet);
+        }
+
         AppInstance::new(
             root,
             self.allow_resize,
             Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
-            self.stylesheet
-                .unwrap_or_else(|| StylesheetOptions::new().build()),
+            stylesheet,
         )
     }
 

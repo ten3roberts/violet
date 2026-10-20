@@ -1,47 +1,52 @@
-//! Provides lucide icons for Violet.
+//! [Lucide](https://lucide.dev) icons for Violet.
 //!
-//! To use, add the provided font to the app and use the icon in any formatted text. It even works
-//! with color.
+//! Install the pack, then draw icons with [`icon`](violet_core::widget::icon):
 //! ```rust,ignore
 //! AppBuilder::new()
-//!     .with_font(Source::Binary(Arc::new(include_bytes!(
-//!         "../violet-lucide/bin/lucide/lucide.ttf"
-//!     ))))
-//!     .with_renderer_config(MainRendererConfig { debug_mode: false })
+//!     .with_icon_pack(violet_lucide::pack())
 //!     .run(app())
 //!
 //! fn app() -> impl Widget {
-//!     col(label(LUCIDE_CODE).with_color(OCEAN_400))
+//!     col(icon(LucideIcon::Code).with_color(OCEAN_400))
 //! }
 //! ```
+//!
+//! Regenerate `src/icons.rs` with `scripts/generate_icons.py lucide`.
 
 use std::sync::Arc;
 
-use icons::LUCIDE_CHEVRON_RIGHT;
-use violet_core::{style::IconSet, text::Source};
-
-use crate::icons::{
-    LUCIDE_CHECK, LUCIDE_CHEVRON_DOWN, LUCIDE_CIRCLE_X, LUCIDE_LIGHTBULB, LUCIDE_TRIANGLE_ALERT,
+use violet_core::{
+    icon::{IconPack, IconSet},
+    text::Source,
 };
 
-/// All icon glyphs.
-pub mod icons;
+mod icons;
 
-/// Icons font source
+pub use icons::{LucideIcon, FONT_FAMILY};
+
+/// The icon font
 pub fn font_source() -> Source {
     Source::Binary(Arc::new(include_bytes!("../bin/lucide/lucide.ttf")))
 }
 
-/// Returns an icon set for styling
+/// Lucide icons for the built-in widgets
 pub fn icon_set() -> IconSet {
     IconSet {
-        chevron: LUCIDE_CHEVRON_RIGHT.into(),
-        warning: LUCIDE_TRIANGLE_ALERT.into(),
-        error: LUCIDE_CIRCLE_X.into(),
-        info: LUCIDE_LIGHTBULB.into(),
-        check: LUCIDE_CHECK.into(),
-        ellipsis: LUCIDE_CHEVRON_DOWN.into(),
-        spinner: ".".into(),
-        search: LUCIDE_CHEVRON_RIGHT.into(),
+        chevron: LucideIcon::ChevronRight.into(),
+        spinner: LucideIcon::LoaderCircle.into(),
+        warning: LucideIcon::TriangleAlert.into(),
+        error: LucideIcon::CircleX.into(),
+        info: LucideIcon::Info.into(),
+        check: LucideIcon::Check.into(),
+        ellipsis: LucideIcon::ChevronDown.into(),
+        search: LucideIcon::Search.into(),
+    }
+}
+
+/// The font and icon set, for [`AppBuilder::with_icon_pack`](https://docs.rs/violet-wgpu)
+pub fn pack() -> IconPack {
+    IconPack {
+        font: font_source(),
+        icons: icon_set(),
     }
 }

@@ -8,3 +8,6 @@ pub use web_time;
 
 #[cfg(feature = "lucide")]
 pub use violet_lucide as lucide;
+
+#[cfg(feature = "phosphor")]
+pub use violet_phosphor as phosphor;

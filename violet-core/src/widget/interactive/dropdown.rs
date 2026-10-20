@@ -7,6 +7,7 @@ use nucleo::{Config, Matcher, Utf32Str};
 
 use crate::{
     components::{offset, opacity, rect, screen_transform},
+    icon::{Icon, IconSet},
     state::StateDuplex,
     style::{dropdown_size, icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
     time::sleep,
@@ -14,12 +15,12 @@ use crate::{
     unit::Unit,
     utils::throttle_skip,
     widget::{
-        card, col,
+        card, col, icon,
         interactive::{
             overlay::{overlay_state, CloseOnDropHandle, Overlay},
             InteractiveWidget,
         },
-        label, maximized, row, Button, ButtonStyle, IterWidgetCollection, ScrollArea, StreamWidget,
+        maximized, row, Button, ButtonStyle, IterWidgetCollection, ScrollArea, StreamWidget,
         TextInput,
     },
     Rect, Scope, Widget,
@@ -48,10 +49,7 @@ where
         }
     }
 
-    pub fn searchable(
-        mut self,
-        search_fn: impl 'static + Fn(&T) -> String + Send + Sync,
-    ) -> Self {
+    pub fn searchable(mut self, search_fn: impl 'static + Fn(&T) -> String + Send + Sync) -> Self {
         self.searchable = Some(Arc::new(search_fn));
         self
     }
@@ -73,12 +71,12 @@ where
         let pick_icon = scope
             .stylesheet()
             .get_clone(icon_ellipsis())
-            .unwrap_or_else(|_| "⋯".to_string());
+            .unwrap_or_else(|_| IconSet::default().ellipsis);
 
         let search_icon = scope
             .stylesheet()
             .get_clone(icon_search())
-            .unwrap_or_else(|_| ">".to_string());
+            .unwrap_or_else(|_| IconSet::default().search);
 
         let screen_pos = Mutable::new(Vec2::ZERO);
 
@@ -101,7 +99,7 @@ where
             }
         });
 
-        Button::new(row((StreamWidget::new(current_item), label(pick_icon))).center())
+        Button::new(row((StreamWidget::new(current_item), icon(pick_icon))).center())
             .on_click(move |_| {
                 let rect = positioned_rect.get().translate(screen_pos.get());
                 let pos = vec2(rect.min.x, rect.max.y + 4.0);
@@ -132,7 +130,7 @@ struct DropdownListOverlay<T> {
     items: Arc<Vec<T>>,
     search_fn: Option<Arc<dyn Fn(&T) -> String + Send + Sync>>,
     selection: Arc<dyn Send + Sync + StateDuplex<Item = T>>,
-    search_icon: String,
+    search_icon: Icon,
 }
 
 impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<T> {
@@ -182,8 +180,10 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
                 card(
                     col((
                         row((
-                            label(self.search_icon),
-                            TextInput::new(filter_term).with_maximize(Vec2::X).request_focus(),
+                            icon(self.search_icon),
+                            TextInput::new(filter_term)
+                                .with_maximize(Vec2::X)
+                                .request_focus(),
                         )),
                         ScrollArea::vertical(StreamWidget::new(items))
                             .with_max_size(Unit::px2(self.width, 100.0)),

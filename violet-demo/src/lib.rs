@@ -5,7 +5,7 @@ use glam::Vec2;
 use violet::{
     core::{
         state::StateStream,
-        style::{surface_primary, SizeExt, StylesheetOptions},
+        style::{surface_primary, SizeExt},
         text::Wrap,
         widget::{self, card, col, panel, row, Selectable, StreamWidget, WidgetExt},
         Widget,
@@ -105,12 +105,7 @@ pub fn run() {
 
     AppBuilder::new()
         .with_title("Demo")
-        .with_font(lucide::font_source())
-        .with_stylesheet(
-            StylesheetOptions::new()
-                .with_icons(lucide::icon_set())
-                .build(),
-        )
+        .with_icon_pack(lucide::pack())
         .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(multi_app())
         .unwrap();

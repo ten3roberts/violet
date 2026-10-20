@@ -14,6 +14,7 @@ use crate::{
         color, draw_shape, item_align, margin, max_size, maximize, min_size, padding, size,
         widget_corner_radius, LayoutAlignment,
     },
+    icon::{Icon, IconSet},
     input::interactive,
     shape::shape_rectangle,
     unit::Unit,
@@ -325,33 +326,6 @@ pub fn get_stylesheet_from_entity<'a>(entity: &EntityRef<'a>) -> EntityRef<'a> {
     entity.world().entity(id).unwrap()
 }
 
-/// Provides a set of glyphs for the UI, such as chevrons, arrows, etc.
-pub struct IconSet {
-    pub chevron: String,
-    pub spinner: String,
-    pub warning: String,
-    pub error: String,
-    pub info: String,
-    pub check: String,
-    pub ellipsis: String,
-    pub search: String,
-}
-
-impl Default for IconSet {
-    fn default() -> Self {
-        Self {
-            chevron: ">".to_string(),
-            spinner: "⟳".to_string(),
-            warning: "!".to_string(),
-            error: "x".to_string(),
-            info: "i".to_string(),
-            check: "✓".to_string(),
-            ellipsis: "⋯".to_string(),
-            search: ">".to_string(),
-        }
-    }
-}
-
 /// Easily setup the default stylesheet
 pub struct StylesheetOptions {
     pub icons: IconSet,
@@ -414,16 +388,9 @@ impl StylesheetOptions {
             // text size
             .set(text_small(), self.base_text_size)
             .set(text_medium(), self.base_text_size * 1.25)
-            .set(text_large(), self.base_text_size * 1.5)
-            // icons
-            .set(icon_chevron(), self.icons.chevron)
-            .set(icon_spinner(), self.icons.spinner)
-            .set(icon_warning(), self.icons.warning)
-            .set(icon_error(), self.icons.error)
-            .set(icon_info(), self.icons.info)
-            .set(icon_check(), self.icons.check)
-            .set(icon_ellipsis(), self.icons.ellipsis)
-            .set(icon_search(), self.icons.search);
+            .set(text_large(), self.base_text_size * 1.5);
+
+        self.icons.install(&mut builder);
 
         builder
     }
@@ -460,14 +427,14 @@ flax::component! {
     pub slider_thumb_size: Unit<Vec2>,
     pub dropdown_size: Unit<Vec2>,
 
-    pub icon_chevron: String,
-    pub icon_spinner: String,
-    pub icon_warning: String,
-    pub icon_error: String,
-    pub icon_info: String,
-    pub icon_check: String,
-    pub icon_ellipsis: String,
-    pub icon_search: String,
+    pub icon_chevron: Icon,
+    pub icon_spinner: Icon,
+    pub icon_warning: Icon,
+    pub icon_error: Icon,
+    pub icon_info: Icon,
+    pub icon_check: Icon,
+    pub icon_ellipsis: Icon,
+    pub icon_search: Icon,
 
     pub text_small: f32,
     pub text_medium: f32,

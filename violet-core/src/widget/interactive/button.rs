@@ -3,6 +3,7 @@ use palette::Srgba;
 
 use crate::{
     components::{color, LayoutAlignment},
+    icon::IconSet,
     input::MouseInput,
     layout::Align,
     scope::ScopeRef,
@@ -11,6 +12,7 @@ use crate::{
     tweens::tweens,
     unit::Unit,
     widget::{
+        icon,
         interactive::base::{ClickCallback, MouseInputCallback},
         label, ContainerStyle, Rectangle, Stack, Text,
     },
@@ -391,9 +393,11 @@ pub struct CheckboxTick {}
 
 impl Widget for CheckboxTick {
     fn mount(self, scope: &mut Scope<'_>) {
-        let stylesheet = scope.stylesheet();
-        let check_icon = stylesheet.get_clone(icon_check()).unwrap_or_default();
-        label(check_icon).mount(scope);
+        let check_icon = scope
+            .stylesheet()
+            .get_clone(icon_check())
+            .unwrap_or_else(|_| IconSet::default().check);
+        icon(check_icon).mount(scope);
     }
 }
 

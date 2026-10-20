@@ -15,6 +15,7 @@ use winit::{
 use crate::{
     components::{self, screen_transform, LayoutAlignment},
     editor::{CursorMove, EditAction, EditorAction, EditorLine, TextChange, TextEditorCore},
+    icon::IconSet,
     input::{
         interactive, keep_focus, on_cursor_move, on_focus, on_keyboard_input, on_mouse_input,
         KeyboardInput,
@@ -29,7 +30,7 @@ use crate::{
     unit::Unit,
     utils::throttle,
     widget::{
-        bold, col, interactive::base::InteractiveWidget, Float, Positioned, Rectangle,
+        col, icon, interactive::base::InteractiveWidget, Float, Positioned, Rectangle,
         SignalWidget, Stack, StreamWidget, Text, TextStyle, WidgetExt,
     },
     Edges, Rect, Scope, ScopeRef, Widget,
@@ -698,14 +699,17 @@ where
     T::Err: Display + 'static,
 {
     fn mount(self, scope: &mut Scope<'_>) {
-        let warn_icon = scope.stylesheet().get_clone(icon_warning()).unwrap();
+        let warn_icon = scope
+            .stylesheet()
+            .get_clone(icon_warning())
+            .unwrap_or_else(|_| IconSet::default().warning);
 
         let parse_state = Mutable::new(Ok(()) as Result<(), String>);
         let parse_state_content = parse_state.signal_ref(move |v| {
             let warn_icon = &warn_icon;
             v.as_ref().err().map(move |err| {
                 InteractiveWidget::new(
-                    bold(warn_icon)
+                    icon(warn_icon.clone())
                         .with_padding(spacing_small())
                         .with_color(surface_warning()),
                 )

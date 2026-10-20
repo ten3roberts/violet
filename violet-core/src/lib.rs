@@ -8,6 +8,7 @@ pub mod effect;
 pub mod executor;
 mod frame;
 pub mod hierarchy;
+pub mod icon;
 pub mod input;
 pub mod io;
 pub mod layout;

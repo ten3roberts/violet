@@ -27,6 +27,41 @@ pub(crate) static INTER_FONT_BOLD: &[u8] =
 pub(crate) static INTER_FONT_ITALIC: &[u8] =
     include_bytes!("../../assets/fonts/Inter/Inter-Italic-VariableFont_opsz,wght.ttf");
 
+/// Warns once per family when text names a font family that was never loaded.
+///
+/// The text system silently substitutes another font for a missing family, which for icon fonts
+/// means drawing a glyph from whichever other icon font shares the codepoint.
+#[cfg(debug_assertions)]
+fn warn_missing_families(font_system: &FontSystem, text: &[TextSegment]) {
+    use std::collections::BTreeSet;
+    use violet_core::text::FontFamily;
+
+    static CHECKED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+    for segment in text {
+        let FontFamily::Named(name) = &segment.family else {
+            continue;
+        };
+
+        let mut checked = CHECKED.lock();
+        if checked.contains(&**name) {
+            continue;
+        }
+        checked.insert(name.to_string());
+
+        let loaded = font_system
+            .db()
+            .faces()
+            .any(|face| face.families.iter().any(|(family, _)| family == name));
+
+        if !loaded {
+            tracing::warn!(
+                "Font family {name:?} is not loaded; text using it will fall back to another font"
+            );
+        }
+    }
+}
+
 pub struct TextSystem {
     pub(crate) font_system: FontSystem,
     pub(crate) swash_cache: SwashCache,
@@ -45,6 +80,11 @@ impl TextSystem {
         for source in sources {
             font_db.load_font_source(source);
         }
+
+        // Without a loaded "Arial" (fontdb's default), generic families resolve by falling back
+        // through fonts in load order. Icon fonts such as Phosphor cover Latin letters for
+        // ligatures, and would then render plain text.
+        font_db.set_sans_serif_family("Inter");
 
         let font_system = FontSystem::new_with_locale_and_db(String::from("en-US"), font_db);
 
@@ -251,6 +291,10 @@ impl TextBufferState {
         base_color: Srgba,
     ) {
         puffin::profile_function!();
+
+        #[cfg(debug_assertions)]
+        warn_missing_families(font_system, text);
+
         self.buffer.set_rich_text(
             font_system,
             text.iter().map(|v| {
@@ -341,5 +385,66 @@ impl TextBufferState {
     pub(crate) fn layout_glyphs(&mut self) -> LayoutGlyphs {
         let lines = self.to_layout_lines().collect_vec();
         LayoutGlyphs::new(lines, self.buffer.metrics().line_height)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeSet, sync::Arc};
+
+    use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style, Weight};
+    use violet_core::icon::{IconPack, IconSet};
+
+    use super::*;
+    use crate::app::AppBuilder;
+
+    /// Icon fonts may cover Latin letters (Phosphor does, for ligatures). Plain text of any weight
+    /// or style must still be drawn with the default font.
+    ///
+    /// The text system only uses the default family when a face matches the weight exactly, and
+    /// otherwise falls back through every loaded font, so this covers weights Inter has no face for.
+    #[test]
+    fn plain_text_ignores_icon_fonts() {
+        let pack = IconPack {
+            font: Source::Binary(Arc::new(
+                include_bytes!("../../violet-phosphor/bin/Phosphor.ttf").to_vec(),
+            )),
+            icons: IconSet::default(),
+        };
+
+        let mut text_system =
+            TextSystem::new_with_fonts(AppBuilder::new().with_icon_pack(pack).fonts);
+        let font_system = &mut text_system.font_system;
+
+        for weight in [100, 300, 400, 500, 600, 700, 800, 900].map(Weight) {
+            for style in [Style::Normal, Style::Italic] {
+                let mut buffer = Buffer::new(font_system, Metrics::new(14.0, 14.0));
+                buffer.set_text(
+                    font_system,
+                    "Editor folder plus text",
+                    &Attrs::new()
+                        .family(Family::SansSerif)
+                        .weight(weight)
+                        .style(style),
+                    Shaping::Advanced,
+                );
+                buffer.shape_until_scroll(font_system, false);
+
+                let families = buffer
+                    .layout_runs()
+                    .flat_map(|run| run.glyphs.iter())
+                    .map(|glyph| {
+                        let face = font_system.db().face(glyph.font_id).unwrap();
+                        face.families[0].0.clone()
+                    })
+                    .collect::<BTreeSet<_>>();
+
+                assert_eq!(
+                    families,
+                    BTreeSet::from(["Inter".to_string()]),
+                    "{weight:?} {style:?}"
+                );
+            }
+        }
     }
 }

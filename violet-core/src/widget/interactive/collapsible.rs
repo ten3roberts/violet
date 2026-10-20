@@ -11,6 +11,7 @@ use tween::Tweener;
 
 use crate::{
     components::{max_size, min_size, rect, rotation, transform_origin, translation, visible},
+    icon::Icon,
     layout::Align,
     state::StateStream,
     stored::WeakHandle,
@@ -22,7 +23,7 @@ use crate::{
     unit::Unit,
     utils::zip_latest,
     widget::{
-        col,
+        col, icon,
         interactive::base::{ClickCallback, InteractiveWidget},
         label, row, ButtonStyle, Stack, Text,
     },
@@ -32,7 +33,7 @@ use crate::{
 pub struct CollapsibleStyle {
     button: ButtonStyle,
     content: ValueOrRef<Srgba>,
-    chevron: ValueOrRef<String>,
+    chevron: ValueOrRef<Icon>,
 }
 
 impl Default for CollapsibleStyle {
@@ -46,7 +47,7 @@ impl Default for CollapsibleStyle {
 }
 
 impl CollapsibleStyle {
-    pub fn with_chevron(mut self, chevron: impl Into<ValueOrRef<String>>) -> Self {
+    pub fn with_chevron(mut self, chevron: impl Into<ValueOrRef<Icon>>) -> Self {
         self.chevron = chevron.into();
         self
     }
@@ -245,7 +246,7 @@ impl Widget for CollapsibleChevron<'_> {
             .set_default(translation())
             .set_default(tweens());
 
-        label(chevron).mount(scope);
+        icon(chevron).mount(scope);
     }
 }
 

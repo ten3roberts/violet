@@ -2,6 +2,7 @@ use glam::{BVec2, Vec2};
 use itertools::Itertools;
 use violet::{
     core::{
+        icon::Icon,
         layout::Align,
         style::{
             base_colors::*, default_corner_radius, spacing_small, surface_danger, surface_primary,
@@ -9,7 +10,7 @@ use violet::{
         },
         unit::Unit,
         widget::{
-            bold, card, col,
+            bold, card, col, icon,
             interactive::{
                 colorpicker::RgbColorPicker, dropdown::Dropdown, select_list::SelectList,
             },
@@ -19,7 +20,7 @@ use violet::{
         Edges, StateExt, Widget,
     },
     futures_signals::signal::{Mutable, SignalExt},
-    lucide::icons::*,
+    lucide::LucideIcon,
     palette::Srgba,
 };
 
@@ -64,26 +65,35 @@ fn dropdown() -> impl Widget {
         Dropdown::new(
             selection.lower_option(),
             [
-                row((bold(LUCIDE_BOX).with_color(SAPPHIRE_500), label("Box"))),
+                row((icon(LucideIcon::Box).with_color(SAPPHIRE_500), label("Box"))),
                 row((
-                    bold(LUCIDE_DROPLETS).with_color(AMETHYST_400),
+                    icon(LucideIcon::Droplets).with_color(AMETHYST_400),
                     label("Liquid"),
                 )),
-                row((bold(LUCIDE_HAMMER).with_color(AMBER_400), label("Tools"))),
-                row((bold(LUCIDE_BACKPACK).with_color(RUBY_400), label("Items"))),
                 row((
-                    bold(LUCIDE_HEADPHONES).with_color(EMERALD_400),
+                    icon(LucideIcon::Hammer).with_color(AMBER_400),
+                    label("Tools"),
+                )),
+                row((
+                    icon(LucideIcon::Backpack).with_color(RUBY_400),
+                    label("Items"),
+                )),
+                row((
+                    icon(LucideIcon::Headphones).with_color(EMERALD_400),
                     label("Music"),
                 )),
                 row((
-                    bold(LUCIDE_BRIEFCASE_BUSINESS).with_color(AMBER_500),
+                    icon(LucideIcon::BriefcaseBusiness).with_color(AMBER_500),
                     label("Business"),
                 )),
                 row((
-                    bold(LUCIDE_WRENCH).with_color(SAPPHIRE_500),
+                    icon(LucideIcon::Wrench).with_color(SAPPHIRE_500),
                     label("Settings"),
                 )),
-                row((bold(LUCIDE_LEAF).with_color(FOREST_400), label("Nature"))),
+                row((
+                    icon(LucideIcon::Leaf).with_color(FOREST_400),
+                    label("Nature"),
+                )),
             ],
         ),
     )
@@ -162,8 +172,8 @@ fn drag_and_drop() -> impl Widget {
 }
 
 fn icons() -> impl Widget {
-    fn icon_large(s: impl Into<String>) -> Text {
-        label(s).with_font_size(text_medium())
+    fn icon_large(glyph: impl Into<Icon>) -> Text {
+        icon(glyph).with_font_size(text_medium())
     }
 
     fn icon_button<W: Widget>(w: W) -> Button<W> {
@@ -173,19 +183,20 @@ fn icons() -> impl Widget {
     dialog(
         "Icons",
         col((row((
-            icon_button(icon_large(LUCIDE_COG).with_color(AMBER_300)).with_tooltip_text("Settings"),
-            icon_button(icon_large(LUCIDE_CHECK).with_color(EMERALD_500))
+            icon_button(icon_large(LucideIcon::Cog).with_color(AMBER_300))
+                .with_tooltip_text("Settings"),
+            icon_button(icon_large(LucideIcon::Check).with_color(EMERALD_500))
                 .with_tooltip_text("Success"),
-            icon_button(icon_large(LUCIDE_LIGHTBULB).with_color(TEAL_500))
+            icon_button(icon_large(LucideIcon::Lightbulb).with_color(TEAL_500))
                 .with_tooltip_text("Hint"),
-            icon_button(icon_large(LUCIDE_TRIANGLE_ALERT).with_color(surface_warning()))
+            icon_button(icon_large(LucideIcon::TriangleAlert).with_color(surface_warning()))
                 .with_tooltip_text("Warning"),
-            icon_button(icon_large(LUCIDE_CIRCLE_X).with_color(surface_danger()))
+            icon_button(icon_large(LucideIcon::CircleX).with_color(surface_danger()))
                 .with_tooltip_text("Error"),
             icon_button(
                 row((
                     TextInput::new(Mutable::new("Text".to_string())).with_padding(Edges::ZERO),
-                    icon_large(LUCIDE_PENCIL).with_color(SAPPHIRE_500),
+                    icon_large(LucideIcon::Pencil).with_color(SAPPHIRE_500),
                 ))
                 .with_cross_align(Align::Center),
             )

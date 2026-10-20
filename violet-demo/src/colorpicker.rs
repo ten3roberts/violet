@@ -14,9 +14,11 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use rfd::{AsyncFileDialog, FileHandle};
 use serde::{Deserialize, Serialize};
+use violet::futures_signals::signal::{Mutable, SignalExt};
 use violet::{
     core::{
         components::{self},
+        icon::Icon,
         io::clipboard,
         state::{StateDuplex, StateExt, StateOwned, StateStream, StateStreamRef},
         style::{default_corner_radius, spacing_small, surface_primary, SizeExt, StyleExt},
@@ -25,25 +27,18 @@ use violet::{
         unit::Unit,
         utils::zip_latest,
         widget::{
-            card, col, header, interactive::tooltip::Tooltip, label, panel, raised_card, row,
+            card, col, header, icon, interactive::tooltip::Tooltip, label, panel, raised_card, row,
             Button, ButtonStyle, Collapsible, LabeledSlider, Rectangle, ScrollArea, Selectable,
             SliderStyle, SliderValue, StreamWidget, Text, TextInput,
         },
         Edges, FutureEffect, Scope, ScopeRef, Widget,
     },
-    lucide::icons::{
-        LUCIDE_ARROW_DOWN_NARROW_WIDE, LUCIDE_COPY, LUCIDE_DOWNLOAD, LUCIDE_FOLDER_OPEN,
-        LUCIDE_PALETTE, LUCIDE_SAVE, LUCIDE_SUN_MEDIUM, LUCIDE_TRASH_2,
-    },
+    lucide::LucideIcon,
     palette::Srgba,
 };
 use violet::{
     core::{style::spacing_medium, widget::interactive::dropdown::Dropdown},
     palette::{Hsl, IntoColor, OklabHue, Oklch, RgbHue, Srgb, WithAlpha},
-};
-use violet::{
-    futures_signals::signal::{Mutable, SignalExt},
-    lucide::icons::LUCIDE_PLUS,
 };
 
 const TINTS: [usize; 11] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
@@ -174,8 +169,7 @@ impl ShadeSettings {
 
         Oklch {
             chroma,
-            l: self.min_lum
-                + (self.max_lum - self.min_lum) * (1.0 - tint.powf(effective_curve)),
+            l: self.min_lum + (self.max_lum - self.min_lum) * (1.0 - tint.powf(effective_curve)),
             ..color
         }
     }
@@ -194,8 +188,8 @@ impl Default for ShadeSettings {
             min_lum: 0.12,
             max_lum: 0.97,
             falloff: 10.0,
-            neutral_curve: 1.8,  // Default value for perceptually uniform spacing
-            neutral_chroma_threshold: 0.05,  // Colors with chroma < 0.05 treated as neutrals
+            neutral_curve: 1.8, // Default value for perceptually uniform spacing
+            neutral_chroma_threshold: 0.05, // Colors with chroma < 0.05 treated as neutrals
         }
     }
 }
@@ -302,7 +296,7 @@ pub fn shade_settings(settings: Mutable<ShadeSettings>) -> impl Widget {
     ));
 
     card(Collapsible::new(
-        icon_header(LUCIDE_SUN_MEDIUM, "Configure Shades"),
+        icon_header(LucideIcon::SunMedium, "Configure Shades"),
         col((preset_buttons, settings_widget)),
     ))
 }
@@ -380,7 +374,7 @@ impl Palette {
                     ))
                     .center(),
                     col((row(shades), StreamWidget::new(color_info))),
-                    Button::label(LUCIDE_TRASH_2)
+                    Button::new(icon(LucideIcon::Trash2))
                         .with_tooltip_text("Remove Palette")
                         .on_click(move |_| {
                             palettes.lock_mut().palettes.remove(palette_index);
@@ -435,8 +429,8 @@ fn color_swatch(color: impl 'static + Stream<Item = Srgba>, size: f32) -> impl W
     }
 }
 
-fn icon_header(icon: impl Into<String>, text: impl Into<String>) -> impl Widget {
-    row((label(icon), label(text))).center()
+fn icon_header(glyph: impl Into<Icon>, text: impl Into<String>) -> impl Widget {
+    row((icon(glyph), label(text))).center()
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -477,7 +471,7 @@ pub fn main_app() -> impl Widget {
         })
         .boxed();
 
-    let sort = Button::label(LUCIDE_ARROW_DOWN_NARROW_WIDE)
+    let sort = Button::new(icon(LucideIcon::ArrowDownNarrowWide))
         .with_tooltip_text("Sort by Hue")
         .on_click({
             to_owned!(palettes);
@@ -493,7 +487,7 @@ pub fn main_app() -> impl Widget {
             }
         });
 
-    let add_palette = Button::label(LUCIDE_PLUS)
+    let add_palette = Button::new(icon(LucideIcon::Plus))
         .with_tooltip_text("New Palette")
         .on_click({
             to_owned!(palettes, current_selection);
@@ -548,7 +542,7 @@ pub fn main_app() -> impl Widget {
             StreamWidget::new(active_color.map(|v| v.map(|color| color_editor(color)))),
             StreamWidget::new(widget),
             card(Collapsible::new(
-                icon_header(LUCIDE_PALETTE, "Palettes"),
+                icon_header(LucideIcon::Palette, "Palettes"),
                 col((StreamWidget::new(palette_list), row((add_palette, sort)))),
             )),
         ))
@@ -989,8 +983,8 @@ pub fn export_controls(palettes: Mutable<PaletteCollection>) -> impl Widget {
     row((
         raised_card(
             row((
-                Button::new(icon_header(LUCIDE_SAVE, "Save")).on_click(save),
-                Button::new(icon_header(LUCIDE_FOLDER_OPEN, "Open")).on_click(load),
+                Button::new(icon_header(LucideIcon::Save, "Save")).on_click(save),
+                Button::new(icon_header(LucideIcon::FolderOpen, "Open")).on_click(load),
                 StreamWidget::new(savefile.stream().map(|v| {
                     v.as_ref()
                         .and_then(|v| v.file_name())
@@ -1010,8 +1004,8 @@ pub fn export_controls(palettes: Mutable<PaletteCollection>) -> impl Widget {
                         ExportFormat::Rust,
                     ],
                 ),
-                Button::new(icon_header(LUCIDE_DOWNLOAD, "Export")).on_click(export),
-                Button::new(icon_header(LUCIDE_COPY, "Copy")).on_click(export_clipboard),
+                Button::new(icon_header(LucideIcon::Download, "Export")).on_click(export),
+                Button::new(icon_header(LucideIcon::Copy, "Copy")).on_click(export_clipboard),
             ))
             .center(),
         ),

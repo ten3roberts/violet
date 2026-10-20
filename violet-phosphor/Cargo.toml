@@ -1,0 +1,14 @@
+[package]
+name = "violet-phosphor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+violet-core = { path = "../violet-core" }
+
+tracing.workspace = true

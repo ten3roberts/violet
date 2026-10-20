@@ -6,7 +6,7 @@ use tracing_subscriber::{
 use tracing_tree::HierarchicalLayer;
 use violet_core::{
     layout::Align,
-    style::{base_colors::*, SizeExt, StylesheetOptions},
+    style::{base_colors::*, SizeExt},
     time::sleep,
     unit::Unit,
     widget::{bold, card, col, label, Button, Collapsible, Rectangle, SuspenseWidget, Throbber},
@@ -46,12 +46,7 @@ pub fn main() -> anyhow::Result<()> {
         .init();
 
     AppBuilder::new()
-        .with_font(violet_lucide::font_source())
-        .with_stylesheet(
-            StylesheetOptions::new()
-                .with_icons(violet_lucide::icon_set())
-                .build(),
-        )
+        .with_icon_pack(violet_lucide::pack())
         .with_renderer_config(MainRendererConfig { debug_mode: false })
         .run(app())
 }
