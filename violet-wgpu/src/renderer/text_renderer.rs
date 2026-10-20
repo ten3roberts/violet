@@ -165,7 +165,7 @@ impl MeshGenerator {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 1,
             mag_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         }));

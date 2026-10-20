@@ -304,6 +304,7 @@ impl MainRenderer {
             label: Some("MainRenderer::draw"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target_view,
+                depth_slice: None,
                 resolve_target: None,
                 ops: Operations {
                     load: if clear {

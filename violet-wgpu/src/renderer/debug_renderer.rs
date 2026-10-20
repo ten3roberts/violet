@@ -54,7 +54,7 @@ impl DebugRenderer {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 16,
             mag_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });

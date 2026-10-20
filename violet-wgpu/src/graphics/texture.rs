@@ -50,7 +50,7 @@ impl Texture {
         // Write to the texture
         gpu.queue.write_texture(
             // Tells wgpu where to copy the pixel data
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
@@ -59,7 +59,7 @@ impl Texture {
             // The actual pixel data
             &image,
             // The layout of the texture
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(format.block_copy_size(None).unwrap() * dimensions.0),
                 rows_per_image: Some(dimensions.1),

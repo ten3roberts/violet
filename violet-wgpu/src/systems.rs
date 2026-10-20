@@ -66,13 +66,13 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
 
                     item.state.update_text(
                         &stylesheet,
-                        &mut text_system.font_system,
+                        &text_system.font_system,
                         item.text,
                         *item.color,
                     );
 
                     let buffer = &mut item.state.buffer;
-                    buffer.set_wrap(&mut text_system.font_system, *item.wrap);
+                    buffer.set_wrap(*item.wrap);
 
                     // let size = item.rect.size();
 

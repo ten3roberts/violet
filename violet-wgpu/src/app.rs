@@ -462,9 +462,9 @@ impl ApplicationHandler for WindowEventHandler {
             let text_system = self.instance.text_system.to_owned();
             let layout_changes_rx = self.instance.layout_changes_rx.to_owned();
 
-            self.instance
-                .frame
-                .spawn(FutureEffect::new(Gpu::with_surface(window.clone()), {
+            self.instance.frame.spawn(FutureEffect::new(
+                Gpu::with_surface(event_loop.owned_display_handle(), window.clone()),
+                {
                     move |frame: &mut Frame, (gpu, surface)| {
                         let window_renderer = WindowRenderer::new(
                             frame,
@@ -477,7 +477,8 @@ impl ApplicationHandler for WindowEventHandler {
                         );
                         renderer_tx.send(window_renderer).ok();
                     }
-                }));
+                },
+            ));
 
             self.window = Some(window);
         }

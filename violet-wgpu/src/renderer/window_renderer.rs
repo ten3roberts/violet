@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use flax::Entity;
-use glam::Mat4;
 use parking_lot::Mutex;
 use puffin::profile_scope;
 use violet_core::{layout::cache::LayoutUpdateEvent, Frame};
-use wgpu::SurfaceError;
+use wgpu::CurrentSurfaceTexture;
 use winit::dpi::{LogicalSize, PhysicalSize};
 
 use super::{MainRenderer, MainRendererConfig, RendererContext};
@@ -54,7 +53,8 @@ impl WindowRenderer {
         let w = logical_size.width;
         let h = logical_size.height;
 
-        self.ctx.globals.projview = Mat4::orthographic_lh(0.0, w, h, 0.0, 0.0, 1000.0);
+        self.ctx.globals.projview =
+            glam::camera::lh::proj::directx::orthographic(0.0, w, h, 0.0, 0.0, 1000.0);
         self.ctx
             .globals_buffer
             .write(&self.ctx.gpu.queue, 0, &[self.ctx.globals]);
@@ -70,13 +70,22 @@ impl WindowRenderer {
             tracing::debug!("No surface size, skipping draw");
             return Ok(());
         }
-        let target = match self.surface.get_current_texture() {
-            Ok(v) => v,
-            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
+        let (target, suboptimal) = match self.surface.get_current_texture() {
+            CurrentSurfaceTexture::Success(v) => (v, false),
+            // Still presentable; draw this frame and reconfigure afterwards
+            CurrentSurfaceTexture::Suboptimal(v) => (v, true),
+            CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
+                tracing::debug!("Surface outdated or lost, reconfiguring and skipping frame");
                 self.surface.reconfigure(&self.ctx.gpu);
                 return Ok(());
             }
-            Err(err) => return Err(err).context("Failed to acquire surface texture"),
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => {
+                tracing::debug!("Surface texture unavailable, skipping frame");
+                return Ok(());
+            }
+            CurrentSurfaceTexture::Validation => {
+                anyhow::bail!("Validation error while acquiring surface texture")
+            }
         };
 
         self.main_renderer.update(&mut self.ctx, frame)?;
@@ -98,7 +107,12 @@ impl WindowRenderer {
         {
             profile_scope!("submit");
             self.ctx.gpu.queue.submit([encoder.finish()]);
-            target.present();
+            self.ctx.gpu.queue.present(target);
+        }
+
+        if suboptimal {
+            tracing::debug!("Surface suboptimal, reconfiguring");
+            self.surface.reconfigure(&self.ctx.gpu);
         }
 
         Ok(())

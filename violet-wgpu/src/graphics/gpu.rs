@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use wgpu::{Adapter, Backends, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat};
-use winit::{dpi::PhysicalSize, window::Window};
+use wgpu::{Adapter, Backends, CurrentSurfaceTexture, SurfaceConfiguration, TextureFormat};
+use winit::{dpi::PhysicalSize, event_loop::OwnedDisplayHandle, window::Window};
 
 /// Represents the Gpu and graphics state
 #[derive(Debug)]
@@ -18,7 +18,7 @@ pub struct Surface {
 }
 
 impl Surface {
-    pub fn get_current_texture(&self) -> Result<SurfaceTexture, SurfaceError> {
+    pub fn get_current_texture(&self) -> CurrentSurfaceTexture {
         self.surface.get_current_texture()
     }
 
@@ -61,8 +61,11 @@ impl Surface {
 }
 
 impl Gpu {
-    // Creating some of the wgpu types requires async code
-    pub async fn with_surface(window: Arc<Window>) -> (Self, Surface) {
+    /// Creates the gpu and a surface for `window` (async, as adapter and device creation are).
+    ///
+    /// `display` must be the display connection `window` belongs to; GLES (notably on Wayland)
+    /// needs it at instance creation to present.
+    pub async fn with_surface(display: OwnedDisplayHandle, window: Arc<Window>) -> (Self, Surface) {
         #[cfg(not(target_arch = "wasm32"))]
         let backends = Backends::all();
 
@@ -71,8 +74,7 @@ impl Gpu {
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends,
-            dx12_shader_compiler: Default::default(),
-            ..Default::default()
+            ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(display))
         });
 
         // # Safety
@@ -86,29 +88,29 @@ impl Gpu {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .expect("Failed to find an appropriate adapter");
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
-                    // WebGL doesn't support all of wgpu's features, so if
-                    // we're building for the web we'll have to disable some.
-                    required_limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits {
-                            max_texture_dimension_2d: 4096,
-                            ..wgpu::Limits::downlevel_webgl2_defaults()
-                        }
-                    } else {
-                        wgpu::Limits::default()
-                    },
-                    label: None,
-                    memory_hints: Default::default(),
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::empty(),
+                // WebGL doesn't support all of wgpu's features, so if
+                // we're building for the web we'll have to disable some.
+                required_limits: if cfg!(target_arch = "wasm32") {
+                    wgpu::Limits {
+                        max_texture_dimension_2d: 4096,
+                        ..wgpu::Limits::downlevel_webgl2_defaults()
+                    }
+                } else {
+                    wgpu::Limits::default()
                 },
-                None, // Trace path
-            )
+                label: None,
+                memory_hints: Default::default(),
+                experimental_features: Default::default(),
+                trace: Default::default(),
+            })
             .await
             .unwrap();
 

@@ -286,7 +286,7 @@ impl TextBufferState {
     pub(crate) fn update_text(
         &mut self,
         stylesheet: &EntityRef,
-        font_system: &mut FontSystem,
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))] font_system: &FontSystem,
         text: &[TextSegment],
         base_color: Srgba,
     ) {
@@ -296,7 +296,6 @@ impl TextBufferState {
         warn_missing_families(font_system, text);
 
         self.buffer.set_rich_text(
-            font_system,
             text.iter().map(|v| {
                 let color = v
                     .color
@@ -420,13 +419,13 @@ mod tests {
             for style in [Style::Normal, Style::Italic] {
                 let mut buffer = Buffer::new(font_system, Metrics::new(14.0, 14.0));
                 buffer.set_text(
-                    font_system,
                     "Editor folder plus text",
                     &Attrs::new()
                         .family(Family::SansSerif)
                         .weight(weight)
                         .style(style),
                     Shaping::Advanced,
+                    None,
                 );
                 buffer.shape_until_scroll(font_system, false);
 

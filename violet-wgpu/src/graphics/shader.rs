@@ -32,8 +32,8 @@ impl Shader {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some(desc.label),
-                bind_group_layouts: desc.layouts,
-                push_constant_ranges: &[],
+                bind_group_layouts: &desc.layouts.iter().map(|v| Some(*v)).collect::<Vec<_>>(),
+                immediate_size: 0,
             });
 
         let pipeline = gpu
@@ -43,14 +43,19 @@ impl Shader {
                 layout: Some(&layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main", // 1.
-                    buffers: desc.vertex_layouts,
+                    entry_point: Some("vs_main"), // 1.
+                    buffers: &desc
+                        .vertex_layouts
+                        .iter()
+                        .cloned()
+                        .map(Some)
+                        .collect::<Vec<_>>(),
                     compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     // 3.
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
                         // 4.
                         format: desc.format,
@@ -74,7 +79,7 @@ impl Shader {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: Default::default(),
             });
 
