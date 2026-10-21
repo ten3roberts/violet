@@ -9,8 +9,8 @@ pub struct ShaderDesc<'a> {
     pub label: &'a str,
     pub source: &'a str,
     pub format: TextureFormat,
-    pub vertex_layouts: &'a [VertexBufferLayout<'static>],
-    pub layouts: &'a [&'a BindGroupLayout],
+    pub vertex_layouts: &'a [Option<VertexBufferLayout<'static>>],
+    pub layouts: &'a [Option<&'a BindGroupLayout>],
 }
 
 /// Represents a graphics shader
@@ -32,7 +32,7 @@ impl Shader {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some(desc.label),
-                bind_group_layouts: &desc.layouts.iter().map(|v| Some(*v)).collect::<Vec<_>>(),
+                bind_group_layouts: desc.layouts,
                 immediate_size: 0,
             });
 
@@ -44,12 +44,7 @@ impl Shader {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main"), // 1.
-                    buffers: &desc
-                        .vertex_layouts
-                        .iter()
-                        .cloned()
-                        .map(Some)
-                        .collect::<Vec<_>>(),
+                    buffers: desc.vertex_layouts,
                     compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {

@@ -62,14 +62,14 @@ impl ObjectQuery {
 
 struct FontRasterizer {
     rasterized: RasterizedFont,
-    sampler: Arc<Sampler>,
+    sampler: Sampler,
     text_layout: BindGroupLayout,
 }
 
 impl FontRasterizer {
     fn new(
         gpu: &Gpu,
-        sampler: Arc<Sampler>,
+        sampler: Sampler,
         text_layout: BindGroupLayout,
         store: &mut RendererStore,
     ) -> Self {
@@ -156,19 +156,23 @@ impl MeshGenerator {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/text.wgsl"),
                 format: color_format,
-                vertex_layouts: &[Vertex::layout()],
-                layouts: &[globals_layout, object_layout, &text_layout],
+                vertex_layouts: &[Some(Vertex::layout())],
+                layouts: &[
+                    Some(globals_layout),
+                    Some(object_layout),
+                    Some(&text_layout),
+                ],
             },
         ));
 
-        let sampler = Arc::new(gpu.device.create_sampler(&SamplerDescriptor {
+        let sampler = gpu.device.create_sampler(&SamplerDescriptor {
             label: Some("ShapeRenderer::sampler"),
             anisotropy_clamp: 1,
             mag_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
-        }));
+        });
 
         let sentinel = Arc::new(mesh_buffer.allocate(gpu, 0, 0));
         Self {

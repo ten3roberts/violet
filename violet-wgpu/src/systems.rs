@@ -51,7 +51,7 @@ impl TextBufferQuery {
 }
 
 /// Updates text buffers with new text and layout information.
-pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedSystem {
+pub(crate) fn update_text_buffers() -> BoxedSystem {
     System::builder()
         .with_query(Query::new(TextBufferQuery::new().modified()))
         .build(
@@ -59,17 +59,10 @@ pub(crate) fn update_text_buffers(text_system: Arc<Mutex<TextSystem>>) -> BoxedS
                 <TextBufferQuery as TransformFetch<Modified>>::Output,
                 _,
             >| {
-                let text_system = &mut *text_system.lock();
-
                 for item in &mut query {
                     let stylesheet = get_stylesheet_from_entity(&item.entity);
 
-                    item.state.update_text(
-                        &stylesheet,
-                        &text_system.font_system,
-                        item.text,
-                        *item.color,
-                    );
+                    item.state.update_text(&stylesheet, item.text, *item.color);
 
                     let buffer = &mut item.state.buffer;
                     buffer.set_wrap(*item.wrap);

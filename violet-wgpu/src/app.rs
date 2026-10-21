@@ -129,14 +129,19 @@ impl AppBuilder {
             .stylesheet
             .unwrap_or_else(|| StylesheetOptions::new().build());
 
+        let text_system = TextSystem::new_with_fonts(self.fonts);
+
         if let Some(icons) = self.icons {
+            #[cfg(debug_assertions)]
+            text_system.warn_missing_families(icons.iter().map(|icon| &icon.family));
+
             icons.install(&mut stylesheet);
         }
 
         AppInstance::new(
             root,
             self.allow_resize,
-            Arc::new(Mutex::new(TextSystem::new_with_fonts(self.fonts))),
+            Arc::new(Mutex::new(text_system)),
             stylesheet,
         )
     }
@@ -233,7 +238,7 @@ impl AppInstance {
             .flush()
             .with_system(register_text_buffers(text_system.clone()))
             .flush()
-            .with_system(update_text_buffers(text_system.clone()))
+            .with_system(update_text_buffers())
             .with_system(tweens::update_tweens_system())
             .with_system(invalidate_cached_layout_system(&mut frame.world))
             .with_system(compute_transform_system())

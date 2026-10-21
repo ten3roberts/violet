@@ -27,41 +27,6 @@ pub(crate) static INTER_FONT_BOLD: &[u8] =
 pub(crate) static INTER_FONT_ITALIC: &[u8] =
     include_bytes!("../../assets/fonts/Inter/Inter-Italic-VariableFont_opsz,wght.ttf");
 
-/// Warns once per family when text names a font family that was never loaded.
-///
-/// The text system silently substitutes another font for a missing family, which for icon fonts
-/// means drawing a glyph from whichever other icon font shares the codepoint.
-#[cfg(debug_assertions)]
-fn warn_missing_families(font_system: &FontSystem, text: &[TextSegment]) {
-    use std::collections::BTreeSet;
-    use violet_core::text::FontFamily;
-
-    static CHECKED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
-
-    for segment in text {
-        let FontFamily::Named(name) = &segment.family else {
-            continue;
-        };
-
-        let mut checked = CHECKED.lock();
-        if checked.contains(&**name) {
-            continue;
-        }
-        checked.insert(name.to_string());
-
-        let loaded = font_system
-            .db()
-            .faces()
-            .any(|face| face.families.iter().any(|(family, _)| family == name));
-
-        if !loaded {
-            tracing::warn!(
-                "Font family {name:?} is not loaded; text using it will fall back to another font"
-            );
-        }
-    }
-}
-
 pub struct TextSystem {
     pub(crate) font_system: FontSystem,
     pub(crate) swash_cache: SwashCache,
@@ -91,6 +56,42 @@ impl TextSystem {
         Self {
             font_system,
             swash_cache: SwashCache::new(),
+        }
+    }
+
+    /// Warns about each named family in `families` that no loaded font provides.
+    ///
+    /// The text system silently substitutes another font for a missing family, which for icon
+    /// fonts means drawing a glyph from whichever other icon font shares the codepoint.
+    #[cfg(debug_assertions)]
+    pub(crate) fn warn_missing_families<'a>(
+        &self,
+        families: impl IntoIterator<Item = &'a violet_core::text::FontFamily>,
+    ) {
+        use std::collections::BTreeSet;
+
+        use violet_core::text::FontFamily;
+
+        let named = families
+            .into_iter()
+            .filter_map(|family| match family {
+                FontFamily::Named(name) => Some(&**name),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+
+        for name in named {
+            let loaded = self
+                .font_system
+                .db()
+                .faces()
+                .any(|face| face.families.iter().any(|(family, _)| family == name));
+
+            if !loaded {
+                tracing::warn!(
+                    "Font family {name:?} is not loaded; text using it will fall back to another font"
+                );
+            }
         }
     }
 }
@@ -286,14 +287,10 @@ impl TextBufferState {
     pub(crate) fn update_text(
         &mut self,
         stylesheet: &EntityRef,
-        #[cfg_attr(not(debug_assertions), allow(unused_variables))] font_system: &FontSystem,
         text: &[TextSegment],
         base_color: Srgba,
     ) {
         puffin::profile_function!();
-
-        #[cfg(debug_assertions)]
-        warn_missing_families(font_system, text);
 
         self.buffer.set_rich_text(
             text.iter().map(|v| {

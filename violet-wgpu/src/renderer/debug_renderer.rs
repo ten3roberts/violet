@@ -94,8 +94,12 @@ impl DebugRenderer {
                 label: "ShapeRenderer::shader",
                 source: include_str!("../../../assets/shaders/border_shader.wgsl"),
                 format: color_format,
-                vertex_layouts: &[Vertex::layout()],
-                layouts: &[&ctx.globals_layout, object_bind_group_layout, &layout],
+                vertex_layouts: &[Some(Vertex::layout())],
+                layouts: &[
+                    Some(&ctx.globals_layout),
+                    Some(object_bind_group_layout),
+                    Some(&layout),
+                ],
             },
         ));
         Self {

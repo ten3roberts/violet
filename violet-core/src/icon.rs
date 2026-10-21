@@ -98,6 +98,25 @@ impl IconSet {
             .set(icon_ellipsis(), self.ellipsis)
             .set(icon_search(), self.search);
     }
+
+    /// Iterates over every icon in the set
+    pub fn iter(&self) -> impl Iterator<Item = &Icon> {
+        let Self {
+            chevron,
+            spinner,
+            warning,
+            error,
+            info,
+            check,
+            ellipsis,
+            search,
+        } = self;
+
+        [
+            chevron, spinner, warning, error, info, check, ellipsis, search,
+        ]
+        .into_iter()
+    }
 }
 
 impl Default for IconSet {

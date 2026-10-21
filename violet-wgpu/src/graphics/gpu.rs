@@ -1,25 +1,86 @@
 use std::sync::Arc;
 
-use wgpu::{Adapter, Backends, CurrentSurfaceTexture, SurfaceConfiguration, TextureFormat};
+use anyhow::Context;
+use wgpu::{
+    Adapter, Backends, CurrentSurfaceTexture, SurfaceConfiguration, SurfaceTexture, TextureFormat,
+};
 use winit::{dpi::PhysicalSize, event_loop::OwnedDisplayHandle, window::Window};
 
 /// Represents the Gpu and graphics state
 #[derive(Debug)]
 pub struct Gpu {
-    pub adapter: Arc<Adapter>,
-    pub device: Arc<wgpu::Device>,
-    pub queue: Arc<wgpu::Queue>,
+    pub adapter: Adapter,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
 }
 
 pub struct Surface {
+    /// Kept to recreate [`Self::surface`] when it is lost.
+    instance: wgpu::Instance,
+    window: Arc<Window>,
     size: Option<PhysicalSize<u32>>,
     surface: wgpu::Surface<'static>,
     config: SurfaceConfiguration,
+    /// The last acquired texture was suboptimal; reconfigure once it has been presented.
+    needs_reconfigure: bool,
 }
 
 impl Surface {
-    pub fn get_current_texture(&self) -> CurrentSurfaceTexture {
-        self.surface.get_current_texture()
+    /// Acquires the next texture to render to.
+    ///
+    /// Returns `Ok(None)` when this frame should be skipped:
+    /// - the surface has no size yet, or a zero size;
+    /// - the surface is outdated: it is reconfigured, so the next frame can proceed;
+    /// - the surface is lost: it is recreated and configured, so the next frame can proceed;
+    /// - acquiring timed out, or the window is occluded.
+    ///
+    /// A suboptimal texture is still returned, and the surface is reconfigured after it has been
+    /// handed to [`Self::present`].
+    pub fn acquire_texture(&mut self, gpu: &Gpu) -> anyhow::Result<Option<SurfaceTexture>> {
+        if !self.has_size() {
+            tracing::debug!("No surface size, skipping frame");
+            return Ok(None);
+        }
+
+        match self.surface.get_current_texture() {
+            CurrentSurfaceTexture::Success(texture) => Ok(Some(texture)),
+            CurrentSurfaceTexture::Suboptimal(texture) => {
+                self.needs_reconfigure = true;
+                Ok(Some(texture))
+            }
+            CurrentSurfaceTexture::Outdated => {
+                tracing::debug!("Surface outdated, reconfiguring and skipping frame");
+                self.reconfigure(gpu);
+                Ok(None)
+            }
+            CurrentSurfaceTexture::Lost => {
+                tracing::debug!("Surface lost, recreating and skipping frame");
+                self.surface = self
+                    .instance
+                    .create_surface(self.window.clone())
+                    .context("Failed to recreate lost surface")?;
+                self.reconfigure(gpu);
+                Ok(None)
+            }
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => {
+                tracing::debug!("Surface texture unavailable, skipping frame");
+                Ok(None)
+            }
+            CurrentSurfaceTexture::Validation => {
+                anyhow::bail!("Validation error while acquiring surface texture")
+            }
+        }
+    }
+
+    /// Presents a texture from [`Self::acquire_texture`], reconfiguring the surface afterwards if
+    /// it was suboptimal.
+    pub fn present(&mut self, gpu: &Gpu, texture: SurfaceTexture) {
+        gpu.queue.present(texture);
+
+        if self.needs_reconfigure {
+            tracing::debug!("Surface suboptimal, reconfiguring");
+            self.reconfigure(gpu);
+        }
     }
 
     pub fn surface_config(&self) -> &SurfaceConfiguration {
@@ -49,6 +110,7 @@ impl Surface {
 
     pub fn reconfigure(&mut self, gpu: &Gpu) {
         self.surface.configure(&gpu.device, &self.config);
+        self.needs_reconfigure = false;
     }
 
     pub fn surface_format(&self) -> TextureFormat {
@@ -72,16 +134,16 @@ impl Gpu {
         #[cfg(target_arch = "wasm32")]
         let backends = Backends::GL;
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends,
-            ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(display))
-        });
+        // The wgpu environment variables (e.g. `WGPU_BACKEND=gl`) take precedence
+        let instance = wgpu::Instance::new(
+            wgpu::InstanceDescriptor {
+                backends,
+                ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(display))
+            }
+            .with_env(),
+        );
 
-        // # Safety
-        //
-        // The surface needs to live as long as the window that created it.
-        // State owns the window so this should be safe.
-        let surface = instance.create_surface(window).unwrap();
+        let surface = instance.create_surface(window.clone()).unwrap();
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -136,14 +198,17 @@ impl Gpu {
 
         (
             Self {
-                adapter: Arc::new(adapter),
-                device: Arc::new(device),
-                queue: Arc::new(queue),
+                adapter,
+                device,
+                queue,
             },
             Surface {
+                instance,
+                window,
                 surface,
                 config,
                 size: None,
+                needs_reconfigure: false,
             },
         )
     }

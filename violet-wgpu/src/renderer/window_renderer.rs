@@ -5,7 +5,6 @@ use flax::Entity;
 use parking_lot::Mutex;
 use puffin::profile_scope;
 use violet_core::{layout::cache::LayoutUpdateEvent, Frame};
-use wgpu::CurrentSurfaceTexture;
 use winit::dpi::{LogicalSize, PhysicalSize};
 
 use super::{MainRenderer, MainRendererConfig, RendererContext};
@@ -66,26 +65,8 @@ impl WindowRenderer {
     }
 
     pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<()> {
-        if !self.surface.has_size() {
-            tracing::debug!("No surface size, skipping draw");
+        let Some(target) = self.surface.acquire_texture(&self.ctx.gpu)? else {
             return Ok(());
-        }
-        let (target, suboptimal) = match self.surface.get_current_texture() {
-            CurrentSurfaceTexture::Success(v) => (v, false),
-            // Still presentable; draw this frame and reconfigure afterwards
-            CurrentSurfaceTexture::Suboptimal(v) => (v, true),
-            CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
-                tracing::debug!("Surface outdated or lost, reconfiguring and skipping frame");
-                self.surface.reconfigure(&self.ctx.gpu);
-                return Ok(());
-            }
-            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => {
-                tracing::debug!("Surface texture unavailable, skipping frame");
-                return Ok(());
-            }
-            CurrentSurfaceTexture::Validation => {
-                anyhow::bail!("Validation error while acquiring surface texture")
-            }
         };
 
         self.main_renderer.update(&mut self.ctx, frame)?;
@@ -107,12 +88,7 @@ impl WindowRenderer {
         {
             profile_scope!("submit");
             self.ctx.gpu.queue.submit([encoder.finish()]);
-            self.ctx.gpu.queue.present(target);
-        }
-
-        if suboptimal {
-            tracing::debug!("Surface suboptimal, reconfiguring");
-            self.surface.reconfigure(&self.ctx.gpu);
+            self.surface.present(&self.ctx.gpu, target);
         }
 
         Ok(())
