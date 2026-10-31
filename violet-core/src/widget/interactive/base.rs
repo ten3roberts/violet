@@ -6,6 +6,7 @@ use winit::event::ElementState;
 use crate::{
     executor::TaskHandle,
     input::{interactive, on_cursor_hover, on_mouse_input, HoverState, MouseInput},
+    stored::WeakHandle,
     style::{SizeExt, WidgetSizeProps},
     time::sleep,
     widget::{label, pill},
@@ -17,7 +18,10 @@ use super::{
     tooltip::TooltipOverlay,
 };
 
+pub use crate::style::InteractionState;
+
 pub type ClickCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>)>;
+pub type InteractionStateCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, InteractionState)>;
 pub type PointerPressCallback = Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, ElementState)>;
 pub type MouseInputCallback =
     Box<dyn Send + Sync + FnMut(&ScopeRef<'_>, MouseInput) -> Option<MouseInput>>;
@@ -67,6 +71,7 @@ pub struct InteractiveWidget<W> {
     on_press: Option<PointerPressCallback>,
     on_right_click: Option<ClickCallback>,
     on_mouse_input: Option<MouseInputCallback>,
+    on_interaction_state: Option<InteractionStateCallback>,
     size: WidgetSizeProps,
     tooltip: Option<TooltipOptions>,
     inner: W,
@@ -79,6 +84,7 @@ impl<W: Widget> InteractiveWidget<W> {
             on_press: None,
             on_right_click: None,
             on_mouse_input: None,
+            on_interaction_state: None,
             tooltip: None,
             size: Default::default(),
             inner,
@@ -150,6 +156,15 @@ impl<W: Widget> InteractiveWidget<W> {
         self
     }
 
+    /// Invoked when the pointer enters or leaves the widget, or presses or releases it
+    pub fn on_interaction_state<F>(mut self, f: F) -> Self
+    where
+        F: FnMut(&ScopeRef<'_>, InteractionState) + Send + Sync + 'static,
+    {
+        self.on_interaction_state = Some(Box::new(f));
+        self
+    }
+
     pub fn with_tooltip_text(mut self, tooltip: impl Into<String>) -> Self {
         let tooltip = tooltip.into();
         self.tooltip = Some(TooltipOptions::new(move |_| label(&tooltip)));
@@ -179,7 +194,16 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
 
         let tooltip_info = self.tooltip.map(|v| scope.store(v));
 
+        let interaction = scope.store(RefCell::new((
+            InteractionState::default(),
+            self.on_interaction_state.take(),
+        )));
+
         scope.on_event(on_cursor_hover(), move |scope, event| {
+            update_interaction(scope, interaction, |state| {
+                state.hovered = event.state != HoverState::Exited
+            });
+
             let existing_info = &mut scope.read(info).borrow_mut();
 
             existing_info.position = event.absolute_pos;
@@ -265,6 +289,10 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
 
                 match input.button {
                     winit::event::MouseButton::Left => {
+                        update_interaction(scope, interaction, |state| {
+                            state.pressed = input.state == ElementState::Pressed
+                        });
+
                         if let Some(on_press) = &mut self.on_press {
                             (on_press)(scope, input.state)
                         }
@@ -295,6 +323,34 @@ impl<W: Widget> Widget for InteractiveWidget<W> {
 impl<W> SizeExt for InteractiveWidget<W> {
     fn size_mut(&mut self) -> &mut WidgetSizeProps {
         &mut self.size
+    }
+}
+
+type InteractionCell = RefCell<(InteractionState, Option<InteractionStateCallback>)>;
+
+/// Applies `f` to the stored interaction state and reports it if it changed.
+///
+/// The callback is taken out of the cell while it runs, so it may itself touch the widget.
+fn update_interaction(
+    scope: &ScopeRef<'_>,
+    interaction: WeakHandle<InteractionCell>,
+    f: impl FnOnce(&mut InteractionState),
+) {
+    let cell = scope.read(interaction);
+    let (state, callback) = {
+        let mut current = cell.borrow_mut();
+        let mut state = current.0;
+        f(&mut state);
+        if state == current.0 {
+            return;
+        }
+        current.0 = state;
+        (state, current.1.take())
+    };
+
+    if let Some(mut callback) = callback {
+        callback(scope, state);
+        cell.borrow_mut().1 = Some(callback);
     }
 }
 

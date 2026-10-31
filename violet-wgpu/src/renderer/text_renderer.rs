@@ -14,7 +14,8 @@ use parking_lot::Mutex;
 use violet_core::{
     assets::AssetCache,
     components::{
-        color, computed_visible, draw_shape, font_size, layout_bounds, rect, screen_transform, text,
+        color, computed_opacity, computed_visible, draw_shape, font_size, layout_bounds, rect,
+        screen_transform, text,
     },
     shape::shape_text,
     stored::{self, Handle},
@@ -45,6 +46,7 @@ struct ObjectQuery {
     object_data: ComponentMut<ObjectData>,
     color: OptOr<Component<Srgba>, Srgba>,
     visible: Cmp<Component<bool>, filter::Equal<bool>>,
+    opacity: Component<f32>,
 }
 
 impl ObjectQuery {
@@ -56,6 +58,7 @@ impl ObjectQuery {
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
             visible: computed_visible().eq(true),
+            opacity: computed_opacity(),
         }
     }
 }
@@ -443,7 +446,8 @@ impl TextRenderer {
                         rect.pos().extend(0.0),
                     );
 
-                *item.object_data = ObjectData::new(model_matrix, Vec4::ONE);
+                *item.object_data =
+                    ObjectData::new(model_matrix, Vec4::new(1.0, 1.0, 1.0, *item.opacity));
             })
     }
 

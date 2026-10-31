@@ -17,6 +17,15 @@ use crate::{
     Scope, Widget,
 };
 
+/// Scroll position and visible size of a scroll area, shared with its content
+#[derive(Debug, Clone, Default)]
+pub struct ScrollState {
+    /// How far the content is scrolled, in pixels from its top left
+    pub scroll_pos: Mutable<Vec2>,
+    /// Size of the visible part of the content
+    pub viewport: Mutable<Vec2>,
+}
+
 /// Wraps a widget in a scroll area.
 ///
 /// Scroll bars will be shown if the content is larger than the available space.
@@ -25,6 +34,7 @@ pub struct ScrollArea<W> {
     directions: BVec2,
     size: WidgetSizeProps,
     background: Option<Background>,
+    state: ScrollState,
 }
 
 impl<W> ScrollArea<W> {
@@ -37,6 +47,7 @@ impl<W> ScrollArea<W> {
             directions: directions.into(),
             size: WidgetSizeProps::default(),
             background: None,
+            state: ScrollState::default(),
         }
     }
 
@@ -49,6 +60,7 @@ impl<W> ScrollArea<W> {
             directions: BVec2::new(false, true),
             size: WidgetSizeProps::default(),
             background: None,
+            state: ScrollState::default(),
         }
     }
 
@@ -61,6 +73,7 @@ impl<W> ScrollArea<W> {
             directions: BVec2::new(true, false),
             size: WidgetSizeProps::default(),
             background: None,
+            state: ScrollState::default(),
         }
     }
 
@@ -68,14 +81,20 @@ impl<W> ScrollArea<W> {
         self.background = Some(background.into());
         self
     }
+
+    /// Share the scroll position and visible size with `state`, such as the content's own
+    pub fn with_state(mut self, state: ScrollState) -> Self {
+        self.state = state;
+        self
+    }
 }
 
 impl<W: Widget> Widget for ScrollArea<W> {
     fn mount(self, scope: &mut Scope<'_>) {
         let content_size = Mutable::new(Vec2::ZERO);
-        let outer_size = Mutable::new(Vec2::ZERO);
+        let outer_size = self.state.viewport;
 
-        let scroll_pos = Mutable::new(Vec2::ZERO);
+        let scroll_pos = self.state.scroll_pos;
         let sensitivity = vec2(2.0, -2.0);
         scope.on_event(on_scroll(), {
             to_owned![content_size, outer_size, scroll_pos];

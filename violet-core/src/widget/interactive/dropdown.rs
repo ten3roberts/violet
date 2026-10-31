@@ -18,7 +18,7 @@ use crate::{
     unit::Unit,
     utils::throttle_skip,
     widget::{
-        card, col, icon,
+        card, col, fade_in_out, icon,
         interactive::{
             overlay::{overlay_state, CloseOnDropHandle, Overlay},
             InteractiveWidget,
@@ -140,6 +140,9 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
     fn create(self, scope: &mut Scope<'_>, token: super::overlay::OverlayHandle) {
         let selection = scope.store(self.selection);
         let token = scope.store(token);
+
+        // Fade the whole overlay, as closing detaches its root rather than the menu
+        fade_in_out(scope, 1.0);
 
         let menu = |scope: &mut Scope| {
             scope

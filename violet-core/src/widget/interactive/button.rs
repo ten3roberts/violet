@@ -1,204 +1,199 @@
-use flax::EntityRef;
+use std::cell::RefCell;
+
+use flax::Component;
+use glam::{vec2, Vec2};
 use palette::Srgba;
 
 use crate::{
-    components::{color, LayoutAlignment},
+    components::LayoutAlignment,
     icon::IconSet,
     input::MouseInput,
     layout::Align,
     scope::ScopeRef,
     state::{StateDuplex, StateExt, StateStream, WatchState},
+    stored::WeakHandle,
     style::*,
-    tweens::tweens,
     unit::Unit,
     widget::{
         icon,
         interactive::base::{ClickCallback, MouseInputCallback},
         label, ContainerStyle, Rectangle, Stack, Text,
     },
-    Scope, Widget, WidgetCollection,
+    Edges, Scope, Widget, WidgetCollection,
 };
 
-use super::base::{InteractiveWidget, TooltipOptions};
+use super::base::{InteractionState, InteractiveWidget, TooltipOptions};
 
-#[derive(Debug, Copy, Clone)]
-pub struct ColorPair<T> {
-    pub surface: T,
-    pub element: T,
-}
-
-impl<T> ColorPair<T> {
-    pub fn new(surface: impl Into<T>, element: impl Into<T>) -> Self {
-        Self {
-            surface: surface.into(),
-            element: element.into(),
-        }
-    }
-}
-
-impl<T: ResolvableStyle> ResolvableStyle for ColorPair<T> {
-    type Value = ColorPair<T::Value>;
-
-    fn resolve(&self, stylesheet: EntityRef<'_>) -> ColorPair<T::Value> {
-        ColorPair {
-            surface: self.surface.resolve(stylesheet),
-            element: self.element.resolve(stylesheet),
-        }
-    }
-}
-
+/// Looks of a button-like widget per interaction state, unselected and selected
 #[derive(Debug, Copy, Clone)]
 pub struct ButtonStyle {
-    pub normal: ColorPair<ValueOrRef<Srgba>>,
-    pub pressed: ColorPair<ValueOrRef<Srgba>>,
-    pub hover: ColorPair<ValueOrRef<Srgba>>,
-    /// Border and shadows while not pressed
-    pub decoration: Decoration,
-    /// Border and shadows while pressed
-    pub pressed_decoration: Decoration,
+    /// Looks while not selected; the only ones a plain button shows
+    pub unselected: StateStyles,
+    /// Looks while selected, such as a checked checkbox or the chosen entry of a list
+    pub selected: StateStyles,
     pub align: LayoutAlignment,
     pub size: WidgetSizeProps,
 }
 
-/// A control raised off the surface, sinking into it while pressed
-fn raised() -> (Decoration, Decoration) {
-    (
-        Decoration::default().with_shadow(shadow_raised()),
-        Decoration::default().with_inset_shadow(inset_shadow_pressed()),
-    )
+const TRANSPARENT: Srgba = Srgba::new(0.0, 0.0, 0.0, 0.0);
+
+/// A control raised off the surface
+fn raised() -> Decoration {
+    Decoration::default().with_shadow(shadow_raised())
+}
+
+/// A control sunk into the surface while pressed
+fn sunk() -> Decoration {
+    Decoration::default().with_inset_shadow(inset_shadow_pressed())
 }
 
 /// A control carved into the surface, such as a checkbox
-fn well() -> (Decoration, Decoration) {
-    let well = Decoration::default().with_inset_shadow(inset_shadow_well());
-    (well, well)
+fn well() -> Decoration {
+    Decoration::default().with_inset_shadow(inset_shadow_well())
+}
+
+/// How far a raised control drops while pressed
+const PRESS_DROP: Vec2 = vec2(0.0, 1.0);
+
+/// Raised while normal and hovered, sunk and dropped while pressed
+fn raised_states(normal: StateStyle, hover: StateStyle, pressed: StateStyle) -> StateStyles {
+    StateStyles::new(
+        normal.with_decoration(raised()),
+        hover.with_decoration(raised()),
+        pressed.with_decoration(sunk()).with_translation(PRESS_DROP),
+    )
+}
+
+/// The selected looks of flat widgets that only sink into a pressed colour
+fn flat_selected() -> StateStyles {
+    StateStyles::new(
+        StateStyle::new(surface_pressed(), element_pressed()),
+        StateStyle::new(surface_hover_accent(), element_pressed()),
+        StateStyle::new(surface_pressed_accent(), element_pressed()),
+    )
+}
+
+/// Plain button looks of one colour role
+fn role(normal: (StateStyle, StateStyle, StateStyle)) -> (StateStyles, StateStyles) {
+    let unselected = raised_states(normal.0, normal.1, normal.2);
+    (unselected, StateStyles::uniform(unselected.pressed))
+}
+
+fn small_size() -> WidgetSizeProps {
+    WidgetSizeProps::default()
+        .with_padding(spacing_small())
+        .with_margin(spacing_small())
+        .with_corner_radius(default_corner_radius())
 }
 
 impl ButtonStyle {
-    pub fn new(
-        normal: ColorPair<ValueOrRef<Srgba>>,
-        pressed: ColorPair<ValueOrRef<Srgba>>,
-        hover: ColorPair<ValueOrRef<Srgba>>,
-    ) -> Self {
+    pub fn new(unselected: StateStyles, selected: StateStyles) -> Self {
         Self {
-            normal,
-            pressed,
-            hover,
+            unselected,
+            selected,
             ..Default::default()
         }
     }
 
-    /// Set the border and shadows while not pressed and while pressed
-    pub fn with_decoration(mut self, decoration: Decoration, pressed: Decoration) -> Self {
-        self.decoration = decoration;
-        self.pressed_decoration = pressed;
-        self
-    }
-
-    /// A flat button, drawn without border or shadows
-    pub fn flat(self) -> Self {
-        self.with_decoration(Decoration::default(), Decoration::default())
-    }
-
-    /// A button that is invisible until selected but still interactive
+    /// A button that is invisible until hovered or selected but still interactive
     pub fn hidden() -> Self {
         ButtonStyle {
-            normal: ColorPair::new(
-                Srgba::new(0.0, 0.0, 0.0, 0.0),
-                Srgba::new(0.0, 0.0, 0.0, 0.0),
+            unselected: StateStyles::new(
+                StateStyle::new(TRANSPARENT, TRANSPARENT),
+                StateStyle::new(surface_hover(), element_hover()),
+                StateStyle::new(surface_pressed(), element_pressed()),
             ),
-            pressed: ColorPair::new(surface_pressed(), element_pressed()),
-            hover: ColorPair::new(surface_hover(), element_hover()),
-            size: WidgetSizeProps::default()
-                .with_padding(spacing_small())
-                .with_margin(spacing_small())
-                .with_corner_radius(default_corner_radius()),
+            selected: flat_selected(),
+            size: small_size(),
             ..Default::default()
         }
-        .flat()
     }
 
-    /// Similar to hidden but shows as raised when clicked
+    /// Similar to hidden but with a muted background
     pub fn muted() -> Self {
         ButtonStyle {
-            normal: ColorPair::new(surface_secondary(), element_primary()),
-            pressed: ColorPair::new(surface_tertiary(), element_primary()),
-            hover: ColorPair::new(surface_hover(), element_hover()),
-            size: WidgetSizeProps::default()
-                .with_padding(spacing_small())
-                .with_margin(spacing_small())
-                .with_corner_radius(default_corner_radius()),
-            ..Default::default()
-        }
-        .flat()
-    }
-    pub fn success() -> Self {
-        ButtonStyle {
-            normal: ColorPair::new(surface_interactive_success(), element_interactive_success()),
-            pressed: ColorPair::new(surface_pressed_success(), element_pressed_success()),
-            hover: ColorPair::new(surface_hover_success(), element_hover_success()),
+            unselected: StateStyles::new(
+                StateStyle::new(surface_secondary(), element_primary()),
+                StateStyle::new(surface_hover(), element_hover()),
+                StateStyle::new(surface_tertiary(), element_primary()),
+            ),
+            selected: flat_selected(),
+            size: small_size(),
             ..Default::default()
         }
     }
 
+    pub fn success() -> Self {
+        let (unselected, selected) = role((
+            StateStyle::new(surface_interactive_success(), element_interactive_success()),
+            StateStyle::new(surface_hover_success(), element_hover_success()),
+            StateStyle::new(surface_pressed_success(), element_pressed_success()),
+        ));
+        ButtonStyle::new(unselected, selected)
+    }
+
+    /// A button that does not react to the pointer
     pub fn disabled() -> Self {
-        ButtonStyle {
-            normal: ColorPair::new(surface_disabled(), element_secondary()),
-            pressed: ColorPair::new(surface_disabled(), element_secondary()),
-            hover: ColorPair::new(surface_disabled(), element_secondary()),
-            ..Default::default()
-        }
-        .flat()
+        let style = StateStyles::uniform(StateStyle::new(surface_disabled(), element_secondary()));
+        ButtonStyle::new(style, style)
     }
 
     pub fn danger() -> Self {
-        ButtonStyle {
-            normal: ColorPair::new(surface_interactive_danger(), element_interactive_danger()),
-            pressed: ColorPair::new(surface_pressed_danger(), element_pressed_danger()),
-            hover: ColorPair::new(surface_hover_danger(), element_hover_danger()),
-            ..Default::default()
-        }
+        let (unselected, selected) = role((
+            StateStyle::new(surface_interactive_danger(), element_interactive_danger()),
+            StateStyle::new(surface_hover_danger(), element_hover_danger()),
+            StateStyle::new(surface_pressed_danger(), element_pressed_danger()),
+        ));
+        ButtonStyle::new(unselected, selected)
     }
 
     pub fn warning() -> Self {
-        ButtonStyle {
-            normal: ColorPair::new(surface_interactive_warning(), element_interactive_warning()),
-            pressed: ColorPair::new(surface_pressed_warning(), element_pressed_warning()),
-            hover: ColorPair::new(surface_hover_warning(), element_hover_warning()),
-            ..Default::default()
-        }
+        let (unselected, selected) = role((
+            StateStyle::new(surface_interactive_warning(), element_interactive_warning()),
+            StateStyle::new(surface_hover_warning(), element_hover_warning()),
+            StateStyle::new(surface_pressed_warning(), element_pressed_warning()),
+        ));
+        ButtonStyle::new(unselected, selected)
     }
 
     pub fn accent() -> Self {
-        ButtonStyle {
-            normal: ColorPair::new(surface_interactive_accent(), element_interactive_accent()),
-            pressed: ColorPair::new(surface_pressed_accent(), element_pressed_accent()),
-            hover: ColorPair::new(surface_hover_accent(), element_hover_accent()),
-            ..Default::default()
-        }
+        let (unselected, selected) = role((
+            StateStyle::new(surface_interactive_accent(), element_interactive_accent()),
+            StateStyle::new(surface_hover_accent(), element_hover_accent()),
+            StateStyle::new(surface_pressed_accent(), element_pressed_accent()),
+        ));
+        ButtonStyle::new(unselected, selected)
     }
 
     pub fn selectable_entry() -> Self {
         ButtonStyle {
-            normal: ColorPair::new(Srgba::new(0.0, 0.0, 0.0, 0.0), element_interactive()),
-            pressed: ColorPair::new(surface_pressed(), element_pressed()),
-            hover: ColorPair::new(surface_hover(), element_hover()),
-            size: WidgetSizeProps::default()
-                .with_padding(spacing_small())
-                .with_margin(spacing_small())
-                .with_corner_radius(default_corner_radius()),
+            unselected: StateStyles::new(
+                StateStyle::new(TRANSPARENT, element_interactive()),
+                StateStyle::new(surface_hover(), element_hover()),
+                StateStyle::new(surface_pressed(), element_pressed()),
+            ),
+            selected: flat_selected(),
+            size: small_size(),
             align: LayoutAlignment::left_center(),
-            ..Default::default()
         }
-        .flat()
     }
 
+    /// A round well whose dot shows the selection
     pub fn radio() -> Self {
-        let (decoration, pressed_decoration) = well();
+        let state = |surface: Component<Srgba>, dot: Component<Srgba>| {
+            StateStyle::new(surface, dot).with_decoration(well())
+        };
         ButtonStyle {
-            normal: ColorPair::new(surface_interactive(), surface_interactive()),
-            pressed: ColorPair::new(surface_interactive(), surface_pressed()),
-            hover: ColorPair::new(surface_interactive(), surface_hover()),
+            unselected: StateStyles::new(
+                state(surface_interactive(), surface_interactive()),
+                state(surface_hover(), surface_hover()),
+                state(surface_hover(), surface_hover()),
+            ),
+            selected: StateStyles::new(
+                state(surface_interactive(), surface_pressed()),
+                state(surface_hover(), surface_pressed()),
+                state(surface_hover(), surface_pressed_accent()),
+            ),
             size: WidgetSizeProps::default()
                 .with_padding(spacing_small())
                 .with_margin(spacing_small())
@@ -206,24 +201,73 @@ impl ButtonStyle {
                 .with_min_size(Unit::px2(20.0, 20.0)),
             ..Default::default()
         }
-        .with_decoration(decoration, pressed_decoration)
     }
 
     pub fn checkbox() -> Self {
-        let (decoration, pressed_decoration) = well();
         ButtonStyle {
-            normal: ColorPair::new(surface_interactive(), Srgba::new(0.0, 0.0, 0.0, 0.0)),
-            pressed: ColorPair::new(surface_pressed(), element_primary()),
-            hover: ColorPair::new(surface_interactive(), surface_hover()),
+            unselected: StateStyles::new(
+                StateStyle::new(surface_interactive(), TRANSPARENT).with_decoration(well()),
+                StateStyle::new(surface_hover(), TRANSPARENT).with_decoration(well()),
+                StateStyle::new(surface_hover(), TRANSPARENT).with_decoration(well()),
+            ),
+            selected: StateStyles::new(
+                StateStyle::new(surface_pressed(), element_primary()).with_decoration(well()),
+                StateStyle::new(surface_hover_accent(), element_primary()).with_decoration(well()),
+                StateStyle::new(surface_pressed_accent(), element_primary())
+                    .with_decoration(well()),
+            ),
             size: WidgetSizeProps::default()
-                // .with_padding(spacing_small())
                 .with_margin(spacing_small())
                 .with_corner_radius(default_corner_radius())
                 .with_min_size(Unit::px2(20.0, 20.0))
                 .with_max_size(Unit::px2(20.0, 20.0)),
             ..Default::default()
         }
-        .with_decoration(decoration, pressed_decoration)
+    }
+
+    /// A pill-shaped well whose element colours the knob of a [`Switch`](super::Switch)
+    pub fn switch() -> Self {
+        ButtonStyle {
+            unselected: StateStyles::new(
+                StateStyle::new(surface_interactive(), element_primary()).with_decoration(well()),
+                StateStyle::new(surface_hover(), element_primary()).with_decoration(well()),
+                StateStyle::new(surface_hover(), element_primary()).with_decoration(well()),
+            ),
+            selected: StateStyles::new(
+                StateStyle::new(surface_pressed(), element_primary()).with_decoration(well()),
+                StateStyle::new(surface_hover_accent(), element_primary()).with_decoration(well()),
+                StateStyle::new(surface_pressed_accent(), element_primary())
+                    .with_decoration(well()),
+            ),
+            size: WidgetSizeProps::default()
+                .with_min_size(Unit::px2(40.0, 24.0))
+                .with_max_size(Unit::px2(40.0, 24.0))
+                .with_padding(Edges::even(2.0))
+                .with_margin(spacing_small())
+                .with_corner_radius(Unit::rel(1.0)),
+            align: LayoutAlignment::left_center(),
+        }
+    }
+
+    /// One option of a [`SegmentedControl`](super::SegmentedControl), raised while selected
+    pub fn segment() -> Self {
+        ButtonStyle {
+            unselected: StateStyles::new(
+                StateStyle::new(TRANSPARENT, element_secondary()),
+                StateStyle::new(surface_hover(), element_primary()),
+                StateStyle::new(surface_tertiary(), element_primary()),
+            ),
+            selected: StateStyles::new(
+                StateStyle::new(surface_interactive(), element_primary()).with_decoration(raised()),
+                StateStyle::new(surface_hover(), element_primary()).with_decoration(raised()),
+                StateStyle::new(surface_hover(), element_primary()).with_decoration(raised()),
+            ),
+            size: WidgetSizeProps::default()
+                .with_padding(spacing_small())
+                .with_margin(Edges::even(0.0))
+                .with_corner_radius(default_corner_radius()),
+            align: LayoutAlignment::center(),
+        }
     }
 
     pub fn with_align(mut self, align: LayoutAlignment) -> Self {
@@ -234,13 +278,18 @@ impl ButtonStyle {
 
 impl Default for ButtonStyle {
     fn default() -> Self {
-        let (decoration, pressed_decoration) = raised();
         Self {
-            normal: ColorPair::new(surface_interactive(), element_interactive()),
-            pressed: ColorPair::new(surface_pressed(), element_pressed()),
-            hover: ColorPair::new(surface_hover(), element_hover()),
-            decoration,
-            pressed_decoration,
+            unselected: raised_states(
+                StateStyle::new(surface_interactive(), element_interactive()),
+                StateStyle::new(surface_hover(), element_hover()),
+                StateStyle::new(surface_pressed(), element_pressed()),
+            ),
+            selected: StateStyles::new(
+                StateStyle::new(surface_pressed(), element_pressed()),
+                StateStyle::new(surface_hover_accent(), element_pressed()),
+                StateStyle::new(surface_pressed_accent(), element_pressed()),
+            )
+            .map(|v| v.with_decoration(sunk()).with_translation(PRESS_DROP)),
             size: WidgetSizeProps::default()
                 .with_padding(spacing_medium())
                 .with_margin(default_separation())
@@ -248,6 +297,53 @@ impl Default for ButtonStyle {
             align: LayoutAlignment::new(Align::Center, Align::Center),
         }
     }
+}
+
+/// Interaction state handler of a button-like widget's [`InteractiveWidget`], driving its look
+pub(super) fn interaction_handler(
+    driver: WeakHandle<RefCell<StyleDriver>>,
+) -> impl FnMut(&ScopeRef<'_>, InteractionState) + Send + Sync + 'static {
+    move |scope, state| {
+        scope
+            .read(driver)
+            .borrow_mut()
+            .set_interaction(scope.entity(), state)
+    }
+}
+
+/// Mounts the [`StyleDriver`] of a button-like widget, returning it with the background to draw
+/// the widget's surface, in the colour the driver starts with
+pub(super) fn mount_driver(
+    scope: &mut Scope<'_>,
+    style: &ButtonStyle,
+    element_target: Option<flax::Entity>,
+    is_selected: bool,
+) -> (WeakHandle<RefCell<StyleDriver>>, Background) {
+    let driver = StyleDriver::mount(
+        scope,
+        &style.unselected,
+        &style.selected,
+        element_target,
+        is_selected,
+    );
+    let surface = scope.read(&driver).borrow().target().surface;
+    (driver, Background::new(surface))
+}
+
+/// Shows the selected look whenever `selected` changes, at once for its first value
+pub(super) fn follow_selection(
+    scope: &mut Scope<'_>,
+    driver: WeakHandle<RefCell<StyleDriver>>,
+    selected: impl 'static + futures::Stream<Item = bool>,
+) {
+    let mut first = true;
+    scope.spawn_stream(selected, move |scope, selected| {
+        scope
+            .read(&driver)
+            .borrow_mut()
+            .set_selected(&scope.entity(), selected, !first);
+        first = false;
+    });
 }
 
 /// A button which invokes the callback when clicked
@@ -386,53 +482,19 @@ impl<W> SizeExt for Button<W> {
 
 impl<W: Widget> Widget for Button<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
-        let stylesheet = scope.stylesheet();
-
-        let pressed = self.style.pressed.resolve(stylesheet);
-        let normal = self.style.normal.resolve(stylesheet);
-        let _hover = self.style.hover.resolve(stylesheet);
-        let decoration = self.style.decoration.resolve(stylesheet);
-        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
-
         let label = scope.attach(self.label);
-
-        scope
-            .world()
-            .entity(label)
-            .unwrap()
-            .update_dedup(color(), normal.element);
+        let (driver, background) = mount_driver(scope, &self.style, Some(label), self.is_pressed);
 
         let inner = Stack::new(())
-            .with_background(Background::new(normal.surface))
+            .with_background(background)
             .with_horizontal_alignment(self.style.align.horizontal)
             .with_vertical_alignment(self.style.align.vertical);
-
-        scope.set_default(tweens());
-        decoration.mount(scope);
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
             .on_click(move |scope| (self.on_click)(scope))
             .on_double_click_opt(self.on_double_click)
-            .on_pointer_press(move |scope, state| {
-                // let current_color = scope.get(color());
-                let (new_color, new_decoration) = if state.is_pressed() {
-                    (pressed, pressed_decoration)
-                } else {
-                    (normal, decoration)
-                };
-                new_decoration.update(scope.entity());
-
-                scope
-                    .world()
-                    .entity(label)
-                    .unwrap()
-                    .update_dedup(color(), new_color.element);
-
-                // TODO: support tween for Srgba
-                // scope.add_tween(color(), Tweener::linear(current_color, color.surface, 0.2));
-                scope.update_dedup(color(), new_color.surface);
-            })
+            .on_interaction_state(interaction_handler(driver))
             .with_tooltip_opt(self.tooltip)
             .mount(scope);
     }
@@ -495,47 +557,16 @@ impl<W> Checkbox<W> {
 
 impl<W: Widget> Widget for Checkbox<W> {
     fn mount(self, scope: &mut Scope<'_>) {
-        let stylesheet = scope.stylesheet();
-
-        let pressed = self.style.pressed.resolve(stylesheet);
-        let normal = self.style.normal.resolve(stylesheet);
-        let _hover = self.style.hover.resolve(stylesheet);
-        let decoration = self.style.decoration.resolve(stylesheet);
-        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
-        decoration.mount(scope);
-
         let content = scope.attach(self.label);
-        scope
-            .world()
-            .update_dedup(content, color(), normal.element)
-            .unwrap();
-
-        scope.spawn_stream(self.state.stream(), {
-            move |scope, state| {
-                let (new_color, new_decoration) = if state {
-                    (pressed, pressed_decoration)
-                } else {
-                    (normal, decoration)
-                };
-                new_decoration.update(&scope.entity());
-
-                scope
-                    .world()
-                    .entity(content)
-                    .unwrap()
-                    .update_dedup(color(), new_color.element)
-                    .unwrap();
-
-                scope.update_dedup(color(), new_color.surface).unwrap();
-            }
-        });
+        let (driver, background) = mount_driver(scope, &self.style, Some(content), false);
+        follow_selection(scope, driver, self.state.stream());
 
         let mut last_state = WatchState::new(self.state.stream());
 
         let inner = Stack::new(())
             .with_alignment(LayoutAlignment::center())
             .with_style(ContainerStyle {
-                background: Some(Background::new(normal.surface)),
+                background: Some(background),
             })
             .with_horizontal_alignment(self.style.align.horizontal)
             .with_vertical_alignment(self.style.align.vertical)
@@ -549,6 +580,7 @@ impl<W: Widget> Widget for Checkbox<W> {
                     }
                 }
             })
+            .on_interaction_state(interaction_handler(driver))
             .mount(scope);
     }
 }
@@ -590,43 +622,15 @@ impl SizeExt for Radio {
 
 impl Widget for Radio {
     fn mount(self, scope: &mut Scope<'_>) {
-        let stylesheet = scope.stylesheet();
-
-        let pressed = self.style.pressed.resolve(stylesheet);
-        let normal = self.style.normal.resolve(stylesheet);
-        let _hover = self.style.hover.resolve(stylesheet);
-        let decoration = self.style.decoration.resolve(stylesheet);
-        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
-        decoration.mount(scope);
-
         let content =
-            scope.attach(Rectangle::new(normal.element).with_corner_radius(Unit::rel(1.0)));
-
-        scope.spawn_stream(self.state.stream(), {
-            move |scope, state| {
-                let (new_color, new_decoration) = if state {
-                    (pressed, pressed_decoration)
-                } else {
-                    (normal, decoration)
-                };
-                new_decoration.update(&scope.entity());
-
-                scope
-                    .world()
-                    .entity(content)
-                    .unwrap()
-                    .update_dedup(color(), new_color.element);
-
-                scope.set(color(), new_color.surface);
-            }
-        });
+            scope.attach(Rectangle::new(Srgba::default()).with_corner_radius(Unit::rel(1.0)));
+        let (driver, background) = mount_driver(scope, &self.style, Some(content), false);
+        follow_selection(scope, driver, self.state.stream());
 
         let inner = Stack::new(())
-            .with_background(Background::new(normal.surface))
+            .with_background(background)
             .with_horizontal_alignment(Align::Center)
             .with_vertical_alignment(Align::Center);
-
-        scope.set_default(tweens());
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
@@ -635,6 +639,7 @@ impl Widget for Radio {
                     self.state.send(true)
                 }
             })
+            .on_interaction_state(interaction_handler(driver))
             .with_tooltip_opt(self.tooltip)
             .mount(scope);
     }
@@ -727,42 +732,14 @@ impl<T> SizeExt for Selectable<T> {
 
 impl<W: Widget> Widget for Selectable<W> {
     fn mount(mut self, scope: &mut Scope<'_>) {
-        let stylesheet = scope.stylesheet();
-
-        let pressed = self.style.pressed.resolve(stylesheet);
-        let normal = self.style.normal.resolve(stylesheet);
-        let _hover = self.style.hover.resolve(stylesheet);
-        let decoration = self.style.decoration.resolve(stylesheet);
-        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
-        decoration.mount(scope);
-
         let content = scope.attach(self.label);
-
-        scope.spawn_stream(self.state.stream(), {
-            move |scope, state| {
-                let (new_color, new_decoration) = if state {
-                    (pressed, pressed_decoration)
-                } else {
-                    (normal, decoration)
-                };
-                new_decoration.update(&scope.entity());
-
-                scope
-                    .world()
-                    .entity(content)
-                    .unwrap()
-                    .update_dedup(color(), new_color.element);
-
-                scope.set(color(), new_color.surface);
-            }
-        });
+        let (driver, background) = mount_driver(scope, &self.style, Some(content), false);
+        follow_selection(scope, driver, self.state.stream());
 
         let inner = Stack::new(())
-            .with_background(Background::new(normal.surface))
+            .with_background(background)
             .with_horizontal_alignment(self.style.align.horizontal)
             .with_vertical_alignment(self.style.align.vertical);
-
-        scope.set_default(tweens());
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
@@ -779,6 +756,7 @@ impl<W: Widget> Widget for Selectable<W> {
                 self.state.send(true);
             })
             .on_double_click_opt(self.on_double_click)
+            .on_interaction_state(interaction_handler(driver))
             .with_tooltip_opt(self.tooltip)
             .mount(scope);
     }
@@ -790,5 +768,183 @@ impl<W> StyleExt for Selectable<W> {
     fn with_style(mut self, style: Self::Style) -> Self {
         self.style = style;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use flax::{Entity, Schedule, World};
+    use futures_signals::signal::Mutable;
+    use glam::{vec2, Vec2};
+    use palette::Srgba;
+    use winit::{
+        event::{ElementState, MouseButton},
+        keyboard::ModifiersState,
+    };
+
+    use crate::{
+        assets::AssetCache,
+        components::{app_instance, children, color, delta_time, translation},
+        executor::Executor,
+        input::{on_cursor_hover, on_mouse_input, CursorMove, CursorOver, HoverState, MouseInput},
+        style::*,
+        tweens::update_tweens_system,
+        Frame, Scope, ScopeRef, Widget,
+    };
+
+    use super::{Button, Checkbox};
+
+    struct Harness {
+        /// Runs the widget's streams; kept alive with the frame
+        _ex: Executor,
+        frame: Frame,
+        sheet: Entity,
+        widget: Entity,
+    }
+
+    impl Harness {
+        fn new(widget: impl 'static + Widget) -> Self {
+            let mut ex = Executor::new();
+            let mut frame = Frame::new(ex.spawner(), AssetCache::new(), World::new());
+            let sheet = StylesheetOptions::new().build().spawn(&mut frame.world);
+
+            let root = frame.new_root(move |scope: &mut Scope| {
+                scope.set(stylesheet(sheet), ());
+                scope.attach(widget);
+            });
+            ex.tick(&mut frame);
+
+            let widget = frame.world.entity(root).unwrap().get(children()).unwrap()[0];
+
+            Self {
+                _ex: ex,
+                frame,
+                sheet,
+                widget,
+            }
+        }
+
+        fn sheet_color(&self, component: flax::Component<Srgba>) -> Srgba {
+            self.frame
+                .world
+                .entity(self.sheet)
+                .unwrap()
+                .get_copy(component)
+                .unwrap()
+        }
+
+        fn color(&self) -> Srgba {
+            self.frame
+                .world
+                .entity(self.widget)
+                .unwrap()
+                .get_copy(color())
+                .unwrap()
+        }
+
+        fn translation(&self) -> Vec2 {
+            self.frame
+                .world
+                .entity(self.widget)
+                .unwrap()
+                .get_copy(translation())
+                .unwrap()
+        }
+
+        fn hover(&self, state: HoverState) {
+            let entity = self.frame.world.entity(self.widget).unwrap();
+            let mut handler = entity.get_mut(on_cursor_hover()).unwrap();
+            handler(
+                &ScopeRef::new(&self.frame, entity),
+                CursorOver {
+                    state,
+                    absolute_pos: Vec2::ZERO,
+                    local_pos: Vec2::ZERO,
+                },
+            );
+        }
+
+        fn press(&self, state: ElementState) {
+            let entity = self.frame.world.entity(self.widget).unwrap();
+            let mut handler = entity.get_mut(on_mouse_input()).unwrap();
+            handler(
+                &ScopeRef::new(&self.frame, entity),
+                MouseInput {
+                    modifiers: ModifiersState::empty(),
+                    state,
+                    cursor: CursorMove {
+                        modifiers: ModifiersState::empty(),
+                        absolute_pos: Vec2::ZERO,
+                        local_pos: Vec2::ZERO,
+                    },
+                    button: MouseButton::Left,
+                },
+            );
+        }
+
+        /// Runs the tween system past the end of any transition
+        fn settle(&mut self) {
+            self.frame
+                .world
+                .set(app_instance(), delta_time(), Duration::from_millis(200))
+                .unwrap();
+            Schedule::builder()
+                .with_system(update_tweens_system())
+                .build()
+                .execute_seq(&mut self.frame.world)
+                .unwrap();
+        }
+    }
+
+    fn assert_close(a: Srgba, b: Srgba) {
+        let diff = [
+            a.red - b.red,
+            a.green - b.green,
+            a.blue - b.blue,
+            a.alpha - b.alpha,
+        ];
+        assert!(
+            diff.iter().all(|v| v.abs() < 1e-3),
+            "{a:?} is not close to {b:?}"
+        );
+    }
+
+    #[test]
+    fn button_hover_and_press() {
+        let mut h = Harness::new(Button::label("Press"));
+
+        h.hover(HoverState::Entered);
+        h.settle();
+        assert_close(h.color(), h.sheet_color(surface_hover()));
+
+        // The label's colour is written to its own entity while the tween system runs
+        let label = h.frame.world.entity(h.widget).unwrap().get(children()).unwrap()[0];
+        let label_color = h.frame.world.get(label, color()).map(|v| *v).unwrap();
+        assert_close(label_color, h.sheet_color(element_hover()));
+
+        h.press(ElementState::Pressed);
+        h.settle();
+        assert_close(h.color(), h.sheet_color(surface_pressed()));
+        assert_eq!(h.translation(), vec2(0.0, 1.0));
+
+        h.press(ElementState::Released);
+        h.hover(HoverState::Exited);
+        h.settle();
+        assert_close(h.color(), h.sheet_color(surface_interactive()));
+        assert_eq!(h.translation(), Vec2::ZERO);
+    }
+
+    #[test]
+    fn checkbox_selected_hover() {
+        let mut h = Harness::new(Checkbox::new(Mutable::new(true)));
+
+        // The first selection shows at once, without a transition from the unselected look
+        assert_close(h.color(), h.sheet_color(surface_pressed()));
+
+        h.hover(HoverState::Entered);
+        h.settle();
+        assert_close(h.color(), h.sheet_color(surface_hover_accent()));
     }
 }

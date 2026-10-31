@@ -1,6 +1,9 @@
 pub mod base_colors;
 pub mod color;
 pub mod decoration;
+pub mod interactive;
+
+use std::time::Duration;
 
 use flax::{
     component::ComponentValue, components::child_of, Component, Entity, EntityBuilder, EntityRef,
@@ -9,7 +12,7 @@ use flax::{
 use glam::Vec2;
 use palette::{IntoColor, Oklab, Srgba};
 
-pub use self::{color::*, decoration::*};
+pub use self::{color::*, decoration::*, interactive::*};
 use crate::{
     components::{
         color, draw_shape, item_align, margin, max_size, maximize, min_size, padding, size,
@@ -409,6 +412,7 @@ impl StylesheetOptions {
                 Unit::px2(self.base_spacing * 32.0, self.base_spacing * 8.0),
             )
             .set(default_corner_radius(), Unit::px(6.0))
+            .set(transition_duration(), DEFAULT_TRANSITION)
             // text size, in the ratios of 12, 14, 18 and 24 pixels to the body's 14
             .set(text_xsmall(), self.base_text_size * (12.0 / 14.0))
             .set(text_small(), self.base_text_size)
@@ -507,4 +511,7 @@ flax::component! {
     pub inset_shadow_pressed: BoxShadow,
     /// Inset shadow of a well carved into the surface, such as a text field or a slider's track
     pub inset_shadow_well: BoxShadow,
+
+    /// Duration of a widget's transition between interaction states, and of overlay fades
+    pub transition_duration: Duration,
 }

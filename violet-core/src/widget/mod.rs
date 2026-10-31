@@ -7,6 +7,7 @@ pub mod image;
 /// Interactive widgets
 pub mod interactive;
 mod scroll;
+mod virtual_list;
 
 pub use animate::*;
 pub use basic::*;
@@ -15,8 +16,11 @@ use flax::{component::ComponentValue, components::name, Component};
 pub use future::*;
 use futures_signals::signal::Mutable;
 pub use image::*;
-pub use interactive::{button::*, collapsible::*, drag::*, input::*, slider::*};
-pub use scroll::ScrollArea;
+pub use interactive::{
+    button::*, collapsible::*, drag::*, input::*, segmented::*, slider::*, switch::*, tabs::*,
+};
+pub use scroll::{ScrollArea, ScrollState};
+pub use virtual_list::*;
 
 /// A widget is a description of a part of the Ui with the capability to mount itself into the world.
 ///

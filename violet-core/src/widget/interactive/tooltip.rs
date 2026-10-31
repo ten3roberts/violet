@@ -2,11 +2,7 @@ use std::time::Duration;
 
 use glam::Vec2;
 
-use crate::{
-    components::{offset, opacity},
-    unit::Unit,
-    Scope, ScopeRef, Widget,
-};
+use crate::{components::offset, unit::Unit, widget::fade_in_out, Scope, ScopeRef, Widget};
 
 use super::{
     base::{InteractiveWidget, TooltipOptions},
@@ -74,7 +70,8 @@ impl TooltipOverlay {
 
 impl Overlay for TooltipOverlay {
     fn create(self, scope: &mut Scope<'_>, _: super::overlay::OverlayHandle) {
-        scope.set(offset(), Unit::px(self.pos)).set(opacity(), 0.9);
+        scope.set(offset(), Unit::px(self.pos));
+        fade_in_out(scope, 0.9);
         self.widget.mount_boxed(scope);
     }
 }

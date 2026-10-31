@@ -15,7 +15,8 @@ use violet::{
                 colorpicker::RgbColorPicker, dropdown::Dropdown, select_list::SelectList,
             },
             label, pill, row, subtitle, title, Button, Checkbox, Collapsible, LabeledSlider, Radio,
-            Rectangle, ScrollArea, SignalWidget, Text, TextInput,
+            Rectangle, ScrollArea, SegmentedControl, SignalWidget, Switch, Tab, Tabs, Text,
+            TextInput, VirtualList,
         },
         Edges, StateExt, Widget,
     },
@@ -35,7 +36,7 @@ pub fn main_app() -> impl Widget {
         BVec2::TRUE,
         col((
             row((texts(), buttons(), inputs(), dropdown(), list(), colors())),
-            row((icons(), drag_and_drop())),
+            row((icons(), drag_and_drop(), toggles(), virtual_list())),
         ))
         .with_contain_margins(true)
         .with_maximize(Vec2::ONE),
@@ -175,6 +176,34 @@ fn list() -> impl Widget {
 
 fn drag_and_drop() -> impl Widget {
     dialog("Drag and Drop", drag::app())
+}
+
+fn toggles() -> impl Widget {
+    dialog(
+        "Toggles",
+        col((
+            row((label("Switch"), Switch::new(Mutable::new(true)))).with_cross_align(Align::Center),
+            SegmentedControl::new(
+                Mutable::new(0usize),
+                [(0, label("Day")), (1, label("Week")), (2, label("Month"))],
+            ),
+            Tabs::new(
+                Mutable::new(0usize),
+                [
+                    Tab::new(0, label("Colors"), colors),
+                    Tab::new(1, label("List"), list),
+                ],
+            ),
+        )),
+    )
+}
+
+fn virtual_list() -> impl Widget {
+    dialog(
+        "Virtual list",
+        VirtualList::new(10_000, 24.0, |i| label(format!("Row {i}")))
+            .with_size(Unit::px2(240.0, 300.0)),
+    )
 }
 
 fn icons() -> impl Widget {

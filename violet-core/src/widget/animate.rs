@@ -1,4 +1,37 @@
-use crate::{components::handle_detach, time::sleep, tweens::DynamicTween, Scope, Widget};
+use std::time::Duration;
+
+use tween::Tweener;
+
+use crate::{
+    components::{handle_detach, opacity},
+    style::transition_secs,
+    time::sleep,
+    tweens::DynamicTween,
+    Scope, Widget,
+};
+
+/// Fades the widget being mounted in to `opacity`, and out before it is detached
+pub fn fade_in_out(scope: &mut Scope<'_>, target: f32) {
+    let duration = transition_secs(&scope.stylesheet());
+
+    scope.set(opacity(), 0.0);
+    scope.add_tween(opacity(), Tweener::quad_out(0.0, target, duration));
+
+    scope.set(
+        handle_detach(),
+        Some(Box::new(move |scope: &mut Scope| {
+            let current = scope.entity().get_copy(opacity()).unwrap_or(target);
+            scope.stop_tweens(opacity());
+            scope.add_tween(opacity(), Tweener::quad_out(current, 0.0, duration));
+            scope.spawn_future(sleep(Duration::from_secs_f32(duration)), |scope, _| {
+                let id = scope.id();
+                if let Some(mut parent) = scope.parent() {
+                    parent.detach(id);
+                }
+            });
+        })),
+    );
+}
 
 pub struct AnimateLifecycle<W> {
     pub inner: W,
