@@ -8,13 +8,13 @@ use palette::Srgba;
 use winit::event::ElementState;
 
 use crate::{
-    components::{anchor, min_size, offset, rect},
+    components::{anchor, local_position, min_size, offset, rect},
     input::{interactive, on_cursor_move, on_mouse_input},
     layout::Align,
     state::{StateDuplex, StateExt, StateSink, StateStream},
     style::{
-        default_corner_radius, element_accent, spacing_small, surface_interactive, ResolvableStyle,
-        SizeExt, ValueOrRef,
+        default_corner_radius, element_accent, inset_shadow_well, shadow_knob, spacing_small,
+        surface_interactive, ResolvableStyle, SizeExt, ValueOrRef,
     },
     to_owned,
     unit::Unit,
@@ -70,7 +70,6 @@ pub struct Slider<V> {
     min: V,
     max: V,
     transform: Option<Box<dyn Send + Sync + Fn(V) -> V>>,
-    scrub_mode: bool,
     scale_mode: ScaleMode,
 }
 
@@ -85,7 +84,6 @@ impl<V> Slider<V> {
             max,
             style: Default::default(),
             transform: None,
-            scrub_mode: false,
             scale_mode: ScaleMode::Linear,
         }
     }
@@ -104,11 +102,6 @@ impl<V> Slider<V> {
     /// Set the transform
     pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
         self.transform = Some(Box::new(transform));
-        self
-    }
-
-    pub fn with_scrub_mode(mut self, scrub_mode: bool) -> Self {
-        self.scrub_mode = scrub_mode;
         self
     }
 
@@ -133,7 +126,8 @@ impl<V: SliderValue> Widget for Slider<V> {
         let track = scope.attach(
             Rectangle::new(track_color)
                 .with_exact_size(track_size)
-                .with_corner_radius(default_corner_radius()),
+                .with_corner_radius(default_corner_radius())
+                .with_inset_shadow(inset_shadow_well()),
         );
 
         #[derive(Clone, Copy)]
@@ -158,82 +152,44 @@ impl<V: SliderValue> Widget for Slider<V> {
         let max = self.max.to_progress();
         let mode = self.scale_mode;
         let scale_params = ScaleParams { min, max, mode };
-        fn get_progress_value<V: SliderValue>(
-            scope: &ScopeRef<'_>,
-            track_id: Entity,
-            track_pos: f32,
-            params: ScaleParams,
-        ) -> V {
-            // Get the track entity's rect which represents the actual clickable/draggable area
-            let track_entity = scope.frame().world().entity(track_id).unwrap();
-            let track_rect = track_entity.get_copy(rect()).unwrap();
-
-            // track_pos is relative to the parent Stack's origin
-            // track_rect.min.x is the track's offset within the Stack
-            // We need to normalize the position relative to the track's actual bounds
-            let local_x = track_pos - track_rect.min.x;
-            let norm = (local_x / track_rect.size().x).clamp(0.0, 1.0);
-
-            let value = match params.mode {
-                ScaleMode::Linear => norm * (params.max - params.min) + params.min,
-                ScaleMode::Logarithmic => {
-                    let ln_min = params.min.ln();
-                    let ln_max = params.max.ln();
-                    let ln_value = norm * (ln_max - ln_min) + ln_min;
-                    ln_value.exp()
-                }
-            };
-            V::from_progress(value)
-        }
-
-        fn get_slider_position(
-            scope: &ScopeRef<'_>,
-            track_id: Entity,
-            current_value: f32,
-            params: ScaleParams,
-        ) -> f32 {
-            // Get the track entity's rect
-            let track_entity = scope.frame().world().entity(track_id).unwrap();
-            let track_rect = track_entity.get_copy(rect()).unwrap();
-
-            let size = track_rect.size().x;
+        /// Maps a value to its normalized `[0, 1]` position along the track.
+        fn value_to_norm(value: f32, params: ScaleParams) -> f32 {
             let norm = match params.mode {
-                ScaleMode::Linear => (current_value - params.min) / (params.max - params.min),
+                ScaleMode::Linear => (value - params.min) / (params.max - params.min),
                 ScaleMode::Logarithmic => {
                     let ln_min = params.min.ln();
                     let ln_max = params.max.ln();
-                    let ln_value = current_value.max(params.min).ln();
-                    let norm = (ln_value - ln_min) / (ln_max - ln_min);
-                    norm
+                    (value.max(params.min).ln() - ln_min) / (ln_max - ln_min)
                 }
             };
-            // Return position relative to the parent Stack's origin
-            let pos = norm.clamp(0.0, 1.0) * size + track_rect.min.x;
-            pos
+            norm.clamp(0.0, 1.0)
         }
 
-        fn update_scrubbed<V: SliderValue>(
-            scope: &ScopeRef<'_>,
-            track_id: Entity,
-            drag_distance: f32,
-            start_value: f32,
-            params: ScaleParams,
-        ) -> V {
-            // Get the track entity's rect
-            let track_entity = scope.frame().world().entity(track_id).unwrap();
-            let track_rect = track_entity.get_copy(rect()).unwrap();
-
-            let norm = drag_distance / track_rect.size().x;
+        /// Maps a normalized `[0, 1]` track position to a value.
+        fn norm_to_value<V: SliderValue>(norm: f32, params: ScaleParams) -> V {
+            let norm = norm.clamp(0.0, 1.0);
             let value = match params.mode {
                 ScaleMode::Linear => norm * (params.max - params.min) + params.min,
                 ScaleMode::Logarithmic => {
                     let ln_min = params.min.ln();
                     let ln_max = params.max.ln();
-                    let ln_value = norm * (ln_max - ln_min) + ln_min;
-                    ln_value.exp()
+                    (norm * (ln_max - ln_min) + ln_min).exp()
                 }
             };
             V::from_progress(value)
+        }
+
+        /// Returns the track's left edge and width, in the same space as the slider's
+        /// cursor `local_pos` (relative to the slider's `rect().min`).
+        fn track_span(scope: &ScopeRef<'_>, track_id: Entity) -> (f32, f32) {
+            let world = scope.frame().world();
+            let track = world.entity(track_id).unwrap();
+            let track_rect = track.get_copy(rect()).unwrap_or_default();
+            let track_pos = track.get_copy(local_position()).unwrap_or_default();
+            let slider_rect = scope.entity().get_copy(rect()).unwrap_or_default();
+
+            let start = track_pos.x + track_rect.min.x - slider_rect.min.x;
+            (start, track_rect.size().x)
         }
 
         if self.style.fill {
@@ -267,6 +223,7 @@ impl<V: SliderValue> Widget for Slider<V> {
             move |v| self.transform.as_ref().map(|f| f(v)).unwrap_or(v),
         ));
 
+        // Cursor x and value at the moment the handle was grabbed
         let drag_start = Mutable::new(None as Option<(f32, f32)>);
 
         scope.spawn_stream(value.stream(), |scope, value| {
@@ -279,42 +236,46 @@ impl<V: SliderValue> Widget for Slider<V> {
                 to_owned![value, drag_start];
                 let params = scale_params;
                 move |scope, input| {
-                    if input.state == ElementState::Pressed {
-                        let progress =
-                            get_progress_value(scope, track, input.cursor.local_pos.x, params);
-                        if let Ok(current_value) = scope.get(current_value()) {
-                            let pos = get_slider_position(scope, track, *current_value, params);
-
-                            if (pos - input.cursor.local_pos.x).abs() < 16.0 {
-                                drag_start.set(Some((input.cursor.local_pos.x, *current_value)));
-                                return None;
-                            }
-                        }
-
-                        value.send(progress);
+                    if input.state != ElementState::Pressed {
+                        drag_start.set(None);
+                        return None;
                     }
+
+                    let cursor_x = input.cursor.local_pos.x;
+                    let (start, width) = track_span(scope, track);
+
+                    if let Ok(current_value) = scope.get_copy(current_value()) {
+                        let handle_x = start + value_to_norm(current_value, params) * width;
+
+                        // Grabbing the handle drags it relative to its current value, so it does
+                        // not jump to the cursor
+                        if (handle_x - cursor_x).abs() < 16.0 {
+                            drag_start.set(Some((cursor_x, current_value)));
+                            return None;
+                        }
+                    }
+
+                    drag_start.set(None);
+                    value.send(norm_to_value((cursor_x - start) / width, params));
 
                     None
                 }
             })
             .on_event(on_cursor_move(), {
-                to_owned![value, track];
+                to_owned![value];
                 let params = scale_params;
                 move |scope, input| {
-                    let drag_start = &mut *drag_start.lock_mut();
-                    let progress = if let Some((start, start_value)) = drag_start {
-                        update_scrubbed(
-                            scope,
-                            track,
-                            input.local_pos.x - *start,
-                            *start_value,
-                            params,
-                        )
-                    } else {
-                        get_progress_value(scope, track, input.local_pos.x, params)
+                    let (start, width) = track_span(scope, track);
+
+                    let norm = match *drag_start.lock_ref() {
+                        Some((start_x, start_value)) => {
+                            value_to_norm(start_value, params)
+                                + (input.local_pos.x - start_x) / width
+                        }
+                        None => (input.local_pos.x - start) / width,
                     };
 
-                    value.send(progress);
+                    value.send(norm_to_value(norm, params));
 
                     None
                 }
@@ -394,6 +355,7 @@ impl<V: SliderValue> Widget for SliderHandle<V> {
         Rectangle::new(self.handle_color)
             .with_min_size(self.handle_size)
             .with_corner_radius(self.corner_radius)
+            .with_shadow(shadow_knob())
             .mount(scope)
     }
 }
@@ -539,7 +501,6 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> LabeledSlider<V>
                 min,
                 max,
                 transform: None,
-                scrub_mode: false,
                 scale_mode: ScaleMode::Linear,
             },
             editable: false,
@@ -555,14 +516,6 @@ impl<V: SliderValue + FromStr + Display + Default + PartialOrd> LabeledSlider<V>
 
     pub fn with_transform(mut self, transform: impl 'static + Send + Sync + Fn(V) -> V) -> Self {
         self.slider.transform = Some(Box::new(transform));
-        self
-    }
-
-    /// Enable scrub mode
-    ///
-    /// Scrub mode allows dragging the slider handle anywhere on the screen to change the value
-    pub fn with_scrub_mode(mut self, scrub_mode: bool) -> Self {
-        self.slider.scrub_mode = scrub_mode;
         self
     }
 
@@ -636,5 +589,4 @@ where
 
 component! {
     current_value: f32,
-    scrubbing: bool,
 }

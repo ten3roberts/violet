@@ -1,5 +1,6 @@
 pub mod base_colors;
 pub mod color;
+pub mod decoration;
 
 use flax::{
     component::ComponentValue, components::child_of, Component, Entity, EntityBuilder, EntityRef,
@@ -8,7 +9,7 @@ use flax::{
 use glam::Vec2;
 use palette::{IntoColor, Oklab, Srgba};
 
-pub use self::color::*;
+pub use self::{color::*, decoration::*};
 use crate::{
     components::{
         color, draw_shape, item_align, margin, max_size, maximize, min_size, padding, size,
@@ -17,6 +18,7 @@ use crate::{
     icon::{Icon, IconSet},
     input::interactive,
     shape::shape_rectangle,
+    text::FontFamily,
     unit::Unit,
     Edges, Scope,
 };
@@ -288,13 +290,33 @@ pub trait ResolvableStyle {
 #[derive(Debug, Clone, Copy)]
 pub struct Background {
     pub color: ValueOrRef<Srgba>,
+    pub decoration: Decoration,
 }
 
 impl Background {
     pub fn new(color: impl Into<ValueOrRef<Srgba>>) -> Self {
         Self {
             color: color.into(),
+            decoration: Decoration::default(),
         }
+    }
+
+    /// Draw a border of `width` pixels along the inside of the background's edge
+    pub fn with_border(mut self, width: f32, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        self.decoration = self.decoration.with_border(width, color);
+        self
+    }
+
+    /// Cast a shadow around the background
+    pub fn with_shadow(mut self, shadow: impl Into<ValueOrRef<BoxShadow>>) -> Self {
+        self.decoration = self.decoration.with_shadow(shadow);
+        self
+    }
+
+    /// Cast a shadow inside the background, sinking it into the surface
+    pub fn with_inset_shadow(mut self, shadow: impl Into<ValueOrRef<BoxShadow>>) -> Self {
+        self.decoration = self.decoration.with_inset_shadow(shadow);
+        self
     }
 
     pub fn mount(self, scope: &mut Scope) {
@@ -303,6 +325,7 @@ impl Background {
             .set(draw_shape(shape_rectangle()), ())
             .set(color(), c)
             .set_default(interactive());
+        self.decoration.mount(scope);
     }
 }
 
@@ -331,6 +354,7 @@ pub struct StylesheetOptions {
     pub icons: IconSet,
     pub colors: ColorSchemeConfig,
     pub base_spacing: f32,
+    /// Size of body text; the other text sizes keep their ratio to it
     pub base_text_size: f32,
 }
 
@@ -384,11 +408,35 @@ impl StylesheetOptions {
                 dropdown_size(),
                 Unit::px2(self.base_spacing * 32.0, self.base_spacing * 8.0),
             )
-            .set(default_corner_radius(), Unit::px(4.0))
-            // text size
+            .set(default_corner_radius(), Unit::px(6.0))
+            // text size, in the ratios of 12, 14, 18 and 24 pixels to the body's 14
+            .set(text_xsmall(), self.base_text_size * (12.0 / 14.0))
             .set(text_small(), self.base_text_size)
-            .set(text_medium(), self.base_text_size * 1.25)
-            .set(text_large(), self.base_text_size * 1.5);
+            .set(text_medium(), self.base_text_size * (18.0 / 14.0))
+            .set(text_large(), self.base_text_size * (24.0 / 14.0))
+            .set(font_display(), FontFamily::named("Manrope"))
+            // Raised controls and lifted planes cast one shadow each, standing in for the
+            // sharp edge and soft cast shadow Verdalia stacks; sunken ones take an inset shadow.
+            .set(
+                shadow_raised(),
+                BoxShadow::new(Vec2::new(0.0, 2.0), 4.0, shadow_color(0.5)),
+            )
+            .set(
+                shadow_card(),
+                BoxShadow::new(Vec2::new(0.0, 6.0), 8.0, shadow_color(0.5)),
+            )
+            .set(
+                shadow_knob(),
+                BoxShadow::new(Vec2::new(0.0, 1.0), 3.0, shadow_color(0.4)),
+            )
+            .set(
+                inset_shadow_pressed(),
+                BoxShadow::new(Vec2::new(0.0, 1.0), 2.0, shadow_color(0.3)),
+            )
+            .set(
+                inset_shadow_well(),
+                BoxShadow::new(Vec2::new(0.0, 1.0), 2.0, shadow_color(0.25)),
+            );
 
         self.icons.install(&mut builder);
 
@@ -402,9 +450,14 @@ impl Default for StylesheetOptions {
             icons: Default::default(),
             colors: ColorSchemeConfig::default(),
             base_spacing: 4.0,
-            base_text_size: 16.0,
+            base_text_size: 14.0,
         }
     }
+}
+
+/// Colour of the shadows in the default stylesheet, at the given opacity
+fn shadow_color(alpha: f32) -> Srgba {
+    Srgba::new(14.0 / 255.0, 15.0 / 255.0, 18.0 / 255.0, alpha)
 }
 
 // Declares components attached to the currently active stylesheet entity.
@@ -436,9 +489,22 @@ flax::component! {
     pub icon_ellipsis: Icon,
     pub icon_search: Icon,
 
+    pub text_xsmall: f32,
     pub text_small: f32,
     pub text_medium: f32,
     pub text_large: f32,
 
+    /// Font family of titles and headings
+    pub font_display: FontFamily,
 
+    /// Shadow of a raised control, such as a button
+    pub shadow_raised: BoxShadow,
+    /// Shadow of a plane lifted above the page, such as a card or a popup
+    pub shadow_card: BoxShadow,
+    /// Shadow of a small handle, such as a slider's thumb
+    pub shadow_knob: BoxShadow,
+    /// Inset shadow of a control while pressed
+    pub inset_shadow_pressed: BoxShadow,
+    /// Inset shadow of a well carved into the surface, such as a text field or a slider's track
+    pub inset_shadow_well: BoxShadow,
 }

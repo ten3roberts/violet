@@ -36,7 +36,7 @@ use crate::{
     graphics::Gpu,
     renderer::{MainRendererConfig, WindowRenderer},
     systems::{register_text_buffers, update_text_buffers},
-    text::{TextSystem, INTER_FONT, INTER_FONT_BOLD, INTER_FONT_ITALIC},
+    text::{TextSystem, INTER_FONT, INTER_FONT_BOLD, INTER_FONT_ITALIC, MANROPE_FONT_SEMIBOLD},
 };
 
 pub struct Canvas<W> {
@@ -71,6 +71,7 @@ impl AppBuilder {
             Source::Binary(Arc::new(INTER_FONT.to_vec())),
             Source::Binary(Arc::new(INTER_FONT_BOLD.to_vec())),
             Source::Binary(Arc::new(INTER_FONT_ITALIC.to_vec())),
+            Source::Binary(Arc::new(MANROPE_FONT_SEMIBOLD.to_vec())),
         ];
 
         Self {

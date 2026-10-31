@@ -148,12 +148,7 @@ impl DebugRenderer {
                     rect.pos().extend(0.2),
                 );
 
-            let object_data = ObjectData {
-                model_matrix,
-                color,
-                corner_radius: 0.0,
-                _padding: Default::default(),
-            };
+            let object_data = ObjectData::new(model_matrix, color);
 
             Some((
                 ComputedDrawCommand {

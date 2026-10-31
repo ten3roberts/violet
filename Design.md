@@ -123,3 +123,9 @@ such as toolbar colors. Widgets such as buttons can the then be set to use the t
 accent color.
 
 Any number of semantic or tint color names can be added.
+
+Besides its fill, a shape may carry a border along the inside of its edge, an outer shadow and an inset shadow, each
+as a component of its own (`widget_border`, `widget_shadow`, `widget_inset_shadow`), drawn by the shape's single draw.
+Shadows follow CSS's `box-shadow`: an offset, a blur radius and a spread. The stylesheet names the shadows of the
+design system (raised controls, lifted planes, knobs, pressed controls and carved wells), so widgets take their depth
+from it as they take their colours. Titles and headings use the stylesheet's display font family.

@@ -7,7 +7,7 @@ use flax::{
     system::System,
     CommandBuffer, Component, Entity, EntityRef, Fetch, Query, QueryBorrow, RelationExt, World,
 };
-use glam::{vec4, Mat4, Vec2, Vec3, Vec4};
+use glam::{vec4, Mat4, Vec2, Vec4};
 use itertools::Itertools;
 use palette::Srgba;
 use parking_lot::Mutex;
@@ -211,7 +211,7 @@ impl MainRenderer {
     ) -> Self {
         let object_bind_group_layout =
             BindGroupLayoutBuilder::new("MainRenderer::object_bind_group_layout")
-                .bind_uniform_buffer(ShaderStages::VERTEX)
+                .bind_uniform_buffer(ShaderStages::VERTEX | ShaderStages::FRAGMENT)
                 .build(&ctx.gpu);
 
         let register_objects = System::builder()
@@ -473,12 +473,31 @@ fn collect_draw_commands(
 
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
-/// Per object uniform data
+/// Per object uniform data, laid out as `Object` in every shader
 pub(crate) struct ObjectData {
     pub(crate) model_matrix: Mat4,
     pub(crate) color: Vec4,
+    pub(crate) border_color: Vec4,
+    pub(crate) shadow_color: Vec4,
+    pub(crate) inset_shadow_color: Vec4,
+    /// Offset, blur and spread of the outer shadow
+    pub(crate) shadow: Vec4,
+    /// Offset, blur and spread of the inset shadow
+    pub(crate) inset_shadow: Vec4,
     pub(crate) corner_radius: f32,
-    pub(crate) _padding: Vec3,
+    pub(crate) border_width: f32,
+    pub(crate) _padding: Vec2,
+}
+
+impl ObjectData {
+    /// An object filled with `color`, without rounded corners, border or shadows
+    pub(crate) fn new(model_matrix: Mat4, color: Vec4) -> Self {
+        Self {
+            model_matrix,
+            color,
+            ..Self::zeroed()
+        }
+    }
 }
 
 struct RendererIter<'a> {

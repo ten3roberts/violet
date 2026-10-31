@@ -52,8 +52,26 @@ pub struct ButtonStyle {
     pub normal: ColorPair<ValueOrRef<Srgba>>,
     pub pressed: ColorPair<ValueOrRef<Srgba>>,
     pub hover: ColorPair<ValueOrRef<Srgba>>,
+    /// Border and shadows while not pressed
+    pub decoration: Decoration,
+    /// Border and shadows while pressed
+    pub pressed_decoration: Decoration,
     pub align: LayoutAlignment,
     pub size: WidgetSizeProps,
+}
+
+/// A control raised off the surface, sinking into it while pressed
+fn raised() -> (Decoration, Decoration) {
+    (
+        Decoration::default().with_shadow(shadow_raised()),
+        Decoration::default().with_inset_shadow(inset_shadow_pressed()),
+    )
+}
+
+/// A control carved into the surface, such as a checkbox
+fn well() -> (Decoration, Decoration) {
+    let well = Decoration::default().with_inset_shadow(inset_shadow_well());
+    (well, well)
 }
 
 impl ButtonStyle {
@@ -68,6 +86,18 @@ impl ButtonStyle {
             hover,
             ..Default::default()
         }
+    }
+
+    /// Set the border and shadows while not pressed and while pressed
+    pub fn with_decoration(mut self, decoration: Decoration, pressed: Decoration) -> Self {
+        self.decoration = decoration;
+        self.pressed_decoration = pressed;
+        self
+    }
+
+    /// A flat button, drawn without border or shadows
+    pub fn flat(self) -> Self {
+        self.with_decoration(Decoration::default(), Decoration::default())
     }
 
     /// A button that is invisible until selected but still interactive
@@ -85,6 +115,7 @@ impl ButtonStyle {
                 .with_corner_radius(default_corner_radius()),
             ..Default::default()
         }
+        .flat()
     }
 
     /// Similar to hidden but shows as raised when clicked
@@ -99,6 +130,7 @@ impl ButtonStyle {
                 .with_corner_radius(default_corner_radius()),
             ..Default::default()
         }
+        .flat()
     }
     pub fn success() -> Self {
         ButtonStyle {
@@ -116,6 +148,7 @@ impl ButtonStyle {
             hover: ColorPair::new(surface_disabled(), element_secondary()),
             ..Default::default()
         }
+        .flat()
     }
 
     pub fn danger() -> Self {
@@ -157,9 +190,11 @@ impl ButtonStyle {
             align: LayoutAlignment::left_center(),
             ..Default::default()
         }
+        .flat()
     }
 
     pub fn radio() -> Self {
+        let (decoration, pressed_decoration) = well();
         ButtonStyle {
             normal: ColorPair::new(surface_interactive(), surface_interactive()),
             pressed: ColorPair::new(surface_interactive(), surface_pressed()),
@@ -171,9 +206,11 @@ impl ButtonStyle {
                 .with_min_size(Unit::px2(20.0, 20.0)),
             ..Default::default()
         }
+        .with_decoration(decoration, pressed_decoration)
     }
 
     pub fn checkbox() -> Self {
+        let (decoration, pressed_decoration) = well();
         ButtonStyle {
             normal: ColorPair::new(surface_interactive(), Srgba::new(0.0, 0.0, 0.0, 0.0)),
             pressed: ColorPair::new(surface_pressed(), element_primary()),
@@ -186,6 +223,7 @@ impl ButtonStyle {
                 .with_max_size(Unit::px2(20.0, 20.0)),
             ..Default::default()
         }
+        .with_decoration(decoration, pressed_decoration)
     }
 
     pub fn with_align(mut self, align: LayoutAlignment) -> Self {
@@ -196,10 +234,13 @@ impl ButtonStyle {
 
 impl Default for ButtonStyle {
     fn default() -> Self {
+        let (decoration, pressed_decoration) = raised();
         Self {
             normal: ColorPair::new(surface_interactive(), element_interactive()),
             pressed: ColorPair::new(surface_pressed(), element_pressed()),
             hover: ColorPair::new(surface_hover(), element_hover()),
+            decoration,
+            pressed_decoration,
             size: WidgetSizeProps::default()
                 .with_padding(spacing_medium())
                 .with_margin(default_separation())
@@ -350,6 +391,8 @@ impl<W: Widget> Widget for Button<W> {
         let pressed = self.style.pressed.resolve(stylesheet);
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
+        let decoration = self.style.decoration.resolve(stylesheet);
+        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
 
         let label = scope.attach(self.label);
 
@@ -365,6 +408,7 @@ impl<W: Widget> Widget for Button<W> {
             .with_vertical_alignment(self.style.align.vertical);
 
         scope.set_default(tweens());
+        decoration.mount(scope);
 
         InteractiveWidget::new(inner)
             .with_size_props(self.style.size)
@@ -372,7 +416,12 @@ impl<W: Widget> Widget for Button<W> {
             .on_double_click_opt(self.on_double_click)
             .on_pointer_press(move |scope, state| {
                 // let current_color = scope.get(color());
-                let new_color = if state.is_pressed() { pressed } else { normal };
+                let (new_color, new_decoration) = if state.is_pressed() {
+                    (pressed, pressed_decoration)
+                } else {
+                    (normal, decoration)
+                };
+                new_decoration.update(scope.entity());
 
                 scope
                     .world()
@@ -451,6 +500,9 @@ impl<W: Widget> Widget for Checkbox<W> {
         let pressed = self.style.pressed.resolve(stylesheet);
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
+        let decoration = self.style.decoration.resolve(stylesheet);
+        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
+        decoration.mount(scope);
 
         let content = scope.attach(self.label);
         scope
@@ -460,7 +512,12 @@ impl<W: Widget> Widget for Checkbox<W> {
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
-                let new_color = if state { pressed } else { normal };
+                let (new_color, new_decoration) = if state {
+                    (pressed, pressed_decoration)
+                } else {
+                    (normal, decoration)
+                };
+                new_decoration.update(&scope.entity());
 
                 scope
                     .world()
@@ -538,13 +595,21 @@ impl Widget for Radio {
         let pressed = self.style.pressed.resolve(stylesheet);
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
+        let decoration = self.style.decoration.resolve(stylesheet);
+        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
+        decoration.mount(scope);
 
         let content =
             scope.attach(Rectangle::new(normal.element).with_corner_radius(Unit::rel(1.0)));
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
-                let new_color = if state { pressed } else { normal };
+                let (new_color, new_decoration) = if state {
+                    (pressed, pressed_decoration)
+                } else {
+                    (normal, decoration)
+                };
+                new_decoration.update(&scope.entity());
 
                 scope
                     .world()
@@ -667,12 +732,20 @@ impl<W: Widget> Widget for Selectable<W> {
         let pressed = self.style.pressed.resolve(stylesheet);
         let normal = self.style.normal.resolve(stylesheet);
         let _hover = self.style.hover.resolve(stylesheet);
+        let decoration = self.style.decoration.resolve(stylesheet);
+        let pressed_decoration = self.style.pressed_decoration.resolve(stylesheet);
+        decoration.mount(scope);
 
         let content = scope.attach(self.label);
 
         scope.spawn_stream(self.state.stream(), {
             move |scope, state| {
-                let new_color = if state { pressed } else { normal };
+                let (new_color, new_decoration) = if state {
+                    (pressed, pressed_decoration)
+                } else {
+                    (normal, decoration)
+                };
+                new_decoration.update(&scope.entity());
 
                 scope
                     .world()

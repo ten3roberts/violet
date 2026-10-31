@@ -26,6 +26,9 @@ pub(crate) static INTER_FONT_BOLD: &[u8] =
     include_bytes!("../../assets/fonts/Inter/static/Inter-Bold.ttf");
 pub(crate) static INTER_FONT_ITALIC: &[u8] =
     include_bytes!("../../assets/fonts/Inter/Inter-Italic-VariableFont_opsz,wght.ttf");
+/// The display font of titles and headings; only its semibold face is drawn
+pub(crate) static MANROPE_FONT_SEMIBOLD: &[u8] =
+    include_bytes!("../../assets/fonts/Manrope/Manrope-SemiBold.ttf");
 
 pub struct TextSystem {
     pub(crate) font_system: FontSystem,
@@ -442,5 +445,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Titles and headings ask for the display family at semibold; the face must be Manrope's own
+    /// rather than a fallback, which the text system picks silently.
+    #[test]
+    fn display_text_uses_manrope() {
+        let mut text_system = TextSystem::new_with_fonts(AppBuilder::new().fonts);
+        let font_system = &mut text_system.font_system;
+
+        let mut buffer = Buffer::new(font_system, Metrics::new(18.0, 18.0));
+        buffer.set_text(
+            "Settings",
+            &Attrs::new()
+                .family(Family::Name("Manrope"))
+                .weight(Weight::SEMIBOLD),
+            Shaping::Advanced,
+            None,
+        );
+        buffer.shape_until_scroll(font_system, false);
+
+        let faces = buffer
+            .layout_runs()
+            .flat_map(|run| run.glyphs.iter())
+            .map(|glyph| {
+                let face = font_system.db().face(glyph.font_id).unwrap();
+                (face.families[0].0.clone(), face.weight.0)
+            })
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(faces, BTreeSet::from([("Manrope".to_string(), 600)]));
     }
 }

@@ -9,7 +9,10 @@ use crate::{
     components::{offset, opacity, rect, screen_transform},
     icon::{Icon, IconSet},
     state::StateDuplex,
-    style::{dropdown_size, icon_ellipsis, icon_search, surface_interactive, SizeExt, StyleExt},
+    style::{
+        border_subtle, dropdown_size, icon_ellipsis, icon_search, shadow_card, surface_interactive,
+        Background, SizeExt, StyleExt,
+    },
     time::sleep,
     to_owned,
     unit::Unit,
@@ -190,7 +193,7 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
                     ))
                     .with_stretch(true),
                 )
-                .with_background(surface_interactive())
+                .with_background(menu_background())
                 .with_min_size(Unit::px2(self.width, 0.0))
                 .mount(scope);
             } else {
@@ -208,7 +211,7 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
                 .with_stretch(true);
 
                 card(ScrollArea::vertical(items).with_max_size(Unit::px2(self.width, 100.0)))
-                    .with_background(surface_interactive())
+                    .with_background(menu_background())
                     .with_min_size(Unit::px2(self.width, 0.0))
                     .mount(scope);
             }
@@ -221,4 +224,11 @@ impl<T: 'static + Send + Sync + Clone + Widget> Overlay for DropdownListOverlay<
             })
             .mount(scope);
     }
+}
+
+/// Background of the opened menu: a plane lifted above the page, edged as Verdalia's menus
+fn menu_background() -> Background {
+    Background::new(surface_interactive())
+        .with_border(1.0, border_subtle())
+        .with_shadow(shadow_card())
 }

@@ -9,6 +9,7 @@ use crate::{
     assets::Asset,
     layout::{Align, Layout, LayoutArgs, SizeResolver},
     stored::UntypedHandle,
+    style::{Border, BoxShadow},
     text::{LayoutGlyphs, TextSegment, Wrap},
     unit::Unit,
     Edges, Frame, Rect, Scope,
@@ -203,6 +204,12 @@ component! {
     pub computed_opacity: f32 => [ Debuggable ],
 
     pub widget_corner_radius: Unit<f32> => [ Debuggable ],
+    /// A border drawn along the inside of the widget's shape
+    pub widget_border: Border => [ Debuggable ],
+    /// A shadow drawn around the widget's shape
+    pub widget_shadow: BoxShadow => [ Debuggable ],
+    /// A shadow drawn inside the widget's shape
+    pub widget_inset_shadow: BoxShadow => [ Debuggable ],
 
     /// The widget will be rendered as a filled rectange coverings its bounds
     pub image: Asset<DynamicImage> => [ Debuggable ],

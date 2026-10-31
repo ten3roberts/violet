@@ -11,10 +11,12 @@ use palette::Srgba;
 use violet_core::{
     assets::{map::HandleMap, Asset, AssetCache, AssetKey},
     components::{
-        color, computed_opacity, draw_shape, image, rect, screen_transform, widget_corner_radius,
+        color, computed_opacity, draw_shape, image, rect, screen_transform, widget_border,
+        widget_corner_radius, widget_inset_shadow, widget_shadow,
     },
     shape::{self, shape_rectangle},
     stored::{self, WeakHandle},
+    style::{Border, BoxShadow},
     unit::Unit,
     Frame, Rect,
 };
@@ -76,6 +78,9 @@ struct RectObjectQuery {
     opacity: Component<f32>,
     object_data: ComponentMut<ObjectData>,
     corner_radius: OptOr<Component<Unit<f32>>, Unit<f32>>,
+    border: Opt<Component<Border>>,
+    shadow: Opt<Component<BoxShadow>>,
+    inset_shadow: Opt<Component<BoxShadow>>,
 }
 
 impl RectObjectQuery {
@@ -88,6 +93,9 @@ impl RectObjectQuery {
             object_data: object_data().as_mut(),
             color: color().opt_or(Srgba::new(1.0, 1.0, 1.0, 1.0)),
             corner_radius: widget_corner_radius().opt_or_default(),
+            border: widget_border().opt(),
+            shadow: widget_shadow().opt(),
+            inset_shadow: widget_inset_shadow().opt(),
             opacity: computed_opacity(),
         }
     }
@@ -274,10 +282,23 @@ impl RectRenderer {
                         rect.pos().extend(0.0),
                     );
 
+                let opacity = vec4(1.0, 1.0, 1.0, *item.opacity);
+                let border = item.border.copied().unwrap_or(Border::NONE);
+                let shadow = item.shadow.copied().unwrap_or(BoxShadow::NONE);
+                let inset_shadow = item.inset_shadow.copied().unwrap_or(BoxShadow::NONE);
+                let shadow_params =
+                    |shadow: &BoxShadow| shadow.offset.extend(shadow.blur).extend(shadow.spread);
+
                 *item.object_data = ObjectData {
                     model_matrix,
-                    color: srgba_to_vec4(*item.color) * vec4(1.0, 1.0, 1.0, *item.opacity),
+                    color: srgba_to_vec4(*item.color) * opacity,
+                    border_color: srgba_to_vec4(border.color) * opacity,
+                    shadow_color: srgba_to_vec4(shadow.color) * opacity,
+                    inset_shadow_color: srgba_to_vec4(inset_shadow.color) * opacity,
+                    shadow: shadow_params(&shadow),
+                    inset_shadow: shadow_params(&inset_shadow),
                     corner_radius: item.corner_radius.resolve(rect.size().min_element() / 2.0),
+                    border_width: border.width,
                     _padding: Default::default(),
                 };
             })

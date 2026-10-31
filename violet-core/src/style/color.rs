@@ -28,6 +28,9 @@ colorpalette! {
     surface_secondary: Srgba,
     surface_tertiary: Srgba,
 
+    border_primary: Srgba,
+    border_subtle: Srgba,
+
     surface_success: Srgba,
     surface_warning: Srgba,
     surface_danger: Srgba,
@@ -187,6 +190,8 @@ impl ColorPalette {
             surface_primary: surface.primary,
             surface_secondary: surface.secondary,
             surface_tertiary: surface.tertiary,
+            border_primary: ZINC_600,
+            border_subtle: ZINC_700,
             element_primary: element.primary,
             element_secondary: element.secondary,
             element_tertiary: element.tertiary,

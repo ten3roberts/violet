@@ -8,7 +8,7 @@ use crate::{
     layout::{Align, Direction, FloatLayout, FlowLayout, Layout, StackLayout},
     scope::ScopeRef,
     style::{
-        default_corner_radius, default_separation, spacing_small, surface_secondary,
+        default_corner_radius, default_separation, shadow_card, spacing_small, surface_secondary,
         surface_tertiary, Background, SizeExt, StyleExt, WidgetSizeProps,
     },
     unit::Unit,
@@ -352,17 +352,17 @@ pub fn centered_horizontal<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget).with_horizontal_alignment(Align::Center)
 }
 
-/// Inset content area with margin
+/// Content area lifted above the page
 pub fn card<W: WidgetCollection>(widget: W) -> Stack<W> {
     Stack::new(widget)
-        .with_background(Background::new(surface_secondary()))
+        .with_background(Background::new(surface_secondary()).with_shadow(shadow_card()))
         .with_padding(default_separation())
         .with_margin(default_separation())
         .with_corner_radius(default_corner_radius())
 }
 
 pub fn raised_card<W: WidgetCollection>(widget: W) -> Stack<W> {
-    card(widget).with_background(surface_tertiary())
+    card(widget).with_background(Background::new(surface_tertiary()).with_shadow(shadow_card()))
 }
 
 /// Inset content area

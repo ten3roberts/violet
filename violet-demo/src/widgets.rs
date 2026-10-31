@@ -144,6 +144,12 @@ fn colors() -> impl Widget {
                 color(AMETHYST_500),
                 color(AMETHYST_600),
             )),
+            row((color(LOTUS_400), color(LOTUS_500), color(LOTUS_600))),
+            row((
+                color(TANGERINE_400),
+                color(TANGERINE_500),
+                color(TANGERINE_600),
+            )),
         ))
         .with_stretch(true)
         .with_cross_align(Align::Center),

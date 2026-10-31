@@ -1,10 +1,4 @@
-
-use crate::{
-    components::handle_detach,
-    time::sleep,
-    tweens::DynamicTween,
-    Scope, Widget,
-};
+use crate::{components::handle_detach, time::sleep, tweens::DynamicTween, Scope, Widget};
 
 pub struct AnimateLifecycle<W> {
     pub inner: W,

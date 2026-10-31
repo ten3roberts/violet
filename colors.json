@@ -3,30 +3,30 @@
     {
       "name": "Stone",
       "base_color": {
-        "OkLab": {
-          "l": 0.5,
-          "chroma": 0.0,
-          "hue": 0.0
+        "Rgb": {
+          "red": 0.3137255,
+          "green": 0.3137255,
+          "blue": 0.3137255
         }
       }
     },
     {
       "name": "Platinum",
       "base_color": {
-        "OkLab": {
-          "l": 0.5,
-          "chroma": 0.005,
-          "hue": 106.3
+        "Rgb": {
+          "red": 0.3137255,
+          "green": 0.3137255,
+          "blue": 0.3019608
         }
       }
     },
     {
       "name": "Zinc",
       "base_color": {
-        "OkLab": {
-          "l": 0.5,
-          "chroma": 0.005,
-          "hue": 270.0
+        "Rgb": {
+          "red": 0.30980393,
+          "green": 0.3137255,
+          "blue": 0.3254902
         }
       }
     },
@@ -34,9 +34,9 @@
       "name": "Ruby",
       "base_color": {
         "OkLab": {
-          "l": 0.5,
-          "chroma": 0.12,
-          "hue": 21.69913
+          "l": 0.51011205,
+          "chroma": 0.1,
+          "hue": 22.201708
         }
       }
     },
@@ -44,9 +44,9 @@
       "name": "Amber",
       "base_color": {
         "OkLab": {
-          "l": 0.5,
-          "chroma": 0.12,
-          "hue": 88.515526
+          "l": 0.5124482,
+          "chroma": 0.1,
+          "hue": 85.25105
         }
       }
     },
@@ -54,9 +54,9 @@
       "name": "Forest",
       "base_color": {
         "OkLab": {
-          "l": 0.5707032,
-          "chroma": 0.12,
-          "hue": 140.5
+          "l": 0.5095079,
+          "chroma": 0.1,
+          "hue": 140.30887
         }
       }
     },
@@ -64,9 +64,9 @@
       "name": "Emerald",
       "base_color": {
         "OkLab": {
-          "l": 0.5,
-          "chroma": 0.12,
-          "hue": 163.0
+          "l": 0.514932,
+          "chroma": 0.1,
+          "hue": 161.38885
         }
       }
     },
@@ -74,9 +74,9 @@
       "name": "Teal",
       "base_color": {
         "OkLab": {
-          "l": 0.5,
-          "chroma": 0.12,
-          "hue": 199.8
+          "l": 0.5247846,
+          "chroma": 0.1,
+          "hue": 202.90259
         }
       }
     },
@@ -84,9 +84,9 @@
       "name": "Sapphire",
       "base_color": {
         "OkLab": {
-          "l": 0.5,
-          "chroma": 0.12,
-          "hue": 259.0
+          "l": 0.5098149,
+          "chroma": 0.1,
+          "hue": 259.0771
         }
       }
     },
@@ -94,19 +94,39 @@
       "name": "Amethyst",
       "base_color": {
         "OkLab": {
+          "l": 0.51020736,
+          "chroma": 0.1,
+          "hue": 299.77686
+        }
+      }
+    },
+    {
+      "name": "Lotus",
+      "base_color": {
+        "OkLab": {
           "l": 0.5,
-          "chroma": 0.12,
-          "hue": 300.0
+          "chroma": 0.2,
+          "hue": 6.163563
+        }
+      }
+    },
+    {
+      "name": "Tangerine\r",
+      "base_color": {
+        "OkLab": {
+          "l": 0.5,
+          "chroma": 0.1,
+          "hue": 48.0
         }
       }
     }
   ],
   "shade_settings": {
     "enabled": false,
-    "min_lum": 0.17,
-    "max_lum": 0.85,
+    "min_lum": 0.16,
+    "max_lum": 0.8,
     "falloff": 10.0,
     "neutral_curve": 0.7,
-    "neutral_chroma_threshold": 0.05
+    "neutral_chroma_threshold": 0.1
   }
 }

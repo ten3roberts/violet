@@ -8,10 +8,7 @@ pub use cosmic_text::{fontdb::Source, Style, Weight, Wrap};
 use glam::{vec2, Vec2};
 use palette::Srgba;
 
-use crate::{
-    style::ValueOrRef,
-    Rect,
-};
+use crate::{style::ValueOrRef, Rect};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 // Inspired by: https://github.com/pop-os/cosmic-text

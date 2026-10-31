@@ -52,7 +52,7 @@ impl Default for TextInputStyle {
         Self {
             cursor_color: surface_interactive_accent().into(),
             selection_color: surface_hover_accent().into(),
-            background: Background::new(surface_interactive()),
+            background: Background::new(surface_interactive()).with_border(1.0, border_primary()),
             align: Align::Start,
             size: WidgetSizeProps::default()
                 .with_min_size(Unit::px2(16.0, 24.0))

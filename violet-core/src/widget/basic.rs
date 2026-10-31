@@ -7,10 +7,11 @@ use crate::{
     icon::Icon,
     shape,
     style::{
-        element_primary, element_secondary, spacing_medium, spacing_small, text_large, text_medium,
-        text_small, ResolvableStyle, SizeExt, StyleExt, ValueOrRef, WidgetSizeProps,
+        element_primary, element_secondary, font_display, spacing_medium, spacing_small,
+        text_large, text_medium, text_small, BoxShadow, Decoration, ResolvableStyle, SizeExt,
+        StyleExt, ValueOrRef, WidgetSizeProps,
     },
-    text::{TextSegment, Wrap},
+    text::{FontFamily, TextSegment, Wrap},
     unit::Unit,
     Scope, Widget,
 };
@@ -23,6 +24,7 @@ pub struct Rectangle {
     color: ValueOrRef<Srgba>,
     size: WidgetSizeProps,
     aspect_ratio: Option<f32>,
+    decoration: Decoration,
 }
 
 impl Rectangle {
@@ -31,6 +33,7 @@ impl Rectangle {
             color: color.into(),
             size: Default::default(),
             aspect_ratio: None,
+            decoration: Decoration::default(),
         }
     }
 
@@ -38,11 +41,30 @@ impl Rectangle {
         self.aspect_ratio = Some(aspect_ratio);
         self
     }
+
+    /// Draw a border of `width` pixels along the inside of the rectangle's edge
+    pub fn with_border(mut self, width: f32, color: impl Into<ValueOrRef<Srgba>>) -> Self {
+        self.decoration = self.decoration.with_border(width, color);
+        self
+    }
+
+    /// Cast a shadow around the rectangle
+    pub fn with_shadow(mut self, shadow: impl Into<ValueOrRef<BoxShadow>>) -> Self {
+        self.decoration = self.decoration.with_shadow(shadow);
+        self
+    }
+
+    /// Cast a shadow inside the rectangle, sinking it into the surface
+    pub fn with_inset_shadow(mut self, shadow: impl Into<ValueOrRef<BoxShadow>>) -> Self {
+        self.decoration = self.decoration.with_inset_shadow(shadow);
+        self
+    }
 }
 
 impl Widget for Rectangle {
     fn mount(self, scope: &mut Scope) {
         self.size.mount(scope);
+        self.decoration.mount(scope);
 
         let c = self.color.resolve(scope.stylesheet());
 
@@ -65,6 +87,8 @@ pub struct TextStyle {
     pub font_size: ValueOrRef<f32>,
     pub wrap: Wrap,
     pub color: ValueOrRef<Srgba>,
+    /// Font family of every segment, overriding the segments' own
+    pub font_family: Option<ValueOrRef<FontFamily>>,
 }
 
 impl Default for TextStyle {
@@ -73,6 +97,7 @@ impl Default for TextStyle {
             font_size: text_small().into(),
             wrap: Wrap::None,
             color: element_primary().into(),
+            font_family: None,
         }
     }
 }
@@ -136,6 +161,12 @@ impl Text {
         self
     }
 
+    /// Set the font family of all of the text
+    pub fn with_font_family(mut self, family: impl Into<ValueOrRef<FontFamily>>) -> Self {
+        self.style.font_family = Some(family.into());
+        self
+    }
+
     pub fn with_wrap(mut self, wrap: Wrap) -> Self {
         self.style.wrap = wrap;
         self
@@ -178,11 +209,18 @@ impl SizeExt for Text {
 }
 
 impl Widget for Text {
-    fn mount(self, scope: &mut Scope) {
+    fn mount(mut self, scope: &mut Scope) {
         self.size.mount(scope);
 
         let stylesheet = scope.stylesheet();
         let font_size = self.style.font_size.resolve(stylesheet);
+
+        if let Some(family) = &self.style.font_family {
+            let family = family.resolve(stylesheet);
+            for segment in &mut self.text {
+                segment.family = family.clone();
+            }
+        }
 
         let font_color = self.style.color.resolve(stylesheet);
         scope
@@ -210,15 +248,18 @@ pub fn header(text: impl Into<String>) -> Stack<Text> {
     Stack::new(Text::new(text).with_margin(spacing_small())).with_padding(spacing_small())
 }
 
-/// A text with a margin
+/// A title in the display font, with a margin
 pub fn title(text: impl Into<String>) -> Text {
-    Text::bold(text)
+    Text::formatted([TextSegment::new(text.into()).with_weight(Weight::SEMIBOLD)])
+        .with_font_family(font_display())
         .with_font_size(text_large())
         .with_margin(spacing_medium())
 }
 
+/// A subtitle in the display font, with a margin
 pub fn subtitle(text: impl Into<String>) -> Text {
-    Text::medium(text)
+    Text::formatted([TextSegment::new(text.into()).with_weight(Weight::SEMIBOLD)])
+        .with_font_family(font_display())
         .with_color(element_secondary())
         .with_font_size(text_medium())
         .with_margin(spacing_medium())

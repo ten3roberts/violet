@@ -1,4 +1,4 @@
-colors = require("./colors.json")
+colors = require("./design-tokens.json")
 
 console.log(`use palette::Srgba;
 use crate::srgba;

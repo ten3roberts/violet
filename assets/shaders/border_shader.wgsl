@@ -13,10 +13,18 @@ struct VertexOutput {
     @location(3) scale: vec2<f32>,
 }
 
+// The layout of `ObjectData`, shared by every renderer
 struct Object {
     world_matrix: mat4x4<f32>,
     color: vec4<f32>,
+    border_color: vec4<f32>,
+    shadow_color: vec4<f32>,
+    inset_shadow_color: vec4<f32>,
+    shadow: vec4<f32>,
+    inset_shadow: vec4<f32>,
     corner_radius: f32,
+    border_width: f32,
+    _padding: vec2<f32>,
 }
 
 struct Globals {

@@ -443,12 +443,7 @@ impl TextRenderer {
                         rect.pos().extend(0.0),
                     );
 
-                *item.object_data = ObjectData {
-                    model_matrix,
-                    color: Vec4::ONE,
-                    corner_radius: 0.0,
-                    _padding: Default::default(),
-                };
+                *item.object_data = ObjectData::new(model_matrix, Vec4::ONE);
             })
     }
 
